@@ -510,20 +510,33 @@
 
   function buildKpiHelpPopoverHtml(tile) {
     var hint = tile && tile.hint != null ? String(tile.hint).trim() : "";
-    var fallback = "Нажмите, чтобы открыть подробную информацию, формулу и цветовые пороги KPI.";
-    return (
+    var fallback = "Нажмите, чтобы открыть подробную информацию и цветовые пороги KPI.";
+    var formulaRaw = tile && tile.formula != null ? String(tile.formula).trim() : "";
+    var html =
       '<div class="kpi-help-popover-title">' +
       DashUi.escapeHtml(tile && tile.title ? tile.title : "Показатель") +
       "</div>" +
       '<div class="kpi-help-popover-body">' +
       DashUi.escapeHtml(hint || fallback) +
-      "</div>"
-    );
+      "</div>";
+    if (formulaRaw) {
+      html +=
+        '<div class="kpi-help-popover-formula-section">' +
+        '<div class="kpi-help-popover-formula-label">Формула</div>' +
+        '<div class="kpi-help-popover-formula" data-popover-formula></div>' +
+        "</div>";
+    }
+    return html;
   }
 
   function showKpiHelpPopover(anchorEl, tile) {
     if (!kpiHelpPopoverEl || !anchorEl || !tile) return;
     kpiHelpPopoverEl.innerHTML = buildKpiHelpPopoverHtml(tile);
+    var formulaSlot = kpiHelpPopoverEl.querySelector("[data-popover-formula]");
+    if (formulaSlot && tile.formula != null && String(tile.formula).trim()) {
+      DashLatex.renderKpiThresholdsDialogFormula(formulaSlot, String(tile.formula).trim());
+      formulaSlot.classList.add("kpi-help-popover-formula");
+    }
     kpiHelpPopoverEl.hidden = false;
     kpiHelpPopoverEl.style.left = "0px";
     kpiHelpPopoverEl.style.top = "0px";
@@ -589,23 +602,22 @@
     }
     if (state.rows && state.rows.length) {
       return (
-        '<div class="kpi-tile-children-table">' +
+        '<div class="kpi-tile-children-list">' +
         state.rows
           .map(function (row) {
+            var ragClass = row.rag || "blue";
             return (
-              '<a class="kpi-tile-child-row kpi-tile-child-link" role="button" tabindex="0" data-department="' +
+              '<a class="kpi-tile-child-item kpi-tile-child-link" tabindex="0" data-department="' +
               DashUi.escapeHtml(row.department) +
               '">' +
-              '<span class="kpi-tile-child-rag"><span class="rag-dot rag-' +
-              (row.rag || "blue") +
-              '"></span></span>' +
+              '<span class="kpi-tile-child-dot rag-dot rag-' + ragClass + '"></span>' +
               '<span class="kpi-tile-child-name">' +
               DashUi.escapeHtml(DashUi.capitalizeHeaderTitle(row.department)) +
               "</span>" +
-              '<span class="kpi-tile-child-pct">' +
+              '<span class="kpi-tile-child-value">' +
               DashUi.escapeHtml(row.kpiPct) +
-              "</span>" +
-              '<span class="kpi-tile-child-arrow">\u203A</span>' +
+              '</span>' +
+              '<svg class="kpi-tile-child-chevron" width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4.5 2.5L8 6L4.5 9.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
               "</a>"
             );
           })
