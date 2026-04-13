@@ -54,13 +54,16 @@
   /** Подпись в шапке из поля department последнего успешного ответа KPI (json) */
   var lastKpiResponseDepartment = null;
 
-  /** Плитка, под которой закреплён выпадающий список по отделам */
-  var drilldownAnchorArticle = null;
-  var drilldownPositionSyncFn = null;
   /** Плитка, для которой открыт drilldown (для перехода на дочерний дашборд) */
   var drilldownContextTile = null;
+  /** Индекс перевёрнутой KPI-карточки (на экране открыта только одна) */
+  var activeFlippedTileIndex = null;
+  /** Состояние загрузки дочерних отделов на обороте карточек */
+  var kpiTileDetailsState = Object.create(null);
   /** После перехода из drilldown — подсветить соответствующую плитку на новом виде */
   var pendingKpiTileFocus = null;
+  /** Hover/focus popover для кнопки `?` */
+  var kpiHelpPopoverEl = document.getElementById("kpi-help-popover");
 
   /** Кэш плиток KPI по названию отдела — меньше повторных GET при drilldown */
   var drilldownKpiTilesCache = Object.create(null);
@@ -226,14 +229,34 @@
     window.location.href = "login.html";
   });
 
-  /** Контейнер плиток KPI: делегирование — «?» (пороги) и клик по плитке (drilldown). */
+  /** Контейнер плиток KPI: `?` по hover/focus, клик по карточке — flip, клик по дочернему отделу — переход. */
   var kpiContainerEl = document.getElementById("kpi-container");
   if (kpiContainerEl) {
     kpiContainerEl.addEventListener("click", function (e) {
+      var childBtn = e.target.closest(".kpi-tile-child-link");
+      if (childBtn && kpiContainerEl.contains(childBtn)) {
+        e.preventDefault();
+        e.stopPropagation();
+        var childDept = childBtn.getAttribute("data-department");
+        if (childDept) navigateDashboardToDepartmentFromDrill(childDept);
+        return;
+      }
+      var flipBtn = e.target.closest(".kpi-tile-flip-action");
+      if (flipBtn && kpiContainerEl.contains(flipBtn)) {
+        e.preventDefault();
+        e.stopPropagation();
+        var artFlip = flipBtn.closest("article.kpi-tile");
+        if (!artFlip) return;
+        var ixFlip = artFlip.getAttribute("data-kpi-tile-index");
+        if (ixFlip == null) return;
+        openKpiTileDrilldown(+ixFlip);
+        return;
+      }
       var btn = e.target.closest(".kpi-tile-help");
       if (btn && kpiContainerEl.contains(btn)) {
         e.preventDefault();
         e.stopPropagation();
+        hideKpiHelpPopover();
         var artHelp = btn.closest("article.kpi-tile");
         if (!artHelp) return;
         var ixH = artHelp.getAttribute("data-kpi-tile-index");
@@ -243,10 +266,71 @@
       }
       var art = e.target.closest("article.kpi-tile");
       if (!art || !kpiContainerEl.contains(art)) return;
+      if (e.target.closest("button, a, input, select, textarea")) return;
+      hideKpiHelpPopover();
       var ix = art.getAttribute("data-kpi-tile-index");
       if (ix == null || !lastKpiTiles || lastKpiTiles[+ix] == null) return;
       openKpiTileDrilldown(+ix);
     });
+    kpiContainerEl.addEventListener("keydown", function (e) {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      var art = e.target.closest("article.kpi-tile");
+      if (!art || !kpiContainerEl.contains(art)) return;
+      if (e.target.closest(".kpi-tile-child-link, .kpi-tile-help, .kpi-tile-flip-action")) return;
+      e.preventDefault();
+      var ix = art.getAttribute("data-kpi-tile-index");
+      if (ix == null || !lastKpiTiles || lastKpiTiles[+ix] == null) return;
+      openKpiTileDrilldown(+ix);
+    });
+    kpiContainerEl.addEventListener("mouseover", function (e) {
+      var btn = e.target.closest(".kpi-tile-help");
+      if (!btn || !kpiContainerEl.contains(btn)) return;
+      var art = btn.closest("article.kpi-tile");
+      if (!art) return;
+      var ix = art.getAttribute("data-kpi-tile-index");
+      if (ix == null || !lastKpiTiles || lastKpiTiles[+ix] == null) return;
+      showKpiHelpPopover(btn, lastKpiTiles[+ix]);
+    });
+    kpiContainerEl.addEventListener("mouseout", function (e) {
+      var btn = e.target.closest(".kpi-tile-help");
+      if (!btn || !kpiContainerEl.contains(btn)) return;
+      if (btn.contains(e.relatedTarget)) return;
+      hideKpiHelpPopover();
+    });
+    kpiContainerEl.addEventListener("focusin", function (e) {
+      var btn = e.target.closest(".kpi-tile-help");
+      if (!btn || !kpiContainerEl.contains(btn)) return;
+      var art = btn.closest("article.kpi-tile");
+      if (!art) return;
+      var ix = art.getAttribute("data-kpi-tile-index");
+      if (ix == null || !lastKpiTiles || lastKpiTiles[+ix] == null) return;
+      showKpiHelpPopover(btn, lastKpiTiles[+ix]);
+    });
+    kpiContainerEl.addEventListener("focusout", function (e) {
+      var btn = e.target.closest(".kpi-tile-help");
+      if (!btn || !kpiContainerEl.contains(btn)) return;
+      hideKpiHelpPopover();
+    });
+    kpiContainerEl.addEventListener(
+      "wheel",
+      function (e) {
+        var tile = e.target.closest("article.kpi-tile.is-flipped");
+        if (!tile || !kpiContainerEl.contains(tile)) return;
+        var backFace = tile.querySelector(".kpi-tile-face--back");
+        if (!backFace) return;
+        e.preventDefault();
+        e.stopPropagation();
+        var canScroll = backFace.scrollHeight > backFace.clientHeight + 1;
+        if (!canScroll) return;
+        var delta = e.deltaY;
+        var top = backFace.scrollTop;
+        var maxTop = backFace.scrollHeight - backFace.clientHeight;
+        if (delta < 0 && top <= 0) return;
+        if (delta > 0 && top >= maxTop - 1) return;
+        backFace.scrollTop = Math.max(0, Math.min(maxTop, top + delta));
+      },
+      { passive: false }
+    );
   }
 
   /* ---------- KPI: синонимы названий и сопоставление плиток (drilldown) ---------- */
@@ -391,78 +475,244 @@
     return rows;
   }
 
-  /* ---------- Панель drilldown: позиционирование у плитки ---------- */
+  /* ---------- KPI-card drilldown: hover help + flip-card с детьми ---------- */
 
-  function detachDrilldownPositionSync() {
-    if (drilldownPositionSyncFn) {
-      window.removeEventListener("scroll", drilldownPositionSyncFn, true);
-      window.removeEventListener("resize", drilldownPositionSyncFn);
-      drilldownPositionSyncFn = null;
-    }
-    drilldownAnchorArticle = null;
+  function drilldownRagSortWeight(rag) {
+    var key = rag != null ? String(rag).toLowerCase().trim() : "";
+    if (key === "red") return 0;
+    if (key === "yellow") return 1;
+    if (key === "green") return 2;
+    if (key === "blue") return 3;
+    return 4;
   }
 
-  /** Фиксированная панель под якорной плиткой с учётом краёв окна. */
-  function positionKpiDrilldownPanel() {
-    var panel = document.getElementById("kpi-tile-drilldown");
-    var art = drilldownAnchorArticle;
-    if (!panel || panel.hidden || !art) return;
-    try {
-      if (!document.body.contains(art)) return;
-    } catch (e) {
-      return;
-    }
-    var a = art.getBoundingClientRect();
-    var pad = 8;
-    var w = Math.max(a.width, 260);
-    var left = a.left;
-    if (left + w > window.innerWidth - pad) {
-      left = Math.max(pad, window.innerWidth - w - pad);
-    }
-    if (left < pad) left = pad;
-    panel.style.position = "fixed";
-    panel.style.left = left + "px";
-    panel.style.top = a.bottom + 4 + "px";
-    panel.style.width = w + "px";
-    panel.style.maxWidth = window.innerWidth - 2 * pad + "px";
-    panel.style.maxHeight = Math.max(160, window.innerHeight - a.bottom - 16) + "px";
-    panel.style.overflowY = "auto";
-    panel.style.zIndex = "200";
-    panel.style.margin = "0";
+  function sortDrilldownRows(rows) {
+    return (rows || []).slice().sort(function (a, b) {
+      var ragDiff = drilldownRagSortWeight(a && a.rag) - drilldownRagSortWeight(b && b.rag);
+      if (ragDiff !== 0) return ragDiff;
+      var aName = a && a.department ? String(a.department).toLowerCase() : "";
+      var bName = b && b.department ? String(b.department).toLowerCase() : "";
+      return aName.localeCompare(bName, "ru");
+    });
   }
 
-  /** Подписка на scroll/resize для удержания панели под плиткой. */
-  function attachDrilldownPositionSync(articleEl) {
-    detachDrilldownPositionSync();
-    drilldownAnchorArticle = articleEl;
-    drilldownPositionSyncFn = function () {
-      positionKpiDrilldownPanel();
-    };
-    window.addEventListener("scroll", drilldownPositionSyncFn, true);
-    window.addEventListener("resize", drilldownPositionSyncFn);
-    positionKpiDrilldownPanel();
+  function getKpiTileDetailsState(tileIndex) {
+    if (!kpiTileDetailsState[tileIndex]) {
+      kpiTileDetailsState[tileIndex] = {
+        loading: false,
+        loaded: false,
+        rows: [],
+        hint: "",
+      };
+    }
+    return kpiTileDetailsState[tileIndex];
   }
 
-  /** Скрывает панель drilldown и сбрасывает inline-стили позиционирования. */
+  function buildKpiHelpPopoverHtml(tile) {
+    var hint = tile && tile.hint != null ? String(tile.hint).trim() : "";
+    var fallback = "Нажмите, чтобы открыть подробную информацию, формулу и цветовые пороги KPI.";
+    return (
+      '<div class="kpi-help-popover-title">' +
+      DashUi.escapeHtml(tile && tile.title ? tile.title : "Показатель") +
+      "</div>" +
+      '<div class="kpi-help-popover-body">' +
+      DashUi.escapeHtml(hint || fallback) +
+      "</div>"
+    );
+  }
+
+  function showKpiHelpPopover(anchorEl, tile) {
+    if (!kpiHelpPopoverEl || !anchorEl || !tile) return;
+    kpiHelpPopoverEl.innerHTML = buildKpiHelpPopoverHtml(tile);
+    kpiHelpPopoverEl.hidden = false;
+    kpiHelpPopoverEl.style.left = "0px";
+    kpiHelpPopoverEl.style.top = "0px";
+    var anchorRect = anchorEl.getBoundingClientRect();
+    var popRect = kpiHelpPopoverEl.getBoundingClientRect();
+    var left = Math.min(
+      window.innerWidth - popRect.width - 12,
+      Math.max(12, anchorRect.right - popRect.width)
+    );
+    var top = anchorRect.bottom + 12;
+    if (top + popRect.height > window.innerHeight - 12) {
+      top = Math.max(12, anchorRect.top - popRect.height - 12);
+    }
+    kpiHelpPopoverEl.style.left = left + "px";
+    kpiHelpPopoverEl.style.top = top + "px";
+  }
+
+  function hideKpiHelpPopover() {
+    if (!kpiHelpPopoverEl) return;
+    kpiHelpPopoverEl.hidden = true;
+  }
+
+  function buildKpiTileThresholdSummaryHtml(tile) {
+    var defs = [
+      { rag: "red", key: "red_threshold", label: "Красный" },
+      { rag: "yellow", key: "yellow_threshold", label: "Жёлтый" },
+      { rag: "green", key: "green_threshold", label: "Зелёный" },
+    ];
+    if (tile && tile.blue_threshold != null && String(tile.blue_threshold).trim()) {
+      defs.push({ rag: "blue", key: "blue_threshold", label: "Синий" });
+    }
+    var items = defs
+      .map(function (item) {
+        var value = tile && tile[item.key] != null ? String(tile[item.key]).trim() : "";
+        if (!value) return "";
+        return (
+          '<span class="kpi-tile-threshold-chip">' +
+          '<span class="rag-dot rag-' +
+          item.rag +
+          '" aria-hidden="true"></span>' +
+          '<span class="kpi-tile-threshold-chip-label">' +
+          item.label +
+          ':</span><span class="kpi-tile-threshold-chip-value">' +
+          DashUi.escapeHtml(value) +
+          "</span></span>"
+        );
+      })
+      .filter(Boolean);
+    return items.length
+      ? items.join("")
+      : '<span class="kpi-tile-back-message">Пороги для этого показателя не переданы.</span>';
+  }
+
+  function buildKpiTileChildrenHtml(state) {
+    if (!state) return '<div class="kpi-tile-back-message">Нет данных.</div>';
+    if (state.loading) {
+      return (
+        '<div class="kpi-tile-back-loading">' +
+        '<span class="kpi-tile-back-loading-spinner" aria-hidden="true"></span>' +
+        "<span>Загрузка дочерних отделов…</span>" +
+        "</div>"
+      );
+    }
+    if (state.rows && state.rows.length) {
+      return (
+        '<div class="kpi-tile-children-table">' +
+        state.rows
+          .map(function (row) {
+            return (
+              '<a class="kpi-tile-child-row kpi-tile-child-link" role="button" tabindex="0" data-department="' +
+              DashUi.escapeHtml(row.department) +
+              '">' +
+              '<span class="kpi-tile-child-rag"><span class="rag-dot rag-' +
+              (row.rag || "blue") +
+              '"></span></span>' +
+              '<span class="kpi-tile-child-name">' +
+              DashUi.escapeHtml(DashUi.capitalizeHeaderTitle(row.department)) +
+              "</span>" +
+              '<span class="kpi-tile-child-pct">' +
+              DashUi.escapeHtml(row.kpiPct) +
+              "</span>" +
+              '<span class="kpi-tile-child-arrow">\u203A</span>' +
+              "</a>"
+            );
+          })
+          .join("") +
+        "</div>"
+      );
+    }
+    return (
+      '<div class="kpi-tile-back-message">' +
+      DashUi.escapeHtml(state.hint || "Для этого показателя пока нет доступных дочерних отделов.") +
+      "</div>"
+    );
+  }
+
+  function buildKpiTileBackFaceHtml(tile, tileIndex) {
+    var state = getKpiTileDetailsState(tileIndex);
+    var pres = MockData.getKpiTilePresentation(tile);
+    var percentLabel = MockData.formatKpiPercentLabel(pres.percent) + "%";
+    var hint = tile && tile.hint != null ? String(tile.hint).trim() : "";
+    var formulaRaw = tile && tile.formula != null ? String(tile.formula).trim() : "";
+    var period = tile && tile.period != null ? String(tile.period).trim() : "";
+    var code = tile && (tile.badge || tile.kpi_id) ? String(tile.badge || tile.kpi_id).trim() : "";
+    var hasPf = DashUi.kpiTileHasPlanAndFact(tile);
+    return (
+      '<div class="kpi-tile-back-head">' +
+      '<div class="kpi-tile-back-head-copy">' +
+      (code ? '<span class="kpi-tile-back-badge">' + DashUi.escapeHtml(code) + "</span>" : "") +
+      '<h3 class="kpi-tile-back-title">' +
+      DashUi.escapeHtml(tile && tile.title ? tile.title : "Показатель") +
+      "</h3>" +
+      (period ? '<p class="kpi-tile-back-period">' + DashUi.escapeHtml(period) + "</p>" : "") +
+      "</div>" +
+      '<button type="button" class="kpi-tile-flip-action" aria-label="Вернуться к карточке">Назад</button>' +
+      "</div>" +
+      '<div class="kpi-tile-back-summary">' +
+      '<div class="kpi-tile-back-summary-item"><span class="kpi-tile-back-summary-label">KPI</span><strong>' +
+      DashUi.escapeHtml(percentLabel) +
+      "</strong></div>" +
+      (hasPf
+        ? '<div class="kpi-tile-back-summary-item"><span class="kpi-tile-back-summary-label">План / факт</span><strong>' +
+          DashUi.escapeHtml(DashUi.formatKpiTilePlanFactValue(tile.plan)) +
+          " / " +
+          DashUi.escapeHtml(DashUi.formatKpiTilePlanFactValue(tile.fact)) +
+          "</strong></div>"
+        : "") +
+      "</div>" +
+      (hint ? '<p class="kpi-tile-back-hint">' + DashUi.escapeHtml(hint) + "</p>" : "") +
+      '<div class="kpi-tile-back-section">' +
+      '<div class="kpi-tile-back-section-title">Пороговые значения</div>' +
+      '<div class="kpi-tile-threshold-chips">' +
+      buildKpiTileThresholdSummaryHtml(tile) +
+      "</div></div>" +
+      (formulaRaw
+        ? '<div class="kpi-tile-back-section"><div class="kpi-tile-back-section-title">Формула</div><div class="kpi-tile-back-formula" data-kpi-tile-formula="' +
+          String(tileIndex) +
+          '"></div></div>'
+        : "") +
+      '<div class="kpi-tile-back-section">' +
+      '<div class="kpi-tile-back-section-title">Дочерние отделы</div>' +
+      buildKpiTileChildrenHtml(state) +
+      "</div>"
+    );
+  }
+
+  function renderKpiTileBackFace(articleEl, tileIndex) {
+    if (!articleEl || !lastKpiTiles || !lastKpiTiles[tileIndex]) return;
+    var backFace = articleEl.querySelector(".kpi-tile-face--back");
+    if (!backFace) return;
+    var tile = lastKpiTiles[tileIndex];
+    backFace.innerHTML = buildKpiTileBackFaceHtml(tile, tileIndex);
+    var formulaEl = backFace.querySelector('[data-kpi-tile-formula="' + String(tileIndex) + '"]');
+    if (formulaEl && tile.formula != null && String(tile.formula).trim()) {
+      DashLatex.renderKpiThresholdsDialogFormula(formulaEl, String(tile.formula).trim());
+    }
+  }
+
+  function syncKpiTileFlipState() {
+    var articles = document.querySelectorAll("#kpi-container article.kpi-tile");
+    articles.forEach(function (articleEl) {
+      var idx = articleEl.getAttribute("data-kpi-tile-index");
+      var isActive = idx != null && +idx === activeFlippedTileIndex;
+      articleEl.classList.toggle("is-flipped", isActive);
+      articleEl.setAttribute("aria-expanded", isActive ? "true" : "false");
+      if (isActive) {
+        renderKpiTileBackFace(articleEl, +idx);
+      }
+    });
+    if (activeFlippedTileIndex != null) {
+      DashUi.scrollElementIntoViewCentered(
+        document.querySelector(
+          '#kpi-container article.kpi-tile[data-kpi-tile-index="' + String(activeFlippedTileIndex) + '"]'
+        )
+      );
+    }
+  }
+
+  /** Скрывает drilldown на карточке и legacy-панель, если она ещё есть в DOM. */
   function closeKpiTileDrilldown() {
     drilldownContextTile = null;
-    detachDrilldownPositionSync();
+    activeFlippedTileIndex = null;
+    hideKpiHelpPopover();
     var panel = document.getElementById("kpi-tile-drilldown");
-    if (panel) {
-      panel.hidden = true;
-      panel.style.position = "";
-      panel.style.left = "";
-      panel.style.top = "";
-      panel.style.width = "";
-      panel.style.maxWidth = "";
-      panel.style.maxHeight = "";
-      panel.style.overflowY = "";
-      panel.style.zIndex = "";
-      panel.style.margin = "";
-    }
-    var loadEl = document.getElementById("kpi-tile-drilldown-loading");
-    if (loadEl) loadEl.hidden = true;
+    if (panel) panel.hidden = true;
+    syncKpiTileFlipState();
   }
+
+  function positionKpiDrilldownPanel() {}
 
   /**
    * Переход на дашборд выбранного дочернего отдела: крошки, вкладки, повторная загрузка KPI.
@@ -499,63 +749,48 @@
     });
   }
 
-  /**
-   * Открывает таблицу «тот же KPI в дочерних отделах»; в live параллельно грузит KPI по детям.
-   * @param {number} tileIndex — индекс в `lastKpiTiles` / `data-kpi-tile-index`
-   */
-  function openKpiTileDrilldown(tileIndex) {
-    var panel = document.getElementById("kpi-tile-drilldown");
-    var titleEl = document.getElementById("kpi-tile-drilldown-title");
-    var hintEl = document.getElementById("kpi-tile-drilldown-hint");
-    var loadEl = document.getElementById("kpi-tile-drilldown-loading");
-    var table = document.getElementById("kpi-tile-drilldown-table");
-    var tbody = document.getElementById("kpi-tile-drilldown-tbody");
-    if (!panel || !titleEl || !tbody || !table || !lastKpiTiles) return;
+  function loadKpiTileDrilldownData(tileIndex) {
+    if (!lastKpiTiles || !lastKpiTiles[tileIndex]) return;
     var clicked = lastKpiTiles[tileIndex];
-    if (!clicked) return;
-    drilldownContextTile = clicked;
-
-    var articleEl = document.querySelector(
-      '#kpi-container article.kpi-tile[data-kpi-tile-index="' + String(tileIndex) + '"]'
-    );
-    if (!articleEl) return;
-    attachDrilldownPositionSync(articleEl);
-
-    panel.hidden = false;
-    titleEl.textContent = clicked.title || "Показатель";
-    table.hidden = true;
-    tbody.innerHTML = "";
-
+    var state = getKpiTileDetailsState(tileIndex);
+    if (state.loading || state.loaded) return;
     var parentDept = getDepartmentForCurrentKpiContext();
     var synonymGroup = findSynonymGroupForTileTitle(clicked.title || "");
-
+    state.loading = true;
+    state.loaded = false;
+    state.rows = [];
+    state.hint = "";
+    renderKpiTileBackFace(
+      document.querySelector(
+        '#kpi-container article.kpi-tile[data-kpi-tile-index="' + String(tileIndex) + '"]'
+      ),
+      tileIndex
+    );
     if (session.apiMode === "mock" || typeof Api === "undefined" || !Api.fetchImmediateSubordinates) {
-      if (hintEl) {
-        hintEl.textContent =
-          "Сравнение по дочерним отделам доступно в режиме API: список строится только по дочерним подразделениям.";
-        hintEl.hidden = false;
-      }
-      if (loadEl) loadEl.hidden = true;
-      renderKpiDrilldownTableRows([], tbody, table);
+      state.loading = false;
+      state.loaded = true;
+      state.hint =
+        "Список дочерних отделов доступен в режиме API. В mock-режиме показана только информация по самой карточке.";
+      renderKpiTileBackFace(
+        document.querySelector(
+          '#kpi-container article.kpi-tile[data-kpi-tile-index="' + String(tileIndex) + '"]'
+        ),
+        tileIndex
+      );
       return;
     }
-
     if (!parentDept) {
-      if (hintEl) {
-        hintEl.textContent = "В профиле не указано подразделение — список дочерних отделов недоступен.";
-        hintEl.hidden = false;
-      }
-      if (loadEl) loadEl.hidden = true;
-      renderKpiDrilldownTableRows([], tbody, table);
+      state.loading = false;
+      state.loaded = true;
+      state.hint = "В профиле не указано подразделение, поэтому список дочерних отделов недоступен.";
+      renderKpiTileBackFace(
+        document.querySelector(
+          '#kpi-container article.kpi-tile[data-kpi-tile-index="' + String(tileIndex) + '"]'
+        ),
+        tileIndex
+      );
       return;
     }
-
-    if (hintEl) hintEl.hidden = true;
-    if (loadEl) {
-      loadEl.hidden = false;
-      loadEl.textContent = "Загрузка дочерних отделов…";
-    }
-
     Api.fetchImmediateSubordinates({ department: parentDept })
       .then(function (r) {
         if (r.unauthorized) {
@@ -575,50 +810,65 @@
             return n && n !== parentDeptNorm && n !== selfDeptNorm;
           });
         if (!children.length) {
-          if (loadEl) loadEl.hidden = true;
-          renderKpiDrilldownTableRows([], tbody, table);
-          if (hintEl) {
-            hintEl.textContent = childrenRaw.length
-              ? "В ответе API нет других дочерних отделов кроме текущего контекста."
-              : "У этого подразделения нет дочерних отделов в ответе API.";
-            hintEl.hidden = false;
-          }
+          state.loading = false;
+          state.loaded = true;
+          state.rows = [];
+          state.hint = childrenRaw.length
+            ? "В ответе API нет других дочерних отделов кроме текущего контекста."
+            : "У этого подразделения нет дочерних отделов в ответе API.";
+          renderKpiTileBackFace(
+            document.querySelector(
+              '#kpi-container article.kpi-tile[data-kpi-tile-index="' + String(tileIndex) + '"]'
+            ),
+            tileIndex
+          );
           return;
-        }
-        if (loadEl) {
-          loadEl.hidden = false;
-          loadEl.textContent =
-            "Загрузка KPI по " +
-            children.length +
-            " отделам (до " +
-            DRILLDOWN_FETCH_CONCURRENCY +
-            " параллельных запросов, кэш при повторном открытии)…";
         }
         return mapWithConcurrencyLimit(children, DRILLDOWN_FETCH_CONCURRENCY, function (childName) {
           return loadDrilldownTilesForDept(childName);
         }).then(function (results) {
-          if (loadEl) loadEl.hidden = true;
-          var rows = buildDrilldownRowsForChildrenOnly(results, clicked, synonymGroup);
-          if (hintEl) {
-            if (children.length && rows.length === 0) {
-              hintEl.textContent =
-                "Среди дочерних отделов нет данных по этому показателю (или значение KPI отсутствует).";
-              hintEl.hidden = false;
-            } else {
-              hintEl.hidden = true;
-            }
-          }
-          renderKpiDrilldownTableRows(rows, tbody, table);
+          state.loading = false;
+          state.loaded = true;
+          state.rows = sortDrilldownRows(buildDrilldownRowsForChildrenOnly(results, clicked, synonymGroup));
+          state.hint = children.length && state.rows.length === 0
+            ? "Среди дочерних отделов нет данных по этому показателю или KPI не заполнен."
+            : "";
+          renderKpiTileBackFace(
+            document.querySelector(
+              '#kpi-container article.kpi-tile[data-kpi-tile-index="' + String(tileIndex) + '"]'
+            ),
+            tileIndex
+          );
         });
       })
       .catch(function () {
-        if (loadEl) loadEl.hidden = true;
-        renderKpiDrilldownTableRows([], tbody, table);
-        if (hintEl) {
-          hintEl.textContent = "Не удалось загрузить список дочерних отделов.";
-          hintEl.hidden = false;
-        }
+        state.loading = false;
+        state.loaded = true;
+        state.rows = [];
+        state.hint = "Не удалось загрузить список дочерних отделов.";
+        renderKpiTileBackFace(
+          document.querySelector(
+            '#kpi-container article.kpi-tile[data-kpi-tile-index="' + String(tileIndex) + '"]'
+          ),
+          tileIndex
+        );
       });
+  }
+
+  /**
+   * Переворачивает KPI-карточку и загружает список дочерних отделов на обратную сторону.
+   * @param {number} tileIndex — индекс в `lastKpiTiles` / `data-kpi-tile-index`
+   */
+  function openKpiTileDrilldown(tileIndex) {
+    if (!lastKpiTiles || !lastKpiTiles[tileIndex]) return;
+    if (activeFlippedTileIndex === tileIndex) {
+      closeKpiTileDrilldown();
+      return;
+    }
+    drilldownContextTile = lastKpiTiles[tileIndex];
+    activeFlippedTileIndex = tileIndex;
+    syncKpiTileFlipState();
+    loadKpiTileDrilldownData(tileIndex);
   }
 
   /**
@@ -772,7 +1022,7 @@
   var KPI_TILE_TITLE_PLAN_FACT_PERIOD = "Период, за который показаны план и факт";
   var KPI_TILE_ARIA_METRICS_PF = "План, факт и значение KPI";
   var KPI_TILE_ARIA_METRICS_PCT = "Значение KPI, %";
-  var KPI_TILE_ARIA_KPI_PCT_VALUE = "Значение показателя kpi_pct, %";
+  var KPI_TILE_ARIA_KPI_PCT_VALUE = "Значение показателя KPI, %";
 
   /** Верхняя строка плитки: бейдж kpi_id и кнопка «?». */
   function buildKpiTileBadgeRowHtml(tile) {
@@ -822,7 +1072,7 @@
       '" aria-label="' +
       DashUi.escapeHtml(KPI_TILE_ARIA_KPI_PCT_VALUE) +
       '">' +
-      '<span class="kpi-pct-label">kpi</span>' +
+      '<span class="kpi-pct-label">KPI</span>' +
       '<span class="kpi-percent-num">' +
       DashUi.escapeHtml(pctLabel) +
       '</span><span class="kpi-percent-unit">%</span>' +
@@ -878,18 +1128,26 @@
     );
   }
 
+  function buildKpiTileFrontFaceHtml(tile, pctLabel, hasPf, planShown, factShown, pfPeriod) {
+    return (
+      '<section class="kpi-tile-face kpi-tile-face--front">' +
+      buildKpiTileBadgeRowHtml(tile) +
+      buildKpiTileBodyHtml(tile, hasPf, pfPeriod) +
+      buildKpiTileMetricsSectionHtml(tile, pctLabel, hasPf, planShown, factShown) +
+      "</section>"
+    );
+  }
+
   /**
-   * Рендерит до 6 плиток в двух рядах сетки; вешает data-kpi-tile-index и класс фокуса при drilldown.
+   * Рендерит KPI-плитки единой адаптивной сеткой; оборот карточки строится отдельно при flip.
    * @param {object[]} tiles
    */
   function renderKpiTiles(tiles) {
     lastKpiTiles = tiles && tiles.length ? tiles : null;
     const container = document.getElementById("kpi-container");
     container.innerHTML = "";
-    const row1 = document.createElement("div");
-    row1.className = "kpi-grid";
-    const row2 = document.createElement("div");
-    row2.className = "kpi-grid";
+    activeFlippedTileIndex = null;
+    kpiTileDetailsState = Object.create(null);
     var focusRef = pendingKpiTileFocus;
     var focusApplied = false;
     tiles.forEach(function (tile, i) {
@@ -897,6 +1155,8 @@
       var pres = MockData.getKpiTilePresentation(tile);
       el.className = "kpi-tile";
       el.style.setProperty("--tile-rag-color", pres.fillColor);
+      el.setAttribute("tabindex", "0");
+      el.setAttribute("aria-expanded", "false");
       if (focusRef && !focusApplied && tileMatchesFocusTarget(tile, focusRef)) {
         el.classList.add("kpi-tile--focus");
         el.setAttribute("aria-current", "true");
@@ -915,17 +1175,23 @@
         el.classList.add("kpi-tile--pct-only");
       }
       el.innerHTML =
-        buildKpiTileBadgeRowHtml(tile) +
-        buildKpiTileBodyHtml(tile, hasPf, pfPeriod) +
-        buildKpiTileMetricsSectionHtml(tile, pctLabel, hasPf, planShown, factShown);
-      (i < 3 ? row1 : row2).appendChild(el);
+        '<div class="kpi-tile-inner">' +
+        buildKpiTileFrontFaceHtml(tile, pctLabel, hasPf, planShown, factShown, pfPeriod) +
+        '<section class="kpi-tile-face kpi-tile-face--back"></section>' +
+        "</div>";
+      container.appendChild(el);
     });
-    container.appendChild(row1);
-    container.appendChild(row2);
     if (focusRef) {
       pendingKpiTileFocus = null;
       if (focusApplied) {
-        DashUi.scrollElementIntoViewCentered(container.querySelector("article.kpi-tile--focus"));
+        var focusedEl = container.querySelector("article.kpi-tile--focus");
+        DashUi.scrollElementIntoViewCentered(focusedEl);
+        if (focusedEl) {
+          setTimeout(function () {
+            focusedEl.classList.remove("kpi-tile--focus");
+            focusedEl.removeAttribute("aria-current");
+          }, 4000);
+        }
       }
     }
   }

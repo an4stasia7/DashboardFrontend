@@ -1,0 +1,328 @@
+/* Auth pages */
+.auth-body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 24px;
+  background: linear-gradient(160deg, var(--navy) 0%, var(--navy-light) 45%, var(--bg-page) 45%);
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.15);
+  padding: 32px;
+}
+
+.auth-card h1 {
+  margin: 0 0 8px;
+  font-size: 1.5rem;
+  color: var(--navy);
+}
+
+.auth-card p.sub {
+  margin: 0 0 24px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.login-continue-wrap {
+  margin-top: 4px;
+  margin-bottom: 4px;
+}
+
+.login-continue-hint {
+  margin: 8px 0 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.login-continue-wrap[hidden] {
+  display: none !important;
+}
+
+.btn-continue-as {
+  width: 100%;
+  background: var(--navy);
+  color: #fff;
+  margin-top: 0;
+  line-height: 1.35;
+  text-align: center;
+  white-space: normal;
+}
+
+.btn-continue-as:hover {
+  background: var(--navy-light);
+  color: #fff;
+}
+
+.auth-field {
+  margin-bottom: 16px;
+}
+
+.auth-field label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.auth-field input,
+.auth-field select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-family: inherit;
+  background-color: #fff;
+  box-sizing: border-box;
+}
+
+.auth-field select {
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748b' d='M3 4.5L6 7.5L9 4.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 36px;
+}
+
+.auth-field select:disabled {
+  cursor: not-allowed;
+  opacity: 0.85;
+  background-color: #f8fafc;
+}
+
+.auth-field input:focus,
+.auth-field select:focus {
+  outline: none;
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+/* Логин: кастомный список пользователей (ширина поля, перенос, скролл) */
+.nickname-combo {
+  position: relative;
+  width: 100%;
+}
+
+.nickname-combo-trigger {
+  width: 100%;
+  padding: 10px 36px 10px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-family: inherit;
+  background-color: #fff;
+  box-sizing: border-box;
+  cursor: pointer;
+  text-align: left;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748b' d='M3 4.5L6 7.5L9 4.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+}
+
+.nickname-combo-trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.85;
+  background-color: #f8fafc;
+}
+
+.nickname-combo-trigger:focus {
+  outline: none;
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.nickname-combo-trigger-text {
+  display: block;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.35;
+}
+
+.nickname-combo-panel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 100;
+  max-height: min(50vh, 320px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+  box-sizing: border-box;
+}
+
+.nickname-combo-option {
+  display: block;
+  width: 100%;
+  margin: 0;
+  padding: 10px 12px;
+  border: none;
+  border-bottom: 1px solid #f1f5f9;
+  background: #fff;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  box-sizing: border-box;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.nickname-combo-option:last-child {
+  border-bottom: none;
+}
+
+.nickname-combo-option:hover,
+.nickname-combo-option:focus {
+  outline: none;
+  background: #f8fafc;
+}
+
+.nickname-combo-option[aria-selected="true"] {
+  background: #eff6ff;
+}
+
+.nickname-combo-option-nick {
+  display: block;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.nickname-combo-option-meta {
+  display: block;
+  margin-top: 2px;
+  font-size: 0.88rem;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 20px;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.auth-remember-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88rem;
+  color: var(--text);
+  cursor: pointer;
+  margin-bottom: 12px;
+}
+
+.auth-remember-label input[type="checkbox"] {
+  accent-color: var(--accent-blue);
+}
+
+.btn-primary {
+  background: var(--accent-blue);
+  color: #fff;
+  width: 100%;
+  margin-top: 8px;
+}
+
+.btn-primary:hover {
+  background: #1d4ed8;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--accent-blue);
+  width: 100%;
+  margin-top: 12px;
+}
+
+.auth-error {
+  background: #fef2f2;
+  color: #b91c1c;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  margin-bottom: 16px;
+  display: none;
+}
+
+.auth-error.visible {
+  display: block;
+}
+
+.auth-links {
+  margin-top: 20px;
+  text-align: center;
+  font-size: 0.9rem;
+}
+
+.auth-links a {
+  color: var(--accent-blue);
+}
+
+.auth-mode-toggle {
+  margin-bottom: 8px;
+  padding: 0 0 12px;
+  border: none;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.auth-mode-legend {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+
+.auth-radio-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88rem;
+  font-weight: 500;
+  cursor: pointer;
+  color: var(--text);
+  padding: 4px 0;
+}
+
+.auth-radio-label input[type="radio"] {
+  flex-shrink: 0;
+  accent-color: var(--accent-blue);
+}
+
+.api-mode-hint {
+  margin: 8px 0 0 28px !important;
+  font-size: 0.82rem !important;
+  line-height: 1.4;
+}
+
+.mock-api-banner {
+  background: #fef3c7;
+  color: #92400e;
+  padding: 8px 28px;
+  font-size: 0.88rem;
+  text-align: center;
+  border-bottom: 1px solid #fcd34d;
+}
+
+.mock-api-banner[hidden] {
+  display: none !important;
+}

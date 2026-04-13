@@ -1,0 +1,169 @@
+/* DEBUG: журнал всех JSON-ответов API */
+.debug-kpi-json-panel {
+  background: #1e293b;
+  color: #e2e8f0;
+  padding: 16px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  max-height: 70vh;
+  overflow: auto;
+  font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+}
+
+.debug-json-log-hint {
+  font-size: 0.85rem;
+  color: #64748b;
+  margin: 0 0 12px;
+  font-family: inherit;
+}
+
+.debug-json-log-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #334155;
+}
+
+.debug-json-log-count {
+  color: #94a3b8;
+}
+
+.debug-json-log-clear {
+  appearance: none;
+  border: 1px solid #475569;
+  background: #334155;
+  color: #e2e8f0;
+  padding: 4px 12px;
+  border-radius: 6px;
+  font-size: 11px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.debug-json-log-clear:hover {
+  background: #475569;
+}
+
+.debug-json-log-empty {
+  margin: 0;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.debug-json-log-entry {
+  margin-bottom: 18px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid #334155;
+}
+
+.debug-json-log-entry:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.debug-json-log-entry-head {
+  font-weight: 600;
+  color: #cbd5e1;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.debug-json-log-entry-url {
+  font-size: 11px;
+  color: #94a3b8;
+  margin: 4px 0 8px;
+  word-break: break-all;
+}
+
+.debug-json-log-entry-body {
+  margin-top: 6px;
+}
+
+/* JSON tree viewer */
+.json-tree-root {
+  background: #0f172a;
+  color: #e2e8f0;
+  padding: 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  line-height: 1.5;
+  max-height: 480px;
+  overflow: auto;
+  font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+}
+
+.json-tree-root .jt-source {
+  display: block;
+  margin-bottom: 8px;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.json-tree-root ul {
+  list-style: none;
+  margin: 0;
+  padding-left: 20px;
+}
+
+.json-tree-root > ul {
+  padding-left: 0;
+}
+
+.json-tree-root li {
+  position: relative;
+}
+
+.json-tree-root .jt-toggle {
+  cursor: pointer;
+  user-select: none;
+}
+
+.json-tree-root .jt-toggle::before {
+  content: "▼ ";
+  font-size: 9px;
+  color: #64748b;
+  display: inline-block;
+  transition: transform 0.15s;
+}
+
+.json-tree-root .jt-toggle.jt-collapsed::before {
+  transform: rotate(-90deg);
+}
+
+.json-tree-root .jt-toggle.jt-collapsed + .jt-children {
+  display: none;
+}
+
+.json-tree-root .jt-key {
+  color: #7dd3fc;
+}
+
+.json-tree-root .jt-str {
+  color: #86efac;
+}
+
+.json-tree-root .jt-num {
+  color: #fbbf24;
+}
+
+.json-tree-root .jt-bool {
+  color: #c084fc;
+}
+
+.json-tree-root .jt-null {
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.json-tree-root .jt-bracket {
+  color: #94a3b8;
+}
+
+.json-tree-root .jt-preview {
+  color: #64748b;
+  font-style: italic;
+}

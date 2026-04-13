@@ -1,0 +1,126 @@
+.kpi-thresholds-dialog {
+  padding: 0;
+  border: none;
+  border-radius: var(--radius, 12px);
+  max-width: min(420px, calc(100vw - 32px));
+  box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.35);
+}
+
+.kpi-thresholds-dialog::backdrop {
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.kpi-thresholds-dialog-panel {
+  padding: 22px 22px 18px;
+  background: var(--card, #fff);
+}
+
+.kpi-thresholds-dialog-title {
+  margin: 0 0 6px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--text);
+}
+
+.kpi-thresholds-dialog-code {
+  margin: 0 0 10px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.kpi-thresholds-dialog-hint {
+  margin: 0 0 14px;
+  font-size: 0.85rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.kpi-thresholds-dialog-formula-wrap {
+  margin: 0 0 14px;
+}
+
+.kpi-thresholds-dialog-subtitle {
+  margin: 0 0 8px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.kpi-thresholds-dialog-formula {
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: var(--text);
+  overflow-x: auto;
+}
+
+.kpi-thresholds-dialog-formula .katex {
+  font-size: 1.05em;
+}
+
+.kpi-thresholds-dialog-formula--plain {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, "Cascadia Code", "Consolas", monospace;
+  font-size: 0.85rem;
+}
+
+.kpi-thresholds-dialog-list {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.kpi-thresholds-dialog-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.9rem;
+  line-height: 1.35;
+}
+
+.kpi-thresholds-dialog-row .rag-dot {
+  flex-shrink: 0;
+}
+
+.kpi-thresholds-dialog-row-value {
+  font-weight: 600;
+  color: var(--navy-light, #334155);
+  font-variant-numeric: tabular-nums;
+}
+
+.kpi-thresholds-dialog-empty {
+  margin: 0 0 16px;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
+.kpi-thresholds-dialog-actions {
+  margin: 0;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.btn-dialog-close {
+  padding: 8px 18px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: var(--navy, #1e3a5f);
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.88rem;
+  cursor: pointer;
+}
+
+.btn-dialog-close:hover {
+  filter: brightness(1.08);
+}

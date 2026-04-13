@@ -1,0 +1,293 @@
+/* Charts row */
+.charts-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 18px;
+  margin-bottom: 24px;
+  align-items: stretch;
+}
+
+@media (max-width: 1200px) {
+  .charts-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+.chart-panel {
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.08);
+  border: 1px solid #e2e8f0;
+  padding: 18px;
+  min-height: 320px;
+  display: flex;
+  flex-direction: column;
+}
+
+.chart-panel h2 {
+  margin: 0 0 12px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.3;
+}
+
+.chart-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px 16px;
+  margin-bottom: 12px;
+  flex-shrink: 0;
+}
+
+.donuts-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.donut-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.donut-cell .donut-chart-container {
+  width: 100%;
+  min-height: 110px;
+  overflow: hidden;
+}
+
+.donut-cell .donut-chart-container .highcharts-container {
+  transition: none !important;
+  max-width: 100% !important;
+}
+
+.donut-cell .donut-chart-container svg {
+  transition: none !important;
+  max-width: 100%;
+}
+
+.chart-panel-donuts {
+  overflow: hidden;
+}
+
+.donut-cell .donut-label {
+  font-size: 0.7rem;
+  color: var(--muted);
+  text-align: center;
+  line-height: 1.3;
+  max-width: 100%;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+.chart-panel-head h2 {
+  margin: 0;
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+.line-chart-metric-label {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.line-chart-metric-label-text {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.line-chart-metric-select {
+  min-width: 200px;
+  max-width: 100%;
+  padding: 6px 28px 6px 10px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  color: var(--text);
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748b' d='M3 4.5L6 7.5L9 4.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+}
+
+.line-chart-metric-select:hover {
+  border-color: #94a3b8;
+}
+
+.line-chart-metric-select:focus {
+  outline: none;
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+}
+
+.chart-panel .highcharts-container {
+  margin: 0 auto;
+}
+
+/* Highcharts иначе может получить ширину 0 внутри grid до reflow */
+#chart-line,
+#chart-bar,
+#chart-heatmap {
+  width: 100%;
+  min-height: 300px;
+  flex: 1 1 auto;
+  position: relative;
+}
+
+/* Tables block */
+.tables-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 18px;
+}
+
+.table-panel {
+  background: var(--card);
+  border-radius: var(--radius);
+  box-shadow: 0 16px 36px rgba(15, 23, 42, 0.08);
+  border: 1px solid #e2e8f0;
+  padding: 20px;
+  overflow-x: auto;
+}
+
+.table-panel h2 {
+  margin: 0 0 16px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* DataTables overrides */
+.table-panel table.dataTable {
+  border-collapse: collapse !important;
+  width: 100% !important;
+}
+
+.table-panel table.dataTable thead th {
+  background: #d9e2f3 !important;
+  color: var(--navy);
+  font-weight: 600;
+  font-size: 0.84rem;
+  padding: 11px 12px !important;
+  border-top: none !important;
+  border-bottom: none !important;
+}
+
+.table-panel table.dataTable tbody td {
+  font-size: 0.84rem;
+  color: var(--text);
+  padding: 10px 12px !important;
+  vertical-align: middle;
+  border-bottom: 1px solid #f1f5f9 !important;
+}
+
+.table-panel table.dataTable tbody tr:nth-child(odd) td,
+.table-panel table.dataTable.stripe tbody tr:nth-child(odd) td,
+.table-panel table.dataTable.display tbody tr:nth-child(odd) td {
+  background-color: #ffffff !important;
+}
+
+.table-panel table.dataTable tbody tr:nth-child(even) td,
+.table-panel table.dataTable.stripe tbody tr:nth-child(even) td,
+.table-panel table.dataTable.display tbody tr:nth-child(even) td {
+  background-color: #ffffff !important;
+}
+
+.table-panel table.dataTable tbody tr:hover td {
+  background: #eef3fb !important;
+}
+
+.table-panel table.dataTable tbody tr:last-child td {
+  border-bottom: none !important;
+}
+
+.table-panel .dataTables_wrapper .dataTables_length,
+.table-panel .dataTables_wrapper .dataTables_filter {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-bottom: 14px;
+}
+
+.table-panel .dataTables_wrapper .dataTables_info,
+.table-panel .dataTables_wrapper .dataTables_paginate {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-top: 14px;
+}
+
+.table-panel .dataTables_wrapper .dataTables_filter input {
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 0.84rem;
+  outline: none;
+}
+
+.table-panel .dataTables_wrapper .dataTables_filter input:focus {
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 2px rgba(29, 78, 216, 0.15);
+}
+
+.table-panel .dataTables_wrapper .dataTables_paginate .paginate_button {
+  padding: 4px 10px !important;
+  border-radius: 5px !important;
+  border: 1px solid #e2e8f0 !important;
+  background: #fff !important;
+  color: var(--text) !important;
+  font-size: 0.78rem;
+  margin-left: 4px;
+}
+
+.table-panel .dataTables_wrapper .dataTables_paginate .paginate_button:hover {
+  background: #f1f5f9 !important;
+  border-color: #cbd5e1 !important;
+  color: var(--text) !important;
+}
+
+.table-panel .dataTables_wrapper .dataTables_paginate .paginate_button.current {
+  background: var(--navy) !important;
+  color: #fff !important;
+  border-color: var(--navy) !important;
+}
+
+@media (max-width: 900px) {
+  .line-chart-metric-label {
+    width: 100%;
+  }
+
+  .line-chart-metric-select {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 640px) {
+  .charts-row {
+    gap: 14px;
+  }
+
+  .chart-panel,
+  .table-panel {
+    padding: 16px;
+  }
+
+  .table-panel {
+    overflow-x: auto;
+  }
+}

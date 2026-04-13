@@ -41,9 +41,27 @@
     return upper + s.slice(1);
   }
 
+  function formatCompactNumber(v) {
+    if (v == null || v === "" || v === "—") return "—";
+    var n = typeof v === "number" ? v : parseFloat(String(v).replace(/\s/g, "").replace(",", "."));
+    if (isNaN(n)) return String(v);
+    var abs = Math.abs(n);
+    if (abs >= 1e9) {
+      var b = n / 1e9;
+      return (Math.round(b * 10) / 10).toString().replace(".", ",") + " млрд";
+    }
+    if (abs >= 1e6) {
+      var m = n / 1e6;
+      return (Math.round(m * 10) / 10).toString().replace(".", ",") + " млн";
+    }
+    return formatNumber(v);
+  }
+
   function formatKpiTilePlanFactValue(v) {
     if (v == null || v === "") return "—";
-    if (typeof v === "number" && !isNaN(v)) return formatNumber(v);
+    if (typeof v === "number" && !isNaN(v)) return formatCompactNumber(v);
+    var tryNum = parseFloat(String(v).replace(/\s/g, "").replace(",", "."));
+    if (!isNaN(tryNum) && Math.abs(tryNum) >= 1e6) return formatCompactNumber(tryNum);
     return String(v);
   }
 
@@ -76,6 +94,7 @@
   global.DashUi = {
     escapeHtml: escapeHtml,
     formatNumber: formatNumber,
+    formatCompactNumber: formatCompactNumber,
     calcDeviation: calcDeviation,
     ragCell: ragCell,
     capitalizeHeaderTitle: capitalizeHeaderTitle,
