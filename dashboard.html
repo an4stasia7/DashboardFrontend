@@ -39,6 +39,17 @@
       </div>
 
       <div class="dash-content" id="dash-content" hidden>
+
+      <nav class="month-navigator" id="month-navigator" hidden>
+        <button type="button" class="month-nav-arrow month-nav-prev" id="month-nav-prev" aria-label="Предыдущий месяц">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8L10 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <span class="month-nav-label" id="month-nav-label">—</span>
+        <button type="button" class="month-nav-arrow month-nav-next" id="month-nav-next" aria-label="Следующий месяц">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 3L11 8L6 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </nav>
+
       <div id="kpi-container"></div>
       <div id="kpi-help-popover" class="kpi-help-popover" role="tooltip" hidden></div>
 
