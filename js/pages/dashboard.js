@@ -65,6 +65,105 @@
   /** Hover/focus popover для кнопки `?` */
   var kpiHelpPopoverEl = document.getElementById("kpi-help-popover");
 
+  /* ---------- Навигация по месяцам ---------- */
+
+  var MONTH_NAMES_RU = [
+    "", "январь", "февраль", "март", "апрель", "май", "июнь",
+    "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"
+  ];
+  var currentPeriodMonth = null;
+  var currentPeriodYear = null;
+  var availableMonths = [];
+
+  function setAvailableMonthsFromChartPoints(chartIndicators) {
+    availableMonths = [];
+    if (!chartIndicators) return;
+    var lines = chartIndicators.line || [];
+    for (var li = 0; li < lines.length; li++) {
+      var pts = lines[li].points;
+      if (!pts) continue;
+      for (var pi = 0; pi < pts.length; pi++) {
+        var pt = pts[pi];
+        if (pt && pt.month && pt.year) {
+          var key = pt.year * 100 + pt.month;
+          var exists = false;
+          for (var ei = 0; ei < availableMonths.length; ei++) {
+            if (availableMonths[ei].key === key) { exists = true; break; }
+          }
+          if (!exists) {
+            availableMonths.push({ month: pt.month, year: pt.year, key: key });
+          }
+        }
+      }
+    }
+    availableMonths.sort(function (a, b) { return a.key - b.key; });
+  }
+
+  function getCurrentMonthIndex() {
+    if (currentPeriodMonth == null || currentPeriodYear == null) return -1;
+    var key = currentPeriodYear * 100 + currentPeriodMonth;
+    for (var i = 0; i < availableMonths.length; i++) {
+      if (availableMonths[i].key === key) return i;
+    }
+    return -1;
+  }
+
+  function updateMonthNavigatorUI() {
+    var nav = document.getElementById("month-navigator");
+    var label = document.getElementById("month-nav-label");
+    var prevBtn = document.getElementById("month-nav-prev");
+    var nextBtn = document.getElementById("month-nav-next");
+    if (!nav) return;
+
+    if (currentPeriodMonth == null || currentPeriodYear == null) {
+      nav.hidden = true;
+      return;
+    }
+
+    nav.hidden = false;
+    var monthName = MONTH_NAMES_RU[currentPeriodMonth] || String(currentPeriodMonth);
+    if (label) label.textContent = monthName + " " + currentPeriodYear;
+
+    var idx = getCurrentMonthIndex();
+    if (prevBtn) prevBtn.disabled = idx <= 0;
+    if (nextBtn) nextBtn.disabled = idx < 0 || idx >= availableMonths.length - 1;
+  }
+
+  function navigateToMonth(month, year) {
+    currentPeriodMonth = month;
+    currentPeriodYear = year;
+    updateMonthNavigatorUI();
+    loadKpiTilesAndChartsForView();
+  }
+
+  function navigateToQuarter(quarter, year) {
+    var lastMonth = quarter * 3;
+    navigateToMonth(lastMonth, year);
+  }
+
+  (function initMonthNavigator() {
+    var prevBtn = document.getElementById("month-nav-prev");
+    var nextBtn = document.getElementById("month-nav-next");
+    if (prevBtn) {
+      prevBtn.addEventListener("click", function () {
+        var idx = getCurrentMonthIndex();
+        if (idx > 0) {
+          var prev = availableMonths[idx - 1];
+          navigateToMonth(prev.month, prev.year);
+        }
+      });
+    }
+    if (nextBtn) {
+      nextBtn.addEventListener("click", function () {
+        var idx = getCurrentMonthIndex();
+        if (idx >= 0 && idx < availableMonths.length - 1) {
+          var next = availableMonths[idx + 1];
+          navigateToMonth(next.month, next.year);
+        }
+      });
+    }
+  })();
+
   /** Кэш плиток KPI по названию отдела — меньше повторных GET при drilldown */
   var drilldownKpiTilesCache = Object.create(null);
   var DRILLDOWN_KPI_CACHE_MAX = 32;
@@ -1407,6 +1506,16 @@
       lineChartInstance = null;
     }
 
+    var pointsData = indicator.points || [];
+    var chartClickHandler = function (e) {
+      var pointIndex = e.point ? e.point.index : -1;
+      if (pointIndex < 0 || !pointsData.length) return;
+      var pt = pointsData[pointIndex];
+      if (pt && pt.month && pt.year) {
+        navigateToMonth(pt.month, pt.year);
+      }
+    };
+
     lineChartInstance = Highcharts.chart(elLine, {
       chart: { type: "line", backgroundColor: "transparent", height: 300 },
       title: { text: null },
@@ -1426,6 +1535,8 @@
         line: {
           marker: { enabled: true, radius: 4 },
           lineWidth: 2,
+          cursor: "pointer",
+          point: { events: { click: chartClickHandler } },
         },
       },
       series: buildLineChartSeriesWithRagMarkers(indicator),
@@ -1489,6 +1600,16 @@
       waterfallChartInstance = null;
     }
 
+    var barPoints = indicator.points || [];
+    var barClickHandler = function (e) {
+      var pointIndex = e.point ? e.point.index : -1;
+      if (pointIndex < 0 || !barPoints.length) return;
+      var pt = barPoints[pointIndex];
+      if (pt && pt.quarter && pt.year) {
+        navigateToQuarter(pt.quarter, pt.year);
+      }
+    };
+
     waterfallChartInstance = Highcharts.chart(elBar, {
       chart: { type: "column", backgroundColor: "transparent", height: 300 },
       title: { text: null },
@@ -1509,6 +1630,8 @@
           grouping: true,
           borderRadius: 3,
           borderWidth: 0,
+          cursor: "pointer",
+          point: { events: { click: barClickHandler } },
         },
       },
       series: [
@@ -1963,6 +2086,22 @@
     }
     lastApiChartIndicators = result.chartIndicators || null;
     lastApiTableRows = result.tableRows || null;
+
+    setAvailableMonthsFromChartPoints(lastApiChartIndicators);
+    if (result.ok && result.data) {
+      var respMonth = result.data.month != null ? Number(result.data.month) : null;
+      var respYear = result.data.year != null ? Number(result.data.year) : null;
+      if (respMonth && respYear) {
+        currentPeriodMonth = respMonth;
+        currentPeriodYear = respYear;
+      } else if (availableMonths.length && currentPeriodMonth == null) {
+        var last = availableMonths[availableMonths.length - 1];
+        currentPeriodMonth = last.month;
+        currentPeriodYear = last.year;
+      }
+    }
+    updateMonthNavigatorUI();
+
     var role = viewContextUser.role;
     if (result.ok && result.tiles && result.tiles.length > 0) {
       var cacheKey =
@@ -2000,6 +2139,10 @@
       hideLoading();
       updateTopBarForView();
     };
+    var periodOpts = {};
+    if (currentPeriodMonth != null) periodOpts.month = currentPeriodMonth;
+    if (currentPeriodYear != null) periodOpts.year = currentPeriodYear;
+
     if (!isSelf) {
       if (session.apiMode === "mock") {
         pushDashboardDebugNote("UI (mock)", "Подчинённый вид — запросы KPI не выполняются");
@@ -2008,7 +2151,10 @@
       }
       var subDept = getDepartmentForCurrentKpiContext();
       if (subDept && typeof Api !== "undefined" && typeof Api.fetchKpiAll === "function") {
-        Api.fetchKpiAll({ department: subDept })
+        var allOpts = { department: subDept };
+        if (periodOpts.month != null) allOpts.month = periodOpts.month;
+        if (periodOpts.year != null) allOpts.year = periodOpts.year;
+        Api.fetchKpiAll(allOpts)
           .then(function (result) {
             if (result.unauthorized) {
               applyApiResult(result, "Api.fetchKpiAll({department})");
@@ -2044,10 +2190,13 @@
     var fetchSelf =
       selfDept && typeof Api.fetchKpis === "function"
         ? function () {
-            return Api.fetchKpis({ department: selfDept });
+            var opts = { department: selfDept };
+            if (periodOpts.month != null) opts.month = periodOpts.month;
+            if (periodOpts.year != null) opts.year = periodOpts.year;
+            return Api.fetchKpis(opts);
           }
         : function () {
-            return Api.fetchKpis();
+            return Api.fetchKpis(periodOpts);
           };
     fetchSelf()
       .then(function (result) {

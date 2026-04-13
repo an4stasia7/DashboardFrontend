@@ -63,14 +63,24 @@
    * @param {{ department?: string }|null|undefined} options
    * @returns {string}
    */
-  function appendDepartmentQuery(url, options) {
+  function appendQueryParams(url, options) {
     var u = url || "";
     options = options || {};
     var dept = options.department != null ? String(options.department).trim() : "";
     if (dept) {
       u += (u.indexOf("?") === -1 ? "?" : "&") + "department=" + encodeURIComponent(dept);
     }
+    if (options.month != null) {
+      u += (u.indexOf("?") === -1 ? "?" : "&") + "month=" + encodeURIComponent(String(options.month));
+    }
+    if (options.year != null) {
+      u += (u.indexOf("?") === -1 ? "?" : "&") + "year=" + encodeURIComponent(String(options.year));
+    }
     return u;
+  }
+
+  function appendDepartmentQuery(url, options) {
+    return appendQueryParams(url, options);
   }
 
   function buildKpiUrlWithQuery(options) {
@@ -785,6 +795,7 @@
             xAxisTitle: CHART_AXIS_MONTH,
             yAxisTitle: "Значение",
             categories: categories,
+            points: sorted,
             series: [
               { name: CHART_SERIES_FACT, data: sorted.map(function (p) { return p.fact != null ? Number(p.fact) : null; }), color: "#2b5ca6" },
               { name: CHART_SERIES_PLAN, data: sorted.map(function (p) { return p.plan != null ? Number(p.plan) : null; }), color: "#c8d6ee", dashStyle: "Dash" },
@@ -801,6 +812,7 @@
             xAxisTitle: CHART_AXIS_QUARTER,
             yAxisTitle: "Значение",
             categories: cats,
+            points: sortedQ,
             plan: sortedQ.map(function (p) { return p.plan != null ? Number(p.plan) : null; }),
             fact: sortedQ.map(function (p) { return p.fact != null ? Number(p.fact) : null; }),
           });
