@@ -1,0 +1,22 @@
+{
+  "default_mode": "mock",
+
+  "servers": {
+    "local": {
+      "label": "Локальный сервер",
+      "base_url": "http://192.168.5.219:8000"
+    },
+    "remote": {
+      "label": "Удалённый сервер",
+      "base_url": "http://192.168.5.219:8000"
+    }
+  },
+
+  "api_login_path": "/api/user/login/",
+  "api_kpi_path": "/api/kpi/",
+  "auth_scheme": "Bearer ",
+  "login_user_field": "nickname",
+  "login_also_send_username": false,
+  "fetch_credentials": "omit",
+  "send_django_csrf_token": false
+}

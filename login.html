@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Вход</title>
+    <link rel="stylesheet" href="css/styles.css" />
+  </head>
+  <body class="auth-body">
+    <div class="auth-card">
+      <h1>Вход</h1>
+      <p class="sub">Управленческий дашборд</p>
+      <div id="auth-error" class="auth-error" role="alert"></div>
+      <form id="login-form" novalidate>
+        <div class="auth-field">
+          <label for="nickname-trigger">Пользователь</label>
+          <div class="nickname-combo" id="nickname-combo">
+            <input type="hidden" id="nickname" name="nickname" value="" autocomplete="username" />
+            <button
+              type="button"
+              id="nickname-trigger"
+              class="nickname-combo-trigger"
+              aria-haspopup="listbox"
+              aria-expanded="false"
+              aria-controls="nickname-list"
+              disabled
+              aria-busy="true"
+            >
+              <span id="nickname-trigger-label" class="nickname-combo-trigger-text">Загрузка списка…</span>
+            </button>
+            <div id="nickname-list" class="nickname-combo-panel" role="listbox" hidden></div>
+          </div>
+        </div>
+        <div class="auth-field">
+          <label for="password">Пароль</label>
+          <input id="password" name="password" type="password" autocomplete="current-password" required />
+        </div>
+        <label class="auth-remember-label">
+          <input type="checkbox" id="remember-me" />
+          Запомнить меня
+        </label>
+        <div id="login-continue-wrap" class="login-continue-wrap" hidden>
+          <button type="button" id="btn-continue-as" class="btn btn-continue-as"></button>
+          <p class="login-continue-hint">Без пароля — по сохранённой сессии (пока действует токен)</p>
+        </div>
+        <button type="submit" class="btn btn-primary">Войти</button>
+      </form>
+    </div>
+    <script src="js/config.js"></script>
+    <script src="js/mockData.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/pages/login.js"></script>
+  </body>
+</html>

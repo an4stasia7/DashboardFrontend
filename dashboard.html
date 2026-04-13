@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Главная — дашборд</title>
+    <link rel="stylesheet" href="css/styles.css" />
+    <link rel="stylesheet" href="node_modules/katex/dist/katex.min.css" />
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/jquery.dataTables.min.css" />
+  </head>
+  <body class="dashboard-body">
+    <header class="dash-topbar">
+      <div>
+        <h1 id="dash-role-title">—</h1>
+      </div>
+      <div class="dash-topbar-actions">
+        <span class="user-hint" id="dash-user-hint"></span>
+        <button type="button" class="btn-logout" id="btn-logout">Выйти</button>
+      </div>
+    </header>
+    <nav
+      class="dash-hierarchy-breadcrumb"
+      id="dashboard-hierarchy-breadcrumb"
+      aria-label="Уровень в структуре подразделений"
+      hidden
+    ></nav>
+    <nav
+      class="dash-view-tabs"
+      id="dashboard-view-tabs"
+      role="tablist"
+      aria-label="Дашборды пользователей в иерархии"
+      hidden
+    ></nav>
+    <main class="dash-main">
+
+      <div class="dash-loading" id="dash-loading">
+        <div class="dash-spinner"></div>
+        <span class="dash-loading-text">Загрузка данных…</span>
+      </div>
+
+      <div class="dash-content" id="dash-content" hidden>
+      <div id="kpi-container"></div>
+
+      <section id="kpi-tile-drilldown" class="kpi-tile-drilldown" hidden aria-live="polite">
+        <div class="kpi-tile-drilldown-head">
+          <h3 class="kpi-tile-drilldown-title" id="kpi-tile-drilldown-title">Показатели по отделам</h3>
+          <button type="button" class="kpi-tile-drilldown-close" id="kpi-tile-drilldown-close" aria-label="Свернуть список">
+            Свернуть
+          </button>
+        </div>
+        <p class="kpi-tile-drilldown-hint" id="kpi-tile-drilldown-hint" hidden></p>
+        <div class="kpi-tile-drilldown-loading" id="kpi-tile-drilldown-loading" hidden>Загрузка данных отделов…</div>
+        <div class="kpi-tile-drilldown-table-wrap">
+          <table class="kpi-tile-drilldown-table" id="kpi-tile-drilldown-table" hidden>
+            <thead>
+              <tr>
+                <th scope="col">Отдел</th>
+                <th scope="col">kpi_pct</th>
+                <th scope="col">RAG</th>
+              </tr>
+            </thead>
+            <tbody id="kpi-tile-drilldown-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <div class="charts-row">
+        <section class="chart-panel">
+          <div class="chart-panel-head">
+            <h2 id="line-chart-title">Тренд</h2>
+            <label class="line-chart-metric-label" for="line-chart-metric">
+              <span class="line-chart-metric-label-text">Показатель</span>
+              <select id="line-chart-metric" class="line-chart-metric-select" aria-label="Показатель для линейного графика"></select>
+            </label>
+          </div>
+          <div id="chart-line"></div>
+        </section>
+        <section class="chart-panel">
+          <div class="chart-panel-head">
+            <h2 id="bar-chart-title">План / факт</h2>
+            <label class="line-chart-metric-label" for="waterfall-chart-metric">
+              <span class="line-chart-metric-label-text">Показатель</span>
+              <select id="waterfall-chart-metric" class="line-chart-metric-select" aria-label="Показатель для диаграммы план/факт"></select>
+            </label>
+          </div>
+          <div id="chart-bar"></div>
+        </section>
+        <section class="chart-panel chart-panel-donuts">
+          <div class="chart-panel-head">
+            <h2>Показатели KPI</h2>
+          </div>
+          <div id="donuts-grid" class="donuts-grid"></div>
+        </section>
+      </div>
+
+      <div class="tables-row">
+        <section class="table-panel">
+          <h2 id="table-plan-fact-title">План / факт / отклонения</h2>
+          <table id="table-plan-fact" class="display compact" style="width: 100%">
+            <thead id="table-plan-fact-head">
+              <tr>
+                <th>KPI</th>
+                <th>Факт</th>
+                <th>План</th>
+                <th>RAG</th>
+                <th>Отклонение, %</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </section>
+      </div>
+
+      </div><!-- /.dash-content -->
+
+      <section class="table-panel" id="debug-kpi-json-section" style="margin-top:24px">
+        <h2>DEBUG: все JSON-ответы API</h2>
+        <p class="debug-json-log-hint">Журнал запросов: вход (POST login), KPI (GET /api/kpi/, /api/kpi/all/), подчинённые (GET immediate-subordinates). Новые записи сверху.</p>
+        <div id="debug-kpi-json" class="debug-kpi-json-panel"></div>
+      </section>
+    </main>
+
+    <dialog id="kpi-thresholds-dialog" class="kpi-thresholds-dialog" aria-labelledby="kpi-thresholds-dialog-title">
+      <div class="kpi-thresholds-dialog-panel">
+        <h2 id="kpi-thresholds-dialog-title" class="kpi-thresholds-dialog-title"></h2>
+        <p id="kpi-thresholds-dialog-code" class="kpi-thresholds-dialog-code" hidden></p>
+        <p id="kpi-thresholds-dialog-hint" class="kpi-thresholds-dialog-hint" hidden></p>
+        <div id="kpi-thresholds-dialog-formula-wrap" class="kpi-thresholds-dialog-formula-wrap" hidden>
+          <h3 class="kpi-thresholds-dialog-subtitle">Формула</h3>
+          <div id="kpi-thresholds-dialog-formula" class="kpi-thresholds-dialog-formula" aria-live="polite"></div>
+        </div>
+        <ul id="kpi-thresholds-dialog-list" class="kpi-thresholds-dialog-list" aria-label="Цветовые пороги KPI"></ul>
+        <p id="kpi-thresholds-dialog-empty" class="kpi-thresholds-dialog-empty" hidden>
+          Для этого показателя в JSON не переданы пороги (green / yellow / red).
+        </p>
+        <form method="dialog" class="kpi-thresholds-dialog-actions">
+          <button type="submit" class="btn-dialog-close">Закрыть</button>
+        </form>
+      </div>
+    </dialog>
+
+    <script src="js/config.js"></script>
+    <script src="js/const/arraykpi.js"></script>
+    <script src="js/mockData.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/api.js"></script>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+    <!-- Явная версия: с code.highcharts.com без версии иногда подтягивается HC12+ с иными требованиями -->
+    <script src="https://cdn.jsdelivr.net/npm/highcharts@11.4.8/highcharts.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/highcharts@11.4.8/highcharts-more.js"></script>
+    <script src="node_modules/katex/dist/katex.min.js"></script>
+    <script src="js/pages/dashboard.js"></script>
+  </body>
+</html>

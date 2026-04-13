@@ -1,0 +1,58 @@
+{
+  "name": "dashboard-desktop",
+  "version": "1.0.0",
+  "description": "Управленческий дашборд — desktop (Electron)",
+  "main": "main.js",
+  "author": "Dashboard",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win",
+    "dist:dir": "electron-builder --win --dir"
+  },
+  "build": {
+    "appId": "ru.dashboard.desktop",
+    "productName": "Управленческий дашборд",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "*.html",
+      "css/**/*",
+      "js/**/*",
+      "node_modules/katex/dist/**/*",
+      "package.json"
+    ],
+    "asar": true,
+    "win": {
+      "signAndEditExecutable": false,
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false
+    }
+  },
+  "devDependencies": {
+    "electron": "^33.3.0",
+    "electron-builder": "^25.1.8"
+  },
+  "dependencies": {
+    "katex": "^0.16.21"
+  }
+}

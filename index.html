@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Управленческий дашборд</title>
+    <script src="js/auth.js"></script>
+    <script>
+      if (Auth.getSession()) {
+        window.location.replace("dashboard.html");
+      } else {
+        window.location.replace("login.html");
+      }
+    </script>
+  </head>
+  <body>
+    <p>Перенаправление…</p>
+  </body>
+</html>

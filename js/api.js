@@ -1,0 +1,1234 @@
+/**
+ * @fileoverview HTTP-клиент дашборда: вход, KPI, список пользователей, immediate-subordinates.
+ * Парсинг JSON KPI (кириллические ключи «Плитки», «Графики», «Таблицы») и приведение к структурам UI.
+ * Зависимости: `global.AppConfig`, для KPI — `global.Auth.getAuthHeaders()`.
+ * Публикует объект `global.Api`.
+ */
+(function (global) {
+  /** Ключи верхнего уровня в JSON ответа KPI (как в API). */
+  var KPI_JSON_KEY_TILES = "\u041f\u043b\u0438\u0442\u043a\u0438";
+  var KPI_JSON_KEY_CHARTS = "\u0413\u0440\u0430\u0444\u0438\u043a\u0438";
+  var KPI_JSON_KEY_TABLES = "\u0422\u0430\u0431\u043b\u0438\u0446\u044b";
+  var CHART_AXIS_MONTH = "\u041c\u0435\u0441\u044f\u0446";
+  var CHART_AXIS_QUARTER = "\u041a\u0432\u0430\u0440\u0442\u0430\u043b";
+  var CHART_SERIES_FACT = "\u0424\u0430\u043a\u0442";
+  var CHART_SERIES_PLAN = "\u041f\u043b\u0430\u043d";
+
+  /**
+   * Журнал ответов API для окна отладки на дашборде (см. renderDebugJsonLogPanel в dashboard.js).
+   */
+  function pushApiDebug(sourceShort, method, url, status, body) {
+    var entry = {
+      at: new Date().toISOString(),
+      source: sourceShort,
+      method: method,
+      url: url,
+      status: status,
+      body: body,
+    };
+    if (!global.__apiDebugJsonLog) global.__apiDebugJsonLog = [];
+    global.__apiDebugJsonLog.push(entry);
+    if (typeof global.ApiDebugLog === "function") {
+      try {
+        global.ApiDebugLog();
+      } catch (e) {
+        /* ignore */
+      }
+    }
+  }
+
+  function baseUrl() {
+    var c = global.AppConfig;
+    var u = (c && c.API_BASE_URL) || "";
+    return u.replace(/\/+$/, "");
+  }
+
+  function loginUrl() {
+    var cfg = global.AppConfig || {};
+    var p = cfg.API_LOGIN_PATH || "/api/user/login/";
+    if (p.charAt(0) !== "/") p = "/" + p;
+    return baseUrl() + p;
+  }
+
+  function kpiUrl() {
+    var cfg = global.AppConfig || {};
+    var p = cfg.API_KPI_PATH || "/api/kpi/";
+    if (p.charAt(0) !== "/") p = "/" + p;
+    return baseUrl() + p;
+  }
+
+  /**
+   * Добавляет к URL query `department=`, если в options передано непустое подразделение.
+   * @param {string} url
+   * @param {{ department?: string }|null|undefined} options
+   * @returns {string}
+   */
+  function appendDepartmentQuery(url, options) {
+    var u = url || "";
+    options = options || {};
+    var dept = options.department != null ? String(options.department).trim() : "";
+    if (dept) {
+      u += (u.indexOf("?") === -1 ? "?" : "&") + "department=" + encodeURIComponent(dept);
+    }
+    return u;
+  }
+
+  function buildKpiUrlWithQuery(options) {
+    return appendDepartmentQuery(kpiUrl(), options);
+  }
+
+  function kpiAllUrl() {
+    var cfg = global.AppConfig || {};
+    var p = cfg.API_KPI_ALL_PATH || "/api/kpi/all/";
+    if (p.charAt(0) !== "/") p = "/" + p;
+    return baseUrl() + p;
+  }
+
+  function buildKpiAllUrlWithQuery(options) {
+    return appendDepartmentQuery(kpiAllUrl(), options);
+  }
+
+  function kpiImmediateSubordinatesUrl() {
+    var cfg = global.AppConfig || {};
+    var p = cfg.API_KPI_IMMEDIATE_SUBORDINATES_PATH || "/api/kpi/immediate-subordinates/";
+    if (p.charAt(0) !== "/") p = "/" + p;
+    return baseUrl() + p;
+  }
+
+  function kpiUsersUrl() {
+    var cfg = global.AppConfig || {};
+    var p = cfg.API_KPI_USERS_PATH || "/api/kpi/users/";
+    if (p.charAt(0) !== "/") p = "/" + p;
+    return baseUrl() + p;
+  }
+
+  function normalizeKpiUserEntry(u) {
+    if (!u || typeof u !== "object") return { nickname: "", department: "" };
+    return {
+      nickname: u.nickname != null ? String(u.nickname).trim() : "",
+      department: u.department != null ? String(u.department).trim() : "",
+    };
+  }
+
+  /**
+   * GET /api/kpi/users/ — список пользователей без авторизации (страница входа).
+   * @returns {Promise<{ ok: boolean, users?: Array<{nickname:string,department:string}>, count?: number, error?: string }>}
+   */
+  function fetchKpiUsers() {
+    var cfg = global.AppConfig || {};
+    if (cfg.isMockApi && cfg.isMockApi()) {
+      return Promise.resolve({
+        ok: true,
+        users: [
+          { nickname: "User1", department: "Технический директор" },
+          { nickname: "User2", department: "Коммерческий директор" },
+        ],
+        count: 2,
+      });
+    }
+    var url = kpiUsersUrl();
+    var headers = { Accept: "application/json" };
+    var fetchOpts = { method: "GET", headers: headers };
+    if (cfg.FETCH_CREDENTIALS === "include") {
+      fetchOpts.credentials = "include";
+    }
+    return fetch(url, fetchOpts)
+      .then(function (res) {
+        return res.text().then(function (text) {
+          var data = null;
+          try {
+            data = text ? JSON.parse(text) : null;
+          } catch (e) {
+            data = null;
+          }
+          var dbgBody = data;
+          if (dbgBody === null && text) {
+            dbgBody = { _nonJson: text.slice(0, 2000) };
+          }
+          pushApiDebug("GET /api/kpi/users/", "GET", url, res.status, dbgBody);
+          if (!res.ok) {
+            return {
+              ok: false,
+              status: res.status,
+              error:
+                parseErrorBody(text) ||
+                "Не удалось загрузить список пользователей (" + res.status + ")",
+            };
+          }
+          var raw = Array.isArray(data && data.users) ? data.users : [];
+          var users = raw.map(normalizeKpiUserEntry).filter(function (u) {
+            return u.nickname;
+          });
+          return {
+            ok: true,
+            users: users,
+            count: typeof data.count === "number" ? data.count : users.length,
+            data: data,
+          };
+        });
+      })
+      .catch(function (err) {
+        var m = err && err.message ? err.message : String(err);
+        pushApiDebug("GET /api/kpi/users/", "GET", url, 0, { _networkError: m });
+        if (m.indexOf("Failed to fetch") !== -1 || m.indexOf("NetworkError") !== -1) {
+          return { ok: false, error: "Нет связи с сервером (список пользователей)" };
+        }
+        return { ok: false, error: m || "Ошибка запроса списка пользователей" };
+      });
+  }
+
+  function buildImmediateSubordinatesUrl(options) {
+    var url = kpiImmediateSubordinatesUrl();
+    options = options || {};
+    var dept = options.department != null ? String(options.department).trim() : "";
+    if (!dept) return url;
+    url += (url.indexOf("?") === -1 ? "?" : "&") + "department=" + encodeURIComponent(dept);
+    return url;
+  }
+
+  /**
+   * GET /api/kpi/immediate-subordinates/?department= — прямые дочерние подразделения (один уровень).
+   * @param {{ department: string }} options — родитель (обязательно)
+   */
+  function fetchImmediateSubordinates(options) {
+    var cfg = global.AppConfig || {};
+    if (cfg.isMockApi && cfg.isMockApi()) {
+      return Promise.resolve({ ok: false, skipped: true });
+    }
+    var dept = options && options.department != null ? String(options.department).trim() : "";
+    if (!dept) {
+      return Promise.resolve({ ok: false, error: "Не указано подразделение (department)" });
+    }
+    var A = global.Auth;
+    if (!A || typeof A.getAuthHeaders !== "function") {
+      return Promise.resolve({ ok: false, error: "Модуль Auth не загружен" });
+    }
+    var authHeaders = A.getAuthHeaders();
+    if (!authHeaders.Authorization) {
+      return Promise.resolve({ ok: false, error: "Нет токена авторизации" });
+    }
+    var url = buildImmediateSubordinatesUrl({ department: dept });
+    var headers = Object.assign({ Accept: "application/json" }, authHeaders);
+    var fetchOpts = { method: "GET", headers: headers };
+    if (cfg.FETCH_CREDENTIALS === "include") {
+      fetchOpts.credentials = "include";
+    }
+    return fetch(url, fetchOpts)
+      .then(function (res) {
+        return res.text().then(function (text) {
+          var data = null;
+          try {
+            data = text ? JSON.parse(text) : null;
+          } catch (e) {
+            data = null;
+          }
+          var dbgBody = data;
+          if (dbgBody === null && text) {
+            dbgBody = { _nonJson: text.slice(0, 2000) };
+          }
+          pushApiDebug("GET /api/kpi/immediate-subordinates/", "GET", url, res.status, dbgBody);
+          if (res.status === 401) {
+            return { ok: false, status: 401, error: "Требуется повторный вход", unauthorized: true };
+          }
+          if (!res.ok) {
+            return {
+              ok: false,
+              status: res.status,
+              error: parseErrorBody(text) || "Ошибка списка подчинённых (" + res.status + ")",
+            };
+          }
+          var children = Array.isArray(data && data.immediate_children) ? data.immediate_children : [];
+          return {
+            ok: true,
+            immediate_children: children,
+            department: data && data.department,
+            count: data && data.count,
+            data: data,
+          };
+        });
+      })
+      .catch(function (err) {
+        var m = err && err.message ? err.message : String(err);
+        pushApiDebug("GET /api/kpi/immediate-subordinates/", "GET", url, 0, { _networkError: m });
+        if (m.indexOf("Failed to fetch") !== -1 || m.indexOf("NetworkError") !== -1) {
+          return { ok: false, error: "Нет связи с сервером (immediate-subordinates)" };
+        }
+        return { ok: false, error: m || "Ошибка запроса immediate-subordinates" };
+      });
+  }
+
+  /**
+   * Единая постобработка успешного JSON KPI: плитки, графики, таблица план/факт, подстановка план/факт на плитки.
+   * @param {object|null} data — распарсенное тело ответа GET /api/kpi/ или /api/kpi/all/
+   * @returns {{ tiles: object[], chartIndicators: object, tableRows: object[] }}
+   */
+  function processKpiResponseBody(data) {
+    var tiles = normalizeKpiListFromApiResponse(data);
+    applyPlanFactFromJsonLastPeriodToTiles(data, tiles);
+    return {
+      tiles: tiles,
+      chartIndicators: buildChartIndicatorsFromApiResponse(data),
+      tableRows: buildTableRowsFromApiResponse(data),
+    };
+  }
+
+  /**
+   * Авторизованный GET по полному URL KPI; при успехе добавляет поля из processKpiResponseBody().
+   * @param {string} url
+   * @returns {Promise<object>}
+   */
+  function performKpiGet(url) {
+    var cfg = global.AppConfig || {};
+    if (cfg.isMockApi && cfg.isMockApi()) {
+      return Promise.resolve({ ok: false, skipped: true });
+    }
+    var A = global.Auth;
+    if (!A || typeof A.getAuthHeaders !== "function") {
+      return Promise.resolve({ ok: false, error: "Модуль Auth не загружен" });
+    }
+    var authHeaders = A.getAuthHeaders();
+    if (!authHeaders.Authorization) {
+      return Promise.resolve({ ok: false, error: "Нет токена авторизации" });
+    }
+    var headers = Object.assign({ Accept: "application/json" }, authHeaders);
+    var fetchOpts = { method: "GET", headers: headers };
+    if (cfg.FETCH_CREDENTIALS === "include") {
+      fetchOpts.credentials = "include";
+    }
+    return fetch(url, fetchOpts)
+      .then(function (res) {
+        return res.text().then(function (text) {
+          var data = null;
+          try {
+            data = text ? JSON.parse(text) : null;
+          } catch (e) {
+            data = null;
+          }
+          var dbgBody = data;
+          if (dbgBody === null && text) {
+            dbgBody = { _nonJson: text.slice(0, 2000) };
+          }
+          var src =
+            url.indexOf("/kpi/all") !== -1 || url.indexOf("kpi/all") !== -1
+              ? "GET /api/kpi/all/"
+              : "GET /api/kpi/";
+          pushApiDebug(src, "GET", url, res.status, dbgBody);
+          if (res.status === 401) {
+            return { ok: false, status: 401, error: "Требуется повторный вход", unauthorized: true };
+          }
+          if (!res.ok) {
+            return {
+              ok: false,
+              status: res.status,
+              error: parseErrorBody(text) || "Ошибка KPI (" + res.status + ")",
+            };
+          }
+          var processed = processKpiResponseBody(data);
+          return Object.assign({ ok: true, data: data }, processed);
+        });
+      })
+      .catch(function (err) {
+        var m = err && err.message ? err.message : String(err);
+        var src =
+          url.indexOf("/kpi/all") !== -1 || url.indexOf("kpi/all") !== -1
+            ? "GET /api/kpi/all/"
+            : "GET /api/kpi/";
+        pushApiDebug(src, "GET", url, 0, { _networkError: m });
+        if (m.indexOf("Failed to fetch") !== -1 || m.indexOf("NetworkError") !== -1) {
+          return { ok: false, error: "Нет связи с сервером (KPI)" };
+        }
+        return { ok: false, error: m || "Ошибка запроса KPI" };
+      });
+  }
+
+  /**
+   * Приводит ответ API к формату плиток дашборда.
+   * Ожидаемый формат: `body[KPI_JSON_KEY_TILES].items` — массив объектов с полями
+   * `kpi_id`, `name`, `kpi_pct` / `kpi_pst`, `color`, `period`, `thresholds`, опционально `plan`, `fact`, `has_data`.
+   * @param {object|null} body
+   * @returns {object[]}
+   */
+  function normalizeKpiListFromApiResponse(body) {
+    if (body == null) return [];
+    var items = body[KPI_JSON_KEY_TILES] && body[KPI_JSON_KEY_TILES].items;
+    if (!Array.isArray(items) || !items.length) return [];
+    return items
+      .map(function (item) {
+        if (!item || typeof item !== "object") return null;
+        var title = item.name != null ? String(item.name) : "";
+        if (!title && item.kpi_id != null) title = String(item.kpi_id);
+        if (!title) return null;
+        var pct =
+          typeof item.kpi_pst === "number" && !isNaN(item.kpi_pst)
+            ? item.kpi_pst
+            : typeof item.kpi_pct === "number" && !isNaN(item.kpi_pct)
+              ? item.kpi_pct
+              : null;
+        var color = item.color != null ? String(item.color).toLowerCase().trim() : null;
+        var th = item.thresholds && typeof item.thresholds === "object" ? item.thresholds : {};
+        var hint =
+          item.description != null
+            ? String(item.description)
+            : item.hint != null
+              ? String(item.hint)
+              : item.comment != null
+                ? String(item.comment)
+                : "";
+        function thStr(obj, key, flatKey) {
+          if (obj[key] != null) return String(obj[key]);
+          if (flatKey != null && item[flatKey] != null) return String(item[flatKey]);
+          return null;
+        }
+        var formulaSrc = item.formula != null ? item.formula : th.formula;
+        var hasData = typeof item.has_data === "boolean" ? item.has_data : undefined;
+        return {
+          kpi_id: item.kpi_id != null ? String(item.kpi_id) : "",
+          title: title,
+          badge: item.kpi_id != null ? String(item.kpi_id) : "KPI",
+          period: item.period != null ? String(item.period) : "",
+          formula: formulaSrc != null ? String(formulaSrc) : null,
+          plan_fact_period_label:
+            item.plan_fact_period_label != null
+              ? String(item.plan_fact_period_label)
+              : null,
+          percent: pct,
+          kpi_pst: typeof item.kpi_pst === "number" && !isNaN(item.kpi_pst) ? item.kpi_pst : null,
+          kpi_pct: typeof item.kpi_pct === "number" && !isNaN(item.kpi_pct) ? item.kpi_pct : null,
+          plan: item.plan,
+          fact: item.fact,
+          has_data: hasData,
+          hint: hint,
+          rag: color,
+          green_threshold: thStr(th, "green", "green_threshold"),
+          yellow_threshold: thStr(th, "yellow", "yellow_threshold"),
+          red_threshold: thStr(th, "red", "red_threshold"),
+          blue_threshold: thStr(th, "blue", "blue_threshold"),
+        };
+      })
+      .filter(Boolean);
+  }
+
+  /* ── Построение индикаторов для графиков из raw API ── */
+
+  var MONTH_SHORT = ["\u042f\u043d\u0432", "\u0424\u0435\u0432", "\u041c\u0430\u0440", "\u0410\u043f\u0440", "\u041c\u0430\u0439", "\u0418\u044e\u043d", "\u0418\u044e\u043b", "\u0410\u0432\u0433", "\u0421\u0435\u043d", "\u041e\u043a\u0442", "\u041d\u043e\u044f", "\u0414\u0435\u043a"];
+
+  function classifyChartType(raw) {
+    if (raw == null) return null;
+    var s = String(raw).toLowerCase();
+    if (s.indexOf("line") !== -1 || s.indexOf("multi_line") !== -1) return "line";
+    if (s.indexOf("column") !== -1 || s.indexOf("waterfall") !== -1) return "bar";
+    if (s.indexOf("donut") !== -1 || s.indexOf("pie") !== -1) return "donut";
+    return null;
+  }
+
+  function parseIntLoose(v) {
+    if (typeof v === "number" && !isNaN(v)) return v;
+    if (v == null || v === "") return NaN;
+    var n = parseInt(String(v), 10);
+    return isNaN(n) ? NaN : n;
+  }
+
+  /** Ключ для сравнения месяцев: year * 100 + month; иначе -1. */
+  function monthlyPointSortKey(p) {
+    if (!p) return -1;
+    var y = parseIntLoose(p.year);
+    var m = parseIntLoose(p.month);
+    if (!isNaN(y) && !isNaN(m)) return y * 100 + m;
+    if (!isNaN(m)) return m;
+    return -1;
+  }
+
+  function planFactValuePresent(v) {
+    if (v === undefined || v === null) return false;
+    if (typeof v === "number") return !isNaN(v);
+    if (typeof v === "string") return String(v).trim() !== "";
+    return true;
+  }
+
+  function planFactPointHasBoth(p) {
+    return p && planFactValuePresent(p.plan) && planFactValuePresent(p.fact);
+  }
+
+  function capitalizeRuMonthToken(s) {
+    if (s == null || !String(s).trim()) return "";
+    var t = String(s).trim();
+    var first = t.charAt(0);
+    var upper =
+      typeof first.toLocaleUpperCase === "function"
+        ? first.toLocaleUpperCase("ru-RU")
+        : first.toUpperCase();
+    return upper + t.slice(1).toLowerCase();
+  }
+
+  /** Подпись периода для плитки: месяц и год из точки линейного графика. */
+  function formatPlanFactPeriodFromMonthlyPoint(p) {
+    if (!p) return "";
+    if (p.month_name != null && String(p.month_name).trim()) {
+      var mn = capitalizeRuMonthToken(p.month_name);
+      var y = parseIntLoose(p.year);
+      return !isNaN(y) ? mn + " " + y : mn;
+    }
+    var m = parseIntLoose(p.month);
+    var y = parseIntLoose(p.year);
+    if (!isNaN(m) && !isNaN(y) && m >= 1 && m <= 12) {
+      return capitalizeRuMonthToken(MONTH_SHORT[m - 1]) + " " + y;
+    }
+    return "";
+  }
+
+  var ROMAN_Q = ["I", "II", "III", "IV"];
+
+  function formatPlanFactPeriodFromQuarterPoint(p) {
+    if (!p) return "";
+    var y = parseIntLoose(p.year);
+    var q = parseIntLoose(p.quarter);
+    if (!isNaN(y) && !isNaN(q) && q >= 1 && q <= 4) {
+      return (ROMAN_Q[q - 1] || String(q)) + " кв. " + y;
+    }
+    return "";
+  }
+
+  function formatPlanFactPeriodFromKpiPeriod(kp) {
+    if (!kp || typeof kp !== "object") return "";
+    if (kp.month_name != null && String(kp.month_name).trim()) {
+      var mn = capitalizeRuMonthToken(kp.month_name);
+      var y = parseIntLoose(kp.year);
+      return !isNaN(y) ? mn + " " + y : mn;
+    }
+    var m = parseIntLoose(kp.month);
+    var y = parseIntLoose(kp.year);
+    if (!isNaN(m) && !isNaN(y) && m >= 1 && m <= 12) {
+      return capitalizeRuMonthToken(MONTH_SHORT[m - 1]) + " " + y;
+    }
+    var q = parseIntLoose(kp.quarter);
+    if (!isNaN(y) && !isNaN(q) && q >= 1 && q <= 4) {
+      return (ROMAN_Q[q - 1] || String(q)) + " кв. " + y;
+    }
+    return "";
+  }
+
+  /**
+   * Самый поздний календарный месяц, у которого в точке заданы и plan, и fact.
+   */
+  function pickLatestMonthlyPointWithPlanAndFact(points) {
+    if (!points || !points.length) return null;
+    var best = null;
+    var bestKey = -1;
+    for (var i = 0; i < points.length; i++) {
+      var p = points[i];
+      if (!planFactPointHasBoth(p)) continue;
+      var k = monthlyPointSortKey(p);
+      if (k < 0) continue;
+      if (k >= bestKey) {
+        bestKey = k;
+        best = p;
+      }
+    }
+    return best;
+  }
+
+  function quarterPointSortKey(p) {
+    if (!p) return -1;
+    var y = parseIntLoose(p.year);
+    var q = parseIntLoose(p.quarter);
+    var yy = isNaN(y) ? 0 : y;
+    var qq = isNaN(q) ? 0 : q;
+    return yy * 10 + qq;
+  }
+
+  function pickLatestQuarterPointWithPlanAndFact(points) {
+    if (!points || !points.length) return null;
+    var best = null;
+    var bestKey = -1;
+    for (var i = 0; i < points.length; i++) {
+      var p = points[i];
+      if (!planFactPointHasBoth(p)) continue;
+      var k = quarterPointSortKey(p);
+      if (k >= bestKey) {
+        bestKey = k;
+        best = p;
+      }
+    }
+    return best;
+  }
+
+  function chartPlanFactEntryComplete(entry) {
+    return entry && planFactValuePresent(entry.plan) && planFactValuePresent(entry.fact);
+  }
+
+  /** Логическое объединение флагов достоверности данных (таблицы / точки графика). */
+  function mergeHasDataFlags(a, b) {
+    if (a === false || b === false) return false;
+    if (a === true || b === true) return true;
+    return undefined;
+  }
+
+  /**
+   * Флаг has_data с точки и серии графика: `false` — сгенерированные данные.
+   * @param {object|null|undefined} point
+   * @param {object|null|undefined} series
+   * @returns {boolean|undefined}
+   */
+  function hasDataFromPointAndSeries(point, series) {
+    var hp = point && typeof point.has_data === "boolean" ? point.has_data : undefined;
+    var hs = series && typeof series.has_data === "boolean" ? series.has_data : undefined;
+    return mergeHasDataFlags(hp, hs);
+  }
+
+  /**
+   * План/факт по kpi_id из Графики: помесячно — последний месяц, где есть и plan, и fact;
+   * иначе квартал с тем же условием.
+   */
+  function buildPlanFactFromChartsLastAvailable(body) {
+    var out = {};
+    if (!body) return out;
+    var charts = body[KPI_JSON_KEY_CHARTS];
+    if (!charts || typeof charts !== "object") return out;
+
+    Object.keys(charts).forEach(function (key) {
+      var chart = charts[key];
+      if (!chart || !chart.chart_type || !Array.isArray(chart.series)) return;
+      if (classifyChartType(chart.chart_type) !== "line") return;
+      chart.series.forEach(function (s) {
+        if (!s || s.kpi_id == null || !Array.isArray(s.points) || !s.points.length) return;
+        var kid = String(s.kpi_id);
+        var last = pickLatestMonthlyPointWithPlanAndFact(s.points);
+        if (!last) return;
+        var pk = monthlyPointSortKey(last);
+        var prev = out[kid];
+        var prevK = prev && prev._pk != null ? prev._pk : -1;
+        if (pk >= prevK) {
+          out[kid] = {
+            plan: last.plan,
+            fact: last.fact,
+            plan_fact_period_label: formatPlanFactPeriodFromMonthlyPoint(last),
+            has_data: hasDataFromPointAndSeries(last, s),
+            _pk: pk,
+          };
+        }
+      });
+    });
+
+    Object.keys(charts).forEach(function (keyBar) {
+      var chart = charts[keyBar];
+      if (!chart || !chart.chart_type || !Array.isArray(chart.series)) return;
+      if (classifyChartType(chart.chart_type) !== "bar") return;
+      chart.series.forEach(function (s) {
+        if (!s || s.kpi_id == null || !Array.isArray(s.points) || !s.points.length) return;
+        var kid = String(s.kpi_id);
+        if (chartPlanFactEntryComplete(out[kid])) return;
+        var last = pickLatestQuarterPointWithPlanAndFact(s.points);
+        if (!last) return;
+        var qk = quarterPointSortKey(last);
+        var cur = out[kid];
+        var prevQ = cur && cur._qk != null ? cur._qk : -1;
+        if (qk >= prevQ) {
+          out[kid] = {
+            plan: last.plan,
+            fact: last.fact,
+            plan_fact_period_label: formatPlanFactPeriodFromQuarterPoint(last),
+            has_data: hasDataFromPointAndSeries(last, s),
+            _qk: qk,
+          };
+        }
+      });
+    });
+
+    Object.keys(out).forEach(function (kid) {
+      delete out[kid]._pk;
+      delete out[kid]._qk;
+    });
+    return out;
+  }
+
+  /**
+   * Обход строк body["Таблицы"]: значение по ключу — { rows: [...] } или сразу массив строк.
+   * @param {object|null|undefined} tables
+   * @param {function(string tabKey, object row): void} fn
+   */
+  function forEachTablesRow(tables, fn) {
+    if (!tables || typeof tables !== "object") return;
+    Object.keys(tables).forEach(function (tk) {
+      var tab = tables[tk];
+      var rows = null;
+      if (tab && Array.isArray(tab.rows)) rows = tab.rows;
+      else if (Array.isArray(tab)) rows = tab;
+      if (!rows || !rows.length) return;
+      for (var i = 0; i < rows.length; i++) {
+        fn(tk, rows[i]);
+      }
+    });
+  }
+
+  /** Только блоки Таблицы: plan/fact по строкам (например сводка за период). */
+  function buildPlanFactLookupFromTablesOnly(body) {
+    var planFactLookup = {};
+    if (!body) return planFactLookup;
+    var tables = body[KPI_JSON_KEY_TABLES];
+    forEachTablesRow(tables, function (tk, row) {
+      if (!row || typeof row !== "object") return;
+      var id = row.kpi_id != null ? String(row.kpi_id) : row.kpi_name != null ? String(row.kpi_name) : "";
+      if (!id) return;
+      if (row.plan !== undefined || row.fact !== undefined) {
+        var prev = planFactLookup[id] || {};
+        var periodLbl = "";
+        if (row.kpi_period && typeof row.kpi_period === "object") {
+          periodLbl = formatPlanFactPeriodFromKpiPeriod(row.kpi_period);
+        }
+        var rowHd = typeof row.has_data === "boolean" ? row.has_data : undefined;
+        planFactLookup[id] = {
+          plan: row.plan !== undefined ? row.plan : prev.plan,
+          fact: row.fact !== undefined ? row.fact : prev.fact,
+          plan_fact_period_label: periodLbl || prev.plan_fact_period_label,
+          has_data: mergeHasDataFlags(prev.has_data, rowHd),
+        };
+      }
+    });
+    return planFactLookup;
+  }
+
+  /**
+   * Переносит `has_data` с источника план/факт на плитку; `false` на плитке не перезаписывается в `true`.
+   * @param {object} tile
+   * @param {{ has_data?: boolean }|null|undefined} src
+   */
+  function applyHasDataFromSource(tile, src) {
+    if (!src || typeof src.has_data !== "boolean") return;
+    if (src.has_data === false) {
+      tile.has_data = false;
+      return;
+    }
+    if (src.has_data === true && tile.has_data !== false) {
+      tile.has_data = true;
+    }
+  }
+
+  /**
+   * Дополняет плитки полями `plan`, `fact`, подписью периода и `has_data` из «Графики» / «Таблицы» (приоритет — график).
+   * @param {object|null} body — сырой JSON KPI
+   * @param {object[]} tiles — уже нормализованные плитки (мутируются на месте)
+   */
+  function applyPlanFactFromJsonLastPeriodToTiles(body, tiles) {
+    if (!body || !tiles || !tiles.length) return;
+    var fromCharts = buildPlanFactFromChartsLastAvailable(body);
+    var fromTables = buildPlanFactLookupFromTablesOnly(body);
+    tiles.forEach(function (tile) {
+      var id = tile.kpi_id;
+      if (!id) return;
+      var ch = fromCharts[id];
+      var tb = fromTables[id];
+      var chartBoth =
+        ch && planFactValuePresent(ch.plan) && planFactValuePresent(ch.fact);
+      var tableBoth =
+        tb && planFactValuePresent(tb.plan) && planFactValuePresent(tb.fact);
+      if (chartBoth) {
+        tile.plan = ch.plan;
+        tile.fact = ch.fact;
+        if (ch.plan_fact_period_label) tile.plan_fact_period_label = String(ch.plan_fact_period_label);
+        applyHasDataFromSource(tile, ch);
+        return;
+      }
+      if (tableBoth) {
+        tile.plan = tb.plan;
+        tile.fact = tb.fact;
+        if (tb.plan_fact_period_label) tile.plan_fact_period_label = String(tb.plan_fact_period_label);
+        applyHasDataFromSource(tile, tb);
+        return;
+      }
+      if (ch) {
+        if (planFactValuePresent(ch.plan)) tile.plan = ch.plan;
+        if (planFactValuePresent(ch.fact)) tile.fact = ch.fact;
+        applyHasDataFromSource(tile, ch);
+      }
+      if (tb) {
+        if (planFactValuePresent(tb.plan)) tile.plan = tb.plan;
+        if (planFactValuePresent(tb.fact)) tile.fact = tb.fact;
+        applyHasDataFromSource(tile, tb);
+      }
+    });
+  }
+
+  /**
+   * Из body["Графики"] строит индикаторы для графиков.
+   * chart_type: "multi_line_plan_fact_monthly" → line, "column_plan_fact_waterfall_quarterly" → bar.
+   * Каждый series внутри графика = отдельный переключаемый показатель.
+   */
+  function buildChartIndicatorsFromApiResponse(body) {
+    var out = { line: [], bar: [], donut: [] };
+    if (!body) return out;
+    var charts = body[KPI_JSON_KEY_CHARTS];
+    if (!charts || typeof charts !== "object") return out;
+
+    Object.keys(charts).forEach(function (key) {
+      var chart = charts[key];
+      if (!chart || !chart.chart_type || !Array.isArray(chart.series)) return;
+      var target = classifyChartType(chart.chart_type);
+      if (!target) return;
+
+      chart.series.forEach(function (s) {
+        if (!s || !Array.isArray(s.points) || !s.points.length) return;
+        var name = s.name || s.kpi_id || "KPI";
+
+        if (target === "line") {
+          var sorted = s.points.slice().sort(function (a, b) { return (a.month || 0) - (b.month || 0); });
+          var categories = sorted.map(function (p) {
+            if (p.month_name) {
+              var mn = String(p.month_name);
+              return mn.charAt(0).toUpperCase() + mn.slice(1, 3);
+            }
+            return MONTH_SHORT[(p.month || 1) - 1] || String(p.month);
+          });
+          out.line.push({
+            id: s.kpi_id || name,
+            optionLabel: name,
+            title: name,
+            xAxisTitle: CHART_AXIS_MONTH,
+            yAxisTitle: "Значение",
+            categories: categories,
+            series: [
+              { name: CHART_SERIES_FACT, data: sorted.map(function (p) { return p.fact != null ? Number(p.fact) : null; }), color: "#2b5ca6" },
+              { name: CHART_SERIES_PLAN, data: sorted.map(function (p) { return p.plan != null ? Number(p.plan) : null; }), color: "#c8d6ee", dashStyle: "Dash" },
+            ],
+          });
+        } else if (target === "bar") {
+          var sortedQ = s.points.slice().sort(function (a, b) { return (a.quarter || 0) - (b.quarter || 0); });
+          var ROMAN_Q = ["I кв.", "II кв.", "III кв.", "IV кв."];
+          var cats = sortedQ.map(function (p) { return ROMAN_Q[(p.quarter || 1) - 1] || (p.quarter + " кв."); });
+          out.bar.push({
+            id: s.kpi_id || name,
+            optionLabel: name,
+            title: name,
+            xAxisTitle: CHART_AXIS_QUARTER,
+            yAxisTitle: "Значение",
+            categories: cats,
+            plan: sortedQ.map(function (p) { return p.plan != null ? Number(p.plan) : null; }),
+            fact: sortedQ.map(function (p) { return p.fact != null ? Number(p.fact) : null; }),
+          });
+        }
+      });
+    });
+
+    return out;
+  }
+
+  /**
+   * Текст status из таблицы ТОП → ключ RAG для CSS (rag-dot).
+   */
+  function normalizeTableStatus(raw) {
+    if (raw == null) return "blue";
+    var s = String(raw).toLowerCase().trim();
+    if (s === "green" || s === "зелёный" || s === "зеленый" || s.indexOf("зел") === 0) return "green";
+    if (s === "yellow" || s === "жёлтый" || s === "желтый" || s.indexOf("жёл") === 0 || s.indexOf("жел") === 0) return "yellow";
+    if (s === "red" || s === "красный" || s.indexOf("красн") === 0) return "red";
+    return "blue";
+  }
+
+  function formatDeviationPercent(pct) {
+    if (pct == null || typeof pct !== "number" || isNaN(pct)) return "—";
+    var sign = pct > 0 ? "+" : "";
+    return sign + String(Math.round(pct * 10) / 10).replace(".", ",") + "%";
+  }
+
+  /**
+   * Отклонение в процентах по таблице: ((fact − plan) / plan) × 100.
+   * @returns {number|null}
+   */
+  function computePlanFactDeviationPct(plan, fact) {
+    if (!planFactValuePresent(plan) || !planFactValuePresent(fact)) return null;
+    var p =
+      typeof plan === "number" && !isNaN(plan)
+        ? plan
+        : parseFloat(String(plan).replace(/[^\d.,\-]/g, "").replace(",", "."));
+    var f =
+      typeof fact === "number" && !isNaN(fact)
+        ? fact
+        : parseFloat(String(fact).replace(/[^\d.,\-]/g, "").replace(",", "."));
+    if (!isFinite(p) || !isFinite(f) || p === 0) return null;
+    return ((f - p) / p) * 100;
+  }
+
+  /**
+   * name по kpi_id: Плитки → строки других таблиц (сводка) → серии Графиков.
+   * plan/fact: строки Таблиц с полями plan/fact (например KD-T-KPI-SUMMARY), иначе последняя точка серии в Графиках.
+   */
+  function buildKpiDisplayAndPlanFactLookups(body) {
+    var nameLookup = {};
+    var planFactLookup = {};
+
+    var tiles = body[KPI_JSON_KEY_TILES];
+    if (tiles && Array.isArray(tiles.items)) {
+      tiles.items.forEach(function (t) {
+        if (!t || t.kpi_id == null) return;
+        var id = String(t.kpi_id);
+        if (t.name != null) nameLookup[id] = String(t.name);
+      });
+    }
+
+    var tables = body[KPI_JSON_KEY_TABLES];
+    if (tables && typeof tables === "object") {
+      forEachTablesRow(tables, function (tk, row) {
+        if (!row || typeof row !== "object") return;
+        var id = row.kpi_id != null ? String(row.kpi_id) : row.kpi_name != null ? String(row.kpi_name) : "";
+        if (!id) return;
+        if (row.name != null && nameLookup[id] == null) nameLookup[id] = String(row.name);
+        if (row.plan !== undefined || row.fact !== undefined) {
+          var prev = planFactLookup[id] || {};
+          planFactLookup[id] = {
+            plan: row.plan !== undefined ? row.plan : prev.plan,
+            fact: row.fact !== undefined ? row.fact : prev.fact,
+          };
+        }
+      });
+    }
+
+    var charts = body[KPI_JSON_KEY_CHARTS];
+    if (charts && typeof charts === "object") {
+      Object.keys(charts).forEach(function (ck) {
+        var ch = charts[ck];
+        if (!ch || !Array.isArray(ch.series)) return;
+        ch.series.forEach(function (s) {
+          if (!s || s.kpi_id == null || !Array.isArray(s.points) || !s.points.length) return;
+          var kid = String(s.kpi_id);
+          if (s.name != null && nameLookup[kid] == null) nameLookup[kid] = String(s.name);
+          var last = s.points[s.points.length - 1];
+          if (planFactLookup[kid] == null) {
+            planFactLookup[kid] = { plan: last.plan, fact: last.fact };
+          } else {
+            var c = planFactLookup[kid];
+            if (c.plan === undefined && last.plan !== undefined) c.plan = last.plan;
+            if (c.fact === undefined && last.fact !== undefined) c.fact = last.fact;
+          }
+        });
+      });
+    }
+
+    return { nameLookup: nameLookup, planFactLookup: planFactLookup };
+  }
+
+  /** RAG (green|yellow|red|blue) по kpi_id из цвета плитки — как на дашборде. */
+  function buildTileRagByKpiId(body) {
+    var ragById = {};
+    var tiles = body[KPI_JSON_KEY_TILES];
+    if (!tiles || !Array.isArray(tiles.items)) return ragById;
+    tiles.items.forEach(function (t) {
+      if (!t || t.kpi_id == null || t.color == null) return;
+      ragById[String(t.kpi_id)] = normalizeTableStatus(t.color);
+    });
+    return ragById;
+  }
+
+  function tableRowKpiKey(row) {
+    if (!row || typeof row !== "object") return "";
+    if (row.kpi_id != null) return String(row.kpi_id);
+    if (row.kpi_name != null) return String(row.kpi_name);
+    return "";
+  }
+
+  /**
+   * body["Таблицы"]: все строки с kpi_id / kpi_name.
+   * KPI — название из «Плитки» по kpi_id, иначе name из строки; план/факт — plan и fact;
+   * RAG — color строки, иначе цвет плитки; отклонение — ((fact − plan) / plan) × 100 %.
+   */
+  function buildTableRowsFromApiResponse(body) {
+    if (!body) return [];
+    var tables = body[KPI_JSON_KEY_TABLES];
+    if (!tables || typeof tables !== "object") return [];
+
+    var collected = [];
+    forEachTablesRow(tables, function (tk, row) {
+      if (!row || typeof row !== "object") return;
+      var id = tableRowKpiKey(row);
+      if (!id) return;
+      collected.push({ tk: tk, row: row });
+    });
+    if (!collected.length) return [];
+
+    var idCount = Object.create(null);
+    for (var c = 0; c < collected.length; c++) {
+      var kid = tableRowKpiKey(collected[c].row);
+      idCount[kid] = (idCount[kid] || 0) + 1;
+    }
+
+    var lookups = buildKpiDisplayAndPlanFactLookups(body);
+    var nameLookup = lookups.nameLookup;
+    var planFactLookup = lookups.planFactLookup;
+    var ragByKpi = buildTileRagByKpiId(body);
+
+    return collected
+      .map(function (item) {
+        var row = item.row;
+        var tk = item.tk;
+        var id = tableRowKpiKey(row);
+        var fromTiles = id && nameLookup[id] != null ? String(nameLookup[id]).trim() : "";
+        var fromRowName = row.name != null ? String(row.name).trim() : "";
+        var kpiBase = fromTiles || fromRowName || id || "—";
+        var dup = idCount[id] > 1;
+        var section = tk != null ? String(tk).trim() : "";
+        var kpiLabel = kpiBase + (dup && section ? " (" + section + ")" : "");
+
+        var pf = id ? planFactLookup[id] || {} : {};
+        var plan =
+          row.plan !== undefined && row.plan !== null ? row.plan : pf.plan != null ? pf.plan : "—";
+        var fact =
+          row.fact !== undefined && row.fact !== null ? row.fact : pf.fact != null ? pf.fact : "—";
+
+        var devNum = computePlanFactDeviationPct(plan, fact);
+        var devStr =
+          devNum != null && !isNaN(devNum)
+            ? formatDeviationPercent(devNum)
+            : typeof row.deviation_pct === "number" && !isNaN(row.deviation_pct)
+              ? formatDeviationPercent(row.deviation_pct)
+              : "—";
+
+        var rag =
+          row.color != null && String(row.color).trim() !== ""
+            ? normalizeTableStatus(row.color)
+            : id && ragByKpi[id] != null
+              ? ragByKpi[id]
+              : "blue";
+
+        return {
+          kpi: kpiLabel,
+          fact: fact,
+          plan: plan,
+          rag: rag,
+          deviation: devStr,
+        };
+      })
+      .filter(Boolean);
+  }
+
+  /**
+   * GET /api/kpi/ с заголовком Authorization: Bearer <token> из сессии.
+   * @param {object} [options]
+   * @param {string} [options.department] — подразделение подчинённой ветки (?department=)
+   * @returns {Promise<{ok:true,data:any,tiles:object[]}|{ok:false,error:string,status?:number,unauthorized?:boolean,skipped?:boolean}>}
+   */
+  function fetchKpis(options) {
+    var cfg = global.AppConfig || {};
+    if (cfg.isMockApi && cfg.isMockApi()) {
+      return Promise.resolve({ ok: false, skipped: true });
+    }
+    var url = buildKpiUrlWithQuery(options);
+    return performKpiGet(url);
+  }
+
+  /**
+   * GET /api/kpi/all/ — KPI по ветке или по одному подразделению (?department=).
+   * Для вкладок подчинённых подразделений используйте с параметром department.
+   */
+  function fetchKpiAll(options) {
+    var cfg = global.AppConfig || {};
+    if (cfg.isMockApi && cfg.isMockApi()) {
+      return Promise.resolve({ ok: false, skipped: true });
+    }
+    var url = buildKpiAllUrlWithQuery(options);
+    return performKpiGet(url);
+  }
+
+  function getCookie(name) {
+    var m = document.cookie.match(new RegExp("(?:^|; )" + name.replace(/([.$?*|{}()[\]\\/+^])/g, "\\$1") + "=([^;]*)"));
+    return m ? decodeURIComponent(m[1]) : "";
+  }
+
+  function parseErrorBody(text) {
+    if (!text) return "";
+    try {
+      var j = JSON.parse(text);
+      if (typeof j.detail === "string") return j.detail;
+      if (Array.isArray(j.detail)) {
+        var d0 = j.detail[0];
+        if (typeof d0 === "string") return d0;
+        if (d0 && d0.msg) return String(d0.msg);
+      }
+      if (j.message) return j.message;
+      if (j.error) return String(j.error);
+      if (j.non_field_errors && j.non_field_errors[0]) return String(j.non_field_errors[0]);
+      if (j.nickname && Array.isArray(j.nickname)) return String(j.nickname[0]);
+      if (j.password && Array.isArray(j.password)) return String(j.password[0]);
+    } catch (e) {
+      /* ignore */
+    }
+    return text.slice(0, 200);
+  }
+
+  /** Понятное сообщение для формы входа */
+  function humanizeLoginError(raw) {
+    if (!raw) return "Неверный логин или пароль";
+    var s = String(raw).trim();
+    var lower = s.toLowerCase();
+    if (
+      lower.indexOf("invalid nickname") !== -1 ||
+      lower.indexOf("invalid password") !== -1 ||
+      lower.indexOf("invalid credentials") !== -1 ||
+      lower.indexOf("wrong password") !== -1 ||
+      lower.indexOf("incorrect password") !== -1 ||
+      lower.indexOf("authentication failed") !== -1
+    ) {
+      return "Неверный логин или пароль. Проверьте данные на сервере, раскладку и Caps Lock.";
+    }
+    if (lower.indexOf("required") !== -1 || lower.indexOf("обязател") !== -1) {
+      return "Заполните логин и пароль.";
+    }
+    return s;
+  }
+
+  function buildLoginPayload(nickname, password) {
+    var cfg = global.AppConfig || {};
+    var field = cfg.LOGIN_USER_FIELD || "nickname";
+    var body = { password: password };
+    body[field] = nickname;
+    if (cfg.LOGIN_ALSO_SEND_USERNAME && field !== "username") {
+      body.username = nickname;
+    }
+    return body;
+  }
+
+  function delay(ms, value) {
+    return new Promise(function (resolve) {
+      setTimeout(function () {
+        resolve(value);
+      }, ms);
+    });
+  }
+
+  /**
+   * Локальный «вход» без HTTP (режим mock).
+   */
+  function loginMock(nickname, password) {
+    var list = (global.MockData && global.MockData.MOCK_LOGIN_USERS) || [];
+    if (!list.length) {
+      return Promise.resolve({
+        ok: false,
+        error: "Нет данных MOCK_LOGIN_USERS (подключите mockData.js до api.js).",
+      });
+    }
+    var nick = String(nickname || "").trim();
+    var row = list.find(function (u) {
+      return u.nickname.toLowerCase() === nick.toLowerCase() && u.password === password;
+    });
+    return delay(200).then(function () {
+      if (!row) {
+        return { ok: false, error: humanizeLoginError("invalid nickname or password") };
+      }
+      return {
+        ok: true,
+        token: "mock-jwt." + String(row.user.id) + "." + Date.now(),
+        user: row.user,
+      };
+    });
+  }
+
+  /**
+   * POST на AppConfig.API_LOGIN_PATH
+   * @returns {Promise<{ok:true, token:string, user:object}|{ok:false, error:string}>}
+   */
+  function login(nickname, password) {
+    var cfg = global.AppConfig || {};
+    if (cfg.isMockApi && cfg.isMockApi()) {
+      return loginMock(nickname, password);
+    }
+
+    var url = loginUrl();
+    var headers = {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    };
+    if (cfg.SEND_DJANGO_CSRF_TOKEN) {
+      var csrf = getCookie("csrftoken");
+      if (csrf) headers["X-CSRFToken"] = csrf;
+    }
+    var fetchOpts = {
+      method: "POST",
+      headers: headers,
+      body: JSON.stringify(buildLoginPayload(nickname, password)),
+    };
+    if (cfg.FETCH_CREDENTIALS === "include") {
+      fetchOpts.credentials = "include";
+    }
+    return fetch(url, fetchOpts)
+      .then(function (res) {
+        return res.text().then(function (text) {
+          var data = {};
+          if (text) {
+            try {
+              data = JSON.parse(text);
+            } catch (e) {
+              data = {};
+            }
+          }
+          var dbgBody = data && Object.keys(data).length ? data : text ? { _nonJson: text.slice(0, 2000) } : {};
+          pushApiDebug("POST /api/user/login/", "POST", url, res.status, dbgBody);
+          if (res.ok) {
+            if (!data.token || !data.user) {
+              return { ok: false, error: "Некорректный ответ сервера" };
+            }
+            return { ok: true, token: data.token, user: data.user };
+          }
+          if (res.status === 404) {
+            return {
+              ok: false,
+              error:
+                "Маршрут входа не найден (404). Задайте верный API_LOGIN_PATH в js/config.js (сейчас: " +
+                ((cfg.API_LOGIN_PATH || "/api/user/login/") + ")"),
+            };
+          }
+          if (res.status === 403) {
+            var forbiddenHint =
+              "Доступ запрещён (403). Частые причины на Django: CSRF (в config.js: SEND_DJANGO_CSRF_TOKEN: true и FETCH_CREDENTIALS: «include», на сервере — CORS с Access-Control-Allow-Credentials и выдача csrftoken), ALLOWED_HOSTS, middleware, права на view. Уточните у бэкенда. Для UI без сервера — режим заглушек на входе.";
+            var fm = parseErrorBody(text);
+            if (fm && fm.indexOf("<!DOCTYPE") !== -1) fm = "";
+            return {
+              ok: false,
+              error: fm ? forbiddenHint + " Детали: " + fm.slice(0, 160) : forbiddenHint,
+            };
+          }
+          var msg = parseErrorBody(text);
+          if (res.status === 401) {
+            return { ok: false, error: humanizeLoginError(msg) };
+          }
+          if (res.status === 400) {
+            return { ok: false, error: humanizeLoginError(msg) || "Не переданы логин или пароль" };
+          }
+          return {
+            ok: false,
+            error: humanizeLoginError(msg) || "Ошибка сервера (" + res.status + ")",
+          };
+        });
+      })
+      .catch(function (err) {
+        var m = err && err.message ? err.message : String(err);
+        pushApiDebug("POST /api/user/login/", "POST", url, 0, { _networkError: m });
+        if (m.indexOf("Failed to fetch") !== -1 || m.indexOf("NetworkError") !== -1) {
+          return { ok: false, error: "Нет связи с сервером. Проверьте URL API и сеть." };
+        }
+        return { ok: false, error: m || "Ошибка запроса" };
+      });
+  }
+
+  /**
+   * Публичный API модуля (см. JSDoc у отдельных методов).
+   * @namespace Api
+   * @property {function(string,string): Promise} login
+   * @property {function(): string} baseUrl
+   * @property {function({department?: string}=): Promise} fetchKpis — GET /api/kpi/
+   * @property {function({department?: string}=): Promise} fetchKpiAll — GET /api/kpi/all/
+   * @property {function(): Promise} fetchKpiUsers — GET без токена, список для login
+   * @property {function({department?: string}=): Promise} fetchImmediateSubordinates
+   */
+  global.Api = {
+    login: login,
+    baseUrl: baseUrl,
+    loginUrl: loginUrl,
+    kpiUrl: kpiUrl,
+    kpiAllUrl: kpiAllUrl,
+    kpiImmediateSubordinatesUrl: kpiImmediateSubordinatesUrl,
+    kpiUsersUrl: kpiUsersUrl,
+    fetchKpiUsers: fetchKpiUsers,
+    fetchKpis: fetchKpis,
+    fetchKpiAll: fetchKpiAll,
+    fetchImmediateSubordinates: fetchImmediateSubordinates,
+    normalizeKpiListFromApiResponse: normalizeKpiListFromApiResponse,
+    buildChartIndicatorsFromApiResponse: buildChartIndicatorsFromApiResponse,
+  };
+})(typeof window !== "undefined" ? window : globalThis);
