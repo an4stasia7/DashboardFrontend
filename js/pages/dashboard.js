@@ -1,7 +1,8 @@
 /**
  * @fileoverview Дашборд: вкладки иерархии, KPI-плитки, drilldown по отделам, графики Highcharts, таблица план/факт.
  * Данные: `Api.fetchKpis` / `fetchKpiAll` / `fetchImmediateSubordinates`; при недоступности API — `MockData`.
- * Глобально для отладки: `window.ApiDebugLog`.
+ * Утилиты «листьев»: `DashUi`, `DashLatex`, `DashDebug` (скрипты в `dashboard.html` до этого файла).
+ * В файле блоки сгруппированы горизонтальными разделителями в комментариях сверху вниз по потоку выполнения.
  */
 (function () {
   if (!Auth.requireAuth("login.html")) {
@@ -11,11 +12,9 @@
   const session = Auth.getSession();
   const sessionUser = session.user;
 
-  /** Обновление панели DEBUG после каждого ответа API (см. pushApiDebug в api.js) */
-  window.ApiDebugLog = function () {
-    renderDebugJsonLogPanel();
-  };
+  /* ---------- Отладка: журнал JSON-ответов API (рендер в dash-debug-log.js) ---------- */
 
+  /** Ручная запись в общий журнал отладки (mock, отсутствие Api и т.п.). */
   function pushDashboardDebugNote(source, message) {
     if (!window.__apiDebugJsonLog) window.__apiDebugJsonLog = [];
     window.__apiDebugJsonLog.push({
@@ -26,7 +25,7 @@
       status: "",
       body: { _note: message },
     });
-    renderDebugJsonLogPanel();
+    DashDebug.renderDebugJsonLogPanel();
   }
 
   /** Пользователь, чей дашборд сейчас на экране (может отличаться от sessionUser при просмотре подчинённого) */
@@ -68,6 +67,9 @@
   var DRILLDOWN_KPI_CACHE_MAX = 32;
   var DRILLDOWN_FETCH_CONCURRENCY = 6;
 
+  /* ---------- Кэш KPI при drilldown (меньше повторных GET) ---------- */
+
+  /** Сохраняет плитки отдела в LRU-кэш для повторного открытия drilldown. */
   function rememberDrilldownKpiTiles(dept, tiles) {
     var d = dept != null ? String(dept).trim() : "";
     if (!d || !tiles || !tiles.length) return;
@@ -79,6 +81,7 @@
     }
   }
 
+  /** Загрузка плиток KPI для одного отдела (`Api.fetchKpis`) с использованием кэша. */
   function loadDrilldownTilesForDept(deptName) {
     var cn = deptName != null ? String(deptName).trim() : "";
     if (!cn) return Promise.resolve({ name: cn, tiles: [] });
@@ -101,7 +104,12 @@
   }
 
   /**
-   * Выполняет mapper(item, index) с ограничением одновременных промисов (меньше нагрузка на сервер/браузер).
+   * Выполняет `mapper(item, index)` с ограничением числа одновременных промисов.
+   * @template T, R
+   * @param {T[]} items
+   * @param {number} limit
+   * @param {function(T, number): Promise<R>|R} mapper
+   * @returns {Promise<(R|null)[]>}
    */
   function mapWithConcurrencyLimit(items, limit, mapper) {
     if (!items || !items.length) return Promise.resolve([]);
@@ -141,6 +149,9 @@
     });
   }
 
+  /* ---------- Вкладки вида и контекст подразделения ---------- */
+
+  /** Активная вкладка из `viewTargets` по `selectedViewId`, иначе первая. */
   function getCurrentViewTarget() {
     if (!viewTargets || !viewTargets.length) return null;
     for (var i = 0; i < viewTargets.length; i++) {
@@ -150,7 +161,8 @@
   }
 
   /**
-   * Подразделение для ?department= в KPI: последняя крошка в иерархии; иначе department из сессии.
+   * Подразделение для `?department=` в KPI: последний сегмент крошек или `department` из сессии.
+   * @returns {string}
    */
   function getDepartmentForCurrentKpiContext() {
     if (hierarchyStack.length > 0) {
@@ -163,19 +175,7 @@
     return "";
   }
 
-  /** Первая буква строки — заглавная (шапка, крошки, подписи вкладок; кириллица через ru-RU). */
-  function capitalizeHeaderTitle(text) {
-    if (text == null) return "—";
-    var s = String(text).trim();
-    if (!s || s === "—") return s || "—";
-    var first = s.charAt(0);
-    var upper =
-      typeof first.toLocaleUpperCase === "function"
-        ? first.toLocaleUpperCase("ru-RU")
-        : first.toUpperCase();
-    return upper + s.slice(1);
-  }
-
+  /** Заголовок страницы и подсказка пользователя в зависимости от выбранной вкладки / крошек. */
   function updateTopBarForView() {
     var vu = viewContextUser;
     var t = getCurrentViewTarget();
@@ -185,7 +185,7 @@
         lastKpiResponseDepartment && String(lastKpiResponseDepartment).trim()
           ? String(lastKpiResponseDepartment).trim()
           : vu.role || "—";
-      titleEl.textContent = capitalizeHeaderTitle(raw);
+      titleEl.textContent = DashUi.capitalizeHeaderTitle(raw);
     }
     var elHint = document.getElementById("dash-user-hint");
     if (!elHint) return;
@@ -193,7 +193,7 @@
     if (selectedViewId === "self") {
       var hint = sessionUser.nickname || "";
       if (sessionUser.department) {
-        var depSelf = capitalizeHeaderTitle(String(sessionUser.department).trim());
+        var depSelf = DashUi.capitalizeHeaderTitle(String(sessionUser.department).trim());
         hint = hint ? hint + " · " + depSelf : depSelf;
       }
       elHint.textContent = hint || "—";
@@ -217,7 +217,7 @@
         "Вы: " +
         (sessionUser.nickname || "—") +
         " · просмотр: " +
-        capitalizeHeaderTitle(viewLabel);
+        DashUi.capitalizeHeaderTitle(viewLabel);
     }
   }
 
@@ -226,6 +226,7 @@
     window.location.href = "login.html";
   });
 
+  /** Контейнер плиток KPI: делегирование — «?» (пороги) и клик по плитке (drilldown). */
   var kpiContainerEl = document.getElementById("kpi-container");
   if (kpiContainerEl) {
     kpiContainerEl.addEventListener("click", function (e) {
@@ -248,12 +249,19 @@
     });
   }
 
+  /* ---------- KPI: синонимы названий и сопоставление плиток (drilldown) ---------- */
+
+  /**
+   * Группы синонимов из `js/const/arraykpi.js` (`window.KPI_NAME_SYNONYM_GROUPS`).
+   * @returns {string[][]}
+   */
   function getKpiSynonymGroups() {
     return window.KPI_NAME_SYNONYM_GROUPS && Array.isArray(window.KPI_NAME_SYNONYM_GROUPS)
       ? window.KPI_NAME_SYNONYM_GROUPS
       : [];
   }
 
+  /** Нормализация заголовка KPI для сравнения (регистр, кавычки, пробелы). */
   function normalizeKpiTitleForMatch(s) {
     return String(s || "")
       .toLowerCase()
@@ -262,6 +270,7 @@
       .trim();
   }
 
+  /** Совпадение двух названий KPI с учётом нормализации и вхождения подстроки. */
   function titlesMatchForKpi(a, b) {
     var na = normalizeKpiTitleForMatch(a);
     var nb = normalizeKpiTitleForMatch(b);
@@ -271,6 +280,7 @@
     return false;
   }
 
+  /** Первая группа синонимов, в которой встречается название плитки, иначе `null`. */
   function findSynonymGroupForTileTitle(title) {
     var groups = getKpiSynonymGroups();
     if (!normalizeKpiTitleForMatch(title)) return null;
@@ -284,6 +294,11 @@
     return null;
   }
 
+  /**
+   * Совпадает ли плитка с целью подсветки после навигации (kpi_id или синонимы / заголовок).
+   * @param {object} tile
+   * @param {{ kpi_id?: string, title?: string }} focus
+   */
   function tileMatchesFocusTarget(tile, focus) {
     if (!tile || !focus) return false;
     if (focus.kpi_id && tile.kpi_id && String(focus.kpi_id) === String(tile.kpi_id)) return true;
@@ -296,6 +311,12 @@
     return titlesMatchForKpi(tile.title, focus.title);
   }
 
+  /**
+   * Ищет плитку дочернего отдела, соответствующую выбранной (по kpi_id или группе синонимов).
+   * @param {object[]|null|undefined} childTiles
+   * @param {object} clickedTile
+   * @param {string[]|null} synonymGroup
+   */
   function findMatchingTileAmongChildren(childTiles, clickedTile, synonymGroup) {
     if (!childTiles || !clickedTile) return null;
     for (var i = 0; i < childTiles.length; i++) {
@@ -313,6 +334,12 @@
     return null;
   }
 
+  /**
+   * Строка таблицы drilldown: отдел, подпись %, RAG; `isCurrentContext` — текущий узел иерархии.
+   * @param {string} deptName
+   * @param {object|null} tile
+   * @param {boolean} isCurrentContext
+   */
   function drillRowFromTile(deptName, tile, isCurrentContext) {
     var label = deptName != null ? String(deptName).trim() : "—";
     if (!tile) {
@@ -345,6 +372,12 @@
     return String(row.kpiPct).indexOf("—") !== -1;
   }
 
+  /**
+   * Собирает строки drilldown только по дочерним отделам (без пустых / без KPI).
+   * @param {{ name: string, tiles: object[] }[]} results
+   * @param {object} clicked
+   * @param {string[]|null} synonymGroup
+   */
   function buildDrilldownRowsForChildrenOnly(results, clicked, synonymGroup) {
     var rows = [];
     (results || []).forEach(function (item) {
@@ -358,6 +391,8 @@
     return rows;
   }
 
+  /* ---------- Панель drilldown: позиционирование у плитки ---------- */
+
   function detachDrilldownPositionSync() {
     if (drilldownPositionSyncFn) {
       window.removeEventListener("scroll", drilldownPositionSyncFn, true);
@@ -367,6 +402,7 @@
     drilldownAnchorArticle = null;
   }
 
+  /** Фиксированная панель под якорной плиткой с учётом краёв окна. */
   function positionKpiDrilldownPanel() {
     var panel = document.getElementById("kpi-tile-drilldown");
     var art = drilldownAnchorArticle;
@@ -395,6 +431,7 @@
     panel.style.margin = "0";
   }
 
+  /** Подписка на scroll/resize для удержания панели под плиткой. */
   function attachDrilldownPositionSync(articleEl) {
     detachDrilldownPositionSync();
     drilldownAnchorArticle = articleEl;
@@ -406,6 +443,7 @@
     positionKpiDrilldownPanel();
   }
 
+  /** Скрывает панель drilldown и сбрасывает inline-стили позиционирования. */
   function closeKpiTileDrilldown() {
     drilldownContextTile = null;
     detachDrilldownPositionSync();
@@ -426,6 +464,10 @@
     if (loadEl) loadEl.hidden = true;
   }
 
+  /**
+   * Переход на дашборд выбранного дочернего отдела: крошки, вкладки, повторная загрузка KPI.
+   * @param {string} deptName
+   */
   function navigateDashboardToDepartmentFromDrill(deptName) {
     var d = deptName != null ? String(deptName).trim() : "";
     if (!d) return;
@@ -457,6 +499,10 @@
     });
   }
 
+  /**
+   * Открывает таблицу «тот же KPI в дочерних отделах»; в live параллельно грузит KPI по детям.
+   * @param {number} tileIndex — индекс в `lastKpiTiles` / `data-kpi-tile-index`
+   */
   function openKpiTileDrilldown(tileIndex) {
     var panel = document.getElementById("kpi-tile-drilldown");
     var titleEl = document.getElementById("kpi-tile-drilldown-title");
@@ -575,6 +621,12 @@
       });
   }
 
+  /**
+   * Заполняет tbody drilldown; навигационные строки получают `data-department` и role=link.
+   * @param {object[]} rows
+   * @param {HTMLTableSectionElement} tbody
+   * @param {HTMLTableElement} table
+   */
   function renderKpiDrilldownTableRows(rows, tbody, table) {
     tbody.innerHTML = "";
     rows.forEach(function (r) {
@@ -583,7 +635,7 @@
       if (r.department) tr.setAttribute("data-department", r.department);
       if (r.isCurrentContext) tr.setAttribute("data-no-nav", "1");
       var td1 = document.createElement("td");
-      td1.textContent = capitalizeHeaderTitle(r.department);
+      td1.textContent = DashUi.capitalizeHeaderTitle(r.department);
       var td2 = document.createElement("td");
       td2.textContent = r.kpiPct;
       td2.className = "kpi-tile-drilldown-pct";
@@ -612,6 +664,7 @@
     positionKpiDrilldownPanel();
   }
 
+  /* Однократная привязка: закрытие drilldown и переход по клику/Enter на строке отдела */
   var drillTbodyEl = document.getElementById("kpi-tile-drilldown-tbody");
   var drillCloseEl = document.getElementById("kpi-tile-drilldown-close");
   if (drillCloseEl) drillCloseEl.addEventListener("click", closeKpiTileDrilldown);
@@ -633,46 +686,9 @@
     });
   }
 
-  function stripLatexDelimitersForKatex(s) {
-    var t = String(s).trim();
-    var m = t.match(/^\$\$([\s\S]*)\$\$/);
-    if (m) return m[1].trim();
-    m = t.match(/^\\\(([\s\S]*)\\\)$/);
-    if (m) return m[1].trim();
-    m = t.match(/^\$([^$\n]+)\$$/);
-    if (m) return m[1].trim();
-    return t;
-  }
+  /* ---------- Диалог порогов KPI (KaTeX: DashLatex) ---------- */
 
-  function looksLikeKatexLatex(s) {
-    var inner = stripLatexDelimitersForKatex(s);
-    if (/\\[a-zA-Z]+/.test(inner)) return true;
-    if (/\\[{}%^_]/.test(inner)) return true;
-    return false;
-  }
-
-  function renderKpiThresholdsDialogFormula(formulaEl, raw) {
-    formulaEl.className = "kpi-thresholds-dialog-formula";
-    formulaEl.innerHTML = "";
-    var inner = stripLatexDelimitersForKatex(raw);
-    var katexGlobal =
-      typeof globalThis !== "undefined" && globalThis.katex
-        ? globalThis.katex
-        : typeof window !== "undefined"
-          ? window.katex
-          : undefined;
-    if (katexGlobal && typeof katexGlobal.render === "function" && looksLikeKatexLatex(raw)) {
-      try {
-        katexGlobal.render(inner, formulaEl, { throwOnError: false, displayMode: true });
-        return;
-      } catch (e) {
-        /* оставляем текстовый вид */
-      }
-    }
-    formulaEl.classList.add("kpi-thresholds-dialog-formula--plain");
-    formulaEl.textContent = raw;
-  }
-
+  /** Модальное окно: название KPI, формула, пороги green/yellow/red/blue. */
   function openKpiThresholdsDialog(tile) {
     var dlg = document.getElementById("kpi-thresholds-dialog");
     if (!dlg || !tile) return;
@@ -707,7 +723,7 @@
     if (formulaWrap && formulaEl) {
       if (formulaRaw) {
         formulaWrap.hidden = false;
-        renderKpiThresholdsDialogFormula(formulaEl, formulaRaw);
+        DashLatex.renderKpiThresholdsDialogFormula(formulaEl, formulaRaw);
       } else {
         formulaWrap.hidden = true;
         formulaEl.textContent = "";
@@ -750,7 +766,7 @@
     }
   }
 
-  /* ——— HTML-фрагменты KPI-плиток (см. renderKpiTiles) ——— */
+  /* ---------- Разметка HTML KPI-плиток ---------- */
 
   var KPI_TILE_MSG_GENERATED_DATA = "Данные были сгенерированы";
   var KPI_TILE_TITLE_PLAN_FACT_PERIOD = "Период, за который показаны план и факт";
@@ -758,11 +774,12 @@
   var KPI_TILE_ARIA_METRICS_PCT = "Значение KPI, %";
   var KPI_TILE_ARIA_KPI_PCT_VALUE = "Значение показателя kpi_pct, %";
 
+  /** Верхняя строка плитки: бейдж kpi_id и кнопка «?». */
   function buildKpiTileBadgeRowHtml(tile) {
     return (
       '<div class="kpi-tile-badge-row">' +
       '<span class="badge">' +
-      escapeHtml(tile.badge) +
+      DashUi.escapeHtml(tile.badge) +
       "</span>" +
       '<button type="button" class="kpi-tile-help" aria-label="Справка: формула и цветовые пороги показателя" aria-haspopup="dialog" aria-controls="kpi-thresholds-dialog">' +
       '<span class="kpi-tile-help-icon" aria-hidden="true">?</span>' +
@@ -770,27 +787,29 @@
     );
   }
 
+  /** Заголовок плитки, период и опционально подпись периода план/факт. */
   function buildKpiTileBodyHtml(tile, hasPf, pfPeriod) {
     var periodExtra =
       hasPf && pfPeriod
         ? '<span class="kpi-tile-plan-fact-period" title="' +
-          escapeHtml(KPI_TILE_TITLE_PLAN_FACT_PERIOD) +
+          DashUi.escapeHtml(KPI_TILE_TITLE_PLAN_FACT_PERIOD) +
           '">План/факт: ' +
-          escapeHtml(pfPeriod) +
+          DashUi.escapeHtml(pfPeriod) +
           "</span>"
         : "";
     return (
       '<div class="tile-body">' +
       "<h3>" +
-      escapeHtml(tile.title) +
+      DashUi.escapeHtml(tile.title) +
       "</h3>" +
       '<p class="period">' +
-      escapeHtml(tile.period) +
+      DashUi.escapeHtml(tile.period) +
       periodExtra +
       "</p></div>"
     );
   }
 
+  /** Блок «kpi» + число + «%»; модификаторы — классы для режима «только процент». */
   function buildKpiTilePctBlockHtml(pctLabel, wrapModifier, valueModifier) {
     var wrapClass = "kpi-tile-kpi-wrap" + (wrapModifier ? " " + wrapModifier : "");
     var valClass = "kpi-metric-kpi-value" + (valueModifier ? " " + valueModifier : "");
@@ -801,23 +820,24 @@
       '<div class="' +
       valClass +
       '" aria-label="' +
-      escapeHtml(KPI_TILE_ARIA_KPI_PCT_VALUE) +
+      DashUi.escapeHtml(KPI_TILE_ARIA_KPI_PCT_VALUE) +
       '">' +
       '<span class="kpi-pct-label">kpi</span>' +
       '<span class="kpi-percent-num">' +
-      escapeHtml(pctLabel) +
+      DashUi.escapeHtml(pctLabel) +
       '</span><span class="kpi-percent-unit">%</span>' +
       "</div></div>"
     );
   }
 
+  /** Две строки план/факт и при необходимости значок сгенерированных данных. */
   function buildKpiTilePlanFactStackHtml(planShown, factShown, planFactGenerated) {
     var pfStackClass = "kpi-tile-pf-stack" + (planFactGenerated ? " kpi-tile-pf-stack--generated" : "");
     var generatedFlag = planFactGenerated
       ? '<span class="kpi-tile-generated-flag" title="' +
-        escapeHtml(KPI_TILE_MSG_GENERATED_DATA) +
+        DashUi.escapeHtml(KPI_TILE_MSG_GENERATED_DATA) +
         '" role="img" aria-label="' +
-        escapeHtml(KPI_TILE_MSG_GENERATED_DATA) +
+        DashUi.escapeHtml(KPI_TILE_MSG_GENERATED_DATA) +
         '">!</span>'
       : "";
     return (
@@ -828,16 +848,17 @@
       '<div class="kpi-tile-pf-line">' +
       '<span class="kpi-tile-pf-lbl">План</span>' +
       '<span class="kpi-tile-pf-val">' +
-      escapeHtml(planShown) +
+      DashUi.escapeHtml(planShown) +
       "</span></div>" +
       '<div class="kpi-tile-pf-line">' +
       '<span class="kpi-tile-pf-lbl">Факт</span>' +
       '<span class="kpi-tile-pf-val kpi-tile-pf-val-fact">' +
-      escapeHtml(factShown) +
+      DashUi.escapeHtml(factShown) +
       "</span></div></div>"
     );
   }
 
+  /** Нижняя зона плитки: план/факт + % или только % по центру. */
   function buildKpiTileMetricsSectionHtml(tile, pctLabel, hasPf, planShown, factShown) {
     var planFactGenerated = hasPf && tile.has_data === false;
     var inner = hasPf
@@ -850,26 +871,11 @@
       '<div class="' +
       metricsClass +
       '" aria-label="' +
-      escapeHtml(metricsAria) +
+      DashUi.escapeHtml(metricsAria) +
       '">' +
       inner +
       "</div>"
     );
-  }
-
-  function scrollElementIntoViewCentered(el) {
-    if (!el) return;
-    requestAnimationFrame(function () {
-      try {
-        el.scrollIntoView({ block: "center", behavior: "smooth" });
-      } catch (e) {
-        try {
-          el.scrollIntoView();
-        } catch (e2) {
-          /* ignore */
-        }
-      }
-    });
   }
 
   /**
@@ -897,9 +903,9 @@
         focusApplied = true;
       }
       var pctLabel = MockData.formatKpiPercentLabel(pres.percent);
-      var hasPf = kpiTileHasPlanAndFact(tile);
-      var planShown = formatKpiTilePlanFactValue(tile.plan);
-      var factShown = formatKpiTilePlanFactValue(tile.fact);
+      var hasPf = DashUi.kpiTileHasPlanAndFact(tile);
+      var planShown = DashUi.formatKpiTilePlanFactValue(tile.plan);
+      var factShown = DashUi.formatKpiTilePlanFactValue(tile.fact);
       var pfPeriod =
         tile.plan_fact_period_label != null
           ? String(tile.plan_fact_period_label).trim()
@@ -919,56 +925,14 @@
     if (focusRef) {
       pendingKpiTileFocus = null;
       if (focusApplied) {
-        scrollElementIntoViewCentered(container.querySelector("article.kpi-tile--focus"));
+        DashUi.scrollElementIntoViewCentered(container.querySelector("article.kpi-tile--focus"));
       }
     }
   }
 
-  function escapeHtml(s) {
-    const d = document.createElement("div");
-    d.textContent = s;
-    return d.innerHTML;
-  }
+  /* ---------- Таблица «План / факт» ---------- */
 
-  function ragCell(kind) {
-    return '<span class="rag-dot rag-' + kind + '" title="' + kind + '"></span>';
-  }
-
-  function calcDeviation(factStr, planStr) {
-    var f = parseFloat(String(factStr || "").replace(/[^\d.,\-]/g, "").replace(",", "."));
-    var p = parseFloat(String(planStr || "").replace(/[^\d.,\-]/g, "").replace(",", "."));
-    if (isNaN(f) || isNaN(p) || p === 0) return "—";
-    var dev = ((f - p) / Math.abs(p)) * 100;
-    var sign = dev > 0 ? "+" : "";
-    return sign + (Math.round(dev * 10) / 10).toString().replace(".", ",") + "%";
-  }
-
-  function formatNumber(v) {
-    if (v == null || v === "—") return "—";
-    var n = Number(v);
-    if (isNaN(n)) return String(v);
-    return n.toLocaleString("ru-RU", { maximumFractionDigits: 2 });
-  }
-
-  /** План/факт в плитке: числа форматируем, строки — как есть. */
-  function formatKpiTilePlanFactValue(v) {
-    if (v == null || v === "") return "—";
-    if (typeof v === "number" && !isNaN(v)) return formatNumber(v);
-    return String(v);
-  }
-
-  function kpiTilePlanFactValuePresent(v) {
-    if (v === undefined || v === null) return false;
-    if (typeof v === "number") return !isNaN(v);
-    if (typeof v === "string") return String(v).trim() !== "";
-    return true;
-  }
-
-  /** Показывать блок план/факт только если заданы оба значения. */
-  function kpiTileHasPlanAndFact(tile) {
-    return kpiTilePlanFactValuePresent(tile && tile.plan) && kpiTilePlanFactValuePresent(tile && tile.fact);
-  }
-
+  /** Заголовки колонок таблицы план/факт (классический набор). */
   function setPlanFactTableHeaderClassic() {
     var title = document.getElementById("table-plan-fact-title");
     var head = document.getElementById("table-plan-fact-head");
@@ -985,6 +949,7 @@
     }
   }
 
+  /** DataTables для `#table-plan-fact`: данные из `lastApiTableRows` или MockData. */
   function initTables() {
     var role = viewContextUser.role;
     var rows = lastApiTableRows && lastApiTableRows.length
@@ -992,13 +957,13 @@
       : MockData.getPlanFactTable(role);
     setPlanFactTableHeaderClassic();
     var planRows = rows.map(function (r) {
-      var dev = r.deviation != null ? r.deviation : calcDeviation(r.fact, r.plan);
+      var dev = r.deviation != null ? r.deviation : DashUi.calcDeviation(r.fact, r.plan);
       return [
-        escapeHtml(r.kpi),
-        escapeHtml(formatNumber(r.fact)),
-        escapeHtml(formatNumber(r.plan)),
-        ragCell(r.rag),
-        escapeHtml(dev),
+        DashUi.escapeHtml(r.kpi),
+        DashUi.escapeHtml(DashUi.formatNumber(r.fact)),
+        DashUi.escapeHtml(DashUi.formatNumber(r.plan)),
+        DashUi.ragCell(r.rag),
+        DashUi.escapeHtml(dev),
       ];
     });
     if ($.fn.DataTable.isDataTable("#table-plan-fact")) {
@@ -1032,6 +997,8 @@
     });
   }
 
+  /* ---------- Highcharts: линия, столбцы, пончики ---------- */
+
   function destroyAllDashboardCharts() {
     if (lineChartInstance) {
       lineChartInstance.destroy();
@@ -1044,6 +1011,7 @@
     destroyDonutCharts();
   }
 
+  /** Сообщение об отсутствии Highcharts во всех контейнерах графиков. */
   function showChartLoadError() {
     var msg =
       '<p class="chart-load-error" style="margin:0;padding:20px;color:#64748b;font-size:14px;">Графики недоступны: не загрузилась библиотека Highcharts (проверьте интернет или блокировку CDN).</p>';
@@ -1054,6 +1022,7 @@
     });
   }
 
+  /** Плитка KPI по `indicator.id` === `kpi_id` (цвет маркеров линии). */
   function findTileForLineIndicator(indicator) {
     var tiles = lastKpiTiles;
     if (!tiles || !indicator) return null;
@@ -1065,6 +1034,7 @@
     return null;
   }
 
+  /** Индекс ряда «план» по подписи (план / цель / норма). */
   function findPlanSeriesIndexForRag(series) {
     for (var i = 0; i < series.length; i++) {
       var n = String(series[i].name || "").toLowerCase();
@@ -1073,6 +1043,7 @@
     return -1;
   }
 
+  /** Индекс ряда «факт» (по имени или как единственный не-план). */
   function findFactSeriesIndexForRag(series) {
     for (var i = 0; i < series.length; i++) {
       if (/факт/i.test(String(series[i].name || ""))) return i;
@@ -1087,6 +1058,7 @@
     return 0;
   }
 
+  /** Доля факта от плана в процентах для окраски маркера (или само factY). */
   function computeLinePointRagPercent(factY, planY) {
     if (typeof factY !== "number" || isNaN(factY)) return null;
     if (typeof planY === "number" && !isNaN(planY) && Math.abs(planY) > 1e-9) {
@@ -1095,6 +1067,7 @@
     return factY;
   }
 
+  /** Серии Highcharts для линии: на ряду «факт» — маркеры по порогам плитки. */
   function buildLineChartSeriesWithRagMarkers(indicator) {
     var series = indicator.series;
     if (!series || !series.length) return [];
@@ -1143,6 +1116,7 @@
     });
   }
 
+  /** Пересоздаёт линейный график для выбранного индикатора. */
   function renderLineChartForIndicator(indicator) {
     var titleEl = document.getElementById("line-chart-title");
     if (titleEl) titleEl.textContent = "Тренд: " + indicator.title;
@@ -1180,6 +1154,7 @@
     });
   }
 
+  /** Заполняет `#line-chart-metric`, первый показатель — по умолчанию. */
   function initLineChartMetricSelect(elLine) {
     var sel = document.getElementById("line-chart-metric");
     var label = document.querySelector(".line-chart-metric-label");
@@ -1213,6 +1188,7 @@
     renderLineChartForIndicator(lineChartIndicators[0]);
   }
 
+  /** Столбчатый график план vs факт по кварталам/категориям индикатора. */
   function renderBarChartForIndicator(indicator) {
     var titleEl = document.getElementById("bar-chart-title");
     if (titleEl) titleEl.textContent = "План / факт: " + indicator.title;
@@ -1272,6 +1248,7 @@
     });
   }
 
+  /** Заполняет `#waterfall-chart-metric` для столбчатого графика. */
   function initBarMetricSelect(elBar) {
     var sel = document.getElementById("waterfall-chart-metric");
     var label = document.querySelector('label[for="waterfall-chart-metric"]');
@@ -1305,6 +1282,7 @@
     renderBarChartForIndicator(waterfallChartIndicators[0]);
   }
 
+  /** Уничтожает все экземпляры pie/donut в сетке под плитками. */
   function destroyDonutCharts() {
     donutChartInstances.forEach(function (c) {
       if (c && typeof c.destroy === "function") c.destroy();
@@ -1312,6 +1290,7 @@
     donutChartInstances = [];
   }
 
+  /** По одному кольцевому графику на каждую текущую KPI-плитку (`lastKpiTiles`). */
   function renderDonutCharts() {
     var grid = document.getElementById("donuts-grid");
     if (!grid) return;
@@ -1388,6 +1367,9 @@
     });
   }
 
+  /**
+   * Инициализация всех графиков: ru-локаль Highcharts, линия/бар из API или MockData, пончики.
+   */
   function initCharts() {
     destroyAllDashboardCharts();
 
@@ -1444,6 +1426,7 @@
     }, 100);
   }
 
+  /** Два rAF: отрисовка графиков и таблицы после layout, чтобы ширины контейнеров были верны. */
   function bootChartsAndTables() {
     requestAnimationFrame(function () {
       requestAnimationFrame(function () {
@@ -1473,6 +1456,7 @@
     return [selfEntry].concat(rest);
   }
 
+  /** Хлебные крошки по `hierarchyStack` (скрыты в mock или на корне). */
   function renderHierarchyBreadcrumb() {
     var el = document.getElementById("dashboard-hierarchy-breadcrumb");
     if (!el) return;
@@ -1494,7 +1478,7 @@
       var btn = document.createElement("button");
       btn.type = "button";
       btn.className = "dash-hierarchy-crumb";
-      btn.textContent = capitalizeHeaderTitle(String(seg));
+      btn.textContent = DashUi.capitalizeHeaderTitle(String(seg));
       (function (idx) {
         btn.addEventListener("click", function () {
           hierarchyStack = hierarchyStack.slice(0, idx + 1);
@@ -1515,6 +1499,7 @@
     });
   }
 
+  /** Перезагружает `viewTargets` по `Api.fetchImmediateSubordinates` для текущего родителя в стеке. */
   function refreshSubordinateTabsFromApi() {
     return new Promise(function (resolve) {
       if (session.apiMode === "mock") {
@@ -1560,6 +1545,10 @@
     });
   }
 
+  /**
+   * Первичная загрузка вкладок: mock — из MockData; live — дети отдела пользователя.
+   * @returns {Promise<Array<{id:string,label:string,user:object,department?:string}>>}
+   */
   function loadViewTargets() {
     return new Promise(function (resolve) {
       hierarchyStack = [];
@@ -1596,6 +1585,7 @@
     });
   }
 
+  /** Вкладки `viewTargets` + переключение вида и перезагрузка KPI. */
   function renderViewTabs() {
     var nav = document.getElementById("dashboard-view-tabs");
     if (!nav) return;
@@ -1623,7 +1613,7 @@
       span.className = "dash-view-tab-text";
       span.textContent =
         t.label != null && String(t.label).trim()
-          ? capitalizeHeaderTitle(String(t.label).trim())
+          ? DashUi.capitalizeHeaderTitle(String(t.label).trim())
           : t.label || t.id;
       btn.appendChild(span);
       btn.addEventListener("click", function () {
@@ -1658,163 +1648,7 @@
     renderHierarchyBreadcrumb();
   }
 
-  function renderDebugJsonLogPanel() {
-    var el = document.getElementById("debug-kpi-json");
-    if (!el) return;
-    var log = window.__apiDebugJsonLog || [];
-    el.innerHTML = "";
-    var wrap = document.createElement("div");
-    wrap.className = "debug-json-log-wrap";
-
-    var toolbar = document.createElement("div");
-    toolbar.className = "debug-json-log-toolbar";
-    var countSpan = document.createElement("span");
-    countSpan.className = "debug-json-log-count";
-    countSpan.textContent = "Записей: " + log.length;
-    toolbar.appendChild(countSpan);
-    var btnClear = document.createElement("button");
-    btnClear.type = "button";
-    btnClear.className = "debug-json-log-clear";
-    btnClear.textContent = "Очистить";
-    btnClear.addEventListener("click", function () {
-      window.__apiDebugJsonLog = [];
-      renderDebugJsonLogPanel();
-    });
-    toolbar.appendChild(btnClear);
-    wrap.appendChild(toolbar);
-
-    if (!log.length) {
-      var empty = document.createElement("p");
-      empty.className = "debug-json-log-empty";
-      empty.textContent =
-        "Пока нет ответов API. Здесь появятся JSON из входа (POST login), KPI (GET /api/kpi/, /api/kpi/all/), immediate-subordinates и заметки mock.";
-      wrap.appendChild(empty);
-      el.appendChild(wrap);
-      return;
-    }
-
-    for (var i = log.length - 1; i >= 0; i--) {
-      (function (entry) {
-        var block = document.createElement("div");
-        block.className = "debug-json-log-entry";
-        var head = document.createElement("div");
-        head.className = "debug-json-log-entry-head";
-        var statusPart = entry.status !== "" && entry.status !== undefined && entry.status !== null ? String(entry.status) + " " : "";
-        head.textContent =
-          (entry.at || "") +
-          " · " +
-          (entry.method || "—") +
-          " " +
-          statusPart +
-          "· " +
-          (entry.source || "?");
-        var urlLine = document.createElement("div");
-        urlLine.className = "debug-json-log-entry-url";
-        urlLine.textContent = entry.url || "";
-        var bodyEl = document.createElement("div");
-        bodyEl.className = "debug-json-log-entry-body json-tree-root";
-        if (entry.body == null) {
-          var n0 = document.createElement("span");
-          n0.className = "jt-null";
-          n0.textContent = "null";
-          bodyEl.appendChild(n0);
-        } else {
-          bodyEl.appendChild(buildJsonTree(entry.body, false));
-        }
-        block.appendChild(head);
-        if (entry.url) block.appendChild(urlLine);
-        block.appendChild(bodyEl);
-        wrap.appendChild(block);
-      })(log[i]);
-    }
-    el.appendChild(wrap);
-  }
-
-  function buildJsonTree(val, startOpen) {
-    if (val === null) {
-      var s = document.createElement("span");
-      s.className = "jt-null";
-      s.textContent = "null";
-      return s;
-    }
-    if (typeof val === "string") {
-      var s = document.createElement("span");
-      s.className = "jt-str";
-      s.textContent = '"' + val + '"';
-      return s;
-    }
-    if (typeof val === "number") {
-      var s = document.createElement("span");
-      s.className = "jt-num";
-      s.textContent = String(val);
-      return s;
-    }
-    if (typeof val === "boolean") {
-      var s = document.createElement("span");
-      s.className = "jt-bool";
-      s.textContent = String(val);
-      return s;
-    }
-
-    var isArr = Array.isArray(val);
-    var keys = Object.keys(val);
-    var openBr = isArr ? "[" : "{";
-    var closeBr = isArr ? "]" : "}";
-
-    if (keys.length === 0) {
-      var s = document.createElement("span");
-      s.className = "jt-bracket";
-      s.textContent = openBr + closeBr;
-      return s;
-    }
-
-    var frag = document.createDocumentFragment();
-
-    var toggle = document.createElement("span");
-    toggle.className = "jt-toggle" + (startOpen ? "" : " jt-collapsed");
-    var br1 = document.createElement("span");
-    br1.className = "jt-bracket";
-    br1.textContent = openBr;
-    toggle.appendChild(br1);
-
-    var preview = document.createElement("span");
-    preview.className = "jt-preview";
-    preview.textContent = " " + (isArr ? keys.length + " элем." : keys.length + " ключ.") + " ";
-    toggle.appendChild(preview);
-
-    toggle.addEventListener("click", function () {
-      toggle.classList.toggle("jt-collapsed");
-    });
-
-    frag.appendChild(toggle);
-
-    var ul = document.createElement("ul");
-    ul.className = "jt-children";
-    keys.forEach(function (k, idx) {
-      var li = document.createElement("li");
-      if (!isArr) {
-        var keySpan = document.createElement("span");
-        keySpan.className = "jt-key";
-        keySpan.textContent = '"' + k + '"';
-        li.appendChild(keySpan);
-        li.appendChild(document.createTextNode(": "));
-      }
-      li.appendChild(buildJsonTree(val[k], true));
-      if (idx < keys.length - 1) {
-        li.appendChild(document.createTextNode(","));
-      }
-      ul.appendChild(li);
-    });
-    frag.appendChild(ul);
-
-    var closeBrSpan = document.createElement("span");
-    closeBrSpan.className = "jt-bracket";
-    closeBrSpan.textContent = closeBr;
-    frag.appendChild(closeBrSpan);
-
-    return frag;
-  }
-
+  /** Показ спиннера, скрытие основного контента. */
   function showLoading() {
     var loader = document.getElementById("dash-loading");
     var content = document.getElementById("dash-content");
@@ -1822,6 +1656,7 @@
     if (content) content.hidden = true;
   }
 
+  /** Скрытие спиннера, показ контента. */
   function hideLoading() {
     var loader = document.getElementById("dash-loading");
     var content = document.getElementById("dash-content");
@@ -1829,7 +1664,12 @@
     if (content) content.hidden = false;
   }
 
-  function applyApiResult(result, source) {
+  /**
+   * Общий разбор успешного/ошибочного ответа KPI: плитки, кэш drilldown, графики, шапка.
+   * @param {object} result — как от `Api.fetchKpis` / `fetchKpiAll`
+   * @param {string} [_source] — зарезервировано для логирования источника вызова
+   */
+  function applyApiResult(result, _source) {
     closeKpiTileDrilldown();
     var elHint = document.getElementById("dash-user-hint");
     if (elHint) elHint.removeAttribute("title");
@@ -1863,6 +1703,10 @@
     updateTopBarForView();
   }
 
+  /**
+   * Главная загрузка данных экрана: «свой» дашборд (`fetchKpis`) или подразделение (`fetchKpiAll`).
+   * При ошибке или mock — fallback на `MockData`.
+   */
   function loadKpiTilesAndChartsForView() {
     closeKpiTileDrilldown();
     showLoading();
@@ -1945,7 +1789,7 @@
     viewContextUser = viewTargets[0].user;
     renderViewTabs();
     updateTopBarForView();
-    renderDebugJsonLogPanel();
+    DashDebug.renderDebugJsonLogPanel();
     loadKpiTilesAndChartsForView();
   });
 })();
