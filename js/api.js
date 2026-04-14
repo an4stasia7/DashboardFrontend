@@ -268,13 +268,40 @@
   }
 
   /**
+   * Параметры `month` / `year` из query KPI URL (совпадают с тем, что передали в fetchKpis / fetchKpiAll).
+   * @param {string} url
+   * @returns {{ year: number|null, month: number|null }}
+   */
+  function parseMonthYearFromKpiUrl(url) {
+    if (url == null || String(url).trim() === "") return { year: null, month: null };
+    try {
+      var base =
+        typeof window !== "undefined" && window.location && window.location.href
+          ? window.location.href
+          : "http://local/";
+      var u = new URL(String(url), base);
+      var mStr = u.searchParams.get("month");
+      var yStr = u.searchParams.get("year");
+      var m = mStr != null && String(mStr).trim() !== "" ? parseInt(String(mStr), 10) : NaN;
+      var y = yStr != null && String(yStr).trim() !== "" ? parseInt(String(yStr), 10) : NaN;
+      var month = !isNaN(m) && m >= 1 && m <= 12 ? m : null;
+      var year = !isNaN(y) ? y : null;
+      return { year: year, month: month };
+    } catch (e) {
+      return { year: null, month: null };
+    }
+  }
+
+  /**
    * Единая постобработка успешного JSON KPI: плитки, графики, таблица план/факт, подстановка план/факт на плитки.
    * @param {object|null} data — распарсенное тело ответа GET /api/kpi/ или /api/kpi/all/
+   * @param {string} [requestUrl] — полный URL запроса (для выбора месяца план/факт по ?month=&year=)
    * @returns {{ tiles: object[], chartIndicators: object, tableRows: object[] }}
    */
-  function processKpiResponseBody(data) {
+  function processKpiResponseBody(data, requestUrl) {
     var tiles = normalizeKpiListFromApiResponse(data);
-    applyPlanFactFromJsonLastPeriodToTiles(data, tiles);
+    var qp = parseMonthYearFromKpiUrl(requestUrl || "");
+    applyPlanFactFromJsonLastPeriodToTiles(data, tiles, qp.year, qp.month);
     return {
       tiles: tiles,
       chartIndicators: buildChartIndicatorsFromApiResponse(data),
@@ -333,7 +360,7 @@
               error: parseErrorBody(text) || "Ошибка KPI (" + res.status + ")",
             };
           }
-          var processed = processKpiResponseBody(data);
+          var processed = processKpiResponseBody(data, url);
           return Object.assign({ ok: true, data: data }, processed);
         });
       })
@@ -518,6 +545,23 @@
   }
 
   /**
+   * Точка линейного графика за конкретный календарный месяц (и plan, и fact).
+   * @param {object[]} points
+   * @param {number} year
+   * @param {number} month 1–12
+   */
+  function pickMonthlyPointWithPlanAndFactForYearMonth(points, year, month) {
+    if (!points || !points.length || year == null || month == null) return null;
+    var target = year * 100 + month;
+    for (var i = 0; i < points.length; i++) {
+      var p = points[i];
+      if (!planFactPointHasBoth(p)) continue;
+      if (monthlyPointSortKey(p) === target) return p;
+    }
+    return null;
+  }
+
+  /**
    * Самый поздний календарный месяц, у которого в точке заданы и plan, и fact.
    */
   function pickLatestMonthlyPointWithPlanAndFact(points) {
@@ -586,14 +630,25 @@
   }
 
   /**
-   * План/факт по kpi_id из Графики: помесячно — последний месяц, где есть и plan, и fact;
-   * иначе квартал с тем же условием.
+   * План/факт по kpi_id из Графики: помесячно — при заданных `filterYear`+`filterMonth` берётся эта точка,
+   * иначе последний месяц, где есть и plan, и fact; далее при необходимости квартал с тем же условием.
+   * @param {object|null} body
+   * @param {number|null} [filterYear]
+   * @param {number|null} [filterMonth] 1–12
    */
-  function buildPlanFactFromChartsLastAvailable(body) {
+  function buildPlanFactFromChartsLastAvailable(body, filterYear, filterMonth) {
     var out = {};
     if (!body) return out;
     var charts = body[KPI_JSON_KEY_CHARTS];
     if (!charts || typeof charts !== "object") return out;
+
+    var useMonthFilter =
+      filterYear != null &&
+      filterMonth != null &&
+      !isNaN(filterYear) &&
+      !isNaN(filterMonth) &&
+      filterMonth >= 1 &&
+      filterMonth <= 12;
 
     Object.keys(charts).forEach(function (key) {
       var chart = charts[key];
@@ -602,7 +657,10 @@
       chart.series.forEach(function (s) {
         if (!s || s.kpi_id == null || !Array.isArray(s.points) || !s.points.length) return;
         var kid = String(s.kpi_id);
-        var last = pickLatestMonthlyPointWithPlanAndFact(s.points);
+        var last = useMonthFilter
+          ? pickMonthlyPointWithPlanAndFactForYearMonth(s.points, filterYear, filterMonth)
+          : null;
+        if (!last) last = pickLatestMonthlyPointWithPlanAndFact(s.points);
         if (!last) return;
         var pk = monthlyPointSortKey(last);
         var prev = out[kid];
@@ -718,9 +776,9 @@
    * @param {object|null} body — сырой JSON KPI
    * @param {object[]} tiles — уже нормализованные плитки (мутируются на месте)
    */
-  function applyPlanFactFromJsonLastPeriodToTiles(body, tiles) {
+  function applyPlanFactFromJsonLastPeriodToTiles(body, tiles, filterYear, filterMonth) {
     if (!body || !tiles || !tiles.length) return;
-    var fromCharts = buildPlanFactFromChartsLastAvailable(body);
+    var fromCharts = buildPlanFactFromChartsLastAvailable(body, filterYear, filterMonth);
     var fromTables = buildPlanFactLookupFromTablesOnly(body);
     tiles.forEach(function (tile) {
       var id = tile.kpi_id;
