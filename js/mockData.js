@@ -62,17 +62,6 @@
         yellow_threshold: "60–79,9%",
         red_threshold: "<60%",
       },
-      {
-        title: "RAG по KPI / паспортам",
-        period: "Источник: паспорта KPI",
-        badge: "5 KPI",
-        percent: 68,
-        plan: "—",
-        fact: "—",
-        green_threshold: "≥80%",
-        yellow_threshold: "50–79,9%",
-        red_threshold: "<50%",
-      },
     ],
     "Руководитель проектов": [
       {
@@ -129,17 +118,6 @@
         green_threshold: "≥90%",
         yellow_threshold: "70–89,9%",
         red_threshold: "<70%",
-      },
-      {
-        title: "Сводка по паспортам",
-        period: "Паспорта",
-        badge: "4 KPI",
-        percent: 72,
-        plan: "—",
-        fact: "—",
-        green_threshold: "≥80%",
-        yellow_threshold: "50–79,9%",
-        red_threshold: "<50%",
       },
     ],
     "Коммерческий директор": [
@@ -199,17 +177,6 @@
         green_threshold: "≥80%",
         yellow_threshold: "60–79,9%",
         red_threshold: "<60%",
-      },
-      {
-        title: "RAG по KPI / паспортам коммерческого блока",
-        period: "Источник: паспорта KPI · Паспорта_KPI_директоров",
-        badge: "5 KPI",
-        percent: 62,
-        plan: "—",
-        fact: "—",
-        green_threshold: "≥80%",
-        yellow_threshold: "50–79,9%",
-        red_threshold: "<50%",
       },
     ],
   };
@@ -772,7 +739,6 @@
     { kpi: "Бюджет и ФОТ блока в пределах лимита", fact: "98%", plan: "100%", rag: "yellow", comment: "Контроль расходов" },
     { kpi: "Стратегические технические инициативы", fact: "12/15", plan: "15", rag: "green", comment: "По графику" },
     { kpi: "Текучесть персонала технического контура", fact: "6%", plan: "≤ 8%", rag: "green", comment: "В пределах нормы" },
-    { kpi: "RAG по KPI / паспортам", fact: "—", plan: "—", rag: "blue", comment: "Сводка по паспортам" },
   ];
 
   const PLAN_FACT_TABLE_COMMERCIAL = [
@@ -811,7 +777,6 @@
       rag: "green",
       comment: "HRIS / 1С ЗУП",
     },
-    { kpi: "RAG по KPI / паспортам коммерческого блока", fact: "—", plan: "—", rag: "blue", comment: "Паспорта_KPI_директоров" },
   ];
 
   const PASSPORTS_TABLE_TD = [

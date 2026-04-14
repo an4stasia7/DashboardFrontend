@@ -14,6 +14,19 @@
   var CHART_SERIES_FACT = "\u0424\u0430\u043a\u0442";
   var CHART_SERIES_PLAN = "\u041f\u043b\u0430\u043d";
 
+  function isAggregateKpiTile(item, title) {
+    var kpiId = item && item.kpi_id != null ? String(item.kpi_id).trim().toUpperCase() : "";
+    var badge = item && item.kpi_id != null ? String(item.kpi_id).trim() : "";
+    var titleNorm = title != null ? String(title).trim().toLowerCase() : "";
+    if (kpiId === "KD-AVG") return true;
+    if (/^\d+\s*kpi$/i.test(badge)) return true;
+    if (titleNorm.indexOf("среднее по плиткам kpi") !== -1) return true;
+    if (titleNorm.indexOf("среднее по kpi") !== -1) return true;
+    if (titleNorm.indexOf("сводка по паспортам") !== -1) return true;
+    if (titleNorm.indexOf("rag по kpi / паспортам") !== -1) return true;
+    return false;
+  }
+
   /**
    * Журнал ответов API для окна отладки на дашборде (см. renderDebugJsonLogPanel в dashboard.js).
    */
@@ -395,6 +408,7 @@
         var title = item.name != null ? String(item.name) : "";
         if (!title && item.kpi_id != null) title = String(item.kpi_id);
         if (!title) return null;
+        if (isAggregateKpiTile(item, title)) return null;
         var pct =
           typeof item.kpi_pst === "number" && !isNaN(item.kpi_pst)
             ? item.kpi_pst
@@ -1020,6 +1034,7 @@
     if (tiles && Array.isArray(tiles.items)) {
       tiles.items.forEach(function (t) {
         if (!t || t.kpi_id == null) return;
+        if (isAggregateKpiTile(t, t.name)) return;
         var id = String(t.kpi_id);
         if (t.name != null) nameLookup[id] = String(t.name);
       });
@@ -1075,6 +1090,7 @@
     if (!tiles || !Array.isArray(tiles.items)) return ragById;
     tiles.items.forEach(function (t) {
       if (!t || t.kpi_id == null || t.color == null) return;
+      if (isAggregateKpiTile(t, t.name)) return;
       ragById[String(t.kpi_id)] = normalizeTableStatus(t.color);
     });
     return ragById;
