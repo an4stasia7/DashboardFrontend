@@ -3,6 +3,17 @@
  * Подключать до `dashboard.js`. Задаёт `window.ApiDebugLog` и `window.DashDebug`.
  */
 (function (global) {
+  var debugRenderScheduled = false;
+
+  function scheduleRenderDebugJsonLogPanel() {
+    if (debugRenderScheduled) return;
+    debugRenderScheduled = true;
+    setTimeout(function () {
+      debugRenderScheduled = false;
+      renderDebugJsonLogPanel();
+    }, 0);
+  }
+
   function buildJsonTree(val, startOpen) {
     if (val === null) {
       var sNull = document.createElement("span");
@@ -164,11 +175,12 @@
   }
 
   global.ApiDebugLog = function () {
-    renderDebugJsonLogPanel();
+    scheduleRenderDebugJsonLogPanel();
   };
 
   global.DashDebug = {
     renderDebugJsonLogPanel: renderDebugJsonLogPanel,
+    scheduleRenderDebugJsonLogPanel: scheduleRenderDebugJsonLogPanel,
     buildJsonTree: buildJsonTree,
   };
 })(typeof window !== "undefined" ? window : globalThis);

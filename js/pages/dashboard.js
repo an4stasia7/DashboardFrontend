@@ -25,7 +25,11 @@
       status: "",
       body: { _note: message },
     });
-    DashDebug.renderDebugJsonLogPanel();
+    if (DashDebug && typeof DashDebug.scheduleRenderDebugJsonLogPanel === "function") {
+      DashDebug.scheduleRenderDebugJsonLogPanel();
+    } else {
+      DashDebug.renderDebugJsonLogPanel();
+    }
   }
 
   /** Пользователь, чей дашборд сейчас на экране (может отличаться от sessionUser при просмотре подчинённого) */
@@ -38,11 +42,13 @@
   /** Экземпляр Highcharts левого (линейного) графика — пересоздаём при смене показателя */
   var lineChartInstance = null;
   var lineChartIndicators = [];
+  var CHART_SELECT_ALL_VALUE = "__all__";
 
   var waterfallChartInstance = null;
   var waterfallChartIndicators = [];
 
   var donutChartInstances = [];
+  var deferredChartsAndTablesBootToken = 0;
 
   /** Плитки KPI последней отрисовки — для синхронизации круговых с 6 плитками */
   var lastKpiTiles = null;
@@ -1670,6 +1676,66 @@
     ];
   }
 
+  function getIndicatorAccentColor(indicator, fallbackColor) {
+    var tile = findCurrentTileForIndicator(indicator);
+    if (tile) {
+      var rule = typeof getKpiTileException === "function" ? getKpiTileException(tile) : null;
+      if (rule && rule.frontAccentColor) return String(rule.frontAccentColor);
+      var pres = MockData.getKpiTilePresentation(tile);
+      if (pres && pres.fillColor) return pres.fillColor;
+    }
+    return fallbackColor || "#2563eb";
+  }
+
+  function buildLineChartSeriesForAllIndicators(indicators) {
+    if (!indicators || !indicators.length) return [];
+    return indicators
+      .map(function (indicator) {
+        var series = buildLineChartSeriesFactOnly(indicator);
+        if (!series.length) return null;
+        var base = series[0];
+        var accent = getIndicatorAccentColor(indicator, base.color);
+        return {
+          type: "line",
+          name: indicator.optionLabel || indicator.title || base.name,
+          color: accent,
+          data: base.data.slice(),
+          marker: {
+            enabled: true,
+            radius: 4,
+            symbol: "circle",
+            lineWidth: 2,
+            lineColor: "#ffffff",
+            fillColor: accent,
+          },
+        };
+      })
+      .filter(Boolean);
+  }
+
+  function buildBarChartSeriesForAllIndicators(indicators) {
+    if (!indicators || !indicators.length) return [];
+    return indicators
+      .map(function (indicator) {
+        var accent = getIndicatorAccentColor(indicator, "#2b5ca6");
+        var data = indicator.fact || [];
+        var hasAny = false;
+        for (var i = 0; i < data.length; i++) {
+          if (data[i] != null && !isNaN(Number(data[i]))) {
+            hasAny = true;
+            break;
+          }
+        }
+        if (!hasAny) return null;
+        return {
+          name: indicator.optionLabel || indicator.title || "KPI",
+          data: data.map(function (v) { return v != null ? Number(v) : null; }),
+          color: accent,
+        };
+      })
+      .filter(Boolean);
+  }
+
   /** Пересоздаёт линейный график для выбранного индикатора. */
   function renderLineChartForIndicator(indicator) {
     var titleEl = document.getElementById("line-chart-title");
@@ -1720,6 +1786,50 @@
     });
   }
 
+  function renderLineChartForAllIndicators(indicators) {
+    var titleEl = document.getElementById("line-chart-title");
+    if (titleEl) titleEl.textContent = "Тренд: все показатели";
+
+    var elLine = document.getElementById("chart-line");
+    if (!elLine || typeof Highcharts === "undefined") return;
+
+    if (lineChartInstance) {
+      lineChartInstance.destroy();
+      lineChartInstance = null;
+    }
+
+    if (!indicators || !indicators.length) {
+      elLine.innerHTML =
+        '<p class="chart-load-error" style="margin:0;padding:20px;color:#64748b;font-size:14px;">Нет показателей для графика.</p>';
+      return;
+    }
+
+    var baseIndicator = indicators[0];
+    lineChartInstance = Highcharts.chart(elLine, {
+      chart: { type: "line", backgroundColor: "transparent", height: 300 },
+      title: { text: null },
+      credits: { enabled: false },
+      xAxis: {
+        categories: baseIndicator.categories.slice(),
+        title: { text: baseIndicator.xAxisTitle || "Период" },
+        lineColor: "#cbd5e1",
+      },
+      yAxis: {
+        title: { text: baseIndicator.yAxisTitle || "Значение" },
+        gridLineColor: "#f1f5f9",
+      },
+      legend: { align: "center", verticalAlign: "bottom" },
+      tooltip: { shared: true },
+      plotOptions: {
+        line: {
+          marker: { enabled: true, radius: 4, symbol: "circle" },
+          lineWidth: 2,
+        },
+      },
+      series: buildLineChartSeriesForAllIndicators(indicators),
+    });
+  }
+
   /** Заполняет `#line-chart-metric`, первый показатель — по умолчанию. */
   function initLineChartMetricSelect(elLine) {
     var sel = document.getElementById("line-chart-metric");
@@ -1739,6 +1849,11 @@
     sel.disabled = false;
     if (label) label.style.display = "";
 
+    var allOpt = document.createElement("option");
+    allOpt.value = CHART_SELECT_ALL_VALUE;
+    allOpt.textContent = "Отобразить все";
+    sel.appendChild(allOpt);
+
     lineChartIndicators.forEach(function (ind, idx) {
       var opt = document.createElement("option");
       opt.value = String(idx);
@@ -1747,11 +1862,16 @@
     });
 
     sel.onchange = function () {
+      if (sel.value === CHART_SELECT_ALL_VALUE) {
+        renderLineChartForAllIndicators(lineChartIndicators);
+        return;
+      }
       var i = parseInt(sel.value, 10);
       if (!isNaN(i) && lineChartIndicators[i]) renderLineChartForIndicator(lineChartIndicators[i]);
     };
 
-    renderLineChartForIndicator(lineChartIndicators[0]);
+    sel.value = CHART_SELECT_ALL_VALUE;
+    renderLineChartForAllIndicators(lineChartIndicators);
   }
 
   /** Столбчатый график план vs факт по кварталам/категориям индикатора. */
@@ -1844,6 +1964,69 @@
     });
   }
 
+  function renderBarChartForAllIndicators(indicators) {
+    var titleEl = document.getElementById("bar-chart-title");
+    if (titleEl) titleEl.textContent = "План / факт: все показатели";
+
+    var elBar = document.getElementById("chart-bar");
+    if (!elBar || typeof Highcharts === "undefined") return;
+
+    if (waterfallChartInstance) {
+      waterfallChartInstance.destroy();
+      waterfallChartInstance = null;
+    }
+
+    if (!indicators || !indicators.length) {
+      elBar.innerHTML =
+        '<p class="chart-load-error" style="margin:0;padding:20px;color:#64748b;font-size:14px;">Нет показателей для графика.</p>';
+      return;
+    }
+
+    var categories = indicators.map(function (indicator) {
+      return indicator.optionLabel || indicator.title || "KPI";
+    });
+
+    waterfallChartInstance = Highcharts.chart(elBar, {
+      chart: { type: "column", backgroundColor: "transparent", height: 300 },
+      title: { text: null },
+      credits: { enabled: false },
+      xAxis: {
+        categories: categories,
+        title: { text: "Показатели" },
+        lineColor: "#cbd5e1",
+      },
+      yAxis: {
+        title: { text: "Факт" },
+        gridLineColor: "#f1f5f9",
+      },
+      legend: { align: "center", verticalAlign: "bottom" },
+      tooltip: {
+        shared: false,
+        useHTML: true,
+        formatter: function () {
+          return (
+            '<span style="font-size:10px">' +
+            DashUi.escapeHtml(String(this.x)) +
+            "</span><br/>" +
+            '<span style="color:' + this.color + '">\u25cf</span> ' +
+            DashUi.escapeHtml(this.series.name) +
+            ": <b>" +
+            DashUi.escapeHtml(DashUi.formatNumber(this.y)) +
+            "</b>"
+          );
+        },
+      },
+      plotOptions: {
+        column: {
+          grouping: true,
+          borderRadius: 3,
+          borderWidth: 0,
+        },
+      },
+      series: buildBarChartSeriesForAllIndicators(indicators),
+    });
+  }
+
   /** Заполняет `#waterfall-chart-metric` для столбчатого графика. */
   function initBarMetricSelect(elBar) {
     var sel = document.getElementById("waterfall-chart-metric");
@@ -1863,6 +2046,11 @@
     sel.disabled = false;
     if (label) label.style.display = "";
 
+    var allOpt = document.createElement("option");
+    allOpt.value = CHART_SELECT_ALL_VALUE;
+    allOpt.textContent = "Отобразить все";
+    sel.appendChild(allOpt);
+
     waterfallChartIndicators.forEach(function (ind, idx) {
       var opt = document.createElement("option");
       opt.value = String(idx);
@@ -1871,11 +2059,16 @@
     });
 
     sel.onchange = function () {
+      if (sel.value === CHART_SELECT_ALL_VALUE) {
+        renderBarChartForAllIndicators(waterfallChartIndicators);
+        return;
+      }
       var i = parseInt(sel.value, 10);
       if (!isNaN(i) && waterfallChartIndicators[i]) renderBarChartForIndicator(waterfallChartIndicators[i]);
     };
 
-    renderBarChartForIndicator(waterfallChartIndicators[0]);
+    sel.value = CHART_SELECT_ALL_VALUE;
+    renderBarChartForAllIndicators(waterfallChartIndicators);
   }
 
   /** Уничтожает все экземпляры pie/donut в сетке под плитками. */
@@ -2026,14 +2219,29 @@
     }, 100);
   }
 
-  /** Два rAF: отрисовка графиков и таблицы после layout, чтобы ширины контейнеров были верны. */
-  function bootChartsAndTables() {
-    requestAnimationFrame(function () {
+  function cancelDeferredChartsAndTablesBoot() {
+    deferredChartsAndTablesBootToken++;
+  }
+
+  /** Шапка и плитки показываются сразу, а тяжёлые графики/таблицы догружаются позже. */
+  function bootChartsAndTablesDeferred() {
+    var token = ++deferredChartsAndTablesBootToken;
+    var run = function () {
+      if (token !== deferredChartsAndTablesBootToken) return;
       requestAnimationFrame(function () {
-        initCharts();
-        initTables();
+        if (token !== deferredChartsAndTablesBootToken) return;
+        requestAnimationFrame(function () {
+          if (token !== deferredChartsAndTablesBootToken) return;
+          initCharts();
+          initTables();
+        });
       });
-    });
+    };
+    if (typeof window !== "undefined" && typeof window.requestIdleCallback === "function") {
+      window.requestIdleCallback(run, { timeout: 120 });
+      return;
+    }
+    setTimeout(run, 0);
   }
 
   /**
@@ -2346,9 +2554,9 @@
     } else {
       renderKpiTiles(MockData.getKpiTilesForRole(role));
     }
-    bootChartsAndTables();
-    hideLoading();
     updateTopBarForView();
+    hideLoading();
+    bootChartsAndTablesDeferred();
   }
 
   /**
@@ -2357,6 +2565,7 @@
    */
   function loadKpiTilesAndChartsForView() {
     closeKpiTileDrilldown();
+    cancelDeferredChartsAndTablesBoot();
     showLoading();
     var isSelf = selectedViewId === "self";
     var role = viewContextUser.role;
@@ -2371,9 +2580,9 @@
       currentPeriodYear = null;
       updateMonthNavigatorUI();
       renderKpiTiles(MockData.getKpiTilesForRole(role));
-      bootChartsAndTables();
-      hideLoading();
       updateTopBarForView();
+      hideLoading();
+      bootChartsAndTablesDeferred();
     };
     var periodOpts = {};
     if (currentPeriodMonth != null) periodOpts.month = currentPeriodMonth;
@@ -2446,13 +2655,20 @@
       });
   }
 
+  viewTargets = [{ id: "self", label: "Мой дашборд", user: sessionUser }];
+  selectedViewId = "self";
+  viewContextUser = sessionUser;
+  renderViewTabs();
+  updateTopBarForView();
+  if (DashDebug && typeof DashDebug.scheduleRenderDebugJsonLogPanel === "function") {
+    DashDebug.scheduleRenderDebugJsonLogPanel();
+  } else {
+    DashDebug.renderDebugJsonLogPanel();
+  }
+  loadKpiTilesAndChartsForView();
   loadViewTargets().then(function (targets) {
     viewTargets = targets && targets.length ? targets : [{ id: "self", label: "Мой дашборд", user: sessionUser }];
-    selectedViewId = viewTargets[0].id;
-    viewContextUser = viewTargets[0].user;
     renderViewTabs();
     updateTopBarForView();
-    DashDebug.renderDebugJsonLogPanel();
-    loadKpiTilesAndChartsForView();
   });
 })();

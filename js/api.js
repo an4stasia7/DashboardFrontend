@@ -950,6 +950,7 @@
         var points = getSeriesPointsList(s);
         if (!s || (!points.length && !Array.isArray(s.categories))) return;
         var name = s.name || s.kpi_id || "KPI";
+        if (isAggregateKpiTile(s, name)) return;
 
         if (target === "line") {
           if (!points.length) return;
