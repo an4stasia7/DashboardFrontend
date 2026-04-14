@@ -370,7 +370,7 @@
     window.location.href = "login.html";
   });
 
-  /** Контейнер плиток KPI: `?` по hover/focus, клик по карточке — flip, клик по дочернему отделу — переход. */
+  /** Контейнер плиток KPI: `?` на обороте карточки (hover/focus), клик по карточке — flip, по дочернему отделу — переход. */
   var kpiContainerEl = document.getElementById("kpi-container");
   if (kpiContainerEl) {
     kpiContainerEl.addEventListener("click", function (e) {
@@ -791,8 +791,10 @@
       "</h3>" +
       (period ? '<p class="kpi-tile-back-period">' + DashUi.escapeHtml(period) + "</p>" : "") +
       "</div>" +
+      '<div class="kpi-tile-back-head-actions">' +
+      buildKpiTileHelpButtonHtml() +
       '<button type="button" class="kpi-tile-flip-action" aria-label="Вернуться к карточке">Назад</button>' +
-      "</div>" +
+      "</div></div>" +
       '<div class="kpi-tile-back-summary">' +
       '<div class="kpi-tile-back-summary-item"><span class="kpi-tile-back-summary-label">KPI</span><strong>' +
       DashUi.escapeHtml(percentLabel) +
@@ -1173,20 +1175,24 @@
 
   var KPI_TILE_MSG_GENERATED_DATA = "Данные были сгенерированы";
   var KPI_TILE_TITLE_PLAN_FACT_PERIOD = "Период, за который показаны план и факт";
-  var KPI_TILE_ARIA_METRICS_PF = "План, факт и значение KPI";
-  var KPI_TILE_ARIA_METRICS_PCT = "Значение KPI, %";
-  var KPI_TILE_ARIA_KPI_PCT_VALUE = "Значение показателя KPI, %";
+  var KPI_TILE_ARIA_METRICS_PF = "План и факт";
 
-  /** Верхняя строка плитки: бейдж kpi_id и кнопка «?». */
+  /** Кнопка «?» — только на обороте плитки. */
+  function buildKpiTileHelpButtonHtml() {
+    return (
+      '<button type="button" class="kpi-tile-help" aria-label="Справка: формула и цветовые пороги показателя" aria-haspopup="dialog" aria-controls="kpi-thresholds-dialog">' +
+      '<span class="kpi-tile-help-icon" aria-hidden="true">?</span>' +
+      "</button>"
+    );
+  }
+
+  /** Верхняя строка плитки: бейдж kpi_id. */
   function buildKpiTileBadgeRowHtml(tile) {
     return (
       '<div class="kpi-tile-badge-row">' +
       '<span class="badge">' +
       DashUi.escapeHtml(tile.badge) +
-      "</span>" +
-      '<button type="button" class="kpi-tile-help" aria-label="Справка: формула и цветовые пороги показателя" aria-haspopup="dialog" aria-controls="kpi-thresholds-dialog">' +
-      '<span class="kpi-tile-help-icon" aria-hidden="true">?</span>' +
-      "</button></div>"
+      "</span></div>"
     );
   }
 
@@ -1209,27 +1215,6 @@
       DashUi.escapeHtml(tile.period) +
       periodExtra +
       "</p></div>"
-    );
-  }
-
-  /** Блок «kpi» + число + «%»; модификаторы — классы для режима «только процент». */
-  function buildKpiTilePctBlockHtml(pctLabel, wrapModifier, valueModifier) {
-    var wrapClass = "kpi-tile-kpi-wrap" + (wrapModifier ? " " + wrapModifier : "");
-    var valClass = "kpi-metric-kpi-value" + (valueModifier ? " " + valueModifier : "");
-    return (
-      '<div class="' +
-      wrapClass +
-      '">' +
-      '<div class="' +
-      valClass +
-      '" aria-label="' +
-      DashUi.escapeHtml(KPI_TILE_ARIA_KPI_PCT_VALUE) +
-      '">' +
-      '<span class="kpi-pct-label">KPI</span>' +
-      '<span class="kpi-percent-num">' +
-      DashUi.escapeHtml(pctLabel) +
-      '</span><span class="kpi-percent-unit">%</span>' +
-      "</div></div>"
     );
   }
 
@@ -1261,32 +1246,26 @@
     );
   }
 
-  /** Нижняя зона плитки: план/факт + % или только % по центру. */
-  function buildKpiTileMetricsSectionHtml(tile, pctLabel, hasPf, planShown, factShown) {
-    var planFactGenerated = hasPf && tile.has_data === false;
-    var inner = hasPf
-      ? buildKpiTilePlanFactStackHtml(planShown, factShown, planFactGenerated) +
-        buildKpiTilePctBlockHtml(pctLabel, "", "")
-      : buildKpiTilePctBlockHtml(pctLabel, "kpi-tile-kpi-wrap--only", "kpi-metric-kpi-value--only");
-    var metricsClass = "kpi-tile-metrics" + (hasPf ? "" : " kpi-tile-metrics--pct-only");
-    var metricsAria = hasPf ? KPI_TILE_ARIA_METRICS_PF : KPI_TILE_ARIA_METRICS_PCT;
+  /** Нижняя зона лицевой стороны: только план/факт (kpi_pct на лице не показываем). */
+  function buildKpiTileMetricsSectionHtml(tile, hasPf, planShown, factShown) {
+    if (!hasPf) return "";
+    var planFactGenerated = tile.has_data === false;
+    var inner = buildKpiTilePlanFactStackHtml(planShown, factShown, planFactGenerated);
     return (
-      '<div class="' +
-      metricsClass +
-      '" aria-label="' +
-      DashUi.escapeHtml(metricsAria) +
+      '<div class="kpi-tile-metrics kpi-tile-metrics--pf-only" aria-label="' +
+      DashUi.escapeHtml(KPI_TILE_ARIA_METRICS_PF) +
       '">' +
       inner +
       "</div>"
     );
   }
 
-  function buildKpiTileFrontFaceHtml(tile, pctLabel, hasPf, planShown, factShown, pfPeriod) {
+  function buildKpiTileFrontFaceHtml(tile, hasPf, planShown, factShown, pfPeriod) {
     return (
       '<section class="kpi-tile-face kpi-tile-face--front">' +
       buildKpiTileBadgeRowHtml(tile) +
       buildKpiTileBodyHtml(tile, hasPf, pfPeriod) +
-      buildKpiTileMetricsSectionHtml(tile, pctLabel, hasPf, planShown, factShown) +
+      buildKpiTileMetricsSectionHtml(tile, hasPf, planShown, factShown) +
       "</section>"
     );
   }
@@ -1315,7 +1294,6 @@
         el.setAttribute("aria-current", "true");
         focusApplied = true;
       }
-      var pctLabel = MockData.formatKpiPercentLabel(pres.percent);
       var hasPf = DashUi.kpiTileHasPlanAndFact(tile);
       var planShown = DashUi.formatKpiTilePlanFactValue(tile.plan);
       var factShown = DashUi.formatKpiTilePlanFactValue(tile.fact);
@@ -1329,7 +1307,7 @@
       }
       el.innerHTML =
         '<div class="kpi-tile-inner">' +
-        buildKpiTileFrontFaceHtml(tile, pctLabel, hasPf, planShown, factShown, pfPeriod) +
+        buildKpiTileFrontFaceHtml(tile, hasPf, planShown, factShown, pfPeriod) +
         '<section class="kpi-tile-face kpi-tile-face--back"></section>' +
         "</div>";
       container.appendChild(el);
