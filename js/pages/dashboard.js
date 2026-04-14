@@ -54,10 +54,10 @@
   /** Подпись в шапке из поля department последнего успешного ответа KPI (json) */
   var lastKpiResponseDepartment = null;
 
-  /** Плитка, для которой открыт drilldown (для перехода на дочерний дашборд) */
+  /** Плитка, для которой последний раз открывали drilldown (резерв; при переходе по детям берётся плитка клика) */
   var drilldownContextTile = null;
-  /** Индекс перевёрнутой KPI-карточки (на экране открыта только одна) */
-  var activeFlippedTileIndex = null;
+  /** Индексы перевёрнутых KPI-карточек (можно держать открытыми несколько) */
+  var flippedTileIndices = new Set();
   /** Состояние загрузки дочерних отделов на обороте карточек */
   var kpiTileDetailsState = Object.create(null);
   /** После перехода из drilldown — подсветить соответствующую плитку на новом виде */
@@ -379,7 +379,13 @@
         e.preventDefault();
         e.stopPropagation();
         var childDept = childBtn.getAttribute("data-department");
-        if (childDept) navigateDashboardToDepartmentFromDrill(childDept);
+        if (childDept) {
+          var artFromChild = childBtn.closest("article.kpi-tile");
+          var ixChild = artFromChild && artFromChild.getAttribute("data-kpi-tile-index");
+          var tileFromChild =
+            ixChild != null && lastKpiTiles ? lastKpiTiles[+ixChild] : null;
+          navigateDashboardToDepartmentFromDrill(childDept, tileFromChild);
+        }
         return;
       }
       var flipBtn = e.target.closest(".kpi-tile-flip-action");
@@ -841,26 +847,20 @@
     var articles = document.querySelectorAll("#kpi-container article.kpi-tile");
     articles.forEach(function (articleEl) {
       var idx = articleEl.getAttribute("data-kpi-tile-index");
-      var isActive = idx != null && +idx === activeFlippedTileIndex;
+      var i = idx != null ? +idx : NaN;
+      var isActive = !isNaN(i) && flippedTileIndices.has(i);
       articleEl.classList.toggle("is-flipped", isActive);
       articleEl.setAttribute("aria-expanded", isActive ? "true" : "false");
       if (isActive) {
-        renderKpiTileBackFace(articleEl, +idx);
+        renderKpiTileBackFace(articleEl, i);
       }
     });
-    if (activeFlippedTileIndex != null) {
-      DashUi.scrollElementIntoViewCentered(
-        document.querySelector(
-          '#kpi-container article.kpi-tile[data-kpi-tile-index="' + String(activeFlippedTileIndex) + '"]'
-        )
-      );
-    }
   }
 
   /** Скрывает drilldown на карточке и legacy-панель, если она ещё есть в DOM. */
   function closeKpiTileDrilldown() {
     drilldownContextTile = null;
-    activeFlippedTileIndex = null;
+    flippedTileIndices.clear();
     hideKpiHelpPopover();
     var panel = document.getElementById("kpi-tile-drilldown");
     if (panel) panel.hidden = true;
@@ -873,7 +873,11 @@
    * Переход на дашборд выбранного дочернего отдела: крошки, вкладки, повторная загрузка KPI.
    * @param {string} deptName
    */
-  function navigateDashboardToDepartmentFromDrill(deptName) {
+  /**
+   * @param {string} deptName
+   * @param {object|null|undefined} contextTile — плитка, с оборота которой кликнули дочерний отдел (если несколько открыты)
+   */
+  function navigateDashboardToDepartmentFromDrill(deptName, contextTile) {
     var d = deptName != null ? String(deptName).trim() : "";
     if (!d) return;
     var ctx = getDepartmentForCurrentKpiContext();
@@ -881,11 +885,11 @@
       closeKpiTileDrilldown();
       return;
     }
-    if (drilldownContextTile) {
+    var focusTile = contextTile || drilldownContextTile;
+    if (focusTile) {
       pendingKpiTileFocus = {
-        kpi_id:
-          drilldownContextTile.kpi_id != null ? String(drilldownContextTile.kpi_id) : "",
-        title: drilldownContextTile.title != null ? String(drilldownContextTile.title) : "",
+        kpi_id: focusTile.kpi_id != null ? String(focusTile.kpi_id) : "",
+        title: focusTile.title != null ? String(focusTile.title) : "",
       };
     }
     hierarchyStack = hierarchyStack.concat([d]);
@@ -1016,14 +1020,23 @@
    */
   function openKpiTileDrilldown(tileIndex) {
     if (!lastKpiTiles || !lastKpiTiles[tileIndex]) return;
-    if (activeFlippedTileIndex === tileIndex) {
-      closeKpiTileDrilldown();
+    if (flippedTileIndices.has(tileIndex)) {
+      flippedTileIndices.delete(tileIndex);
+      if (drilldownContextTile === lastKpiTiles[tileIndex]) {
+        drilldownContextTile = null;
+      }
+      syncKpiTileFlipState();
       return;
     }
     drilldownContextTile = lastKpiTiles[tileIndex];
-    activeFlippedTileIndex = tileIndex;
+    flippedTileIndices.add(tileIndex);
     syncKpiTileFlipState();
     loadKpiTileDrilldownData(tileIndex);
+    DashUi.scrollElementIntoViewCentered(
+      document.querySelector(
+        '#kpi-container article.kpi-tile[data-kpi-tile-index="' + String(tileIndex) + '"]'
+      )
+    );
   }
 
   /**
@@ -1278,7 +1291,7 @@
     lastKpiTiles = tiles && tiles.length ? tiles : null;
     const container = document.getElementById("kpi-container");
     container.innerHTML = "";
-    activeFlippedTileIndex = null;
+    flippedTileIndices.clear();
     kpiTileDetailsState = Object.create(null);
     var focusRef = pendingKpiTileFocus;
     var focusApplied = false;
