@@ -153,7 +153,7 @@
 /* Tables block */
 .tables-row {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: minmax(0, 1fr);
   gap: 18px;
 }
 
@@ -225,21 +225,54 @@
 
 .dashboard-table#table-top-deviations th:nth-child(1),
 .dashboard-table#table-top-deviations td:nth-child(1) {
-  width: 30%;
+  min-width: 120px;
 }
 
 .dashboard-table#table-top-deviations th:nth-child(2),
-.dashboard-table#table-top-deviations td:nth-child(2),
-.dashboard-table#table-top-deviations th:nth-child(3),
-.dashboard-table#table-top-deviations td:nth-child(3),
-.dashboard-table#table-top-deviations th:nth-child(4),
-.dashboard-table#table-top-deviations td:nth-child(4) {
-  width: 12%;
+.dashboard-table#table-top-deviations td:nth-child(2) {
+  min-width: 280px;
 }
 
+.dashboard-table#table-top-deviations th:nth-child(3),
+.dashboard-table#table-top-deviations td:nth-child(3) {
+  min-width: 220px;
+}
+
+.dashboard-table#table-top-deviations th:nth-child(4),
+.dashboard-table#table-top-deviations td:nth-child(4),
 .dashboard-table#table-top-deviations th:nth-child(5),
 .dashboard-table#table-top-deviations td:nth-child(5) {
-  width: 34%;
+  min-width: 120px;
+}
+
+.dashboard-table#table-top-deviations th:nth-child(6),
+.dashboard-table#table-top-deviations td:nth-child(6) {
+  min-width: 140px;
+}
+
+.dashboard-table#table-top-deviations th:nth-child(7),
+.dashboard-table#table-top-deviations td:nth-child(7) {
+  min-width: 190px;
+}
+
+.dashboard-table#table-top-deviations th:nth-child(8),
+.dashboard-table#table-top-deviations td:nth-child(8) {
+  min-width: 180px;
+}
+
+.dashboard-table#table-top-deviations th:nth-child(9),
+.dashboard-table#table-top-deviations td:nth-child(9) {
+  min-width: 140px;
+}
+
+.dashboard-table#table-top-deviations th:nth-child(10),
+.dashboard-table#table-top-deviations td:nth-child(10) {
+  min-width: 420px;
+}
+
+.dashboard-table#table-top-deviations th:nth-child(11),
+.dashboard-table#table-top-deviations td:nth-child(11) {
+  min-width: 120px;
 }
 
 /* DataTables overrides */

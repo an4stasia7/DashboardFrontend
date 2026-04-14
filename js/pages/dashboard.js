@@ -68,6 +68,8 @@
   /** Пагинация плиток KPI: не более 6 на экране (3 колонки × 2 ряда) */
   var KPI_TILES_PER_PAGE = 6;
   var kpiTilesPageIndex = 0;
+  var DONUT_CHARTS_PER_PAGE = 6;
+  var donutChartsPageIndex = 0;
 
   /* ---------- Навигация по месяцам ---------- */
 
@@ -266,6 +268,27 @@
         closeKpiTileDrilldown();
         kpiTilesPageIndex++;
         updateKpiTilesPagerUI();
+      });
+    }
+  })();
+
+  (function initDonutChartsPager() {
+    var prevBtn = document.getElementById("donut-charts-page-prev");
+    var nextBtn = document.getElementById("donut-charts-page-next");
+    if (prevBtn) {
+      prevBtn.addEventListener("click", function () {
+        if (donutChartsPageIndex <= 0) return;
+        donutChartsPageIndex--;
+        renderDonutCharts();
+      });
+    }
+    if (nextBtn) {
+      nextBtn.addEventListener("click", function () {
+        var n = lastKpiTiles ? lastKpiTiles.length : 0;
+        var pages = Math.max(1, Math.ceil(n / DONUT_CHARTS_PER_PAGE));
+        if (donutChartsPageIndex >= pages - 1) return;
+        donutChartsPageIndex++;
+        renderDonutCharts();
       });
     }
   })();
@@ -1384,6 +1407,7 @@
       }
     }
     kpiTilesPageIndex = 0;
+    donutChartsPageIndex = 0;
     updateKpiTilesPagerUI();
   }
 
@@ -1405,6 +1429,85 @@
     var debtBody = document.querySelector("#table-overdue-debt tbody");
     if (topBody) topBody.innerHTML = "";
     if (debtBody) debtBody.innerHTML = "";
+
+    renderClaimsTableFromApi();
+  }
+
+  function tableTextOrDash(v) {
+    if (v == null) return "—";
+    var s = String(v).trim();
+    return s ? s : "—";
+  }
+
+  function renderClaimsTableFromApi() {
+    var table = document.getElementById("table-top-deviations");
+    var tbody = table ? table.querySelector("tbody") : null;
+    if (!table || !tbody) return;
+    tbody.innerHTML = "";
+
+    var rows = Array.isArray(lastApiTableRows) ? lastApiTableRows : [];
+    if (!rows.length) return;
+
+    rows.forEach(function (item) {
+      var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
+      if (!raw) return;
+      var tr = document.createElement("tr");
+      [
+        tableTextOrDash(raw.code),
+        tableTextOrDash(raw.name),
+        tableTextOrDash(raw.partner),
+        tableTextOrDash(raw.date_reg),
+        tableTextOrDash(raw.date_plan),
+        tableTextOrDash(raw.order_num),
+        tableTextOrDash(raw.order_dept),
+        tableTextOrDash(raw.nomenclature),
+        raw.order_sum != null ? DashUi.formatNumber(raw.order_sum) : "—",
+        tableTextOrDash(raw.description),
+        tableTextOrDash(raw.status),
+      ].forEach(function (value) {
+        var td = document.createElement("td");
+        td.textContent = value;
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+  }
+
+  function getVisibleDonutTiles(tiles) {
+    if (!tiles || !tiles.length) return [];
+    if (tiles.length <= DONUT_CHARTS_PER_PAGE) {
+      donutChartsPageIndex = 0;
+      return tiles.slice();
+    }
+    var pages = Math.ceil(tiles.length / DONUT_CHARTS_PER_PAGE);
+    donutChartsPageIndex = Math.min(Math.max(0, donutChartsPageIndex), pages - 1);
+    var start = donutChartsPageIndex * DONUT_CHARTS_PER_PAGE;
+    return tiles.slice(start, start + DONUT_CHARTS_PER_PAGE);
+  }
+
+  function updateDonutChartsPagerUI(totalCount) {
+    var pager = document.getElementById("donut-charts-pager");
+    var prevBtn = document.getElementById("donut-charts-page-prev");
+    var nextBtn = document.getElementById("donut-charts-page-next");
+    var label = document.getElementById("donut-charts-page-label");
+    var n = typeof totalCount === "number" ? totalCount : lastKpiTiles ? lastKpiTiles.length : 0;
+    if (!pager) return;
+    if (n <= DONUT_CHARTS_PER_PAGE) {
+      donutChartsPageIndex = 0;
+      pager.setAttribute("hidden", "");
+      pager.hidden = true;
+      if (prevBtn) prevBtn.disabled = true;
+      if (nextBtn) nextBtn.disabled = true;
+      if (label) label.textContent = "";
+      return;
+    }
+    var pages = Math.ceil(n / DONUT_CHARTS_PER_PAGE);
+    donutChartsPageIndex = Math.min(Math.max(0, donutChartsPageIndex), pages - 1);
+    pager.removeAttribute("hidden");
+    pager.hidden = false;
+    if (label) label.textContent = donutChartsPageIndex + 1 + " / " + pages;
+    if (prevBtn) prevBtn.disabled = donutChartsPageIndex <= 0;
+    if (nextBtn) nextBtn.disabled = donutChartsPageIndex >= pages - 1;
   }
 
   /* ---------- Highcharts: линия, столбцы, пончики ---------- */
@@ -1707,12 +1810,16 @@
 
     var tiles = lastKpiTiles;
     if (!tiles || !tiles.length || typeof Highcharts === "undefined") {
+      updateDonutChartsPagerUI(0);
       grid.innerHTML =
         '<p style="margin:0;padding:20px;color:#64748b;font-size:14px;">Нет данных для диаграмм.</p>';
       return;
     }
 
-    tiles.forEach(function (tile, idx) {
+    var visibleTiles = getVisibleDonutTiles(tiles);
+    updateDonutChartsPagerUI(tiles.length);
+
+    visibleTiles.forEach(function (tile, idx) {
       var pres = MockData.getKpiTilePresentation(tile);
       var pct = pres.percent;
       var fill = pres.fillColor;
@@ -1722,7 +1829,7 @@
       cell.className = "donut-cell";
       var chartDiv = document.createElement("div");
       chartDiv.className = "donut-chart-container";
-      chartDiv.id = "donut-chart-" + idx;
+      chartDiv.id = "donut-chart-" + (donutChartsPageIndex * DONUT_CHARTS_PER_PAGE + idx);
       var label = document.createElement("div");
       label.className = "donut-label";
       label.textContent = tile.title || tile.badge || "";

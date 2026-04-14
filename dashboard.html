@@ -113,21 +113,36 @@
             <h2>Показатели KPI</h2>
           </div>
           <div id="donuts-grid" class="donuts-grid"></div>
+          <nav class="kpi-tiles-pager donut-charts-pager" id="donut-charts-pager" hidden aria-label="Страницы круговых диаграмм KPI">
+            <button type="button" class="kpi-tiles-pager-btn" id="donut-charts-page-prev" aria-label="Предыдущая страница круговых диаграмм">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M10 3L5 8L10 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <span class="kpi-tiles-pager-label" id="donut-charts-page-label"></span>
+            <button type="button" class="kpi-tiles-pager-btn" id="donut-charts-page-next" aria-label="Следующая страница круговых диаграмм">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6 3L11 8L6 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </nav>
         </section>
       </div>
 
       <div class="tables-row">
         <section class="table-panel">
-          <h2>ТОП-10 отклонений / KPI, претензии, суды</h2>
+          <h2>Претензии</h2>
           <div class="dashboard-table-wrap">
-            <table id="table-top-deviations" class="dashboard-table" aria-label="ТОП-10 отклонений / KPI, претензии, суды">
+            <table id="table-top-deviations" class="dashboard-table" aria-label="Таблица претензий">
               <thead>
                 <tr>
-                  <th>Показатель</th>
-                  <th>Факт</th>
-                  <th>План</th>
-                  <th>Р/Ф</th>
-                  <th>Комментарий</th>
+                  <th>Код</th>
+                  <th>Наименование</th>
+                  <th>Партнер (Клиент)</th>
+                  <th>Дата обращения</th>
+                  <th>Дата окончания (план)</th>
+                  <th>Заказ клиента</th>
+                  <th>Подразделение заказа</th>
+                  <th>Номенклатура</th>
+                  <th>Сумма документа заказа</th>
+                  <th>Описание претензии</th>
+                  <th>Статус</th>
                 </tr>
               </thead>
               <tbody></tbody>
