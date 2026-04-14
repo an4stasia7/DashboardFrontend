@@ -307,19 +307,6 @@
   transition: visibility 0s linear 0s;
 }
 
-.kpi-tile-face--front::after {
-  content: "";
-  position: absolute;
-  inset: auto 16px 14px auto;
-  width: 88px;
-  height: 88px;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--tile-rag-color, var(--accent-blue)) 12%, transparent);
-  filter: blur(2px);
-  opacity: 0.65;
-  pointer-events: none;
-}
-
 .kpi-tile-face--front > * {
   position: relative;
   z-index: 1;
