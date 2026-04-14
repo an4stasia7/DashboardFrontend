@@ -458,6 +458,102 @@
     return null;
   }
 
+  function arrayFromValue(value) {
+    if (Array.isArray(value)) return value.slice();
+    if (value && typeof value === "object") return [value];
+    return [];
+  }
+
+  function getChartSeriesList(chart) {
+    if (!chart || typeof chart !== "object") return [];
+    return arrayFromValue(chart.series);
+  }
+
+  function getSeriesPointsList(series) {
+    if (!series || typeof series !== "object") return [];
+    return arrayFromValue(series.points);
+  }
+
+  function getTableRowsList(tab) {
+    if (!tab) return [];
+    if (Array.isArray(tab && tab.rows)) return tab.rows.slice();
+    if (tab && tab.rows && typeof tab.rows === "object") return [tab.rows];
+    if (Array.isArray(tab)) return tab.slice();
+    if (tab && typeof tab === "object" && !Object.prototype.hasOwnProperty.call(tab, "rows")) {
+      return [tab];
+    }
+    return [];
+  }
+
+  function numberOrNull(v) {
+    if (v == null) return null;
+    if (typeof v === "string" && String(v).trim() === "") return null;
+    var n = Number(v);
+    return isFinite(n) ? n : null;
+  }
+
+  function buildBarIndicatorsFromSeries(chart, series, name) {
+    var explicitCategories = Array.isArray(series.categories) ? series.categories.slice() : [];
+    var explicitPlan = Array.isArray(series.plan) ? series.plan.slice() : [];
+    var explicitFact = Array.isArray(series.fact) ? series.fact.slice() : [];
+    var points = getSeriesPointsList(series);
+    var hasExplicitMonthlyArrays =
+      explicitCategories.length > 0 && (explicitPlan.length > 0 || explicitFact.length > 0);
+
+    if (hasExplicitMonthlyArrays) {
+      var maxLen = explicitCategories.length;
+      if (explicitPlan.length > maxLen) maxLen = explicitPlan.length;
+      if (explicitFact.length > maxLen) maxLen = explicitFact.length;
+      if (points.length > maxLen) maxLen = points.length;
+
+      var indicators = [];
+
+      for (var i = 0; i < maxLen; i++) {
+        var srcPoint = points[i] && typeof points[i] === "object" ? points[i] : null;
+        var category =
+          explicitCategories[i] != null && String(explicitCategories[i]).trim() !== ""
+            ? String(explicitCategories[i]).trim()
+            : srcPoint && srcPoint.name != null && String(srcPoint.name).trim() !== ""
+              ? String(srcPoint.name).trim()
+              : String(i + 1);
+        var planValue = explicitPlan[i];
+        var factValue = explicitFact[i];
+        var point = srcPoint ? Object.assign({}, srcPoint) : {};
+        if (point.name == null) point.name = category;
+        if (point.plan == null && planValue !== undefined) point.plan = planValue;
+        if (point.fact == null && factValue !== undefined) point.fact = factValue;
+        indicators.push({
+          id: point.kpi_id || (series.kpi_id || name) + ":" + String(i),
+          optionLabel: category,
+          title: category,
+          xAxisTitle: "Показатель",
+          yAxisTitle: "Значение",
+          categories: [category],
+          points: [point],
+          plan: [numberOrNull(point.plan)],
+          fact: [numberOrNull(point.fact)],
+        });
+      }
+
+      return indicators;
+    }
+
+    if (!points.length) return [];
+    var sortedQ = points.slice().sort(function (a, b) { return (a.quarter || 0) - (b.quarter || 0); });
+    var ROMAN_Q = ["I кв.", "II кв.", "III кв.", "IV кв."];
+    return [{
+      id: series.kpi_id || name,
+      optionLabel: name,
+      title: name,
+      xAxisTitle: CHART_AXIS_QUARTER,
+      yAxisTitle: "Значение",
+      categories: sortedQ.map(function (p) { return ROMAN_Q[(p.quarter || 1) - 1] || (p.quarter + " кв."); }),
+      points: sortedQ,
+      plan: sortedQ.map(function (p) { return numberOrNull(p.plan); }),
+      fact: sortedQ.map(function (p) { return numberOrNull(p.fact); }),
+    }];
+  }
+
   function parseIntLoose(v) {
     if (typeof v === "number" && !isNaN(v)) return v;
     if (v == null || v === "") return NaN;
@@ -652,15 +748,17 @@
 
     Object.keys(charts).forEach(function (key) {
       var chart = charts[key];
-      if (!chart || !chart.chart_type || !Array.isArray(chart.series)) return;
+      var seriesList = getChartSeriesList(chart);
+      if (!chart || !chart.chart_type || !seriesList.length) return;
       if (classifyChartType(chart.chart_type) !== "line") return;
-      chart.series.forEach(function (s) {
-        if (!s || s.kpi_id == null || !Array.isArray(s.points) || !s.points.length) return;
+      seriesList.forEach(function (s) {
+        var points = getSeriesPointsList(s);
+        if (!s || s.kpi_id == null || !points.length) return;
         var kid = String(s.kpi_id);
         var last = useMonthFilter
-          ? pickMonthlyPointWithPlanAndFactForYearMonth(s.points, filterYear, filterMonth)
+          ? pickMonthlyPointWithPlanAndFactForYearMonth(points, filterYear, filterMonth)
           : null;
-        if (!last) last = pickLatestMonthlyPointWithPlanAndFact(s.points);
+        if (!last) last = pickLatestMonthlyPointWithPlanAndFact(points);
         if (!last) return;
         var pk = monthlyPointSortKey(last);
         var prev = out[kid];
@@ -679,13 +777,15 @@
 
     Object.keys(charts).forEach(function (keyBar) {
       var chart = charts[keyBar];
-      if (!chart || !chart.chart_type || !Array.isArray(chart.series)) return;
+      var seriesList = getChartSeriesList(chart);
+      if (!chart || !chart.chart_type || !seriesList.length) return;
       if (classifyChartType(chart.chart_type) !== "bar") return;
-      chart.series.forEach(function (s) {
-        if (!s || s.kpi_id == null || !Array.isArray(s.points) || !s.points.length) return;
+      seriesList.forEach(function (s) {
+        var points = getSeriesPointsList(s);
+        if (!s || s.kpi_id == null || !points.length) return;
         var kid = String(s.kpi_id);
         if (chartPlanFactEntryComplete(out[kid])) return;
-        var last = pickLatestQuarterPointWithPlanAndFact(s.points);
+        var last = pickLatestQuarterPointWithPlanAndFact(points);
         if (!last) return;
         var qk = quarterPointSortKey(last);
         var cur = out[kid];
@@ -718,9 +818,7 @@
     if (!tables || typeof tables !== "object") return;
     Object.keys(tables).forEach(function (tk) {
       var tab = tables[tk];
-      var rows = null;
-      if (tab && Array.isArray(tab.rows)) rows = tab.rows;
-      else if (Array.isArray(tab)) rows = tab;
+      var rows = getTableRowsList(tab);
       if (!rows || !rows.length) return;
       for (var i = 0; i < rows.length; i++) {
         fn(tk, rows[i]);
@@ -829,16 +927,19 @@
 
     Object.keys(charts).forEach(function (key) {
       var chart = charts[key];
-      if (!chart || !chart.chart_type || !Array.isArray(chart.series)) return;
+      var seriesList = getChartSeriesList(chart);
+      if (!chart || !chart.chart_type || !seriesList.length) return;
       var target = classifyChartType(chart.chart_type);
       if (!target) return;
 
-      chart.series.forEach(function (s) {
-        if (!s || !Array.isArray(s.points) || !s.points.length) return;
+      seriesList.forEach(function (s) {
+        var points = getSeriesPointsList(s);
+        if (!s || (!points.length && !Array.isArray(s.categories))) return;
         var name = s.name || s.kpi_id || "KPI";
 
         if (target === "line") {
-          var sorted = s.points.slice().sort(function (a, b) { return (a.month || 0) - (b.month || 0); });
+          if (!points.length) return;
+          var sorted = points.slice().sort(function (a, b) { return (a.month || 0) - (b.month || 0); });
           var categories = sorted.map(function (p) {
             if (p.month_name) {
               var mn = String(p.month_name);
@@ -860,20 +961,10 @@
             ],
           });
         } else if (target === "bar") {
-          var sortedQ = s.points.slice().sort(function (a, b) { return (a.quarter || 0) - (b.quarter || 0); });
-          var ROMAN_Q = ["I кв.", "II кв.", "III кв.", "IV кв."];
-          var cats = sortedQ.map(function (p) { return ROMAN_Q[(p.quarter || 1) - 1] || (p.quarter + " кв."); });
-          out.bar.push({
-            id: s.kpi_id || name,
-            optionLabel: name,
-            title: name,
-            xAxisTitle: CHART_AXIS_QUARTER,
-            yAxisTitle: "Значение",
-            categories: cats,
-            points: sortedQ,
-            plan: sortedQ.map(function (p) { return p.plan != null ? Number(p.plan) : null; }),
-            fact: sortedQ.map(function (p) { return p.fact != null ? Number(p.fact) : null; }),
-          });
+          var barIndicators = buildBarIndicatorsFromSeries(chart, s, name);
+          if (barIndicators && barIndicators.length) {
+            Array.prototype.push.apply(out.bar, barIndicators);
+          }
         }
       });
     });
@@ -955,12 +1046,14 @@
     if (charts && typeof charts === "object") {
       Object.keys(charts).forEach(function (ck) {
         var ch = charts[ck];
-        if (!ch || !Array.isArray(ch.series)) return;
-        ch.series.forEach(function (s) {
-          if (!s || s.kpi_id == null || !Array.isArray(s.points) || !s.points.length) return;
+        var seriesList = getChartSeriesList(ch);
+        if (!ch || !seriesList.length) return;
+        seriesList.forEach(function (s) {
+          var points = getSeriesPointsList(s);
+          if (!s || s.kpi_id == null || !points.length) return;
           var kid = String(s.kpi_id);
           if (s.name != null && nameLookup[kid] == null) nameLookup[kid] = String(s.name);
-          var last = s.points[s.points.length - 1];
+          var last = points[points.length - 1];
           if (planFactLookup[kid] == null) {
             planFactLookup[kid] = { plan: last.plan, fact: last.fact };
           } else {
@@ -994,10 +1087,43 @@
     return "";
   }
 
+  function tableRowIdentity(row, tabKey, index) {
+    var kpiKey = tableRowKpiKey(row);
+    if (kpiKey) return kpiKey;
+    if (row && row.code != null && String(row.code).trim() !== "") return "code:" + String(row.code).trim();
+    if (row && row.name != null && String(row.name).trim() !== "") return "name:" + String(row.name).trim();
+    if (row && row.partner != null && String(row.partner).trim() !== "") return "partner:" + String(row.partner).trim();
+    return String(tabKey || "table") + ":" + String(index);
+  }
+
+  function tableRowHasDisplayableData(row) {
+    if (!row || typeof row !== "object") return false;
+    return (
+      tableRowKpiKey(row) !== "" ||
+      (row.name != null && String(row.name).trim() !== "") ||
+      (row.partner != null && String(row.partner).trim() !== "") ||
+      (row.code != null && String(row.code).trim() !== "") ||
+      row.plan !== undefined ||
+      row.fact !== undefined ||
+      row.order_sum !== undefined ||
+      row.amount !== undefined
+    );
+  }
+
+  function tableRowComment(row, tabKey) {
+    if (!row || typeof row !== "object") return "";
+    if (row.comment != null && String(row.comment).trim() !== "") return String(row.comment).trim();
+    if (row.description != null && String(row.description).trim() !== "") return String(row.description).trim();
+    if (row.source != null && String(row.source).trim() !== "") return String(row.source).trim();
+    if (row.status != null && String(row.status).trim() !== "") return String(row.status).trim();
+    return tabKey != null ? String(tabKey).trim() : "";
+  }
+
   /**
-   * body["Таблицы"]: все строки с kpi_id / kpi_name.
-   * KPI — название из «Плитки» по kpi_id, иначе name из строки; план/факт — plan и fact;
-   * RAG — color строки, иначе цвет плитки; отклонение — ((fact − plan) / plan) × 100 %.
+   * body["Таблицы"]: строки KPI и прикладных таблиц.
+   * KPI — название из «Плитки» по kpi_id, иначе name/partner/code из строки; план/факт — plan/fact,
+   * а для прикладных таблиц возможны fallback-поля; RAG — color строки, иначе цвет плитки;
+   * отклонение — ((fact − plan) / plan) × 100 %, либо готовое/статусное значение из строки.
    */
   function buildTableRowsFromApiResponse(body) {
     if (!body) return [];
@@ -1005,17 +1131,16 @@
     if (!tables || typeof tables !== "object") return [];
 
     var collected = [];
-    forEachTablesRow(tables, function (tk, row) {
+    forEachTablesRow(tables, function (tk, row, _unused) {
       if (!row || typeof row !== "object") return;
-      var id = tableRowKpiKey(row);
-      if (!id) return;
-      collected.push({ tk: tk, row: row });
+      if (!tableRowHasDisplayableData(row)) return;
+      collected.push({ tk: tk, row: row, index: collected.length });
     });
     if (!collected.length) return [];
 
     var idCount = Object.create(null);
     for (var c = 0; c < collected.length; c++) {
-      var kid = tableRowKpiKey(collected[c].row);
+      var kid = tableRowIdentity(collected[c].row, collected[c].tk, c);
       idCount[kid] = (idCount[kid] || 0) + 1;
     }
 
@@ -1028,33 +1153,72 @@
       .map(function (item) {
         var row = item.row;
         var tk = item.tk;
-        var id = tableRowKpiKey(row);
-        var fromTiles = id && nameLookup[id] != null ? String(nameLookup[id]).trim() : "";
+        var id = tableRowIdentity(row, tk, item.index);
+        var kpiId = tableRowKpiKey(row);
+        var fromTiles = kpiId && nameLookup[kpiId] != null ? String(nameLookup[kpiId]).trim() : "";
         var fromRowName = row.name != null ? String(row.name).trim() : "";
-        var kpiBase = fromTiles || fromRowName || id || "—";
+        var fromPartner = row.partner != null ? String(row.partner).trim() : "";
+        var fromCode = row.code != null ? String(row.code).trim() : "";
+        var kpiBase = fromTiles || fromRowName || fromPartner || fromCode || kpiId || id || "—";
         var dup = idCount[id] > 1;
         var section = tk != null ? String(tk).trim() : "";
         var kpiLabel = kpiBase + (dup && section ? " (" + section + ")" : "");
 
-        var pf = id ? planFactLookup[id] || {} : {};
+        var pf = kpiId ? planFactLookup[kpiId] || {} : {};
         var plan =
-          row.plan !== undefined && row.plan !== null ? row.plan : pf.plan != null ? pf.plan : "—";
+          row.plan !== undefined && row.plan !== null
+            ? row.plan
+            : row.date_plan != null && String(row.date_plan).trim() !== ""
+              ? row.date_plan
+              : row.order_num != null && String(row.order_num).trim() !== ""
+                ? row.order_num
+                : pf.plan != null
+                  ? pf.plan
+                  : "—";
+        var planForDeviation =
+          row.plan !== undefined && row.plan !== null
+            ? row.plan
+            : pf.plan != null
+              ? pf.plan
+              : null;
         var fact =
-          row.fact !== undefined && row.fact !== null ? row.fact : pf.fact != null ? pf.fact : "—";
+          row.fact !== undefined && row.fact !== null
+            ? row.fact
+            : row.order_sum !== undefined && row.order_sum !== null
+              ? row.order_sum
+              : row.amount !== undefined && row.amount !== null
+                ? row.amount
+                : row.date_reg != null && String(row.date_reg).trim() !== ""
+                  ? row.date_reg
+                  : pf.fact != null
+                    ? pf.fact
+                    : "—";
+        var factForDeviation =
+          row.fact !== undefined && row.fact !== null
+            ? row.fact
+            : row.order_sum !== undefined && row.order_sum !== null
+              ? row.order_sum
+              : row.amount !== undefined && row.amount !== null
+                ? row.amount
+                : pf.fact != null
+                  ? pf.fact
+                  : null;
 
-        var devNum = computePlanFactDeviationPct(plan, fact);
+        var devNum = computePlanFactDeviationPct(planForDeviation, factForDeviation);
         var devStr =
           devNum != null && !isNaN(devNum)
             ? formatDeviationPercent(devNum)
             : typeof row.deviation_pct === "number" && !isNaN(row.deviation_pct)
               ? formatDeviationPercent(row.deviation_pct)
+              : row.status != null && String(row.status).trim() !== ""
+                ? String(row.status).trim()
               : "—";
 
         var rag =
           row.color != null && String(row.color).trim() !== ""
             ? normalizeTableStatus(row.color)
-            : id && ragByKpi[id] != null
-              ? ragByKpi[id]
+            : kpiId && ragByKpi[kpiId] != null
+              ? ragByKpi[kpiId]
               : "blue";
 
         return {
@@ -1063,6 +1227,8 @@
           plan: plan,
           rag: rag,
           deviation: devStr,
+          comment: tableRowComment(row, tk),
+          raw: row,
         };
       })
       .filter(Boolean);

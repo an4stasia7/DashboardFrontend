@@ -78,6 +78,7 @@
   var currentPeriodMonth = null;
   var currentPeriodYear = null;
   var availableMonths = [];
+  var availableMonthsContextKey = "";
 
   /** Для навигации по месяцам: значение плана/факта считается заданным (как в api.js). */
   function navPlanFactValuePresent(v) {
@@ -87,9 +88,12 @@
     return true;
   }
 
-  /** Точка линейного графика годится для переключателя, только если есть и plan, и fact. */
-  function navPointHasPlanAndFact(pt) {
-    return pt && navPlanFactValuePresent(pt.plan) && navPlanFactValuePresent(pt.fact);
+  /** Точка линейного графика годится для переключателя, если в ней есть календарный месяц и хотя бы одно значение. */
+  function navPointHasPeriodValue(pt) {
+    if (!pt) return false;
+    var key = monthYearKey(pt.year, pt.month);
+    if (key < 0) return false;
+    return navPlanFactValuePresent(pt.fact) || navPlanFactValuePresent(pt.plan);
   }
 
   function monthYearKey(year, month) {
@@ -108,12 +112,43 @@
     return false;
   }
 
+  function mergeAvailableMonthSlots(baseSlots, nextSlots) {
+    var merged = [];
+    var seen = Object.create(null);
+    function pushSlot(slot) {
+      if (!slot || slot.key == null || seen[slot.key]) return;
+      seen[slot.key] = true;
+      merged.push({
+        month: slot.month,
+        year: slot.year,
+        key: slot.key,
+      });
+    }
+    (baseSlots || []).forEach(pushSlot);
+    (nextSlots || []).forEach(pushSlot);
+    merged.sort(function (a, b) {
+      return a.key - b.key;
+    });
+    return merged;
+  }
+
+  function getMonthNavigatorContextKey() {
+    var viewId = selectedViewId != null ? String(selectedViewId) : "";
+    var dept = getDepartmentForCurrentKpiContext();
+    var nick =
+      viewContextUser && viewContextUser.nickname != null
+        ? String(viewContextUser.nickname).trim()
+        : "";
+    return [viewId, dept, nick].join("|");
+  }
+
   /**
-   * Месяцы для стрелок навигатора: уникальные (год, месяц) из линейных графиков,
-   * где у точки одновременно заданы plan и fact (последний такой месяц — типичный «актуальный» период).
+   * Месяцы для стрелок навигатора: уникальные (год, месяц) из линейных графиков.
+   * В новом JSON у месячной линии часто есть только `fact`, поэтому достаточно любого осмысленного значения в точке.
    */
-  function setAvailableMonthsFromChartPoints(chartIndicators) {
-    availableMonths = [];
+  function setAvailableMonthsFromChartPoints(chartIndicators, options) {
+    options = options || {};
+    var nextMonths = [];
     if (!chartIndicators) return;
     var lines = chartIndicators.line || [];
     for (var li = 0; li < lines.length; li++) {
@@ -121,18 +156,18 @@
       if (!pts) continue;
       for (var pi = 0; pi < pts.length; pi++) {
         var pt = pts[pi];
-        if (!navPointHasPlanAndFact(pt)) continue;
+        if (!navPointHasPeriodValue(pt)) continue;
         var key = monthYearKey(pt.year, pt.month);
         if (key < 0) continue;
         var exists = false;
-        for (var ei = 0; ei < availableMonths.length; ei++) {
-          if (availableMonths[ei].key === key) {
+        for (var ei = 0; ei < nextMonths.length; ei++) {
+          if (nextMonths[ei] && nextMonths[ei].key === key) {
             exists = true;
             break;
           }
         }
         if (!exists) {
-          availableMonths.push({
+          nextMonths.push({
             month: parseInt(String(pt.month), 10),
             year: parseInt(String(pt.year), 10),
             key: key,
@@ -140,9 +175,11 @@
         }
       }
     }
-    availableMonths.sort(function (a, b) {
-      return a.key - b.key;
-    });
+    availableMonths = options.preserveExisting
+      ? mergeAvailableMonthSlots(availableMonths, nextMonths)
+      : nextMonths;
+    availableMonthsContextKey =
+      options.contextKey != null ? String(options.contextKey) : availableMonthsContextKey;
   }
 
   function getCurrentMonthIndex() {
@@ -2057,7 +2094,15 @@
     lastApiChartIndicators = result.chartIndicators || null;
     lastApiTableRows = result.tableRows || null;
 
-    setAvailableMonthsFromChartPoints(lastApiChartIndicators);
+    var monthContextKey = getMonthNavigatorContextKey();
+    var preserveMonthSlots =
+      currentPeriodMonth != null &&
+      currentPeriodYear != null &&
+      availableMonthsContextKey === monthContextKey;
+    setAvailableMonthsFromChartPoints(lastApiChartIndicators, {
+      preserveExisting: preserveMonthSlots,
+      contextKey: monthContextKey,
+    });
 
     var data = result.ok && result.data ? result.data : null;
     var respMonth = data && data.month != null ? Number(data.month) : null;
@@ -2128,7 +2173,8 @@
       lastApiChartIndicators = null;
       lastApiTableRows = null;
       lastKpiResponseDepartment = null;
-      setAvailableMonthsFromChartPoints(null);
+      availableMonths = [];
+      availableMonthsContextKey = "";
       currentPeriodMonth = null;
       currentPeriodYear = null;
       updateMonthNavigatorUI();
