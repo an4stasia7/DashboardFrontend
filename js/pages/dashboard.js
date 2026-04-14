@@ -75,6 +75,39 @@
   var currentPeriodYear = null;
   var availableMonths = [];
 
+  /** Для навигации по месяцам: значение плана/факта считается заданным (как в api.js). */
+  function navPlanFactValuePresent(v) {
+    if (v === undefined || v === null) return false;
+    if (typeof v === "number") return !isNaN(v);
+    if (typeof v === "string") return String(v).trim() !== "";
+    return true;
+  }
+
+  /** Точка линейного графика годится для переключателя, только если есть и plan, и fact. */
+  function navPointHasPlanAndFact(pt) {
+    return pt && navPlanFactValuePresent(pt.plan) && navPlanFactValuePresent(pt.fact);
+  }
+
+  function monthYearKey(year, month) {
+    var y = parseInt(String(year), 10);
+    var m = parseInt(String(month), 10);
+    if (isNaN(y) || isNaN(m) || m < 1 || m > 12) return -1;
+    return y * 100 + m;
+  }
+
+  function periodKeyInAvailableMonths(y, m, slots) {
+    var k = monthYearKey(y, m);
+    if (k < 0) return false;
+    for (var i = 0; i < slots.length; i++) {
+      if (slots[i].key === k) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Месяцы для стрелок навигатора: уникальные (год, месяц) из линейных графиков,
+   * где у точки одновременно заданы plan и fact (последний такой месяц — типичный «актуальный» период).
+   */
   function setAvailableMonthsFromChartPoints(chartIndicators) {
     availableMonths = [];
     if (!chartIndicators) return;
@@ -84,19 +117,28 @@
       if (!pts) continue;
       for (var pi = 0; pi < pts.length; pi++) {
         var pt = pts[pi];
-        if (pt && pt.month && pt.year) {
-          var key = pt.year * 100 + pt.month;
-          var exists = false;
-          for (var ei = 0; ei < availableMonths.length; ei++) {
-            if (availableMonths[ei].key === key) { exists = true; break; }
+        if (!navPointHasPlanAndFact(pt)) continue;
+        var key = monthYearKey(pt.year, pt.month);
+        if (key < 0) continue;
+        var exists = false;
+        for (var ei = 0; ei < availableMonths.length; ei++) {
+          if (availableMonths[ei].key === key) {
+            exists = true;
+            break;
           }
-          if (!exists) {
-            availableMonths.push({ month: pt.month, year: pt.year, key: key });
-          }
+        }
+        if (!exists) {
+          availableMonths.push({
+            month: parseInt(String(pt.month), 10),
+            year: parseInt(String(pt.year), 10),
+            key: key,
+          });
         }
       }
     }
-    availableMonths.sort(function (a, b) { return a.key - b.key; });
+    availableMonths.sort(function (a, b) {
+      return a.key - b.key;
+    });
   }
 
   function getCurrentMonthIndex() {
@@ -2088,18 +2130,42 @@
     lastApiTableRows = result.tableRows || null;
 
     setAvailableMonthsFromChartPoints(lastApiChartIndicators);
-    if (result.ok && result.data) {
-      var respMonth = result.data.month != null ? Number(result.data.month) : null;
-      var respYear = result.data.year != null ? Number(result.data.year) : null;
-      if (respMonth && respYear) {
-        currentPeriodMonth = respMonth;
-        currentPeriodYear = respYear;
-      } else if (availableMonths.length && currentPeriodMonth == null) {
-        var last = availableMonths[availableMonths.length - 1];
-        currentPeriodMonth = last.month;
-        currentPeriodYear = last.year;
-      }
+
+    var data = result.ok && result.data ? result.data : null;
+    var respMonth = data && data.month != null ? Number(data.month) : null;
+    var respYear = data && data.year != null ? Number(data.year) : null;
+    if (respMonth != null && isNaN(respMonth)) respMonth = null;
+    if (respYear != null && isNaN(respYear)) respYear = null;
+
+    var respInSlots =
+      respMonth != null &&
+      respYear != null &&
+      respMonth >= 1 &&
+      respMonth <= 12 &&
+      periodKeyInAvailableMonths(respYear, respMonth, availableMonths);
+
+    var curInSlots =
+      currentPeriodMonth != null &&
+      currentPeriodYear != null &&
+      periodKeyInAvailableMonths(currentPeriodYear, currentPeriodMonth, availableMonths);
+
+    if (curInSlots) {
+      /* оставляем выбор пользователя после смены месяца стрелками */
+    } else if (respInSlots) {
+      currentPeriodMonth = respMonth;
+      currentPeriodYear = respYear;
+    } else if (availableMonths.length) {
+      var lastSlot = availableMonths[availableMonths.length - 1];
+      currentPeriodMonth = lastSlot.month;
+      currentPeriodYear = lastSlot.year;
+    } else if (respMonth != null && respYear != null) {
+      currentPeriodMonth = respMonth;
+      currentPeriodYear = respYear;
+    } else {
+      currentPeriodMonth = null;
+      currentPeriodYear = null;
     }
+
     updateMonthNavigatorUI();
 
     var role = viewContextUser.role;
@@ -2134,6 +2200,10 @@
       lastApiChartIndicators = null;
       lastApiTableRows = null;
       lastKpiResponseDepartment = null;
+      setAvailableMonthsFromChartPoints(null);
+      currentPeriodMonth = null;
+      currentPeriodYear = null;
+      updateMonthNavigatorUI();
       renderKpiTiles(MockData.getKpiTilesForRole(role));
       bootChartsAndTables();
       hideLoading();
