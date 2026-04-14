@@ -694,17 +694,6 @@
   }
 
   /**
-   * Цвет маркера линейного графика: пороги плитки (JSON) или заглушка по %.
-   */
-  function lineMarkerFillForPercent(tile, percent, fallbackHex) {
-    var fb = fallbackHex != null ? String(fallbackHex) : "#64748b";
-    if (percent == null || typeof percent !== "number" || isNaN(percent)) return fb;
-    var rag = tile ? deriveRagFromThresholds(tile, percent) : null;
-    if (rag && KPI_RAG_FILL[rag]) return KPI_RAG_FILL[rag];
-    return kpiRagFromPercentStub(percent).fillColor;
-  }
-
-  /**
    * Единая презентация плитки: число %, RAG и цвет диаграммы.
    * Приоритет: 1) rag/status из API, 2) пороги green_threshold/yellow_threshold, 3) заглушка по percent.
    */
@@ -876,7 +865,6 @@
     formatKpiPercentLabel,
     kpiRagFromPercentStub,
     deriveRagFromThresholds,
-    lineMarkerFillForPercent,
     getViewableDashboardTargets,
     getLineChartIndicators,
     getWaterfallChartIndicators,

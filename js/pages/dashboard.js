@@ -1388,18 +1388,6 @@
     });
   }
 
-  /** Плитка KPI по `indicator.id` === `kpi_id` (цвет маркеров линии). */
-  function findTileForLineIndicator(indicator) {
-    var tiles = lastKpiTiles;
-    if (!tiles || !indicator) return null;
-    var id = indicator.id != null ? String(indicator.id) : "";
-    if (!id) return null;
-    for (var i = 0; i < tiles.length; i++) {
-      if (tiles[i].kpi_id != null && String(tiles[i].kpi_id) === id) return tiles[i];
-    }
-    return null;
-  }
-
   /** Индекс ряда «план» по подписи (план / цель / норма). */
   function findPlanSeriesIndexForRag(series) {
     for (var i = 0; i < series.length; i++) {
@@ -1424,62 +1412,30 @@
     return 0;
   }
 
-  /** Доля факта от плана в процентах для окраски маркера (или само factY). */
-  function computeLinePointRagPercent(factY, planY) {
-    if (typeof factY !== "number" || isNaN(factY)) return null;
-    if (typeof planY === "number" && !isNaN(planY) && Math.abs(planY) > 1e-9) {
-      return (factY / planY) * 100;
-    }
-    return factY;
-  }
-
-  /** Серии Highcharts для линии: на ряду «факт» — маркеры по порогам плитки. */
-  function buildLineChartSeriesWithRagMarkers(indicator) {
+  /** Одна серия — только «факт» (план/цель/норма не рисуются), маркеры на точках. */
+  function buildLineChartSeriesFactOnly(indicator) {
     var series = indicator.series;
     if (!series || !series.length) return [];
-    var tile = findTileForLineIndicator(indicator);
     var factIdx = findFactSeriesIndexForRag(series);
-    var planIdx = findPlanSeriesIndexForRag(series);
-    var planData = planIdx >= 0 ? series[planIdx].data : null;
-
-    return series.map(function (s, idx) {
-      var item = {
+    if (factIdx < 0 || factIdx >= series.length) factIdx = 0;
+    var s = series[factIdx];
+    var col = s.color || "#2563eb";
+    return [
+      {
         type: "line",
         name: s.name,
-        color: s.color,
+        color: col,
         data: s.data.slice(),
-      };
-      if (s.dashStyle) item.dashStyle = s.dashStyle;
-
-      if (idx !== factIdx) {
-        item.marker = {
+        marker: {
           enabled: true,
-          radius: 3,
-          lineWidth: 1,
-          lineColor: s.color,
-          fillColor: "#ffffff",
-        };
-        return item;
-      }
-
-      item.data = s.data.map(function (y, i) {
-        var planVal = planData && planData[i] != null ? planData[i] : null;
-        var pct = computeLinePointRagPercent(y, planVal);
-        var fill = MockData.lineMarkerFillForPercent(tile, pct, s.color);
-        return {
-          y: y,
-          marker: {
-            enabled: true,
-            radius: 5,
-            lineWidth: 1,
-            lineColor: "#ffffff",
-            fillColor: fill,
-          },
-        };
-      });
-      item.marker = { enabled: true, radius: 5 };
-      return item;
-    });
+          radius: 4,
+          symbol: "circle",
+          lineWidth: 2,
+          lineColor: "#ffffff",
+          fillColor: col,
+        },
+      },
+    ];
   }
 
   /** Пересоздаёт линейный график для выбранного индикатора. */
@@ -1522,13 +1478,13 @@
       tooltip: { shared: true },
       plotOptions: {
         line: {
-          marker: { enabled: true, radius: 4 },
+          marker: { enabled: true, radius: 4, symbol: "circle" },
           lineWidth: 2,
           cursor: "pointer",
           point: { events: { click: chartClickHandler } },
         },
       },
-      series: buildLineChartSeriesWithRagMarkers(indicator),
+      series: buildLineChartSeriesFactOnly(indicator),
     });
   }
 
