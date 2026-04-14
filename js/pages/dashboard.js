@@ -1209,7 +1209,7 @@
   var KPI_TILE_TITLE_PLAN_FACT_PERIOD = "Период, за который показаны план и факт";
   var KPI_TILE_ARIA_METRICS_PF = "План и факт";
 
-  /** Кнопка «?» — только на обороте плитки. */
+  /** Кнопка «?» для модалки с формулой и цветовыми порогами KPI. */
   function buildKpiTileHelpButtonHtml() {
     return (
       '<button type="button" class="kpi-tile-help" aria-label="Справка: формула и цветовые пороги показателя" aria-haspopup="dialog" aria-controls="kpi-thresholds-dialog">' +
@@ -1224,7 +1224,9 @@
       '<div class="kpi-tile-badge-row">' +
       '<span class="badge">' +
       DashUi.escapeHtml(tile.badge) +
-      "</span></div>"
+      "</span>" +
+      buildKpiTileHelpButtonHtml() +
+      "</div>"
     );
   }
 
@@ -1250,7 +1252,7 @@
     );
   }
 
-  /** Две строки план/факт и при необходимости значок сгенерированных данных. */
+  /** Однострочный блок `план/факт` и при необходимости значок сгенерированных данных. */
   function buildKpiTilePlanFactStackHtml(planShown, factShown, planFactGenerated) {
     var pfStackClass = "kpi-tile-pf-stack" + (planFactGenerated ? " kpi-tile-pf-stack--generated" : "");
     var generatedFlag = planFactGenerated
@@ -1265,16 +1267,13 @@
       pfStackClass +
       '">' +
       generatedFlag +
-      '<div class="kpi-tile-pf-line">' +
-      '<span class="kpi-tile-pf-lbl">План</span>' +
-      '<span class="kpi-tile-pf-val">' +
+      '<div class="kpi-tile-pf-inline">' +
+      '<div class="kpi-tile-pf-inline-row">' +
+      '<span class="kpi-tile-pf-pill">' +
       DashUi.escapeHtml(planShown) +
-      "</span></div>" +
-      '<div class="kpi-tile-pf-line">' +
-      '<span class="kpi-tile-pf-lbl">Факт</span>' +
-      '<span class="kpi-tile-pf-val kpi-tile-pf-val-fact">' +
+      '<span class="kpi-tile-pf-slash" aria-hidden="true">/</span>' +
       DashUi.escapeHtml(factShown) +
-      "</span></div></div>"
+      '</span><span class="kpi-tile-pf-inline-label">План / факт</span></div></div></div>'
     );
   }
 
