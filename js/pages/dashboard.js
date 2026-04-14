@@ -370,7 +370,7 @@
     window.location.href = "login.html";
   });
 
-  /** Контейнер плиток KPI: `?` на обороте карточки (hover/focus), клик по карточке — flip, по дочернему отделу — переход. */
+  /** Контейнер плиток KPI: `?` на обороте открывает модалку; клик по карточке — flip, по дочернему отделу — переход. */
   var kpiContainerEl = document.getElementById("kpi-container");
   if (kpiContainerEl) {
     kpiContainerEl.addEventListener("click", function (e) {
@@ -428,35 +428,6 @@
       var ix = art.getAttribute("data-kpi-tile-index");
       if (ix == null || !lastKpiTiles || lastKpiTiles[+ix] == null) return;
       openKpiTileDrilldown(+ix);
-    });
-    kpiContainerEl.addEventListener("mouseover", function (e) {
-      var btn = e.target.closest(".kpi-tile-help");
-      if (!btn || !kpiContainerEl.contains(btn)) return;
-      var art = btn.closest("article.kpi-tile");
-      if (!art) return;
-      var ix = art.getAttribute("data-kpi-tile-index");
-      if (ix == null || !lastKpiTiles || lastKpiTiles[+ix] == null) return;
-      showKpiHelpPopover(btn, lastKpiTiles[+ix]);
-    });
-    kpiContainerEl.addEventListener("mouseout", function (e) {
-      var btn = e.target.closest(".kpi-tile-help");
-      if (!btn || !kpiContainerEl.contains(btn)) return;
-      if (btn.contains(e.relatedTarget)) return;
-      hideKpiHelpPopover();
-    });
-    kpiContainerEl.addEventListener("focusin", function (e) {
-      var btn = e.target.closest(".kpi-tile-help");
-      if (!btn || !kpiContainerEl.contains(btn)) return;
-      var art = btn.closest("article.kpi-tile");
-      if (!art) return;
-      var ix = art.getAttribute("data-kpi-tile-index");
-      if (ix == null || !lastKpiTiles || lastKpiTiles[+ix] == null) return;
-      showKpiHelpPopover(btn, lastKpiTiles[+ix]);
-    });
-    kpiContainerEl.addEventListener("focusout", function (e) {
-      var btn = e.target.closest(".kpi-tile-help");
-      if (!btn || !kpiContainerEl.contains(btn)) return;
-      hideKpiHelpPopover();
     });
     kpiContainerEl.addEventListener(
       "wheel",
@@ -622,7 +593,7 @@
     return rows;
   }
 
-  /* ---------- KPI-card drilldown: hover help + flip-card с детьми ---------- */
+  /* ---------- KPI-card drilldown: flip-card с детьми; пороги — в модалке по «?» ---------- */
 
   function drilldownRagSortWeight(rag) {
     var key = rag != null ? String(rag).toLowerCase().trim() : "";
@@ -655,86 +626,9 @@
     return kpiTileDetailsState[tileIndex];
   }
 
-  function buildKpiHelpPopoverHtml(tile) {
-    var hint = tile && tile.hint != null ? String(tile.hint).trim() : "";
-    var fallback = "Нажмите, чтобы открыть подробную информацию и цветовые пороги KPI.";
-    var formulaRaw = tile && tile.formula != null ? String(tile.formula).trim() : "";
-    var html =
-      '<div class="kpi-help-popover-title">' +
-      DashUi.escapeHtml(tile && tile.title ? tile.title : "Показатель") +
-      "</div>" +
-      '<div class="kpi-help-popover-body">' +
-      DashUi.escapeHtml(hint || fallback) +
-      "</div>";
-    if (formulaRaw) {
-      html +=
-        '<div class="kpi-help-popover-formula-section">' +
-        '<div class="kpi-help-popover-formula-label">Формула</div>' +
-        '<div class="kpi-help-popover-formula" data-popover-formula></div>' +
-        "</div>";
-    }
-    return html;
-  }
-
-  function showKpiHelpPopover(anchorEl, tile) {
-    if (!kpiHelpPopoverEl || !anchorEl || !tile) return;
-    kpiHelpPopoverEl.innerHTML = buildKpiHelpPopoverHtml(tile);
-    var formulaSlot = kpiHelpPopoverEl.querySelector("[data-popover-formula]");
-    if (formulaSlot && tile.formula != null && String(tile.formula).trim()) {
-      DashLatex.renderKpiThresholdsDialogFormula(formulaSlot, String(tile.formula).trim());
-      formulaSlot.classList.add("kpi-help-popover-formula");
-    }
-    kpiHelpPopoverEl.hidden = false;
-    kpiHelpPopoverEl.style.left = "0px";
-    kpiHelpPopoverEl.style.top = "0px";
-    var anchorRect = anchorEl.getBoundingClientRect();
-    var popRect = kpiHelpPopoverEl.getBoundingClientRect();
-    var left = Math.min(
-      window.innerWidth - popRect.width - 12,
-      Math.max(12, anchorRect.right - popRect.width)
-    );
-    var top = anchorRect.bottom + 12;
-    if (top + popRect.height > window.innerHeight - 12) {
-      top = Math.max(12, anchorRect.top - popRect.height - 12);
-    }
-    kpiHelpPopoverEl.style.left = left + "px";
-    kpiHelpPopoverEl.style.top = top + "px";
-  }
-
   function hideKpiHelpPopover() {
     if (!kpiHelpPopoverEl) return;
     kpiHelpPopoverEl.hidden = true;
-  }
-
-  function buildKpiTileThresholdSummaryHtml(tile) {
-    var defs = [
-      { rag: "red", key: "red_threshold", label: "Красный" },
-      { rag: "yellow", key: "yellow_threshold", label: "Жёлтый" },
-      { rag: "green", key: "green_threshold", label: "Зелёный" },
-    ];
-    if (tile && tile.blue_threshold != null && String(tile.blue_threshold).trim()) {
-      defs.push({ rag: "blue", key: "blue_threshold", label: "Синий" });
-    }
-    var items = defs
-      .map(function (item) {
-        var value = tile && tile[item.key] != null ? String(tile[item.key]).trim() : "";
-        if (!value) return "";
-        return (
-          '<span class="kpi-tile-threshold-chip">' +
-          '<span class="rag-dot rag-' +
-          item.rag +
-          '" aria-hidden="true"></span>' +
-          '<span class="kpi-tile-threshold-chip-label">' +
-          item.label +
-          ':</span><span class="kpi-tile-threshold-chip-value">' +
-          DashUi.escapeHtml(value) +
-          "</span></span>"
-        );
-      })
-      .filter(Boolean);
-    return items.length
-      ? items.join("")
-      : '<span class="kpi-tile-back-message">Пороги для этого показателя не переданы.</span>';
   }
 
   function buildKpiTileChildrenHtml(state) {
@@ -784,7 +678,6 @@
     var pres = MockData.getKpiTilePresentation(tile);
     var percentLabel = MockData.formatKpiPercentLabel(pres.percent) + "%";
     var hint = tile && tile.hint != null ? String(tile.hint).trim() : "";
-    var formulaRaw = tile && tile.formula != null ? String(tile.formula).trim() : "";
     var period = tile && tile.period != null ? String(tile.period).trim() : "";
     var code = tile && (tile.badge || tile.kpi_id) ? String(tile.badge || tile.kpi_id).trim() : "";
     var hasPf = DashUi.kpiTileHasPlanAndFact(tile);
@@ -798,11 +691,13 @@
       (period ? '<p class="kpi-tile-back-period">' + DashUi.escapeHtml(period) + "</p>" : "") +
       "</div>" +
       '<div class="kpi-tile-back-head-actions">' +
-      buildKpiTileHelpButtonHtml() +
       '<button type="button" class="kpi-tile-flip-action" aria-label="Вернуться к карточке">Назад</button>' +
       "</div></div>" +
       '<div class="kpi-tile-back-summary">' +
-      '<div class="kpi-tile-back-summary-item"><span class="kpi-tile-back-summary-label">KPI</span><strong>' +
+      '<div class="kpi-tile-back-summary-item kpi-tile-back-summary-item--kpi">' +
+      buildKpiTileHelpButtonHtml() +
+      '<span class="kpi-tile-back-summary-label">KPI</span>' +
+      '<strong class="kpi-tile-back-kpi-pct">' +
       DashUi.escapeHtml(percentLabel) +
       "</strong></div>" +
       (hasPf
@@ -815,17 +710,7 @@
       "</div>" +
       (hint ? '<p class="kpi-tile-back-hint">' + DashUi.escapeHtml(hint) + "</p>" : "") +
       '<div class="kpi-tile-back-section">' +
-      '<div class="kpi-tile-back-section-title">Пороговые значения</div>' +
-      '<div class="kpi-tile-threshold-chips">' +
-      buildKpiTileThresholdSummaryHtml(tile) +
-      "</div></div>" +
-      (formulaRaw
-        ? '<div class="kpi-tile-back-section"><div class="kpi-tile-back-section-title">Формула</div><div class="kpi-tile-back-formula" data-kpi-tile-formula="' +
-          String(tileIndex) +
-          '"></div></div>'
-        : "") +
-      '<div class="kpi-tile-back-section">' +
-      '<div class="kpi-tile-back-section-title">Дочерние отделы</div>' +
+      '<div class="kpi-tile-back-section-title">Информация по отделам</div>' +
       buildKpiTileChildrenHtml(state) +
       "</div>"
     );
@@ -837,10 +722,6 @@
     if (!backFace) return;
     var tile = lastKpiTiles[tileIndex];
     backFace.innerHTML = buildKpiTileBackFaceHtml(tile, tileIndex);
-    var formulaEl = backFace.querySelector('[data-kpi-tile-formula="' + String(tileIndex) + '"]');
-    if (formulaEl && tile.formula != null && String(tile.formula).trim()) {
-      DashLatex.renderKpiThresholdsDialogFormula(formulaEl, String(tile.formula).trim());
-    }
   }
 
   function syncKpiTileFlipState() {
@@ -872,10 +753,7 @@
   /**
    * Переход на дашборд выбранного дочернего отдела: крошки, вкладки, повторная загрузка KPI.
    * @param {string} deptName
-   */
-  /**
-   * @param {string} deptName
-   * @param {object|null|undefined} contextTile — плитка, с оборота которой кликнули дочерний отдел (если несколько открыты)
+   * @param {object|null|undefined} [contextTile] — плитка, с оборота которой кликнули дочерний отдел (если несколько открыты)
    */
   function navigateDashboardToDepartmentFromDrill(deptName, contextTile) {
     var d = deptName != null ? String(deptName).trim() : "";

@@ -2,7 +2,7 @@
   padding: 0;
   border: none;
   border-radius: var(--radius, 12px);
-  max-width: min(420px, calc(100vw - 32px));
+  max-width: min(560px, calc(100vw - 32px));
   box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.35);
 }
 
@@ -73,19 +73,26 @@
 .kpi-thresholds-dialog-list {
   list-style: none;
   margin: 0 0 16px;
-  padding: 0;
+  padding: 0 0 6px;
   display: flex;
-  flex-direction: column;
-  gap: 10px;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 18px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable;
 }
 
 .kpi-thresholds-dialog-row {
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
+  flex-shrink: 0;
   font-size: 0.9rem;
   line-height: 1.35;
+  white-space: nowrap;
 }
 
 .kpi-thresholds-dialog-row .rag-dot {
