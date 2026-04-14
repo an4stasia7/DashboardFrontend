@@ -822,6 +822,16 @@
     var period = tile && tile.period != null ? String(tile.period).trim() : "";
     var code = tile && (tile.badge || tile.kpi_id) ? String(tile.badge || tile.kpi_id).trim() : "";
     var hasPf = DashUi.kpiTileHasPlanAndFact(tile);
+    var showHelp = shouldShowKpiTileHelp(tile);
+    var showPercent = shouldShowKpiTilePercent(tile);
+    if (shouldRenderKpiTileBackDepartmentsOnly(tile)) {
+      return (
+        '<div class="kpi-tile-back-section kpi-tile-back-section--only">' +
+        '<div class="kpi-tile-back-section-title">Информация по отделам</div>' +
+        buildKpiTileChildrenHtml(state) +
+        "</div>"
+      );
+    }
     return (
       '<div class="kpi-tile-back-head">' +
       '<div class="kpi-tile-back-head-copy">' +
@@ -835,13 +845,15 @@
       '<button type="button" class="kpi-tile-flip-action" aria-label="Вернуться к карточке">Назад</button>' +
       "</div></div>" +
       '<div class="kpi-tile-back-summary">' +
-      '<div class="kpi-tile-back-summary-item kpi-tile-back-summary-item--kpi">' +
-      buildKpiTileHelpButtonHtml() +
-      '<span class="kpi-tile-back-summary-label">KPI</span>' +
-      '<strong class="kpi-tile-back-kpi-pct">' +
-      DashUi.escapeHtml(percentLabel) +
-      "</strong></div>" +
-      (hasPf
+      (showPercent
+        ? '<div class="kpi-tile-back-summary-item kpi-tile-back-summary-item--kpi">' +
+          (showHelp ? buildKpiTileHelpButtonHtml() : "") +
+          '<span class="kpi-tile-back-summary-label">KPI</span>' +
+          '<strong class="kpi-tile-back-kpi-pct">' +
+          DashUi.escapeHtml(percentLabel) +
+          "</strong></div>"
+        : "") +
+      (hasPf && shouldRenderKpiTileBack(tile)
         ? '<div class="kpi-tile-back-summary-item"><span class="kpi-tile-back-summary-label">План / факт</span><strong>' +
           DashUi.escapeHtml(DashUi.formatKpiTilePlanFactValue(tile.plan)) +
           " / " +
@@ -1039,6 +1051,7 @@
    */
   function openKpiTileDrilldown(tileIndex) {
     if (!lastKpiTiles || !lastKpiTiles[tileIndex]) return;
+    if (!shouldRenderKpiTileBack(lastKpiTiles[tileIndex])) return;
     if (flippedTileIndices.has(tileIndex)) {
       flippedTileIndices.delete(tileIndex);
       if (drilldownContextTile === lastKpiTiles[tileIndex]) {
@@ -1129,6 +1142,7 @@
   function openKpiThresholdsDialog(tile) {
     var dlg = document.getElementById("kpi-thresholds-dialog");
     if (!dlg || !tile) return;
+    if (!shouldShowKpiTileHelp(tile)) return;
     var titleEl = document.getElementById("kpi-thresholds-dialog-title");
     var codeEl = document.getElementById("kpi-thresholds-dialog-code");
     var hintEl = document.getElementById("kpi-thresholds-dialog-hint");
@@ -1209,6 +1223,37 @@
   var KPI_TILE_TITLE_PLAN_FACT_PERIOD = "Период, за который показаны план и факт";
   var KPI_TILE_ARIA_METRICS_PF = "План и факт";
 
+  function getKpiTileException(tile) {
+    var cfg = window.KPI_TILE_EXCEPTIONS || null;
+    if (!cfg || !tile) return null;
+    var key = tile.kpi_id != null && String(tile.kpi_id).trim()
+      ? String(tile.kpi_id).trim()
+      : tile.badge != null && String(tile.badge).trim()
+        ? String(tile.badge).trim()
+        : "";
+    return key && cfg[key] ? cfg[key] : null;
+  }
+
+  function shouldShowKpiTileHelp(tile) {
+    var rule = getKpiTileException(tile);
+    return !(rule && rule.hideHelp);
+  }
+
+  function shouldShowKpiTilePercent(tile) {
+    var rule = getKpiTileException(tile);
+    return !(rule && rule.hideKpiPercent);
+  }
+
+  function shouldRenderKpiTileBack(tile) {
+    var rule = getKpiTileException(tile);
+    return !(rule && rule.disableBack);
+  }
+
+  function shouldRenderKpiTileBackDepartmentsOnly(tile) {
+    var rule = getKpiTileException(tile);
+    return !!(rule && rule.backDepartmentsOnly);
+  }
+
   /** Кнопка «?» для модалки с формулой и цветовыми порогами KPI. */
   function buildKpiTileHelpButtonHtml() {
     return (
@@ -1220,12 +1265,13 @@
 
   /** Верхняя строка плитки: бейдж kpi_id. */
   function buildKpiTileBadgeRowHtml(tile) {
+    var helpHtml = shouldShowKpiTileHelp(tile) ? buildKpiTileHelpButtonHtml() : "";
     return (
       '<div class="kpi-tile-badge-row">' +
       '<span class="badge">' +
       DashUi.escapeHtml(tile.badge) +
       "</span>" +
-      buildKpiTileHelpButtonHtml() +
+      helpHtml +
       "</div>"
     );
   }
@@ -1277,10 +1323,40 @@
     );
   }
 
+  function buildKpiTileFactOnlyHtml(factShown, planFactGenerated) {
+    var pfStackClass = "kpi-tile-pf-stack" + (planFactGenerated ? " kpi-tile-pf-stack--generated" : "");
+    var generatedFlag = planFactGenerated
+      ? '<span class="kpi-tile-generated-flag" title="' +
+        DashUi.escapeHtml(KPI_TILE_MSG_GENERATED_DATA) +
+        '" role="img" aria-label="' +
+        DashUi.escapeHtml(KPI_TILE_MSG_GENERATED_DATA) +
+        '">!</span>'
+      : "";
+    return (
+      '<div class="' +
+      pfStackClass +
+      '">' +
+      generatedFlag +
+      '<div class="kpi-tile-pf-inline">' +
+      '<div class="kpi-tile-pf-inline-row">' +
+      '<span class="kpi-tile-pf-pill">' +
+      DashUi.escapeHtml(factShown) +
+      '</span><span class="kpi-tile-pf-inline-label">Факт</span></div></div></div>'
+    );
+  }
+
   /** Нижняя зона лицевой стороны: только план/факт (kpi_pct на лице не показываем). */
   function buildKpiTileMetricsSectionHtml(tile, hasPf, planShown, factShown) {
-    if (!hasPf) return "";
+    var rule = getKpiTileException(tile);
     var planFactGenerated = tile.has_data === false;
+    if (rule && rule.factOnly) {
+      return (
+        '<div class="kpi-tile-metrics kpi-tile-metrics--pf-only" aria-label="Факт">' +
+        buildKpiTileFactOnlyHtml(factShown, planFactGenerated) +
+        "</div>"
+      );
+    }
+    if (!hasPf) return "";
     var inner = buildKpiTilePlanFactStackHtml(planShown, factShown, planFactGenerated);
     return (
       '<div class="kpi-tile-metrics kpi-tile-metrics--pf-only" aria-label="' +
@@ -1365,10 +1441,20 @@
     tiles.forEach(function (tile, i) {
       const el = document.createElement("article");
       var pres = MockData.getKpiTilePresentation(tile);
+      var rule = getKpiTileException(tile);
+      var frontAccentColor = rule && rule.frontAccentColor ? String(rule.frontAccentColor).trim() : "";
       el.className = "kpi-tile";
       el.style.setProperty("--tile-rag-color", pres.fillColor);
+      el.style.setProperty("--tile-front-accent-color", frontAccentColor || pres.fillColor);
+      el.style.setProperty(
+        "--tile-top-border-color",
+        frontAccentColor || (rule && rule.headerColor === "dashboard" ? "var(--navy)" : pres.fillColor)
+      );
       el.setAttribute("tabindex", "0");
       el.setAttribute("aria-expanded", "false");
+      if (!shouldRenderKpiTileBack(tile)) {
+        el.setAttribute("data-no-flip", "1");
+      }
       if (focusRef && !focusApplied && tileMatchesFocusTarget(tile, focusRef)) {
         el.classList.add("kpi-tile--focus");
         el.setAttribute("aria-current", "true");

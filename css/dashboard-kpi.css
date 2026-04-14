@@ -357,16 +357,20 @@ article.kpi-tile.kpi-tile--page-hidden {
     radial-gradient(circle at top right, rgba(255, 255, 255, 0.94), rgba(255, 255, 255, 0.74) 36%, rgba(255, 255, 255, 0.96) 100%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.98));
   border: 1px solid rgba(148, 163, 184, 0.18);
-  border-top: 4px solid var(--tile-rag-color, var(--accent-blue));
+  border-top: 4px solid var(--tile-top-border-color, var(--tile-rag-color, var(--accent-blue)));
   box-shadow: 0 1px 0 rgba(255, 255, 255, 0.7) inset;
   backface-visibility: hidden;
   overflow: hidden;
 }
 
+article.kpi-tile[data-no-flip="1"] {
+  cursor: default;
+}
+
 .kpi-tile-face--front {
   transition: visibility 0s linear 0s;
   /* колонка под KPI ID (.kpi-tile-badge-row position:absolute), чтобы заголовок не наезжал на бейдж */
-  padding: 12px max(8.5rem, min(38%, 11rem)) 14px 14px;
+  padding: 24px max(9rem, min(40%, 11.5rem)) 26px 20px;
 }
 
 .kpi-tile-face--front > * {
@@ -530,9 +534,9 @@ article.kpi-tile.kpi-tile--page-hidden {
   min-height: 1.9rem;
   padding: 0.24rem 0.72rem;
   border-radius: 999px;
-  border: 1.5px solid var(--tile-rag-color, var(--accent-blue));
-  background: color-mix(in srgb, var(--tile-rag-color, var(--accent-blue)) 10%, white);
-  color: var(--tile-rag-color, var(--accent-blue));
+  border: 1.5px solid var(--tile-front-accent-color, var(--tile-rag-color, var(--accent-blue)));
+  background: color-mix(in srgb, var(--tile-front-accent-color, var(--tile-rag-color, var(--accent-blue))) 10%, white);
+  color: var(--tile-front-accent-color, var(--tile-rag-color, var(--accent-blue)));
   font-size: 1rem;
   font-weight: 800;
   line-height: 1.1;
@@ -608,7 +612,7 @@ article.kpi-tile.kpi-tile--page-hidden {
   background: rgba(248, 250, 252, 0.98);
   border: 1px solid rgba(148, 163, 184, 0.35);
   box-sizing: border-box;
-  font-size: 0.94rem;
+  font-size: 1rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -619,9 +623,9 @@ article.kpi-tile.kpi-tile--page-hidden {
 
 .kpi-tile-face--front h3 {
   margin: 0 0 6px 0;
-  font-size: 1.2rem;
+  font-size: 1.38rem;
   font-weight: 700;
-  line-height: 1.35;
+  line-height: 1.3;
   color: var(--text);
   overflow-wrap: break-word;
   word-break: normal;
@@ -630,7 +634,7 @@ article.kpi-tile.kpi-tile--page-hidden {
 
 .kpi-tile-face--front .period {
   margin: 0;
-  font-size: 1.04rem;
+  font-size: 1.12rem;
   color: var(--muted);
   line-height: 1.45;
 }
@@ -638,7 +642,7 @@ article.kpi-tile.kpi-tile--page-hidden {
 .kpi-tile-face--front .kpi-tile-plan-fact-period {
   display: block;
   margin-top: 5px;
-  font-size: 0.94rem;
+  font-size: 1rem;
   line-height: 1.3;
   color: var(--muted);
   opacity: 0.95;
@@ -964,10 +968,10 @@ article.kpi-tile.kpi-tile--page-hidden {
   }
 
   .kpi-tile-face--front {
-    padding: 16px max(7.5rem, min(36%, 10rem)) 16px 16px;
+    padding: 20px max(7.5rem, min(36%, 10rem)) 22px 16px;
   }
 
   .kpi-tile-face--front h3 {
-    font-size: 1rem;
+    font-size: 1.12rem;
   }
 }
