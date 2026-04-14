@@ -153,7 +153,7 @@
 /* Tables block */
 .tables-row {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 18px;
 }
 
@@ -162,15 +162,84 @@
   border-radius: var(--radius);
   box-shadow: 0 16px 36px rgba(15, 23, 42, 0.08);
   border: 1px solid #e2e8f0;
-  padding: 20px;
-  overflow-x: auto;
+  padding: 0;
+  overflow: hidden;
 }
 
 .table-panel h2 {
-  margin: 0 0 16px;
-  font-size: 1.1rem;
+  margin: 0;
+  padding: 14px 16px 10px;
+  font-size: 0.98rem;
   font-weight: 700;
   color: var(--text);
+  line-height: 1.25;
+}
+
+.dashboard-table-wrap {
+  overflow-x: auto;
+}
+
+.dashboard-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: auto;
+  min-height: 168px;
+}
+
+.dashboard-table thead th {
+  background: #e9eff7;
+  color: #334155;
+  font-weight: 700;
+  font-size: 0.72rem;
+  text-align: left;
+  padding: 7px 8px;
+  border-top: 1px solid #d7e0ec;
+  border-bottom: 1px solid #d7e0ec;
+  border-right: 1px solid #d7e0ec;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.dashboard-table thead th:first-child,
+.dashboard-table tbody td:first-child {
+  border-left: 1px solid #d7e0ec;
+}
+
+.dashboard-table tbody td {
+  font-size: 0.74rem;
+  color: var(--text);
+  padding: 8px;
+  border-bottom: 1px solid #e2e8f0;
+  border-right: 1px solid #e2e8f0;
+  background: #ffffff;
+  vertical-align: middle;
+  height: 32px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.dashboard-table tbody tr:last-child td {
+  border-bottom: 1px solid #d7e0ec;
+}
+
+.dashboard-table#table-top-deviations th:nth-child(1),
+.dashboard-table#table-top-deviations td:nth-child(1) {
+  width: 30%;
+}
+
+.dashboard-table#table-top-deviations th:nth-child(2),
+.dashboard-table#table-top-deviations td:nth-child(2),
+.dashboard-table#table-top-deviations th:nth-child(3),
+.dashboard-table#table-top-deviations td:nth-child(3),
+.dashboard-table#table-top-deviations th:nth-child(4),
+.dashboard-table#table-top-deviations td:nth-child(4) {
+  width: 12%;
+}
+
+.dashboard-table#table-top-deviations th:nth-child(5),
+.dashboard-table#table-top-deviations td:nth-child(5) {
+  width: 34%;
 }
 
 /* DataTables overrides */
@@ -274,6 +343,10 @@
   .line-chart-metric-select {
     width: 100%;
     min-width: 0;
+  }
+
+  .tables-row {
+    grid-template-columns: 1fr;
   }
 }
 

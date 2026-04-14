@@ -1296,71 +1296,24 @@
     updateKpiTilesPagerUI();
   }
 
-  /* ---------- Таблица «План / факт» ---------- */
+  /* ---------- Таблицы дашборда ---------- */
 
-  /** Заголовки колонок таблицы план/факт (классический набор). */
-  function setPlanFactTableHeaderClassic() {
-    var title = document.getElementById("table-plan-fact-title");
-    var head = document.getElementById("table-plan-fact-head");
-    if (title) title.textContent = "План / факт / отклонения";
-    if (head) {
-      head.innerHTML =
-        "<tr>" +
-        "<th>KPI</th>" +
-        "<th>Факт</th>" +
-        "<th>План</th>" +
-        "<th>RAG</th>" +
-        "<th>Отклонение, %</th>" +
-        "</tr>";
-    }
-  }
-
-  /** DataTables для `#table-plan-fact`: данные из `lastApiTableRows` или MockData. */
+  /** Пока таблицы показываются как пустой каркас по макету, без данных и DataTables. */
   function initTables() {
-    var role = viewContextUser.role;
-    var rows = lastApiTableRows && lastApiTableRows.length
-      ? lastApiTableRows
-      : MockData.getPlanFactTable(role);
-    setPlanFactTableHeaderClassic();
-    var planRows = rows.map(function (r) {
-      var dev = r.deviation != null ? r.deviation : DashUi.calcDeviation(r.fact, r.plan);
-      return [
-        DashUi.escapeHtml(r.kpi),
-        DashUi.escapeHtml(DashUi.formatNumber(r.fact)),
-        DashUi.escapeHtml(DashUi.formatNumber(r.plan)),
-        DashUi.ragCell(r.rag),
-        DashUi.escapeHtml(dev),
-      ];
-    });
-    if ($.fn.DataTable.isDataTable("#table-plan-fact")) {
-      $("#table-plan-fact").DataTable().destroy();
-    }
-    $("#table-plan-fact tbody").empty();
-    planRows.forEach(function (row) {
-      $("#table-plan-fact tbody").append("<tr><td>" + row.join("</td><td>") + "</td></tr>");
+    [
+      "#table-plan-fact",
+      "#table-top-deviations",
+      "#table-overdue-debt",
+    ].forEach(function (selector) {
+      if (typeof $ !== "undefined" && $.fn && $.fn.DataTable && $.fn.DataTable.isDataTable(selector)) {
+        $(selector).DataTable().destroy();
+      }
     });
 
-    var dtRu = {
-      decimal: ",",
-      thousands: " ",
-      processing: "Подождите…",
-      search: "Поиск:",
-      lengthMenu: "Показать _MENU_ записей",
-      info: "Записи с _START_ по _END_ из _TOTAL_",
-      infoEmpty: "Записи с 0 по 0 из 0",
-      infoFiltered: "(отфильтровано из _MAX_)",
-      loadingRecords: "Загрузка…",
-      zeroRecords: "Нет данных",
-      emptyTable: "Нет данных в таблице",
-      paginate: { first: "«", previous: "‹", next: "›", last: "»" },
-    };
-
-    $("#table-plan-fact").DataTable({
-      language: dtRu,
-      pageLength: 8,
-      ordering: true,
-      order: [],
-    });
+    var topBody = document.querySelector("#table-top-deviations tbody");
+    var debtBody = document.querySelector("#table-overdue-debt tbody");
+    if (topBody) topBody.innerHTML = "";
+    if (debtBody) debtBody.innerHTML = "";
   }
 
   /* ---------- Highcharts: линия, столбцы, пончики ---------- */

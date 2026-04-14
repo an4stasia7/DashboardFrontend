@@ -118,19 +118,38 @@
 
       <div class="tables-row">
         <section class="table-panel">
-          <h2 id="table-plan-fact-title">План / факт / отклонения</h2>
-          <table id="table-plan-fact" class="display compact" style="width: 100%">
-            <thead id="table-plan-fact-head">
-              <tr>
-                <th>KPI</th>
-                <th>Факт</th>
-                <th>План</th>
-                <th>RAG</th>
-                <th>Отклонение, %</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
+          <h2>ТОП-10 отклонений / KPI, претензии, суды</h2>
+          <div class="dashboard-table-wrap">
+            <table id="table-top-deviations" class="dashboard-table" aria-label="ТОП-10 отклонений / KPI, претензии, суды">
+              <thead>
+                <tr>
+                  <th>Показатель</th>
+                  <th>Факт</th>
+                  <th>План</th>
+                  <th>Р/Ф</th>
+                  <th>Комментарий</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </section>
+        <section class="table-panel">
+          <h2>Расшифровка просроченной дебиторской задолженности</h2>
+          <div class="dashboard-table-wrap">
+            <table id="table-overdue-debt" class="dashboard-table" aria-label="Расшифровка просроченной дебиторской задолженности">
+              <thead>
+                <tr>
+                  <th>Контрагент</th>
+                  <th>Сумма</th>
+                  <th>Дн. просрочки</th>
+                  <th>Причина</th>
+                  <th>Действие</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
         </section>
       </div>
 
