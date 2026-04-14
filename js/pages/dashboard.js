@@ -564,6 +564,60 @@
   }
 
   /**
+   * Ищет текущую KPI-плитку по `kpi_id` индикатора графика.
+   * @param {object} indicator
+   * @returns {object|null}
+   */
+  function findCurrentTileForIndicator(indicator) {
+    var tiles = lastKpiTiles;
+    if (!tiles || !indicator || indicator.id == null) return null;
+    var id = String(indicator.id);
+    for (var i = 0; i < tiles.length; i++) {
+      var t = tiles[i];
+      if (!t || t.kpi_id == null) continue;
+      if (String(t.kpi_id) === id) return t;
+    }
+    return null;
+  }
+
+  /**
+   * Подпись `kpi_pct` для tooltip столбчатой диаграммы.
+   * Приоритет: 1) у точки графика, 2) у текущей KPI-плитки.
+   * @param {object} indicator
+   * @param {number} pointIndex
+   * @returns {string}
+   */
+  function getBarChartKpiPctLabel(indicator, pointIndex) {
+    var pt =
+      indicator &&
+      indicator.points &&
+      typeof pointIndex === "number" &&
+      pointIndex >= 0 &&
+      pointIndex < indicator.points.length
+        ? indicator.points[pointIndex]
+        : null;
+    var pct =
+      pt && typeof pt.kpi_pct === "number" && !isNaN(pt.kpi_pct)
+        ? pt.kpi_pct
+        : pt && typeof pt.kpi_pst === "number" && !isNaN(pt.kpi_pst)
+          ? pt.kpi_pst
+          : null;
+    if (pct == null) {
+      var tile = findCurrentTileForIndicator(indicator);
+      if (tile) {
+        var pres = MockData.getKpiTilePresentation(tile);
+        pct =
+          tile.kpi_pct != null && typeof tile.kpi_pct === "number" && !isNaN(tile.kpi_pct)
+            ? tile.kpi_pct
+            : tile.kpi_pst != null && typeof tile.kpi_pst === "number" && !isNaN(tile.kpi_pst)
+              ? tile.kpi_pst
+              : pres.percent;
+      }
+    }
+    return pct == null ? "—" : MockData.formatKpiPercentLabel(pct) + "%";
+  }
+
+  /**
    * Строка таблицы drilldown: отдел, подпись %, RAG; `isCurrentContext` — текущий узел иерархии.
    * @param {string} deptName
    * @param {object|null} tile
@@ -1499,6 +1553,24 @@
     }
 
     var barPoints = indicator.points || [];
+    var barTooltipFormatter = function () {
+      var pts = this.points || [];
+      var pointIndex = pts.length && pts[0] && pts[0].point ? pts[0].point.index : -1;
+      var html = '<span style="font-size:10px">' + DashUi.escapeHtml(String(this.x)) + "</span><br/>";
+      pts.forEach(function (p) {
+        html +=
+          '<span style="color:' + p.color + '">\u25cf</span> ' +
+          DashUi.escapeHtml(p.series.name) +
+          ": <b>" +
+          DashUi.escapeHtml(DashUi.formatNumber(p.y)) +
+          "</b><br/>";
+      });
+      html +=
+        '<span style="color:#64748b">\u25cf</span> KPI: <b>' +
+        DashUi.escapeHtml(getBarChartKpiPctLabel(indicator, pointIndex)) +
+        "</b>";
+      return html;
+    };
     var barClickHandler = function (e) {
       var pointIndex = e.point ? e.point.index : -1;
       if (pointIndex < 0 || !barPoints.length) return;
@@ -1522,7 +1594,7 @@
         gridLineColor: "#f1f5f9",
       },
       legend: { align: "center", verticalAlign: "bottom" },
-      tooltip: { shared: true },
+      tooltip: { shared: true, useHTML: true, formatter: barTooltipFormatter },
       plotOptions: {
         column: {
           grouping: true,
