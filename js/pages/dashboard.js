@@ -65,6 +65,10 @@
   /** Hover/focus popover для кнопки `?` */
   var kpiHelpPopoverEl = document.getElementById("kpi-help-popover");
 
+  /** Пагинация плиток KPI: не более 6 на экране (3 колонки × 2 ряда) */
+  var KPI_TILES_PER_PAGE = 6;
+  var kpiTilesPageIndex = 0;
+
   /* ---------- Навигация по месяцам ---------- */
 
   var MONTH_NAMES_RU = [
@@ -202,6 +206,29 @@
           var next = availableMonths[idx + 1];
           navigateToMonth(next.month, next.year);
         }
+      });
+    }
+  })();
+
+  (function initKpiTilesPager() {
+    var prevBtn = document.getElementById("kpi-tiles-page-prev");
+    var nextBtn = document.getElementById("kpi-tiles-page-next");
+    if (prevBtn) {
+      prevBtn.addEventListener("click", function () {
+        if (kpiTilesPageIndex <= 0) return;
+        closeKpiTileDrilldown();
+        kpiTilesPageIndex--;
+        updateKpiTilesPagerUI();
+      });
+    }
+    if (nextBtn) {
+      nextBtn.addEventListener("click", function () {
+        var n = lastKpiTiles ? lastKpiTiles.length : 0;
+        var pages = Math.max(1, Math.ceil(n / KPI_TILES_PER_PAGE));
+        if (kpiTilesPageIndex >= pages - 1) return;
+        closeKpiTileDrilldown();
+        kpiTilesPageIndex++;
+        updateKpiTilesPagerUI();
       });
     }
   })();
@@ -1161,8 +1188,57 @@
     );
   }
 
+  function applyKpiTilesPageVisibility() {
+    var container = document.getElementById("kpi-container");
+    if (!container) return;
+    var articles = container.querySelectorAll("article.kpi-tile");
+    var n = articles.length;
+    if (n <= KPI_TILES_PER_PAGE) {
+      articles.forEach(function (art) {
+        art.classList.remove("kpi-tile--page-hidden");
+      });
+      return;
+    }
+    var start = kpiTilesPageIndex * KPI_TILES_PER_PAGE;
+    var end = start + KPI_TILES_PER_PAGE;
+    articles.forEach(function (art, idx) {
+      art.classList.toggle("kpi-tile--page-hidden", idx < start || idx >= end);
+    });
+  }
+
+  function updateKpiTilesPagerUI() {
+    var container = document.getElementById("kpi-container");
+    var pager = document.getElementById("kpi-tiles-pager");
+    var prevBtn = document.getElementById("kpi-tiles-page-prev");
+    var nextBtn = document.getElementById("kpi-tiles-page-next");
+    var label = document.getElementById("kpi-tiles-page-label");
+    var nDom = container ? container.querySelectorAll("article.kpi-tile").length : 0;
+    var n = nDom > 0 ? nDom : lastKpiTiles ? lastKpiTiles.length : 0;
+    if (!pager) return;
+    /* Переключатель только если плиток больше 6 (ровно 6 — без пейджера) */
+    if (n <= KPI_TILES_PER_PAGE) {
+      kpiTilesPageIndex = 0;
+      applyKpiTilesPageVisibility();
+      pager.setAttribute("hidden", "");
+      pager.hidden = true;
+      if (prevBtn) prevBtn.disabled = true;
+      if (nextBtn) nextBtn.disabled = true;
+      if (label) label.textContent = "";
+      return;
+    }
+    var pages = Math.ceil(n / KPI_TILES_PER_PAGE);
+    kpiTilesPageIndex = Math.min(Math.max(0, kpiTilesPageIndex), pages - 1);
+    applyKpiTilesPageVisibility();
+    pager.removeAttribute("hidden");
+    pager.hidden = false;
+    if (label) label.textContent = kpiTilesPageIndex + 1 + " / " + pages;
+    if (prevBtn) prevBtn.disabled = kpiTilesPageIndex <= 0;
+    if (nextBtn) nextBtn.disabled = kpiTilesPageIndex >= pages - 1;
+  }
+
   /**
    * Рендерит KPI-плитки единой адаптивной сеткой; оборот карточки строится отдельно при flip.
+   * Более 6 плиток — постраничный показ (3×2) и навигатор `#kpi-tiles-pager`.
    * @param {object[]} tiles
    */
   function renderKpiTiles(tiles) {
@@ -1216,6 +1292,8 @@
         }
       }
     }
+    kpiTilesPageIndex = 0;
+    updateKpiTilesPagerUI();
   }
 
   /* ---------- Таблица «План / факт» ---------- */

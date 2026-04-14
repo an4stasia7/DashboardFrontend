@@ -48,13 +48,73 @@
   user-select: none;
 }
 
-/* KPI tiles */
-#kpi-container {
+/* KPI tiles: не более 6 на экране (3×2), остальное — постранично */
+.dash-kpi-tiles-block {
+  margin-bottom: 24px;
+}
+
+.dash-kpi-tiles-block #kpi-container {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 20px;
   align-items: stretch;
-  margin-bottom: 24px;
+  margin-bottom: 0;
+}
+
+article.kpi-tile.kpi-tile--page-hidden {
+  display: none !important;
+}
+
+.kpi-tiles-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 14px;
+  padding: 8px 12px;
+  background: var(--card, #fff);
+  border-radius: var(--radius, 10px);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+  border: 1px solid rgba(148, 163, 184, 0.15);
+}
+
+.kpi-tiles-pager[hidden] {
+  display: none !important;
+}
+
+.kpi-tiles-pager-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: var(--text);
+  cursor: pointer;
+  padding: 0;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.kpi-tiles-pager-btn:hover:not(:disabled) {
+  border-color: var(--accent-blue);
+  color: var(--accent-blue);
+  background: rgba(37, 99, 235, 0.04);
+}
+
+.kpi-tiles-pager-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.kpi-tiles-pager-label {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text);
+  min-width: 3.5rem;
+  text-align: center;
+  user-select: none;
 }
 
 .kpi-grid {
@@ -857,15 +917,14 @@
 }
 
 @media (max-width: 1100px) {
-  #kpi-container {
-    grid-template-columns: repeat(2, 1fr);
+  .dash-kpi-tiles-block #kpi-container {
+    gap: 16px;
   }
 }
 
 @media (max-width: 768px) {
-  #kpi-container {
+  .dash-kpi-tiles-block #kpi-container {
     gap: 14px;
-    grid-template-columns: repeat(2, 1fr);
   }
 
   .kpi-tile,
@@ -883,8 +942,8 @@
 }
 
 @media (max-width: 560px) {
-  #kpi-container {
-    grid-template-columns: 1fr;
+  .dash-kpi-tiles-block #kpi-container {
+    gap: 10px;
   }
 
   .kpi-tile-face {

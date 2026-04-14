@@ -50,7 +50,18 @@
         </button>
       </nav>
 
-      <div id="kpi-container"></div>
+      <div class="dash-kpi-tiles-block">
+        <div id="kpi-container"></div>
+        <nav class="kpi-tiles-pager" id="kpi-tiles-pager" hidden aria-label="Страницы плиток KPI">
+          <button type="button" class="kpi-tiles-pager-btn" id="kpi-tiles-page-prev" aria-label="Предыдущая страница плиток">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M10 3L5 8L10 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <span class="kpi-tiles-pager-label" id="kpi-tiles-page-label"></span>
+          <button type="button" class="kpi-tiles-pager-btn" id="kpi-tiles-page-next" aria-label="Следующая страница плиток">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6 3L11 8L6 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </nav>
+      </div>
       <div id="kpi-help-popover" class="kpi-help-popover" role="tooltip" hidden></div>
 
       <section id="kpi-tile-drilldown" class="kpi-tile-drilldown" hidden aria-live="polite">
