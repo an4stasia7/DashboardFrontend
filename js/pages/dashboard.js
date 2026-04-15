@@ -1815,6 +1815,16 @@
     return s ? s : "—";
   }
 
+  function formatClaimsOrderSum(v) {
+    if (v == null || v === "") return "—";
+    var n = Number(v);
+    if (isNaN(n)) return tableTextOrDash(v);
+    return n.toLocaleString("ru-RU", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  }
+
   function renderClaimsTableFromApi() {
     var table = document.getElementById("table-top-deviations");
     var tbody = table ? table.querySelector("tbody") : null;
@@ -1837,7 +1847,7 @@
         tableTextOrDash(raw.order_num),
         tableTextOrDash(raw.order_dept),
         tableTextOrDash(raw.nomenclature),
-        raw.order_sum != null ? DashUi.formatNumber(raw.order_sum) : "—",
+        formatClaimsOrderSum(raw.order_sum),
         tableTextOrDash(raw.description),
         tableTextOrDash(raw.status),
       ].forEach(function (value) {
@@ -1846,6 +1856,255 @@
         tr.appendChild(td);
       });
       tbody.appendChild(tr);
+    });
+
+    initClaimsDataTable();
+  }
+
+  function escapeRegexForDataTable(value) {
+    return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  }
+
+  function initClaimsDataTable() {
+    if (typeof $ === "undefined" || !$.fn || !$.fn.DataTable) return;
+    var table = $("#table-top-deviations");
+    if (!table.length) return;
+
+    var wrapper = table.closest(".dashboard-table-wrap--claims");
+    if (wrapper.length) {
+      wrapper.find(".claims-column-filter-menu").remove();
+    }
+    if ($.fn.DataTable.isDataTable(table)) {
+      table.DataTable().destroy();
+    }
+
+    var columnConfigs = [
+      { index: 0, label: "Код", type: "filter" },
+      { index: 1, label: "Наименование", type: "filter" },
+      { index: 2, label: "Партнер/Клиент", type: "filter" },
+      { index: 3, label: "Дата обращения", type: "filter" },
+      { index: 4, label: "Дата окончания", type: "filter" },
+      { index: 5, label: "Заказ клиента", type: "filter" },
+      { index: 6, label: "Подразделение заказа", type: "filter" },
+      { index: 7, label: "Номенклатура", type: "filter" },
+      { index: 8, label: "Сумма документа заказа, руб.", type: "sort" },
+      { index: 9, label: "Описание претензии", type: "filter" },
+      { index: 10, label: "Статус", type: "filter" },
+    ];
+
+    var dataTable = table.DataTable({
+      order: [[8, "desc"]],
+      paging: true,
+      pageLength: 10,
+      lengthMenu: [10, 25, 50],
+      autoWidth: false,
+      deferRender: true,
+      language: {
+        search: "Поиск:",
+        lengthMenu: "Показать _MENU_ записей",
+        info: "Показаны _START_–_END_ из _TOTAL_",
+        infoEmpty: "Нет записей",
+        infoFiltered: "(отфильтровано из _MAX_)",
+        zeroRecords: "Ничего не найдено",
+        emptyTable: "Нет данных для отображения",
+        paginate: {
+          first: "Первая",
+          previous: "Назад",
+          next: "Вперед",
+          last: "Последняя",
+        },
+      },
+      columnDefs: [
+        { targets: "_all", orderable: false },
+        { targets: [8], type: "num-fmt", orderable: true },
+      ],
+      dom: '<"claims-table-top"lf>rt<"claims-table-bottom"ip>',
+    });
+
+    var activeFilters = {};
+    var activeSortColumn = null;
+    var activeSortDir = "";
+    var menus = [];
+
+    function collectColumnValues(columnIndex) {
+      var seen = [];
+      dataTable
+        .column(columnIndex)
+        .data()
+        .each(function (value) {
+          var text = value != null ? String(value).trim() : "";
+          if (!text || seen.indexOf(text) !== -1) return;
+          seen.push(text);
+        });
+      return seen.sort(function (a, b) {
+        return a.localeCompare(b, "ru");
+      });
+    }
+
+    function closeAllClaimsMenus() {
+      menus.forEach(function (menu) {
+        menu.hidden = true;
+      });
+    }
+
+    function applyClaimsColumnState() {
+      Object.keys(activeFilters).forEach(function (key) {
+        var values = activeFilters[key];
+        var columnIndex = Number(key);
+        if (Array.isArray(values) && values.length) {
+          var pattern = values
+            .map(function (value) {
+              return escapeRegexForDataTable(value);
+            })
+            .join("|");
+          dataTable.column(columnIndex).search("^(" + pattern + ")$", true, false);
+        } else {
+          dataTable.column(columnIndex).search("", true, false);
+        }
+      });
+      if (activeSortColumn != null && activeSortDir) {
+        dataTable.order([[activeSortColumn, activeSortDir]]);
+      } else {
+        dataTable.order([]);
+      }
+      dataTable.draw();
+    }
+
+    function isClaimsColumnResetVisible(config) {
+      if (config.type === "sort") {
+        return activeSortColumn === config.index && !!activeSortDir;
+      }
+      return Array.isArray(activeFilters[config.index]) && activeFilters[config.index].length > 0;
+    }
+
+    table.find("thead th").each(function (idx) {
+      var th = this;
+      var config = null;
+      for (var i = 0; i < columnConfigs.length; i++) {
+        if (columnConfigs[i].index === idx) {
+          config = columnConfigs[i];
+          break;
+        }
+      }
+      if (!config) return;
+      if (th.querySelector(".claims-column-filter-trigger")) return;
+
+      th.classList.add("claims-column-head");
+      var titleText = th.textContent;
+      th.textContent = "";
+
+      var titleSpan = document.createElement("span");
+      titleSpan.className = "claims-column-head-text";
+      titleSpan.textContent = titleText;
+
+      var trigger = document.createElement("button");
+      trigger.type = "button";
+      trigger.className = "claims-column-filter-trigger";
+      trigger.setAttribute("aria-label", "Фильтр по колонке " + config.label);
+      trigger.innerHTML =
+        '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">' +
+        '<path d="M2 3h12l-4.8 5.3v3.2l-2.4 1.5V8.3L2 3z" fill="currentColor"/></svg>';
+
+      var resetBtn = document.createElement("button");
+      resetBtn.type = "button";
+      resetBtn.className = "claims-column-filter-reset";
+      resetBtn.setAttribute("aria-label", "Сбросить фильтр по колонке " + config.label);
+      resetBtn.textContent = "×";
+      resetBtn.hidden = true;
+
+      var menu = document.createElement("div");
+      menu.className = "claims-column-filter-menu";
+      menu.hidden = true;
+
+      if (config.type === "sort") {
+        var sortTitle = document.createElement("p");
+        sortTitle.className = "claims-column-filter-title";
+        sortTitle.textContent = config.label;
+        menu.appendChild(sortTitle);
+
+        [
+          { label: "По убыванию", dir: "desc" },
+          { label: "По возрастанию", dir: "asc" },
+        ].forEach(function (sortOption) {
+          var btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "claims-column-filter-option";
+          btn.textContent = sortOption.label;
+          btn.addEventListener("click", function () {
+            activeSortColumn = config.index;
+            activeSortDir = sortOption.dir;
+            resetBtn.hidden = !isClaimsColumnResetVisible(config);
+            applyClaimsColumnState();
+            closeAllClaimsMenus();
+          });
+          menu.appendChild(btn);
+        });
+      } else {
+        var filterTitle = document.createElement("p");
+        filterTitle.className = "claims-column-filter-title";
+        filterTitle.textContent = config.label;
+        menu.appendChild(filterTitle);
+
+        var optionsWrap = document.createElement("div");
+        optionsWrap.className = "claims-column-filter-options";
+        collectColumnValues(config.index).forEach(function (value) {
+          var optionLabel = document.createElement("label");
+          optionLabel.className = "claims-column-filter-check";
+          var checkbox = document.createElement("input");
+          checkbox.type = "checkbox";
+          checkbox.value = value;
+          checkbox.addEventListener("change", function () {
+            var selected = [];
+            optionsWrap.querySelectorAll('input[type="checkbox"]:checked').forEach(function (input) {
+              selected.push(input.value);
+            });
+            activeFilters[config.index] = selected;
+            resetBtn.hidden = !isClaimsColumnResetVisible(config);
+            applyClaimsColumnState();
+          });
+          var textSpan = document.createElement("span");
+          textSpan.textContent = value;
+          optionLabel.appendChild(checkbox);
+          optionLabel.appendChild(textSpan);
+          optionsWrap.appendChild(optionLabel);
+        });
+        menu.appendChild(optionsWrap);
+      }
+
+      resetBtn.addEventListener("click", function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+        if (config.type === "sort") {
+          activeSortColumn = null;
+          activeSortDir = "";
+        } else {
+          activeFilters[config.index] = [];
+          menu.querySelectorAll('input[type="checkbox"]').forEach(function (input) {
+            input.checked = false;
+          });
+        }
+        resetBtn.hidden = true;
+        applyClaimsColumnState();
+        closeAllClaimsMenus();
+      });
+
+      trigger.addEventListener("click", function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+        var shouldOpen = menu.hidden;
+        closeAllClaimsMenus();
+        menu.hidden = !shouldOpen;
+      });
+
+      th.appendChild(titleSpan);
+      th.appendChild(resetBtn);
+      th.appendChild(trigger);
+      th.appendChild(menu);
+      menus.push(menu);
+    });
+
+    document.addEventListener("click", function (event) {
+      if (!table[0].contains(event.target)) closeAllClaimsMenus();
     });
   }
 
