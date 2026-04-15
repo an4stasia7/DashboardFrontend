@@ -1825,6 +1825,12 @@
     });
   }
 
+  function getClaimsOrderSumSortValue(v) {
+    if (v == null || v === "") return "";
+    var n = Number(v);
+    return isNaN(n) ? "" : String(n);
+  }
+
   function renderClaimsTableFromApi() {
     var table = document.getElementById("table-top-deviations");
     var tbody = table ? table.querySelector("tbody") : null;
@@ -1850,9 +1856,12 @@
         formatClaimsOrderSum(raw.order_sum),
         tableTextOrDash(raw.description),
         tableTextOrDash(raw.status),
-      ].forEach(function (value) {
+      ].forEach(function (value, cellIndex) {
         var td = document.createElement("td");
         td.textContent = value;
+        if (cellIndex === 8) {
+          td.setAttribute("data-order", getClaimsOrderSumSortValue(raw.order_sum));
+        }
         tr.appendChild(td);
       });
       tbody.appendChild(tr);
@@ -2002,7 +2011,7 @@
       if (config.type === "sort") {
         var svgArrowUp = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M6 2L2 7h8L6 2z" fill="currentColor"/></svg>';
         var svgArrowDown = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M6 10L2 5h8L6 10z" fill="currentColor"/></svg>';
-        var svgArrowBoth = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M6 1L3 4.5h6L6 1z" fill="currentColor" opacity="0.35"/><path d="M6 11L3 7.5h6L6 11z" fill="currentColor" opacity="0.35"/></svg>';
+        var svgArrowBoth = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M6 1L3 4.5h6L6 1z" fill="currentColor"/><path d="M6 11L3 7.5h6L6 11z" fill="currentColor"/></svg>';
 
         var sortBtn = document.createElement("button");
         sortBtn.type = "button";
