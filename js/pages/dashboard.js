@@ -2505,15 +2505,27 @@
       }
 
       var pctLabel = MockData.formatKpiPercentLabel(pct) + "%";
+      var containerWidth = chartDiv.clientWidth || cell.clientWidth || 120;
+      var chartSize = Math.max(96, Math.min(140, containerWidth));
 
       var chart = Highcharts.chart(chartDiv, {
-        chart: { type: "pie", backgroundColor: "transparent", height: 120, margin: [0, 0, 0, 0], animation: false },
+        chart: {
+          type: "pie",
+          backgroundColor: "transparent",
+          height: chartSize,
+          margin: [0, 0, 0, 0],
+          animation: false,
+        },
         title: {
           text: pctLabel,
           align: "center",
           verticalAlign: "middle",
           y: 2,
-          style: { fontSize: "13px", fontWeight: "700", color: fill },
+          style: {
+            fontSize: chartSize <= 108 ? "11px" : "13px",
+            fontWeight: "700",
+            color: fill,
+          },
         },
         credits: { enabled: false },
         tooltip: { enabled: false },

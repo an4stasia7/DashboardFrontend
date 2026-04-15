@@ -60,7 +60,7 @@
   grid-template-columns: repeat(3, 1fr);
   gap: 8px;
   flex: 1 1 auto;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .donut-cell {
@@ -68,12 +68,13 @@
   flex-direction: column;
   align-items: center;
   gap: 4px;
+  min-width: 0;
 }
 
 .donut-cell .donut-chart-container {
   width: 100%;
-  min-height: 110px;
-  overflow: hidden;
+  min-height: 120px;
+  overflow: visible;
 }
 
 .donut-cell .donut-chart-container .highcharts-container {
@@ -87,7 +88,7 @@
 }
 
 .chart-panel-donuts {
-  overflow: hidden;
+  overflow: visible;
 }
 
 .donut-cell .donut-label {
@@ -98,6 +99,18 @@
   max-width: 100%;
   overflow-wrap: break-word;
   word-break: break-word;
+}
+
+@media (max-width: 1180px) {
+  .donuts-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .donuts-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .chart-panel-head h2 {

@@ -1,6 +1,6 @@
 "use strict";
 
-const { app, BrowserWindow } = require("electron");
+const { app, BrowserWindow, screen } = require("electron");
 const path = require("path");
 const http = require("http");
 const fs = require("fs");
@@ -115,9 +115,11 @@ function getLoadUrl() {
 }
 
 function createWindow() {
+  const defaultWidth = 1280;
+  const defaultHeight = 800;
   const win = new BrowserWindow({
-    width: 1280,
-    height: 800,
+    width: defaultWidth,
+    height: defaultHeight,
     resizable: true,
     show: false,
     webPreferences: {
@@ -130,6 +132,20 @@ function createWindow() {
 
   win.once("ready-to-show", function () {
     win.show();
+  });
+
+  win.on("will-resize", function (event) {
+    if (win.isMaximized() || win.isMinimized() || win.isFullScreen()) return;
+    event.preventDefault();
+  });
+
+  win.on("unmaximize", function () {
+    const display = screen.getDisplayMatching(win.getBounds());
+    const workArea = display && display.workArea ? display.workArea : null;
+    const nextWidth = workArea ? Math.min(defaultWidth, workArea.width) : defaultWidth;
+    const nextHeight = workArea ? Math.min(defaultHeight, workArea.height) : defaultHeight;
+    win.setSize(nextWidth, nextHeight);
+    win.center();
   });
 
   win.loadURL(getLoadUrl());
