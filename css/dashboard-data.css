@@ -247,6 +247,10 @@
   overflow-x: auto;
 }
 
+.dashboard-table-wrap--claims {
+  overflow-x: hidden;
+}
+
 .dashboard-table {
   width: 100%;
   border-collapse: collapse;
@@ -293,54 +297,75 @@
 
 .dashboard-table#table-top-deviations th:nth-child(1),
 .dashboard-table#table-top-deviations td:nth-child(1) {
-  min-width: 120px;
+  width: 6%;
+  min-width: 0;
 }
 
 .dashboard-table#table-top-deviations th:nth-child(2),
 .dashboard-table#table-top-deviations td:nth-child(2) {
-  min-width: 280px;
+  width: 11%;
+  min-width: 0;
 }
 
 .dashboard-table#table-top-deviations th:nth-child(3),
 .dashboard-table#table-top-deviations td:nth-child(3) {
-  min-width: 220px;
+  width: 10%;
+  min-width: 0;
 }
 
 .dashboard-table#table-top-deviations th:nth-child(4),
 .dashboard-table#table-top-deviations td:nth-child(4),
 .dashboard-table#table-top-deviations th:nth-child(5),
 .dashboard-table#table-top-deviations td:nth-child(5) {
-  min-width: 120px;
+  width: 7%;
+  min-width: 0;
 }
 
 .dashboard-table#table-top-deviations th:nth-child(6),
 .dashboard-table#table-top-deviations td:nth-child(6) {
-  min-width: 140px;
+  width: 8%;
+  min-width: 0;
 }
 
 .dashboard-table#table-top-deviations th:nth-child(7),
 .dashboard-table#table-top-deviations td:nth-child(7) {
-  min-width: 190px;
+  width: 10%;
+  min-width: 0;
 }
 
 .dashboard-table#table-top-deviations th:nth-child(8),
 .dashboard-table#table-top-deviations td:nth-child(8) {
-  min-width: 180px;
+  width: 10%;
+  min-width: 0;
 }
 
 .dashboard-table#table-top-deviations th:nth-child(9),
 .dashboard-table#table-top-deviations td:nth-child(9) {
-  min-width: 140px;
+  width: 8%;
+  min-width: 0;
 }
 
 .dashboard-table#table-top-deviations th:nth-child(10),
 .dashboard-table#table-top-deviations td:nth-child(10) {
-  min-width: 420px;
+  width: 16%;
+  min-width: 0;
 }
 
 .dashboard-table#table-top-deviations th:nth-child(11),
 .dashboard-table#table-top-deviations td:nth-child(11) {
-  min-width: 120px;
+  width: 7%;
+  min-width: 0;
+}
+
+.dashboard-table#table-top-deviations {
+  table-layout: fixed;
+}
+
+.dashboard-table#table-top-deviations thead th,
+.dashboard-table#table-top-deviations tbody td {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 /* DataTables overrides */
