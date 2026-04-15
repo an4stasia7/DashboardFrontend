@@ -1676,25 +1676,46 @@
     ];
   }
 
-  function getIndicatorAccentColor(indicator, fallbackColor) {
-    var tile = findCurrentTileForIndicator(indicator);
-    if (tile) {
-      var rule = typeof getKpiTileException === "function" ? getKpiTileException(tile) : null;
-      if (rule && rule.frontAccentColor) return String(rule.frontAccentColor);
-      var pres = MockData.getKpiTilePresentation(tile);
-      if (pres && pres.fillColor) return pres.fillColor;
+  var ALL_CHARTS_COLOR_PALETTE = [
+    "#2563eb",
+    "#16a34a",
+    "#f59e0b",
+    "#8b5cf6",
+    "#06b6d4",
+    "#ef4444",
+    "#84cc16",
+    "#0f766e",
+    "#f97316",
+    "#6366f1",
+  ];
+
+  function getAllChartsPaletteColor(index) {
+    return ALL_CHARTS_COLOR_PALETTE[index % ALL_CHARTS_COLOR_PALETTE.length];
+  }
+
+  function getChartColorVariant(baseColor, brightenBy) {
+    if (typeof Highcharts !== "undefined" && Highcharts.color) {
+      return Highcharts.color(baseColor).brighten(brightenBy).get();
     }
-    return fallbackColor || "#2563eb";
+    return baseColor;
+  }
+
+  function pickIndicatorBarValue(values) {
+    if (!values || !values.length) return null;
+    for (var i = 0; i < values.length; i++) {
+      if (values[i] != null && !isNaN(Number(values[i]))) return Number(values[i]);
+    }
+    return null;
   }
 
   function buildLineChartSeriesForAllIndicators(indicators) {
     if (!indicators || !indicators.length) return [];
     return indicators
-      .map(function (indicator) {
+      .map(function (indicator, idx) {
         var series = buildLineChartSeriesFactOnly(indicator);
         if (!series.length) return null;
         var base = series[0];
-        var accent = getIndicatorAccentColor(indicator, base.color);
+        var accent = getAllChartsPaletteColor(idx);
         return {
           type: "line",
           name: indicator.optionLabel || indicator.title || base.name,
@@ -1715,25 +1736,24 @@
 
   function buildBarChartSeriesForAllIndicators(indicators) {
     if (!indicators || !indicators.length) return [];
-    return indicators
-      .map(function (indicator) {
-        var accent = getIndicatorAccentColor(indicator, "#2b5ca6");
-        var data = indicator.fact || [];
-        var hasAny = false;
-        for (var i = 0; i < data.length; i++) {
-          if (data[i] != null && !isNaN(Number(data[i]))) {
-            hasAny = true;
-            break;
-          }
-        }
-        if (!hasAny) return null;
-        return {
-          name: indicator.optionLabel || indicator.title || "KPI",
-          data: data.map(function (v) { return v != null ? Number(v) : null; }),
-          color: accent,
-        };
-      })
-      .filter(Boolean);
+    var planData = [];
+    var factData = [];
+    indicators.forEach(function (indicator) {
+      planData.push(pickIndicatorBarValue(indicator.plan || []));
+      factData.push(pickIndicatorBarValue(indicator.fact || []));
+    });
+    return [
+      {
+        name: "План",
+        data: planData,
+        color: "#c8d6ee",
+      },
+      {
+        name: "Факт",
+        data: factData,
+        color: "#2b5ca6",
+      },
+    ];
   }
 
   /** Пересоздаёт линейный график для выбранного индикатора. */
@@ -1996,24 +2016,24 @@
         lineColor: "#cbd5e1",
       },
       yAxis: {
-        title: { text: "Факт" },
+        title: { text: "План / факт" },
         gridLineColor: "#f1f5f9",
       },
       legend: { align: "center", verticalAlign: "bottom" },
       tooltip: {
-        shared: false,
+        shared: true,
         useHTML: true,
         formatter: function () {
-          return (
-            '<span style="font-size:10px">' +
-            DashUi.escapeHtml(String(this.x)) +
-            "</span><br/>" +
-            '<span style="color:' + this.color + '">\u25cf</span> ' +
-            DashUi.escapeHtml(this.series.name) +
-            ": <b>" +
-            DashUi.escapeHtml(DashUi.formatNumber(this.y)) +
-            "</b>"
-          );
+          var html = '<span style="font-size:10px">' + DashUi.escapeHtml(String(this.x)) + "</span><br/>";
+          (this.points || []).forEach(function (p) {
+            html +=
+              '<span style="color:' + p.color + '">\u25cf</span> ' +
+              DashUi.escapeHtml(p.series.name) +
+              ": <b>" +
+              DashUi.escapeHtml(DashUi.formatNumber(p.y)) +
+              "</b><br/>";
+          });
+          return html;
         },
       },
       plotOptions: {
@@ -2021,6 +2041,8 @@
           grouping: true,
           borderRadius: 3,
           borderWidth: 0,
+          groupPadding: 0.12,
+          pointPadding: 0.04,
         },
       },
       series: buildBarChartSeriesForAllIndicators(indicators),
