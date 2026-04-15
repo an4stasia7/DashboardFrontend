@@ -118,6 +118,7 @@ function createWindow() {
   const win = new BrowserWindow({
     width: 1280,
     height: 800,
+    resizable: true,
     show: false,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
@@ -129,13 +130,6 @@ function createWindow() {
 
   win.once("ready-to-show", function () {
     win.show();
-  });
-
-  win.on("will-resize", function (e, newBounds, details) {
-    var edge = details && details.edge;
-    if (edge && edge !== "maximize" && edge !== "restore") {
-      e.preventDefault();
-    }
   });
 
   win.loadURL(getLoadUrl());

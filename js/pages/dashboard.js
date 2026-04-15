@@ -1691,6 +1691,47 @@
     });
   }
 
+  var dashboardChartsResizeObserver = null;
+
+  function isDashboardChartContainer(renderTo) {
+    if (!renderTo) return false;
+    if (renderTo.id === "chart-line" || renderTo.id === "chart-bar") return true;
+    return !!(renderTo.classList && renderTo.classList.contains("donut-chart-container"));
+  }
+
+  function resizeAllDashboardChartsNow() {
+    if (typeof Highcharts === "undefined" || !Highcharts.charts) return;
+    Highcharts.charts.forEach(function (chart) {
+      if (!chart || typeof chart.setSize !== "function" || !isDashboardChartContainer(chart.renderTo)) {
+        return;
+      }
+      var container = chart.renderTo;
+      var width = container && container.clientWidth ? container.clientWidth : null;
+      var height = container && container.clientHeight ? container.clientHeight : null;
+      chart.setSize(width, height, false);
+    });
+  }
+
+  function attachDashboardChartsResizeObserver() {
+    if (typeof window === "undefined") return;
+    if (typeof window.ResizeObserver !== "function" || dashboardChartsResizeObserver) {
+      window.addEventListener("resize", resizeAllDashboardChartsNow, { passive: true });
+      return;
+    }
+    dashboardChartsResizeObserver = new window.ResizeObserver(function () {
+      resizeAllDashboardChartsNow();
+    });
+    ["chart-line", "chart-bar", "donuts-grid"].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) dashboardChartsResizeObserver.observe(el);
+    });
+    window.addEventListener("resize", resizeAllDashboardChartsNow, { passive: true });
+  }
+
+  if (typeof window !== "undefined") {
+    attachDashboardChartsResizeObserver();
+  }
+
   /** Индекс ряда «план» по подписи (план / цель / норма). */
   function findPlanSeriesIndexForRag(series) {
     for (var i = 0; i < series.length; i++) {
@@ -1845,7 +1886,7 @@
     };
 
     lineChartInstance = Highcharts.chart(elLine, {
-      chart: { type: "line", backgroundColor: "transparent", height: 300 },
+      chart: { type: "line", backgroundColor: "transparent", height: 300, animation: false, reflow: false },
       title: { text: null },
       credits: { enabled: false },
       xAxis: {
@@ -1860,6 +1901,7 @@
       legend: { align: "center", verticalAlign: "bottom" },
       tooltip: { shared: true },
       plotOptions: {
+        series: { animation: false },
         line: {
           marker: { enabled: true, radius: 4, symbol: "circle" },
           lineWidth: 2,
@@ -1891,7 +1933,7 @@
 
     var baseIndicator = indicators[0];
     lineChartInstance = Highcharts.chart(elLine, {
-      chart: { type: "line", backgroundColor: "transparent", height: 300 },
+      chart: { type: "line", backgroundColor: "transparent", height: 300, animation: false, reflow: false },
       title: { text: null },
       credits: { enabled: false },
       xAxis: {
@@ -1906,6 +1948,7 @@
       legend: { align: "center", verticalAlign: "bottom" },
       tooltip: { shared: true },
       plotOptions: {
+        series: { animation: false },
         line: {
           marker: { enabled: true, radius: 4, symbol: "circle" },
           lineWidth: 2,
@@ -2011,7 +2054,7 @@
     };
 
     waterfallChartInstance = Highcharts.chart(elBar, {
-      chart: { type: "column", backgroundColor: "transparent", height: 300 },
+      chart: { type: "column", backgroundColor: "transparent", height: 300, animation: false, reflow: false },
       title: { text: null },
       credits: { enabled: false },
       xAxis: {
@@ -2026,6 +2069,7 @@
       legend: { align: "center", verticalAlign: "bottom" },
       tooltip: { shared: true, useHTML: true, formatter: barTooltipFormatter },
       plotOptions: {
+        series: { animation: false },
         column: {
           grouping: true,
           borderRadius: 3,
@@ -2072,7 +2116,7 @@
     });
 
     waterfallChartInstance = Highcharts.chart(elBar, {
-      chart: { type: "column", backgroundColor: "transparent", height: 300 },
+      chart: { type: "column", backgroundColor: "transparent", height: 300, animation: false, reflow: false },
       title: { text: null },
       credits: { enabled: false },
       xAxis: {
@@ -2102,6 +2146,7 @@
         },
       },
       plotOptions: {
+        series: { animation: false },
         column: {
           grouping: true,
           borderRadius: 3,
@@ -2298,12 +2343,7 @@
 
     renderDonutCharts();
 
-    setTimeout(function () {
-      if (!Highcharts.charts) return;
-      Highcharts.charts.forEach(function (c) {
-        if (c && typeof c.reflow === "function") c.reflow();
-      });
-    }, 100);
+    setTimeout(resizeAllDashboardChartsNow, 100);
   }
 
   function cancelDeferredChartsAndTablesBoot() {
