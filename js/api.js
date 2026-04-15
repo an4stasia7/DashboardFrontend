@@ -132,6 +132,19 @@
     return baseUrl() + p;
   }
 
+  function buildSearchUrlWithQuery(options) {
+    var url = searchUrl();
+    var q = options && options.q != null ? String(options.q).trim() : "";
+    var topK = options && options.top_k != null ? parseInt(String(options.top_k), 10) : 5;
+    if (isNaN(topK)) topK = 5;
+    topK = Math.max(1, Math.min(20, topK));
+    if (q) {
+      url += (url.indexOf("?") === -1 ? "?" : "&") + "q=" + encodeURIComponent(q);
+    }
+    url += (url.indexOf("?") === -1 ? "?" : "&") + "top_k=" + encodeURIComponent(String(topK));
+    return url;
+  }
+
   function normalizeKpiUserEntry(u) {
     if (!u || typeof u !== "object") return { nickname: "", department: "" };
     return {
@@ -1419,7 +1432,7 @@
     if (!authHeaders.Authorization) {
       return Promise.resolve({ ok: false, error: "Нет токена авторизации" });
     }
-    var url = searchUrl();
+    var url = buildSearchUrlWithQuery({ q: q, top_k: topK });
     var headers = Object.assign({ Accept: "application/json", "Content-Type": "application/json" }, authHeaders);
     var fetchOpts = {
       method: "POST",

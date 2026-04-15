@@ -275,7 +275,8 @@
 }
 
 .dashboard-table-wrap--claims {
-  overflow-x: hidden;
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .dashboard-table {
@@ -324,19 +325,19 @@
 
 .dashboard-table#table-top-deviations th:nth-child(1),
 .dashboard-table#table-top-deviations td:nth-child(1) {
-  width: 6%;
+  width: 5%;
   min-width: 0;
 }
 
 .dashboard-table#table-top-deviations th:nth-child(2),
 .dashboard-table#table-top-deviations td:nth-child(2) {
-  width: 11%;
+  width: 9%;
   min-width: 0;
 }
 
 .dashboard-table#table-top-deviations th:nth-child(3),
 .dashboard-table#table-top-deviations td:nth-child(3) {
-  width: 10%;
+  width: 9%;
   min-width: 0;
 }
 
@@ -350,19 +351,19 @@
 
 .dashboard-table#table-top-deviations th:nth-child(6),
 .dashboard-table#table-top-deviations td:nth-child(6) {
-  width: 8%;
+  width: 7%;
   min-width: 0;
 }
 
 .dashboard-table#table-top-deviations th:nth-child(7),
 .dashboard-table#table-top-deviations td:nth-child(7) {
-  width: 10%;
+  width: 9%;
   min-width: 0;
 }
 
 .dashboard-table#table-top-deviations th:nth-child(8),
 .dashboard-table#table-top-deviations td:nth-child(8) {
-  width: 10%;
+  width: 8%;
   min-width: 0;
 }
 
@@ -374,25 +375,44 @@
 
 .dashboard-table#table-top-deviations th:nth-child(10),
 .dashboard-table#table-top-deviations td:nth-child(10) {
-  width: 16%;
-  min-width: 0;
+  width: 23%;
+  min-width: 260px;
 }
 
 .dashboard-table#table-top-deviations th:nth-child(11),
 .dashboard-table#table-top-deviations td:nth-child(11) {
-  width: 7%;
+  width: 8%;
   min-width: 0;
 }
 
 .dashboard-table#table-top-deviations {
   table-layout: fixed;
+  min-width: 1480px;
 }
 
 .dashboard-table#table-top-deviations thead th,
 .dashboard-table#table-top-deviations tbody td {
   white-space: normal;
-  overflow-wrap: anywhere;
-  word-break: break-word;
+  overflow-wrap: break-word;
+  word-break: normal;
+  hyphens: manual;
+  line-height: 1.35;
+}
+
+.dashboard-table#table-top-deviations thead th {
+  text-align: center;
+  font-size: 0.84rem;
+  padding: 10px 12px;
+}
+
+.dashboard-table#table-top-deviations tbody td {
+  font-size: 0.82rem;
+  padding: 10px 12px;
+  vertical-align: top;
+}
+
+.dashboard-table#table-top-deviations tbody td:nth-child(10) {
+  text-align: left;
 }
 
 /* DataTables overrides */
