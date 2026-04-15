@@ -72,6 +72,7 @@
   var kpiHelpPopoverEl = document.getElementById("kpi-help-popover");
   var claimsTableHelpBtnEl = document.getElementById("claims-table-help-btn");
   var claimsTableHelpPopoverEl = document.getElementById("claims-table-help-popover");
+  var dashSidebarBackBtnEl = document.getElementById("dash-sidebar-back-btn");
 
   /** Пагинация плиток KPI: не более 6 на экране (3 колонки × 2 ряда) */
   var KPI_TILES_PER_PAGE = 6;
@@ -780,6 +781,27 @@
     kpiHelpPopoverEl.hidden = true;
   }
 
+  function updateSidebarBackButton() {
+    if (!dashSidebarBackBtnEl) return;
+    dashSidebarBackBtnEl.hidden = session.apiMode === "mock" || hierarchyStack.length <= 1;
+  }
+
+  function navigateToHierarchyLevel(levelIndex) {
+    if (levelIndex < 0 || levelIndex >= hierarchyStack.length) return;
+    hierarchyStack = hierarchyStack.slice(0, levelIndex + 1);
+    if (levelIndex === 0) {
+      selectedViewId = "self";
+    } else {
+      var parent = hierarchyStack[hierarchyStack.length - 1];
+      selectedViewId = "dept:" + encodeURIComponent(parent);
+    }
+    viewContextUser = sessionUser;
+    refreshSubordinateTabsFromApi().then(function () {
+      updateTopBarForView();
+      loadKpiTilesAndChartsForView();
+    });
+  }
+
   function hideClaimsTableHelpPopover() {
     if (!claimsTableHelpPopoverEl) return;
     claimsTableHelpPopoverEl.hidden = true;
@@ -811,6 +833,13 @@
     });
     document.addEventListener("keydown", function (e) {
       if (e.key === "Escape") hideClaimsTableHelpPopover();
+    });
+  }
+
+  if (dashSidebarBackBtnEl) {
+    dashSidebarBackBtnEl.addEventListener("click", function () {
+      if (hierarchyStack.length <= 1) return;
+      navigateToHierarchyLevel(hierarchyStack.length - 2);
     });
   }
 
@@ -2325,6 +2354,7 @@
   /** Хлебные крошки по `hierarchyStack` (скрыты в mock или на корне). */
   function renderHierarchyBreadcrumb() {
     var el = document.getElementById("dashboard-hierarchy-breadcrumb");
+    updateSidebarBackButton();
     if (!el) return;
     if (session.apiMode === "mock" || hierarchyStack.length <= 1) {
       el.hidden = true;
@@ -2347,18 +2377,7 @@
       btn.textContent = DashUi.capitalizeHeaderTitle(String(seg));
       (function (idx) {
         btn.addEventListener("click", function () {
-          hierarchyStack = hierarchyStack.slice(0, idx + 1);
-          if (idx === 0) {
-            selectedViewId = "self";
-          } else {
-            var parent = hierarchyStack[hierarchyStack.length - 1];
-            selectedViewId = "dept:" + encodeURIComponent(parent);
-          }
-          viewContextUser = sessionUser;
-          refreshSubordinateTabsFromApi().then(function () {
-            updateTopBarForView();
-            loadKpiTilesAndChartsForView();
-          });
+          navigateToHierarchyLevel(idx);
         });
       })(i);
       el.appendChild(btn);
