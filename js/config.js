@@ -11,6 +11,7 @@
     API_KPI_PATH: "/api/kpi/",
     API_KPI_ALL_PATH: "/api/kpi/all/",
     API_KPI_IMMEDIATE_SUBORDINATES_PATH: "/api/kpi/immediate-subordinates/",
+    API_SEARCH_PATH: "/api/search/",
     /** Список пользователей для входа (GET без авторизации) */
     API_KPI_USERS_PATH: "/api/kpi/users/",
     AUTH_SCHEME: "Bearer ",

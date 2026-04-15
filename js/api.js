@@ -125,6 +125,13 @@
     return baseUrl() + p;
   }
 
+  function searchUrl() {
+    var cfg = global.AppConfig || {};
+    var p = cfg.API_SEARCH_PATH || "/api/search/";
+    if (p.charAt(0) !== "/") p = "/" + p;
+    return baseUrl() + p;
+  }
+
   function normalizeKpiUserEntry(u) {
     if (!u || typeof u !== "object") return { nickname: "", department: "" };
     return {
@@ -1279,6 +1286,192 @@
     return performKpiGet(url);
   }
 
+  function normalizeSearchResultEntry(item, index) {
+    if (item == null) return null;
+    if (typeof item === "string") {
+      var text = String(item).trim();
+      if (!text) return null;
+      return {
+        id: "search:" + encodeURIComponent(text),
+        label: text,
+        department: text,
+        viewDepartment: text,
+        raw: item,
+      };
+    }
+    if (typeof item !== "object") return null;
+
+    var department =
+      item.department != null && String(item.department).trim() !== ""
+        ? String(item.department).trim()
+        : item.department_name != null && String(item.department_name).trim() !== ""
+          ? String(item.department_name).trim()
+          : item.viewDepartment != null && String(item.viewDepartment).trim() !== ""
+            ? String(item.viewDepartment).trim()
+            : item.name != null && String(item.name).trim() !== ""
+              ? String(item.name).trim()
+              : item.title != null && String(item.title).trim() !== ""
+                ? String(item.title).trim()
+                : item.label != null && String(item.label).trim() !== ""
+                  ? String(item.label).trim()
+                  : item.display_name != null && String(item.display_name).trim() !== ""
+                    ? String(item.display_name).trim()
+                    : item.full_name != null && String(item.full_name).trim() !== ""
+                      ? String(item.full_name).trim()
+                      : "";
+    var label =
+      item.label != null && String(item.label).trim() !== ""
+        ? String(item.label).trim()
+        : item.title != null && String(item.title).trim() !== ""
+          ? String(item.title).trim()
+          : item.display_name != null && String(item.display_name).trim() !== ""
+            ? String(item.display_name).trim()
+            : item.full_name != null && String(item.full_name).trim() !== ""
+              ? String(item.full_name).trim()
+              : department;
+    var id = item.id != null && String(item.id).trim() !== "" ? String(item.id).trim() : "";
+    if (!id) {
+      var fallbackId = item.department_id != null ? String(item.department_id).trim() : department || label || String(index + 1);
+      id = "search:" + encodeURIComponent(fallbackId);
+    }
+    var result = {
+      id: id,
+      label: label || department || id,
+      department: department || "",
+      viewDepartment:
+        item.viewDepartment != null && String(item.viewDepartment).trim() !== ""
+          ? String(item.viewDepartment).trim()
+          : department || "",
+      raw: item,
+    };
+    if (item.user && typeof item.user === "object") {
+      result.user = item.user;
+    }
+    if (Array.isArray(item.path)) result.path = item.path.slice();
+    if (Array.isArray(item.hierarchy)) result.hierarchy = item.hierarchy.slice();
+    if (Array.isArray(item.breadcrumbs)) result.breadcrumbs = item.breadcrumbs.slice();
+    return result;
+  }
+
+  function collectSearchResultItems(value, depth) {
+    var items = [];
+    if (!value || depth < 0) return items;
+    if (Array.isArray(value)) {
+      return value.slice();
+    }
+    if (typeof value !== "object") return items;
+
+    var keys = ["results", "items", "search_results", "departments", "matches", "data", "result", "entries"];
+    for (var i = 0; i < keys.length; i++) {
+      var key = keys[i];
+      var candidate = value[key];
+      if (Array.isArray(candidate)) {
+        return candidate.slice();
+      }
+      if (candidate && typeof candidate === "object") {
+        var nested = collectSearchResultItems(candidate, depth - 1);
+        if (nested.length) return nested;
+      }
+    }
+
+    if (
+      value.department != null ||
+      value.name != null ||
+      value.label != null ||
+      value.title != null ||
+      value.display_name != null
+    ) {
+      items = [value];
+    }
+    return items
+      .map(function (item, index) {
+        return normalizeSearchResultEntry(item, index);
+      })
+      .filter(Boolean);
+  }
+
+  function normalizeSearchResultsFromApiResponse(data) {
+    return collectSearchResultItems(data, 2);
+  }
+
+  /**
+   * POST /api/search/ — поиск подразделений по `q` с ограничением `top_k`.
+   * @param {{ q?: string, top_k?: number }} options
+   * @returns {Promise<{ok:true,results:object[],count:number,data:any}|{ok:false,error:string,status?:number,unauthorized?:boolean,skipped?:boolean}>}
+   */
+  function searchDepartments(options) {
+    var cfg = global.AppConfig || {};
+    if (cfg.isMockApi && cfg.isMockApi()) {
+      return Promise.resolve({ ok: false, skipped: true });
+    }
+    var A = global.Auth;
+    if (!A || typeof A.getAuthHeaders !== "function") {
+      return Promise.resolve({ ok: false, error: "Модуль Auth не загружен" });
+    }
+    var q = options && options.q != null ? String(options.q).trim() : "";
+    if (!q) {
+      return Promise.resolve({ ok: true, results: [], count: 0, data: { results: [] } });
+    }
+    var topK = options && options.top_k != null ? parseInt(String(options.top_k), 10) : 5;
+    if (isNaN(topK)) topK = 5;
+    topK = Math.max(1, Math.min(20, topK));
+    var authHeaders = A.getAuthHeaders();
+    if (!authHeaders.Authorization) {
+      return Promise.resolve({ ok: false, error: "Нет токена авторизации" });
+    }
+    var url = searchUrl();
+    var headers = Object.assign({ Accept: "application/json", "Content-Type": "application/json" }, authHeaders);
+    var fetchOpts = {
+      method: "POST",
+      headers: headers,
+      body: JSON.stringify({ q: q, top_k: topK }),
+    };
+    if (cfg.FETCH_CREDENTIALS === "include") {
+      fetchOpts.credentials = "include";
+    }
+    return fetch(url, fetchOpts)
+      .then(function (res) {
+        return res.text().then(function (text) {
+          var data = null;
+          try {
+            data = text ? JSON.parse(text) : null;
+          } catch (e) {
+            data = null;
+          }
+          var dbgBody = data;
+          if (dbgBody === null && text) {
+            dbgBody = { _nonJson: text.slice(0, 2000) };
+          }
+          pushApiDebug("POST /api/search/", "POST", url, res.status, dbgBody);
+          if (res.status === 401) {
+            return { ok: false, status: 401, error: "Требуется повторный вход", unauthorized: true };
+          }
+          if (!res.ok) {
+            return {
+              ok: false,
+              status: res.status,
+              error: parseErrorBody(text) || "Ошибка поиска (" + res.status + ")",
+            };
+          }
+          var results = normalizeSearchResultsFromApiResponse(data).slice(0, topK);
+          return {
+            ok: true,
+            results: results,
+            count: typeof data === "object" && data && typeof data.count === "number" ? data.count : results.length,
+            data: data,
+          };
+        });
+      })
+      .catch(function (err) {
+        var m = err && err.message ? err.message : String(err);
+        pushApiDebug("POST /api/search/", "POST", url, 0, { _networkError: m });
+        if (m.indexOf("Failed to fetch") !== -1 || m.indexOf("NetworkError") !== -1) {
+          return { ok: false, error: "Нет связи с сервером (поиск)" };
+        }
+        return { ok: false, error: m || "Ошибка запроса поиска" };
+      });
+  }
+
   function getCookie(name) {
     var m = document.cookie.match(new RegExp("(?:^|; )" + name.replace(/([.$?*|{}()[\]\\/+^])/g, "\\$1") + "=([^;]*)"));
     return m ? decodeURIComponent(m[1]) : "";
@@ -1477,10 +1670,12 @@
     kpiAllUrl: kpiAllUrl,
     kpiImmediateSubordinatesUrl: kpiImmediateSubordinatesUrl,
     kpiUsersUrl: kpiUsersUrl,
+    searchUrl: searchUrl,
     fetchKpiUsers: fetchKpiUsers,
     fetchKpis: fetchKpis,
     fetchKpiAll: fetchKpiAll,
     fetchImmediateSubordinates: fetchImmediateSubordinates,
+    searchDepartments: searchDepartments,
     normalizeKpiListFromApiResponse: normalizeKpiListFromApiResponse,
     buildChartIndicatorsFromApiResponse: buildChartIndicatorsFromApiResponse,
   };

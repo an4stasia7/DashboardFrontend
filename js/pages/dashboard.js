@@ -73,6 +73,13 @@
   var claimsTableHelpBtnEl = document.getElementById("claims-table-help-btn");
   var claimsTableHelpPopoverEl = document.getElementById("claims-table-help-popover");
   var dashSidebarBackBtnEl = document.getElementById("dash-sidebar-back-btn");
+  var dashSidebarSearchInputEl = document.getElementById("dash-sidebar-search-input");
+  var dashSidebarSearchEmptyEl = document.getElementById("dash-sidebar-search-empty");
+  var sidebarSearchQuery = "";
+  var sidebarSearchRequestSeq = 0;
+  var sidebarSearchLoading = false;
+  var sidebarSearchError = "";
+  var sidebarSearchResults = [];
 
   /** Пагинация плиток KPI: не более 6 на экране (3 колонки × 2 ряда) */
   var KPI_TILES_PER_PAGE = 6;
@@ -784,6 +791,222 @@
   function updateSidebarBackButton() {
     if (!dashSidebarBackBtnEl) return;
     dashSidebarBackBtnEl.hidden = session.apiMode === "mock" || hierarchyStack.length <= 1;
+  }
+
+  function normalizeSidebarSearchText(value) {
+    return String(value || "")
+      .toLowerCase()
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function updateSidebarSearchEmptyState(hasVisibleTargets) {
+    if (!dashSidebarSearchEmptyEl) return;
+    var q = normalizeSidebarSearchText(sidebarSearchQuery);
+    var shouldShow = q.length > 0;
+    var message = "";
+    if (!shouldShow) {
+      dashSidebarSearchEmptyEl.hidden = true;
+      dashSidebarSearchEmptyEl.textContent = "";
+      return;
+    }
+    if (sidebarSearchLoading) {
+      message = "Поиск...";
+    } else if (sidebarSearchError) {
+      message = sidebarSearchError;
+    } else if (!hasVisibleTargets) {
+      message = "Ничего не найдено";
+    }
+    dashSidebarSearchEmptyEl.textContent = message;
+    dashSidebarSearchEmptyEl.hidden = !message;
+  }
+
+  function normalizeSidebarSearchResults(result) {
+    if (!result) return [];
+    if (Array.isArray(result)) return result.slice();
+    if (Array.isArray(result.results)) return result.results.slice();
+    if (Array.isArray(result.items)) return result.items.slice();
+    if (Array.isArray(result.data)) return result.data.slice();
+    return [];
+  }
+
+  function normalizeSidebarSearchPath(value) {
+    if (Array.isArray(value)) {
+      return value
+        .map(function (part) {
+          return part != null ? String(part).trim() : "";
+        })
+        .filter(Boolean);
+    }
+    if (value && typeof value === "object") {
+      if (Array.isArray(value.path)) return normalizeSidebarSearchPath(value.path);
+      if (Array.isArray(value.hierarchy)) return normalizeSidebarSearchPath(value.hierarchy);
+      if (Array.isArray(value.breadcrumbs)) return normalizeSidebarSearchPath(value.breadcrumbs);
+    }
+    if (value == null) return [];
+    var text = String(value).trim();
+    if (!text) return [];
+    if (text.indexOf("/") !== -1 || text.indexOf(">") !== -1 || text.indexOf("→") !== -1 || text.indexOf("|") !== -1) {
+      return text
+        .split(/\s*(?:\/|>|→|\|)\s*/)
+        .map(function (part) {
+          return part != null ? String(part).trim() : "";
+        })
+        .filter(Boolean);
+    }
+    return [text];
+  }
+
+  function buildSidebarSearchHierarchy(item) {
+    if (!item) return [];
+    var hierarchy =
+      normalizeSidebarSearchPath(item.path || item.hierarchy || item.breadcrumbs || item.full_path || item.fullPath);
+    if (!hierarchy.length && item.department != null && String(item.department).trim() !== "") {
+      hierarchy = [String(item.department).trim()];
+    }
+    if (!hierarchy.length && item.viewDepartment != null && String(item.viewDepartment).trim() !== "") {
+      hierarchy = [String(item.viewDepartment).trim()];
+    }
+    return hierarchy;
+  }
+
+  function clearSidebarSearchState() {
+    sidebarSearchQuery = "";
+    sidebarSearchResults = [];
+    sidebarSearchLoading = false;
+    sidebarSearchError = "";
+    sidebarSearchRequestSeq++;
+    if (dashSidebarSearchInputEl) dashSidebarSearchInputEl.value = "";
+  }
+
+  function activateSidebarSearchResult(item) {
+    var hierarchy = buildSidebarSearchHierarchy(item);
+    if (!hierarchy.length) return;
+    var dept = hierarchy[hierarchy.length - 1];
+    selectedViewId = item && item.id != null && String(item.id).trim() ? String(item.id).trim() : "search:" + encodeURIComponent(dept);
+    viewContextUser = item && item.user ? item.user : sessionUser;
+    hierarchyStack = hierarchy.slice();
+    clearSidebarSearchState();
+    renderViewTabs();
+    refreshSubordinateTabsFromApi().then(function () {
+      updateTopBarForView();
+      loadKpiTilesAndChartsForView();
+    });
+  }
+
+  function renderSidebarSearchResults(results) {
+    var nav = document.getElementById("dashboard-view-tabs");
+    if (!nav) return;
+    var q = normalizeSidebarSearchText(sidebarSearchQuery);
+    if (!q) {
+      updateSidebarSearchEmptyState(true);
+      return;
+    }
+    if (sidebarSearchLoading) {
+      nav.innerHTML = "";
+      nav.hidden = false;
+      updateSidebarSearchEmptyState(false);
+      return;
+    }
+    var list = Array.isArray(results) ? results.slice() : [];
+    nav.innerHTML = "";
+    if (!list.length) {
+      nav.hidden = true;
+      updateSidebarSearchEmptyState(false);
+      return;
+    }
+    nav.hidden = false;
+    var inner = document.createElement("div");
+    inner.className = "dash-view-tabs-inner";
+    var hasVisible = false;
+    list.forEach(function (item) {
+      if (!item) return;
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "dash-view-tab";
+      btn.setAttribute("role", "tab");
+      btn.setAttribute("data-target-id", item.id);
+      btn.setAttribute("aria-selected", "false");
+      var span = document.createElement("span");
+      span.className = "dash-view-tab-text";
+      span.textContent =
+        item.label != null && String(item.label).trim()
+          ? DashUi.capitalizeHeaderTitle(String(item.label).trim())
+          : item.department || item.viewDepartment || item.id;
+      btn.appendChild(span);
+      btn.addEventListener("click", function () {
+        activateSidebarSearchResult(item);
+      });
+      inner.appendChild(btn);
+      hasVisible = true;
+    });
+    nav.appendChild(inner);
+    updateSidebarSearchEmptyState(hasVisible);
+  }
+
+  function filterSidebarViewTabs() {
+    renderSidebarSearchResults(sidebarSearchResults);
+  }
+
+  function resetSidebarSearch() {
+    clearSidebarSearchState();
+    updateSidebarSearchEmptyState(true);
+    renderViewTabs();
+  }
+
+  function onSidebarSearchInput(value) {
+    sidebarSearchQuery = value != null ? String(value) : "";
+    var q = normalizeSidebarSearchText(sidebarSearchQuery);
+    if (!q) {
+      sidebarSearchResults = [];
+      sidebarSearchLoading = false;
+      sidebarSearchError = "";
+      sidebarSearchRequestSeq++;
+      renderViewTabs();
+      return;
+    }
+    sidebarSearchLoading = true;
+    sidebarSearchError = "";
+    renderSidebarSearchResults(sidebarSearchResults);
+    var seq = ++sidebarSearchRequestSeq;
+    if (session.apiMode === "mock") {
+      sidebarSearchLoading = false;
+      sidebarSearchResults = [];
+      sidebarSearchError = "";
+      renderSidebarSearchResults([]);
+      return;
+    }
+    if (typeof Api === "undefined" || typeof Api.searchDepartments !== "function") {
+      sidebarSearchLoading = false;
+      sidebarSearchError = "Поиск недоступен";
+      renderSidebarSearchResults([]);
+      return;
+    }
+    Api.searchDepartments({ q: q, top_k: 5 }).then(function (result) {
+      if (seq !== sidebarSearchRequestSeq) return;
+      sidebarSearchLoading = false;
+      if (!result || result.unauthorized) {
+        sidebarSearchError = "Требуется повторный вход";
+        sidebarSearchResults = [];
+        renderSidebarSearchResults([]);
+        return;
+      }
+      if (!result.ok) {
+        sidebarSearchError = result.error || "Ошибка поиска";
+        sidebarSearchResults = [];
+        renderSidebarSearchResults([]);
+        return;
+      }
+      sidebarSearchError = "";
+      sidebarSearchResults = normalizeSidebarSearchResults(result.results);
+      renderSidebarSearchResults(sidebarSearchResults);
+    });
+  }
+
+  if (dashSidebarSearchInputEl) {
+    dashSidebarSearchInputEl.addEventListener("input", function (e) {
+      onSidebarSearchInput(e.target.value);
+    });
   }
 
   function navigateToHierarchyLevel(levelIndex) {
@@ -2449,6 +2672,7 @@
       })(i);
       el.appendChild(btn);
     });
+    filterSidebarViewTabs();
   }
 
   /** Перезагружает `viewTargets` по `Api.fetchImmediateSubordinates` для текущего родителя в стеке. */
@@ -2504,6 +2728,7 @@
   function loadViewTargets() {
     return new Promise(function (resolve) {
       hierarchyStack = [];
+      resetSidebarSearch();
       if (session.apiMode === "mock") {
         resolve(MockData.getViewableDashboardTargets(sessionUser));
         return;
@@ -2548,6 +2773,7 @@
       viewTargets[0].id === "self";
     if (!viewTargets || viewTargets.length === 0 || onlySelf) {
       nav.hidden = true;
+      updateSidebarSearchEmptyState(false);
       renderHierarchyBreadcrumb();
       return;
     }
@@ -2598,6 +2824,7 @@
     });
     nav.appendChild(inner);
     renderHierarchyBreadcrumb();
+    filterSidebarViewTabs();
   }
 
   /** Показ спиннера, скрытие основного контента. */

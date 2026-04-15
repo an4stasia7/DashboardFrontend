@@ -79,6 +79,55 @@
   flex: 1 1 auto;
 }
 
+.dash-sidebar-search {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.dash-sidebar-search-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.72);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.dash-sidebar-search-input {
+  appearance: none;
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font: inherit;
+  font-size: 0.92rem;
+  outline: none;
+}
+
+.dash-sidebar-search-input::placeholder {
+  color: rgba(255, 255, 255, 0.58);
+}
+
+.dash-sidebar-search-input:hover {
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.dash-sidebar-search-input:focus {
+  border-color: rgba(255, 255, 255, 0.55);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.18);
+}
+
+.dash-sidebar-search-empty {
+  margin: 0;
+  padding: 0 6px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
 .dash-workspace {
   min-width: 0;
   display: flex;
