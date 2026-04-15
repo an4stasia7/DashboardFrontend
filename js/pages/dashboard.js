@@ -2510,6 +2510,16 @@
       legend: {
         align: "center",
         verticalAlign: "bottom",
+        layout: "horizontal",
+        alignColumns: false,
+        itemDistance: 8,
+        symbolWidth: 14,
+        symbolPadding: 4,
+        itemStyle: {
+          fontSize: "10px",
+          fontWeight: "400",
+          textOverflow: "ellipsis",
+        },
         labelFormatter: function () {
           return this.userOptions && this.userOptions.legendLabel
             ? this.userOptions.legendLabel
@@ -2566,11 +2576,12 @@
         align: "center",
         verticalAlign: "bottom",
         layout: "horizontal",
-        itemDistance: 12,
-        symbolWidth: 18,
-        symbolPadding: 6,
+        alignColumns: false,
+        itemDistance: 8,
+        symbolWidth: 14,
+        symbolPadding: 4,
         itemStyle: {
-          fontSize: "11px",
+          fontSize: "10px",
           fontWeight: "400",
           textOverflow: "ellipsis",
         },
