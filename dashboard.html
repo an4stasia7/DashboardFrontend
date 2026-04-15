@@ -9,29 +9,39 @@
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/jquery.dataTables.min.css" />
   </head>
   <body class="dashboard-body">
-    <header class="dash-topbar">
-      <div>
-        <h1 id="dash-role-title">—</h1>
-      </div>
-      <div class="dash-topbar-actions">
-        <span class="user-hint" id="dash-user-hint"></span>
-        <button type="button" class="btn-logout" id="btn-logout">Выйти</button>
-      </div>
-    </header>
-    <nav
-      class="dash-hierarchy-breadcrumb"
-      id="dashboard-hierarchy-breadcrumb"
-      aria-label="Уровень в структуре подразделений"
-      hidden
-    ></nav>
-    <nav
-      class="dash-view-tabs"
-      id="dashboard-view-tabs"
-      role="tablist"
-      aria-label="Дашборды пользователей в иерархии"
-      hidden
-    ></nav>
-    <main class="dash-main">
+    <div class="dashboard-layout">
+      <aside class="dash-sidebar">
+        <div class="dash-sidebar-panel">
+          <div class="dash-sidebar-head">
+            <h2 class="dash-sidebar-title">Навигация</h2>
+            <p class="dash-sidebar-subtitle">Дочерние элементы</p>
+          </div>
+          <nav
+            class="dash-hierarchy-breadcrumb"
+            id="dashboard-hierarchy-breadcrumb"
+            aria-label="Уровень в структуре подразделений"
+            hidden
+          ></nav>
+          <nav
+            class="dash-view-tabs"
+            id="dashboard-view-tabs"
+            role="tablist"
+            aria-label="Дашборды пользователей в иерархии"
+            hidden
+          ></nav>
+        </div>
+      </aside>
+      <div class="dash-workspace">
+        <header class="dash-topbar">
+          <div>
+            <h1 id="dash-role-title">—</h1>
+          </div>
+          <div class="dash-topbar-actions">
+            <span class="user-hint" id="dash-user-hint"></span>
+            <button type="button" class="btn-logout" id="btn-logout">Выйти</button>
+          </div>
+        </header>
+        <main class="dash-main">
 
       <div class="dash-loading" id="dash-loading">
         <div class="dash-spinner"></div>
@@ -195,12 +205,14 @@
 
       </div><!-- /.dash-content -->
 
-      <section class="table-panel" id="debug-kpi-json-section" style="margin-top:24px">
-        <h2>DEBUG: все JSON-ответы API</h2>
-        <p class="debug-json-log-hint">Журнал запросов: вход (POST login), KPI (GET /api/kpi/, /api/kpi/all/), подчинённые (GET immediate-subordinates). Новые записи сверху.</p>
-        <div id="debug-kpi-json" class="debug-kpi-json-panel"></div>
-      </section>
-    </main>
+          <section class="table-panel" id="debug-kpi-json-section" style="margin-top:24px">
+            <h2>DEBUG: все JSON-ответы API</h2>
+            <p class="debug-json-log-hint">Журнал запросов: вход (POST login), KPI (GET /api/kpi/, /api/kpi/all/), подчинённые (GET immediate-subordinates). Новые записи сверху.</p>
+            <div id="debug-kpi-json" class="debug-kpi-json-panel"></div>
+          </section>
+        </main>
+      </div>
+    </div>
 
     <dialog id="kpi-thresholds-dialog" class="kpi-thresholds-dialog" aria-labelledby="kpi-thresholds-dialog-title">
       <div class="kpi-thresholds-dialog-panel">

@@ -1,10 +1,62 @@
+/* Dashboard shell */
+.dashboard-body {
+  min-height: 100vh;
+}
+
+.dashboard-layout {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  background: #e2e8f0;
+}
+
+.dash-sidebar {
+  background: linear-gradient(180deg, #19345c 0%, #1f3f6b 100%);
+  color: #fff;
+  padding: 18px 16px;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.dash-sidebar-panel {
+  position: sticky;
+  top: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.dash-sidebar-head {
+  padding: 4px 6px 0;
+}
+
+.dash-sidebar-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.dash-sidebar-subtitle {
+  margin: 6px 0 0;
+  font-size: 0.82rem;
+  color: rgba(255, 255, 255, 0.72);
+  line-height: 1.35;
+}
+
+.dash-workspace {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 /* Хлебные крошки для спуска по иерархии подразделений */
 .dash-hierarchy-breadcrumb {
-  background: #e8eef5;
-  border-bottom: 1px solid #dbe2eb;
-  padding: 8px 28px 0;
-  font-size: 0.82rem;
-  color: #475569;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.84);
 }
 
 .dash-hierarchy-breadcrumb[hidden] {
@@ -26,7 +78,7 @@
 }
 
 .dash-hierarchy-crumb:hover {
-  color: var(--navy);
+  color: #ffffff;
 }
 
 .dash-hierarchy-sep {
@@ -36,13 +88,7 @@
 
 /* Вкладки: свой дашборд / подчинённые */
 .dash-view-tabs {
-  background: #f1f5f9;
-  border-bottom: 1px solid #e2e8f0;
-  padding: 0 28px;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: stretch;
-  gap: 0;
+  display: block;
 }
 
 .dash-view-tabs[hidden] {
@@ -51,61 +97,54 @@
 
 .dash-view-tabs-inner {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  max-width: 1600px;
-  margin: 0 auto;
+  flex-direction: column;
+  gap: 8px;
   width: 100%;
-  padding: 10px 0 12px;
 }
 
 .dash-view-tab {
   appearance: none;
-  border: 1px solid transparent;
-  background: #fff;
-  color: var(--text);
-  padding: 8px 14px;
-  border-radius: 8px;
-  font-size: 0.86rem;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.08);
+  color: #f8fafc;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-size: 0.84rem;
   font-family: inherit;
   font-weight: 500;
   cursor: pointer;
   line-height: 1.35;
   text-align: left;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+  box-shadow: none;
+  width: 100%;
 }
 
 .dash-view-tab:hover {
-  border-color: #cbd5e1;
-  background: #fafafa;
+  border-color: rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.14);
 }
 
 .dash-view-tab:focus {
   outline: none;
-  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.25);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.22);
 }
 
 .dash-view-tab[aria-selected="true"] {
-  background: var(--navy);
-  color: #fff;
-  border-color: var(--navy);
-  box-shadow: var(--shadow);
+  background: rgba(255, 255, 255, 0.92);
+  color: #16345a;
+  border-color: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.14);
 }
 
 .dash-view-tab[aria-selected="true"]:hover {
-  background: #1e3a5f;
-  border-color: #1e3a5f;
-}
-
-/* Dashboard shell */
-.dashboard-body {
-  min-height: 100vh;
+  background: #ffffff;
+  border-color: #ffffff;
 }
 
 .dash-topbar {
   background: var(--navy);
   color: #fff;
-  padding: 18px 28px;
+  padding: 18px 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -150,9 +189,11 @@
 }
 
 .dash-main {
-  padding: 22px 18px 40px;
-  max-width: 1680px;
-  margin: 0 auto;
+  padding: 22px 24px 40px;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  min-width: 0;
 }
 
 .dash-structure-hint {
@@ -196,6 +237,20 @@
 }
 
 @media (max-width: 900px) {
+  .dashboard-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .dash-sidebar {
+    padding: 14px;
+    border-right: none;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .dash-sidebar-panel {
+    position: static;
+  }
+
   .dash-topbar {
     padding: 16px 18px;
   }
@@ -217,5 +272,9 @@
 
   .dash-topbar .user-hint {
     font-size: 0.8rem;
+  }
+
+  .dash-sidebar-title {
+    font-size: 1rem;
   }
 }
