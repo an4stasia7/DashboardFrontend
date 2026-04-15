@@ -1831,6 +1831,28 @@
     return isNaN(n) ? "" : String(n);
   }
 
+  function updateClaimsTotalRow(dataTableApi) {
+    if (!dataTableApi || typeof dataTableApi.column !== "function") return;
+    var total = 0;
+    dataTableApi
+      .column(10, { search: "applied" })
+      .nodes()
+      .each(function (cell) {
+        if (!cell || typeof cell.getAttribute !== "function") return;
+        var rawValue = cell.getAttribute("data-order");
+        var n = Number(rawValue);
+        if (!isNaN(n)) total += n;
+      });
+
+    var footerCell = document.getElementById("claims-table-total-sum");
+    if (footerCell) {
+      footerCell.textContent = total.toLocaleString("ru-RU", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+    }
+  }
+
   function renderClaimsTableFromApi() {
     var table = document.getElementById("table-top-deviations");
     var tbody = table ? table.querySelector("tbody") : null;
@@ -1853,13 +1875,13 @@
         tableTextOrDash(raw.order_num),
         tableTextOrDash(raw.order_dept),
         tableTextOrDash(raw.nomenclature),
-        formatClaimsOrderSum(raw.order_sum),
         tableTextOrDash(raw.description),
         tableTextOrDash(raw.status),
+        formatClaimsOrderSum(raw.order_sum),
       ].forEach(function (value, cellIndex) {
         var td = document.createElement("td");
         td.textContent = value;
-        if (cellIndex === 8) {
+        if (cellIndex === 10) {
           td.setAttribute("data-order", getClaimsOrderSumSortValue(raw.order_sum));
         }
         tr.appendChild(td);
@@ -1896,13 +1918,13 @@
       { index: 5, label: "Заказ клиента", type: "filter" },
       { index: 6, label: "Подразделение заказа", type: "filter" },
       { index: 7, label: "Номенклатура", type: "filter" },
-      { index: 8, label: "Сумма документа заказа, руб.", type: "sort" },
-      { index: 9, label: "Описание претензии", type: "none" },
-      { index: 10, label: "Статус", type: "filter" },
+      { index: 8, label: "Описание претензии", type: "none" },
+      { index: 9, label: "Статус", type: "filter" },
+      { index: 10, label: "Сумма документа заказа, руб.", type: "sort" },
     ];
 
     var dataTable = table.DataTable({
-      order: [[8, "desc"]],
+      order: [[10, "desc"]],
       paging: true,
       pageLength: 10,
       lengthMenu: [10, 25, 50],
@@ -1926,10 +1948,15 @@
       columnDefs: [
         { targets: "_all", orderable: false },
         { targets: [3, 4], orderable: true },
-        { targets: [8], type: "num-fmt", orderable: true },
+        { targets: [10], type: "num-fmt", orderable: true },
       ],
       dom: '<"claims-table-top"lf>rt<"claims-table-bottom"ip>',
+      footerCallback: function () {
+        updateClaimsTotalRow(this.api());
+      },
     });
+
+    updateClaimsTotalRow(dataTable);
 
     var activeFilters = {};
     var activeSortColumn = null;
