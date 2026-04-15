@@ -127,20 +127,45 @@
 
       <div class="tables-row">
         <section class="table-panel">
-          <h2>Претензии</h2>
+          <h2 class="table-panel-title">
+            <span>Претензии</span>
+            <span class="table-title-help-wrap">
+              <button
+                type="button"
+                id="claims-table-help-btn"
+                class="table-title-help-btn"
+                aria-label="Справка по статусам претензий"
+                aria-expanded="false"
+                aria-controls="claims-table-help-popover"
+              >
+                <span class="table-title-help-btn-icon" aria-hidden="true">?</span>
+              </button>
+              <span
+                id="claims-table-help-popover"
+                class="table-title-help-popover"
+                role="tooltip"
+                hidden
+              >
+                <span class="table-title-help-popover-title">В таблице приведены претензии по следующим статусам:</span>
+                <span>Зарегистрирована</span>
+                <span>Обрабатывается</span>
+                <span>На контроле</span>
+              </span>
+            </span>
+          </h2>
           <div class="dashboard-table-wrap">
             <table id="table-top-deviations" class="dashboard-table" aria-label="Таблица претензий">
               <thead>
                 <tr>
                   <th>Код</th>
                   <th>Наименование</th>
-                  <th>Партнер (Клиент)</th>
+                  <th>Партнер/Клиент</th>
                   <th>Дата обращения</th>
                   <th>Дата окончания (план)</th>
                   <th>Заказ клиента</th>
                   <th>Подразделение заказа</th>
                   <th>Номенклатура</th>
-                  <th>Сумма документа заказа</th>
+                  <th>Сумма документа заказа, руб.</th>
                   <th>Описание претензии</th>
                   <th>Статус</th>
                 </tr>

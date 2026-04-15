@@ -70,6 +70,8 @@
   var pendingKpiTileFocus = null;
   /** Hover/focus popover для кнопки `?` */
   var kpiHelpPopoverEl = document.getElementById("kpi-help-popover");
+  var claimsTableHelpBtnEl = document.getElementById("claims-table-help-btn");
+  var claimsTableHelpPopoverEl = document.getElementById("claims-table-help-popover");
 
   /** Пагинация плиток KPI: не более 6 на экране (3 колонки × 2 ряда) */
   var KPI_TILES_PER_PAGE = 6;
@@ -776,6 +778,40 @@
   function hideKpiHelpPopover() {
     if (!kpiHelpPopoverEl) return;
     kpiHelpPopoverEl.hidden = true;
+  }
+
+  function hideClaimsTableHelpPopover() {
+    if (!claimsTableHelpPopoverEl) return;
+    claimsTableHelpPopoverEl.hidden = true;
+    if (claimsTableHelpBtnEl) claimsTableHelpBtnEl.setAttribute("aria-expanded", "false");
+  }
+
+  function toggleClaimsTableHelpPopover() {
+    if (!claimsTableHelpBtnEl || !claimsTableHelpPopoverEl) return;
+    var shouldShow = claimsTableHelpPopoverEl.hidden;
+    claimsTableHelpPopoverEl.hidden = !shouldShow;
+    claimsTableHelpBtnEl.setAttribute("aria-expanded", shouldShow ? "true" : "false");
+  }
+
+  if (claimsTableHelpBtnEl && claimsTableHelpPopoverEl) {
+    claimsTableHelpBtnEl.addEventListener("click", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleClaimsTableHelpPopover();
+    });
+    document.addEventListener("click", function (e) {
+      if (claimsTableHelpPopoverEl.hidden) return;
+      if (
+        claimsTableHelpBtnEl.contains(e.target) ||
+        claimsTableHelpPopoverEl.contains(e.target)
+      ) {
+        return;
+      }
+      hideClaimsTableHelpPopover();
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape") hideClaimsTableHelpPopover();
+    });
   }
 
   function buildKpiTileChildrenHtml(state) {
