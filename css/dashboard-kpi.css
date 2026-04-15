@@ -521,10 +521,10 @@ article.kpi-tile[data-no-flip="1"] {
 .kpi-tile-pf-inline-row {
   display: inline-flex;
   align-items: center;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: 8px;
   min-width: 0;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .kpi-tile-pf-pill {
@@ -540,7 +540,9 @@ article.kpi-tile[data-no-flip="1"] {
   font-size: 1rem;
   font-weight: 800;
   line-height: 1.1;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: center;
 }
 
 .kpi-tile-pf-slash {
@@ -619,6 +621,10 @@ article.kpi-tile[data-no-flip="1"] {
   color: var(--muted);
   flex-shrink: 0;
   line-height: 1.2;
+  max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: center;
 }
 
 .kpi-tile-face--front h3 {
@@ -939,8 +945,19 @@ article.kpi-tile[data-no-flip="1"] {
   }
 }
 
+@media (max-width: 1480px) {
+  .dash-kpi-tiles-block #kpi-container {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .kpi-tile-face--front {
+    padding-right: max(8rem, min(34%, 10.5rem));
+  }
+}
+
 @media (max-width: 768px) {
   .dash-kpi-tiles-block #kpi-container {
+    grid-template-columns: 1fr;
     gap: 14px;
   }
 
@@ -973,5 +990,28 @@ article.kpi-tile[data-no-flip="1"] {
 
   .kpi-tile-face--front h3 {
     font-size: 1.12rem;
+  }
+
+  .kpi-tile-face--front .period {
+    font-size: 1rem;
+    line-height: 1.35;
+  }
+
+  .kpi-tile-face--front .kpi-tile-plan-fact-period {
+    font-size: 0.92rem;
+  }
+
+  .kpi-tile-pf-pill {
+    font-size: 0.92rem;
+    padding: 0.28rem 0.62rem;
+  }
+
+  .kpi-tile-pf-inline-label {
+    font-size: 0.88rem;
+  }
+
+  .kpi-tile-face--front .badge {
+    padding: 7px 12px;
+    font-size: 0.9rem;
   }
 }
