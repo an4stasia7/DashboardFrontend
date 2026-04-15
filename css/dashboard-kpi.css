@@ -484,30 +484,23 @@ article.kpi-tile[data-no-flip="1"] {
   position: relative;
 }
 
-.kpi-tile-pf-stack--generated {
-  padding-right: 22px;
-}
-
 .kpi-tile-generated-flag {
-  position: absolute;
-  top: 0;
-  right: 0;
   box-sizing: border-box;
-  min-width: 1.2rem;
-  height: 1.2rem;
+  min-width: 1.15rem;
+  height: 1.15rem;
   padding: 0 4px;
   border-radius: 999px;
-  background: #fef3c7;
-  border: 1px solid #f59e0b;
-  color: #b45309;
-  font-size: 0.8rem;
+  background: #fee2e2;
+  border: 1px solid #ef4444;
+  color: #b91c1c;
+  font-size: 0.76rem;
   font-weight: 800;
   line-height: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: help;
-  z-index: 1;
+  flex: 0 0 auto;
 }
 
 .kpi-tile-pf-inline {
@@ -627,6 +620,13 @@ article.kpi-tile[data-no-flip="1"] {
   text-align: center;
 }
 
+.kpi-tile-title-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+}
+
 .kpi-tile-face--front h3 {
   margin: 0 0 6px 0;
   font-size: 1.38rem;
@@ -636,6 +636,8 @@ article.kpi-tile[data-no-flip="1"] {
   overflow-wrap: break-word;
   word-break: normal;
   hyphens: auto;
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .kpi-tile-face--front .period {

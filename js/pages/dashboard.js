@@ -1570,8 +1570,19 @@
     );
   }
 
+  function buildKpiTileGeneratedFlagHtml() {
+    return (
+      '<span class="kpi-tile-generated-flag" title="' +
+      DashUi.escapeHtml(KPI_TILE_MSG_GENERATED_DATA) +
+      '" role="img" aria-label="' +
+      DashUi.escapeHtml(KPI_TILE_MSG_GENERATED_DATA) +
+      '">!</span>'
+    );
+  }
+
   /** Заголовок плитки, период и опционально подпись периода план/факт. */
   function buildKpiTileBodyHtml(tile, hasPf, pfPeriod) {
+    var generatedFlag = tile.has_data === false ? buildKpiTileGeneratedFlagHtml() : "";
     var periodExtra =
       hasPf && pfPeriod
         ? '<span class="kpi-tile-plan-fact-period" title="' +
@@ -1582,9 +1593,12 @@
         : "";
     return (
       '<div class="tile-body">' +
+      '<div class="kpi-tile-title-row">' +
       "<h3>" +
       DashUi.escapeHtml(tile.title) +
       "</h3>" +
+      generatedFlag +
+      "</div>" +
       '<p class="period">' +
       DashUi.escapeHtml(tile.period) +
       periodExtra +
@@ -1592,21 +1606,13 @@
     );
   }
 
-  /** Однострочный блок `план/факт` и при необходимости значок сгенерированных данных. */
-  function buildKpiTilePlanFactStackHtml(planShown, factShown, planFactGenerated) {
-    var pfStackClass = "kpi-tile-pf-stack" + (planFactGenerated ? " kpi-tile-pf-stack--generated" : "");
-    var generatedFlag = planFactGenerated
-      ? '<span class="kpi-tile-generated-flag" title="' +
-        DashUi.escapeHtml(KPI_TILE_MSG_GENERATED_DATA) +
-        '" role="img" aria-label="' +
-        DashUi.escapeHtml(KPI_TILE_MSG_GENERATED_DATA) +
-        '">!</span>'
-      : "";
+  /** Однострочный блок `план/факт`. */
+  function buildKpiTilePlanFactStackHtml(planShown, factShown) {
+    var pfStackClass = "kpi-tile-pf-stack";
     return (
       '<div class="' +
       pfStackClass +
       '">' +
-      generatedFlag +
       '<div class="kpi-tile-pf-inline">' +
       '<div class="kpi-tile-pf-inline-row">' +
       '<span class="kpi-tile-pf-pill">' +
@@ -1617,20 +1623,12 @@
     );
   }
 
-  function buildKpiTileFactOnlyHtml(factShown, planFactGenerated) {
-    var pfStackClass = "kpi-tile-pf-stack" + (planFactGenerated ? " kpi-tile-pf-stack--generated" : "");
-    var generatedFlag = planFactGenerated
-      ? '<span class="kpi-tile-generated-flag" title="' +
-        DashUi.escapeHtml(KPI_TILE_MSG_GENERATED_DATA) +
-        '" role="img" aria-label="' +
-        DashUi.escapeHtml(KPI_TILE_MSG_GENERATED_DATA) +
-        '">!</span>'
-      : "";
+  function buildKpiTileFactOnlyHtml(factShown) {
+    var pfStackClass = "kpi-tile-pf-stack";
     return (
       '<div class="' +
       pfStackClass +
       '">' +
-      generatedFlag +
       '<div class="kpi-tile-pf-inline">' +
       '<div class="kpi-tile-pf-inline-row">' +
       '<span class="kpi-tile-pf-pill">' +
@@ -1642,16 +1640,15 @@
   /** Нижняя зона лицевой стороны: только план/факт (kpi_pct на лице не показываем). */
   function buildKpiTileMetricsSectionHtml(tile, hasPf, planShown, factShown) {
     var rule = getKpiTileException(tile);
-    var planFactGenerated = tile.has_data === false;
     if (rule && rule.factOnly) {
       return (
         '<div class="kpi-tile-metrics kpi-tile-metrics--pf-only" aria-label="Факт">' +
-        buildKpiTileFactOnlyHtml(factShown, planFactGenerated) +
+        buildKpiTileFactOnlyHtml(factShown) +
         "</div>"
       );
     }
     if (!hasPf) return "";
-    var inner = buildKpiTilePlanFactStackHtml(planShown, factShown, planFactGenerated);
+    var inner = buildKpiTilePlanFactStackHtml(planShown, factShown);
     return (
       '<div class="kpi-tile-metrics kpi-tile-metrics--pf-only" aria-label="' +
       DashUi.escapeHtml(KPI_TILE_ARIA_METRICS_PF) +
