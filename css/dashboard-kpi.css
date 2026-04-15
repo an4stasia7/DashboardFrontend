@@ -945,7 +945,7 @@ article.kpi-tile[data-no-flip="1"] {
   }
 }
 
-@media (max-width: 1480px) {
+@media (max-width: 1040px) {
   .dash-kpi-tiles-block #kpi-container {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

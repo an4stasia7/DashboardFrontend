@@ -1692,6 +1692,7 @@
   }
 
   var dashboardChartsResizeObserver = null;
+  var dashboardChartsResizeFrame = null;
 
   function isDashboardChartContainer(renderTo) {
     if (!renderTo) return false;
@@ -1707,25 +1708,45 @@
       }
       var container = chart.renderTo;
       var width = container && container.clientWidth ? container.clientWidth : null;
-      var height = container && container.clientHeight ? container.clientHeight : null;
-      chart.setSize(width, height, false);
+      chart.setSize(width, null, false);
     });
+  }
+
+  function scheduleDashboardChartsResize() {
+    if (dashboardChartsResizeFrame != null) {
+      if (typeof window.cancelAnimationFrame === "function") {
+        window.cancelAnimationFrame(dashboardChartsResizeFrame);
+      } else {
+        clearTimeout(dashboardChartsResizeFrame);
+      }
+    }
+    if (typeof window.requestAnimationFrame === "function") {
+      dashboardChartsResizeFrame = window.requestAnimationFrame(function () {
+        dashboardChartsResizeFrame = null;
+        resizeAllDashboardChartsNow();
+      });
+      return;
+    }
+    dashboardChartsResizeFrame = setTimeout(function () {
+      dashboardChartsResizeFrame = null;
+      resizeAllDashboardChartsNow();
+    }, 0);
   }
 
   function attachDashboardChartsResizeObserver() {
     if (typeof window === "undefined") return;
     if (typeof window.ResizeObserver !== "function" || dashboardChartsResizeObserver) {
-      window.addEventListener("resize", resizeAllDashboardChartsNow, { passive: true });
+      window.addEventListener("resize", scheduleDashboardChartsResize, { passive: true });
       return;
     }
     dashboardChartsResizeObserver = new window.ResizeObserver(function () {
-      resizeAllDashboardChartsNow();
+      scheduleDashboardChartsResize();
     });
     ["chart-line", "chart-bar", "donuts-grid"].forEach(function (id) {
       var el = document.getElementById(id);
       if (el) dashboardChartsResizeObserver.observe(el);
     });
-    window.addEventListener("resize", resizeAllDashboardChartsNow, { passive: true });
+    window.addEventListener("resize", scheduleDashboardChartsResize, { passive: true });
   }
 
   if (typeof window !== "undefined") {
@@ -2325,6 +2346,12 @@
       },
       chart: {
         style: { fontFamily: "Segoe UI, system-ui, sans-serif" },
+        animation: false,
+      },
+      plotOptions: {
+        series: {
+          animation: false,
+        },
       },
     });
 
@@ -2343,7 +2370,7 @@
 
     renderDonutCharts();
 
-    setTimeout(resizeAllDashboardChartsNow, 100);
+    setTimeout(scheduleDashboardChartsResize, 100);
   }
 
   function cancelDeferredChartsAndTablesBoot() {

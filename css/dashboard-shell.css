@@ -6,14 +6,14 @@
 .dashboard-layout {
   min-height: 100vh;
   display: grid;
-  grid-template-columns: 360px minmax(0, 1fr);
+  grid-template-columns: clamp(180px, 16vw, 280px) minmax(0, 1fr);
   background: #e2e8f0;
 }
 
 .dash-sidebar {
   background: linear-gradient(180deg, #19345c 0%, #1f3f6b 100%);
   color: #fff;
-  padding: 18px 16px;
+  padding: 14px 12px;
   border-right: 1px solid rgba(255, 255, 255, 0.08);
 }
 
