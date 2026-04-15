@@ -631,15 +631,16 @@ article.kpi-tile[data-no-flip="1"] {
 
 .kpi-tile-face--front h3 {
   margin: 0 0 6px 0;
-  font-size: 1.38rem;
+  font-size: 1.22rem;
   font-weight: 700;
-  line-height: 1.3;
+  line-height: 1.25;
   color: var(--text);
-  overflow-wrap: break-word;
+  overflow-wrap: normal;
   word-break: normal;
-  hyphens: auto;
+  hyphens: none;
   flex: 1 1 auto;
   min-width: 0;
+  white-space: normal;
 }
 
 .kpi-tile-face--front .period {

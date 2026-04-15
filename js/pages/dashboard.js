@@ -1882,13 +1882,13 @@
       { index: 0, label: "Код", type: "filter" },
       { index: 1, label: "Наименование", type: "filter" },
       { index: 2, label: "Партнер/Клиент", type: "filter" },
-      { index: 3, label: "Дата обращения", type: "filter" },
-      { index: 4, label: "Дата окончания", type: "filter" },
+      { index: 3, label: "Дата обращения", type: "sort" },
+      { index: 4, label: "Дата окончания", type: "sort" },
       { index: 5, label: "Заказ клиента", type: "filter" },
       { index: 6, label: "Подразделение заказа", type: "filter" },
       { index: 7, label: "Номенклатура", type: "filter" },
       { index: 8, label: "Сумма документа заказа, руб.", type: "sort" },
-      { index: 9, label: "Описание претензии", type: "filter" },
+      { index: 9, label: "Описание претензии", type: "none" },
       { index: 10, label: "Статус", type: "filter" },
     ];
 
@@ -1916,6 +1916,7 @@
       },
       columnDefs: [
         { targets: "_all", orderable: false },
+        { targets: [3, 4], orderable: true },
         { targets: [8], type: "num-fmt", orderable: true },
       ],
       dom: '<"claims-table-top"lf>rt<"claims-table-bottom"ip>',
@@ -1987,7 +1988,8 @@
         }
       }
       if (!config) return;
-      if (th.querySelector(".claims-column-filter-trigger")) return;
+      if (config.type === "none") return;
+      if (th.querySelector(".claims-column-filter-trigger") || th.querySelector(".claims-column-sort-btn")) return;
 
       th.classList.add("claims-column-head");
       var titleText = th.textContent;
@@ -1996,6 +1998,49 @@
       var titleSpan = document.createElement("span");
       titleSpan.className = "claims-column-head-text";
       titleSpan.textContent = titleText;
+
+      if (config.type === "sort") {
+        var svgArrowUp = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M6 2L2 7h8L6 2z" fill="currentColor"/></svg>';
+        var svgArrowDown = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M6 10L2 5h8L6 10z" fill="currentColor"/></svg>';
+        var svgArrowBoth = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M6 1L3 4.5h6L6 1z" fill="currentColor" opacity="0.35"/><path d="M6 11L3 7.5h6L6 11z" fill="currentColor" opacity="0.35"/></svg>';
+
+        var sortBtn = document.createElement("button");
+        sortBtn.type = "button";
+        sortBtn.className = "claims-column-sort-btn";
+        sortBtn.setAttribute("aria-label", "Сортировка " + config.label);
+        sortBtn.innerHTML = svgArrowBoth;
+
+        (function (colIndex, btn) {
+          btn.addEventListener("click", function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (activeSortColumn === colIndex && activeSortDir === "asc") {
+              activeSortDir = "desc";
+              btn.innerHTML = svgArrowDown;
+              btn.style.color = "var(--accent-blue)";
+            } else if (activeSortColumn === colIndex && activeSortDir === "desc") {
+              activeSortColumn = null;
+              activeSortDir = "";
+              btn.innerHTML = svgArrowBoth;
+              btn.style.color = "";
+            } else {
+              activeSortColumn = colIndex;
+              activeSortDir = "asc";
+              btn.innerHTML = svgArrowUp;
+              btn.style.color = "var(--accent-blue)";
+            }
+            table.find(".claims-column-sort-btn").not(btn).each(function () {
+              this.innerHTML = svgArrowBoth;
+              this.style.color = "";
+            });
+            applyClaimsColumnState();
+          });
+        })(config.index, sortBtn);
+
+        th.appendChild(titleSpan);
+        th.appendChild(sortBtn);
+        return;
+      }
 
       var trigger = document.createElement("button");
       trigger.type = "button";
@@ -2016,30 +2061,7 @@
       menu.className = "claims-column-filter-menu";
       menu.hidden = true;
 
-      if (config.type === "sort") {
-        var sortTitle = document.createElement("p");
-        sortTitle.className = "claims-column-filter-title";
-        sortTitle.textContent = config.label;
-        menu.appendChild(sortTitle);
-
-        [
-          { label: "По убыванию", dir: "desc" },
-          { label: "По возрастанию", dir: "asc" },
-        ].forEach(function (sortOption) {
-          var btn = document.createElement("button");
-          btn.type = "button";
-          btn.className = "claims-column-filter-option";
-          btn.textContent = sortOption.label;
-          btn.addEventListener("click", function () {
-            activeSortColumn = config.index;
-            activeSortDir = sortOption.dir;
-            resetBtn.hidden = !isClaimsColumnResetVisible(config);
-            applyClaimsColumnState();
-            closeAllClaimsMenus();
-          });
-          menu.appendChild(btn);
-        });
-      } else {
+      {
         var filterTitle = document.createElement("p");
         filterTitle.className = "claims-column-filter-title";
         filterTitle.textContent = config.label;
@@ -2074,15 +2096,10 @@
       resetBtn.addEventListener("click", function (event) {
         event.preventDefault();
         event.stopPropagation();
-        if (config.type === "sort") {
-          activeSortColumn = null;
-          activeSortDir = "";
-        } else {
-          activeFilters[config.index] = [];
-          menu.querySelectorAll('input[type="checkbox"]').forEach(function (input) {
-            input.checked = false;
-          });
-        }
+        activeFilters[config.index] = [];
+        menu.querySelectorAll('input[type="checkbox"]').forEach(function (input) {
+          input.checked = false;
+        });
         resetBtn.hidden = true;
         applyClaimsColumnState();
         closeAllClaimsMenus();
