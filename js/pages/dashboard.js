@@ -2256,30 +2256,57 @@
     return 0;
   }
 
-  /** Одна серия — только «факт» (план/цель/норма не рисуются), маркеры на точках. */
+  function lineSeriesHasNumericValues(data) {
+    if (!Array.isArray(data) || !data.length) return false;
+    for (var i = 0; i < data.length; i++) {
+      if (data[i] != null && !isNaN(Number(data[i]))) return true;
+    }
+    return false;
+  }
+
+  /** Для линейного графика рисует «факт» и, если есть, «план» пунктиром в близком оттенке. */
   function buildLineChartSeriesFactOnly(indicator) {
     var series = indicator.series;
     if (!series || !series.length) return [];
     var factIdx = findFactSeriesIndexForRag(series);
     if (factIdx < 0 || factIdx >= series.length) factIdx = 0;
-    var s = series[factIdx];
-    var col = s.color || "#2563eb";
-    return [
+    var factSeries = series[factIdx];
+    var factColor = factSeries.color || "#2563eb";
+    var chartSeries = [
       {
         type: "line",
-        name: s.name,
-        color: col,
-        data: s.data.slice(),
+        name: factSeries.name,
+        color: factColor,
+        data: factSeries.data.slice(),
         marker: {
           enabled: true,
           radius: 4,
           symbol: "circle",
           lineWidth: 2,
           lineColor: "#ffffff",
-          fillColor: col,
+          fillColor: factColor,
         },
       },
     ];
+
+    var planIdx = findPlanSeriesIndexForRag(series);
+    if (planIdx >= 0 && planIdx < series.length) {
+      var planSeries = series[planIdx];
+      if (lineSeriesHasNumericValues(planSeries.data)) {
+        chartSeries.push({
+          type: "line",
+          name: planSeries.name,
+          color: getChartPlanColor(factColor),
+          data: planSeries.data.slice(),
+          dashStyle: planSeries.dashStyle || "Dash",
+          marker: {
+            enabled: false,
+          },
+        });
+      }
+    }
+
+    return chartSeries;
   }
 
   var ALL_CHARTS_COLOR_PALETTE = [
@@ -2306,6 +2333,19 @@
     return baseColor;
   }
 
+  function getChartPlanColor(baseColor) {
+    if (typeof Highcharts !== "undefined" && Highcharts.color) {
+      return Highcharts.color(baseColor).brighten(0.08).setOpacity(0.45).get();
+    }
+    return getChartColorVariant(baseColor, 0.08);
+  }
+
+  function shortenLineLegendLabel(label, suffix) {
+    var text = label == null ? "" : String(label).trim();
+    if (text.length > 18) text = text.slice(0, 15).trim() + "...";
+    return suffix ? text + " · " + suffix : text;
+  }
+
   function pickIndicatorBarValue(values) {
     if (!values || !values.length) return null;
     for (var i = 0; i < values.length; i++) {
@@ -2316,28 +2356,44 @@
 
   function buildLineChartSeriesForAllIndicators(indicators) {
     if (!indicators || !indicators.length) return [];
-    return indicators
-      .map(function (indicator, idx) {
-        var series = buildLineChartSeriesFactOnly(indicator);
-        if (!series.length) return null;
-        var base = series[0];
-        var accent = getAllChartsPaletteColor(idx);
-        return {
+    return indicators.reduce(function (acc, indicator, idx) {
+      var series = buildLineChartSeriesFactOnly(indicator);
+      if (!series.length) return acc;
+      var accent = getAllChartsPaletteColor(idx);
+      var label = indicator.optionLabel || indicator.title || series[0].name;
+
+      acc.push({
+        type: "line",
+        name: label,
+        legendLabel: shortenLineLegendLabel(label, "Ф"),
+        color: accent,
+        data: series[0].data.slice(),
+        marker: {
+          enabled: true,
+          radius: 4,
+          symbol: "circle",
+          lineWidth: 2,
+          lineColor: "#ffffff",
+          fillColor: accent,
+        },
+      });
+
+      if (series.length > 1) {
+        acc.push({
           type: "line",
-          name: indicator.optionLabel || indicator.title || base.name,
-          color: accent,
-          data: base.data.slice(),
+          name: label + " (план)",
+          legendLabel: shortenLineLegendLabel(label, "П"),
+          color: getChartPlanColor(accent),
+          data: series[1].data.slice(),
+          dashStyle: series[1].dashStyle || "Dash",
           marker: {
-            enabled: true,
-            radius: 4,
-            symbol: "circle",
-            lineWidth: 2,
-            lineColor: "#ffffff",
-            fillColor: accent,
+            enabled: false,
           },
-        };
-      })
-      .filter(Boolean);
+        });
+      }
+
+      return acc;
+    }, []);
   }
 
   function buildBarChartSeriesForAllIndicators(indicators) {
@@ -2398,7 +2454,15 @@
         title: { text: indicator.yAxisTitle || "Значение" },
         gridLineColor: "#f1f5f9",
       },
-      legend: { align: "center", verticalAlign: "bottom" },
+      legend: {
+        align: "center",
+        verticalAlign: "bottom",
+        labelFormatter: function () {
+          return this.userOptions && this.userOptions.legendLabel
+            ? this.userOptions.legendLabel
+            : this.name;
+        },
+      },
       tooltip: { shared: true },
       plotOptions: {
         series: { animation: false },
@@ -2445,7 +2509,24 @@
         title: { text: baseIndicator.yAxisTitle || "Значение" },
         gridLineColor: "#f1f5f9",
       },
-      legend: { align: "center", verticalAlign: "bottom" },
+      legend: {
+        align: "center",
+        verticalAlign: "bottom",
+        layout: "horizontal",
+        itemDistance: 12,
+        symbolWidth: 18,
+        symbolPadding: 6,
+        itemStyle: {
+          fontSize: "11px",
+          fontWeight: "400",
+          textOverflow: "ellipsis",
+        },
+        labelFormatter: function () {
+          return this.userOptions && this.userOptions.legendLabel
+            ? this.userOptions.legendLabel
+            : this.name;
+        },
+      },
       tooltip: { shared: true },
       plotOptions: {
         series: { animation: false },
