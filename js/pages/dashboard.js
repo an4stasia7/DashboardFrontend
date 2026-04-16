@@ -68,15 +68,6 @@
   var claimsTableHelpPopoverEl = document.getElementById("claims-table-help-popover");
   var debugJsonToggleBtnEl = document.getElementById("debug-kpi-json-toggle");
   var debugJsonSectionEl = document.getElementById("debug-kpi-json-section");
-  var dashSidebarBackBtnEl = document.getElementById("dash-sidebar-back-btn");
-  var dashSidebarSearchInputEl = document.getElementById("dash-sidebar-search-input");
-  var dashSidebarSearchEmptyEl = document.getElementById("dash-sidebar-search-empty");
-  var sidebarSearchQuery = "";
-  var sidebarSearchRequestSeq = 0;
-  var sidebarSearchLoading = false;
-  var sidebarSearchError = "";
-  var sidebarSearchResults = [];
-
   var DONUT_CHARTS_PER_PAGE = 6;
   var donutChartsPageIndex = 0;
 
@@ -335,6 +326,69 @@
     }
   })();
 
+  (function initHierarchyNavModule() {
+    if (typeof DashboardHierarchyNav === "undefined" || !DashboardHierarchyNav) return;
+    if (typeof DashboardHierarchyNav.init === "function") {
+      DashboardHierarchyNav.init({
+        getViewTargets: function () {
+          return viewTargets;
+        },
+        setViewTargets: function (value) {
+          viewTargets = value;
+        },
+        getSelectedViewId: function () {
+          return selectedViewId;
+        },
+        setSelectedViewId: function (value) {
+          selectedViewId = value;
+        },
+        getHierarchyStack: function () {
+          return hierarchyStack;
+        },
+        setHierarchyStack: function (value) {
+          hierarchyStack = value;
+        },
+        getViewContextUser: function () {
+          return viewContextUser;
+        },
+        setViewContextUser: function (value) {
+          viewContextUser = value;
+        },
+        getSessionUser: function () {
+          return sessionUser;
+        },
+        getSessionApiMode: function () {
+          return session.apiMode;
+        },
+        getLastKpiResponseDepartment: function () {
+          return lastKpiResponseDepartment;
+        },
+        fetchImmediateSubordinates: function (department) {
+          if (typeof Api === "undefined" || typeof Api.fetchImmediateSubordinates !== "function") {
+            return Promise.resolve({ ok: false, immediate_children: [] });
+          }
+          return Api.fetchImmediateSubordinates({ department: department });
+        },
+        searchDepartments: function (query) {
+          if (typeof Api === "undefined" || typeof Api.searchDepartments !== "function") {
+            return Promise.resolve({ ok: false, results: [], error: "Поиск недоступен" });
+          }
+          return Api.searchDepartments({ q: query, top_k: 5 });
+        },
+        getMockViewableDashboardTargets: function () {
+          return MockData.getViewableDashboardTargets(sessionUser);
+        },
+        onViewChanged: function () {
+          loadKpiTilesAndChartsForView();
+        },
+        onUnauthorized: function () {
+          Auth.logout();
+          window.location.href = "login.html";
+        },
+      });
+    }
+  })();
+
   (function initDonutChartsPager() {
     var prevBtn = document.getElementById("donut-charts-page-prev");
     var nextBtn = document.getElementById("donut-charts-page-next");
@@ -447,11 +501,11 @@
 
   /** Активная вкладка из `viewTargets` по `selectedViewId`, иначе первая. */
   function getCurrentViewTarget() {
-    if (!viewTargets || !viewTargets.length) return null;
-    for (var i = 0; i < viewTargets.length; i++) {
-      if (viewTargets[i].id === selectedViewId) return viewTargets[i];
+    if (typeof DashboardHierarchyNav === "undefined" || !DashboardHierarchyNav) return null;
+    if (typeof DashboardHierarchyNav.getCurrentViewTarget === "function") {
+      return DashboardHierarchyNav.getCurrentViewTarget();
     }
-    return viewTargets[0];
+    return null;
   }
 
   /**
@@ -459,59 +513,18 @@
    * @returns {string}
    */
   function getDepartmentForCurrentKpiContext() {
-    if (hierarchyStack.length > 0) {
-      var last = hierarchyStack[hierarchyStack.length - 1];
-      if (last != null && String(last).trim()) return String(last).trim();
-    }
-    if (sessionUser.department != null && String(sessionUser.department).trim()) {
-      return String(sessionUser.department).trim();
+    if (typeof DashboardHierarchyNav === "undefined" || !DashboardHierarchyNav) return "";
+    if (typeof DashboardHierarchyNav.getDepartmentForCurrentKpiContext === "function") {
+      return DashboardHierarchyNav.getDepartmentForCurrentKpiContext();
     }
     return "";
   }
 
   /** Заголовок страницы и подсказка пользователя в зависимости от выбранной вкладки / крошек. */
   function updateTopBarForView() {
-    var vu = viewContextUser;
-    var t = getCurrentViewTarget();
-    var titleEl = document.getElementById("dash-role-title");
-    if (titleEl) {
-      var raw =
-        lastKpiResponseDepartment && String(lastKpiResponseDepartment).trim()
-          ? String(lastKpiResponseDepartment).trim()
-          : vu.role || "—";
-      titleEl.textContent = DashUi.capitalizeHeaderTitle(raw);
-    }
-    var elHint = document.getElementById("dash-user-hint");
-    if (!elHint) return;
-    elHint.removeAttribute("title");
-    if (selectedViewId === "self") {
-      var hint = sessionUser.nickname || "";
-      if (sessionUser.department) {
-        var depSelf = DashUi.capitalizeHeaderTitle(String(sessionUser.department).trim());
-        hint = hint ? hint + " · " + depSelf : depSelf;
-      }
-      elHint.textContent = hint || "—";
-    } else {
-      /* Список вкладок — дети текущего узла; выбранный dept часто не в списке, getCurrentViewTarget() тогда неверен. Контекст просмотра = последний сегмент крошек. */
-      var viewLabel = "";
-      if (hierarchyStack.length > 0) {
-        viewLabel = String(hierarchyStack[hierarchyStack.length - 1]).trim();
-      }
-      if (!viewLabel && t) {
-        if (t.viewDepartment != null && String(t.viewDepartment).trim()) {
-          viewLabel = String(t.viewDepartment).trim();
-        } else if (t.label) {
-          viewLabel = String(t.label).trim();
-        }
-      }
-      if (!viewLabel) {
-        viewLabel = vu.nickname || "—";
-      }
-      elHint.textContent =
-        "Вы: " +
-        (sessionUser.nickname || "—") +
-        " · просмотр: " +
-        DashUi.capitalizeHeaderTitle(viewLabel);
+    if (typeof DashboardHierarchyNav === "undefined" || !DashboardHierarchyNav) return;
+    if (typeof DashboardHierarchyNav.updateTopBarForView === "function") {
+      DashboardHierarchyNav.updateTopBarForView();
     }
   }
 
@@ -736,240 +749,38 @@
   }
 
   function updateSidebarBackButton() {
-    if (!dashSidebarBackBtnEl) return;
-    dashSidebarBackBtnEl.hidden = session.apiMode === "mock" || hierarchyStack.length <= 1;
-  }
-
-  function normalizeSidebarSearchText(value) {
-    return String(value || "")
-      .toLowerCase()
-      .replace(/\s+/g, " ")
-      .trim();
-  }
-
-  function updateSidebarSearchEmptyState(hasVisibleTargets) {
-    if (!dashSidebarSearchEmptyEl) return;
-    var q = normalizeSidebarSearchText(sidebarSearchQuery);
-    var shouldShow = q.length > 0;
-    var message = "";
-    if (!shouldShow) {
-      dashSidebarSearchEmptyEl.hidden = true;
-      dashSidebarSearchEmptyEl.textContent = "";
-      return;
+    if (typeof DashboardHierarchyNav === "undefined" || !DashboardHierarchyNav) return;
+    if (typeof DashboardHierarchyNav.updateSidebarBackButton === "function") {
+      DashboardHierarchyNav.updateSidebarBackButton();
     }
-    if (sidebarSearchLoading) {
-      message = "Поиск...";
-    } else if (sidebarSearchError) {
-      message = sidebarSearchError;
-    } else if (!hasVisibleTargets) {
-      message = "Ничего не найдено";
-    }
-    dashSidebarSearchEmptyEl.textContent = message;
-    dashSidebarSearchEmptyEl.hidden = !message;
-  }
-
-  function normalizeSidebarSearchResults(result) {
-    if (!result) return [];
-    if (Array.isArray(result)) return result.slice();
-    if (Array.isArray(result.results)) return result.results.slice();
-    if (Array.isArray(result.items)) return result.items.slice();
-    if (Array.isArray(result.data)) return result.data.slice();
-    return [];
-  }
-
-  function normalizeSidebarSearchPath(value) {
-    if (Array.isArray(value)) {
-      return value
-        .map(function (part) {
-          return part != null ? String(part).trim() : "";
-        })
-        .filter(Boolean);
-    }
-    if (value && typeof value === "object") {
-      if (Array.isArray(value.path)) return normalizeSidebarSearchPath(value.path);
-      if (Array.isArray(value.hierarchy)) return normalizeSidebarSearchPath(value.hierarchy);
-      if (Array.isArray(value.breadcrumbs)) return normalizeSidebarSearchPath(value.breadcrumbs);
-    }
-    if (value == null) return [];
-    var text = String(value).trim();
-    if (!text) return [];
-    if (text.indexOf("/") !== -1 || text.indexOf(">") !== -1 || text.indexOf("→") !== -1 || text.indexOf("|") !== -1) {
-      return text
-        .split(/\s*(?:\/|>|→|\|)\s*/)
-        .map(function (part) {
-          return part != null ? String(part).trim() : "";
-        })
-        .filter(Boolean);
-    }
-    return [text];
-  }
-
-  function buildSidebarSearchHierarchy(item) {
-    if (!item) return [];
-    var hierarchy =
-      normalizeSidebarSearchPath(item.path || item.hierarchy || item.breadcrumbs || item.full_path || item.fullPath);
-    if (!hierarchy.length && item.department != null && String(item.department).trim() !== "") {
-      hierarchy = [String(item.department).trim()];
-    }
-    if (!hierarchy.length && item.viewDepartment != null && String(item.viewDepartment).trim() !== "") {
-      hierarchy = [String(item.viewDepartment).trim()];
-    }
-    return hierarchy;
-  }
-
-  function clearSidebarSearchState() {
-    sidebarSearchQuery = "";
-    sidebarSearchResults = [];
-    sidebarSearchLoading = false;
-    sidebarSearchError = "";
-    sidebarSearchRequestSeq++;
-    if (dashSidebarSearchInputEl) dashSidebarSearchInputEl.value = "";
-  }
-
-  function activateSidebarSearchResult(item) {
-    var hierarchy = buildSidebarSearchHierarchy(item);
-    if (!hierarchy.length) return;
-    var dept = hierarchy[hierarchy.length - 1];
-    selectedViewId = item && item.id != null && String(item.id).trim() ? String(item.id).trim() : "search:" + encodeURIComponent(dept);
-    viewContextUser = item && item.user ? item.user : sessionUser;
-    hierarchyStack = hierarchy.slice();
-    clearSidebarSearchState();
-    renderViewTabs();
-    refreshSubordinateTabsFromApi().then(function () {
-      updateTopBarForView();
-      loadKpiTilesAndChartsForView();
-    });
-  }
-
-  function renderSidebarSearchResults(results) {
-    var nav = document.getElementById("dashboard-view-tabs");
-    if (!nav) return;
-    var q = normalizeSidebarSearchText(sidebarSearchQuery);
-    if (!q) {
-      updateSidebarSearchEmptyState(true);
-      return;
-    }
-    if (sidebarSearchLoading) {
-      nav.innerHTML = "";
-      nav.hidden = false;
-      updateSidebarSearchEmptyState(false);
-      return;
-    }
-    var list = Array.isArray(results) ? results.slice() : [];
-    nav.innerHTML = "";
-    if (!list.length) {
-      nav.hidden = true;
-      updateSidebarSearchEmptyState(false);
-      return;
-    }
-    nav.hidden = false;
-    var inner = document.createElement("div");
-    inner.className = "dash-view-tabs-inner";
-    var hasVisible = false;
-    list.forEach(function (item) {
-      if (!item) return;
-      var btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "dash-view-tab";
-      btn.setAttribute("role", "tab");
-      btn.setAttribute("data-target-id", item.id);
-      btn.setAttribute("aria-selected", "false");
-      var span = document.createElement("span");
-      span.className = "dash-view-tab-text";
-      span.textContent =
-        item.label != null && String(item.label).trim()
-          ? DashUi.capitalizeHeaderTitle(String(item.label).trim())
-          : item.department || item.viewDepartment || item.id;
-      btn.appendChild(span);
-      btn.addEventListener("click", function () {
-        activateSidebarSearchResult(item);
-      });
-      inner.appendChild(btn);
-      hasVisible = true;
-    });
-    nav.appendChild(inner);
-    updateSidebarSearchEmptyState(hasVisible);
   }
 
   function filterSidebarViewTabs() {
-    renderSidebarSearchResults(sidebarSearchResults);
+    if (typeof DashboardHierarchyNav === "undefined" || !DashboardHierarchyNav) return;
+    if (typeof DashboardHierarchyNav.filterSidebarViewTabs === "function") {
+      DashboardHierarchyNav.filterSidebarViewTabs();
+    }
   }
 
   function resetSidebarSearch() {
-    clearSidebarSearchState();
-    updateSidebarSearchEmptyState(true);
-    renderViewTabs();
+    if (typeof DashboardHierarchyNav === "undefined" || !DashboardHierarchyNav) return;
+    if (typeof DashboardHierarchyNav.resetSidebarSearch === "function") {
+      DashboardHierarchyNav.resetSidebarSearch();
+    }
   }
 
   function onSidebarSearchInput(value) {
-    sidebarSearchQuery = value != null ? String(value) : "";
-    var q = normalizeSidebarSearchText(sidebarSearchQuery);
-    if (!q) {
-      sidebarSearchResults = [];
-      sidebarSearchLoading = false;
-      sidebarSearchError = "";
-      sidebarSearchRequestSeq++;
-      renderViewTabs();
-      return;
+    if (typeof DashboardHierarchyNav === "undefined" || !DashboardHierarchyNav) return;
+    if (typeof DashboardHierarchyNav.onSidebarSearchInput === "function") {
+      DashboardHierarchyNav.onSidebarSearchInput(value);
     }
-    sidebarSearchLoading = true;
-    sidebarSearchError = "";
-    renderSidebarSearchResults(sidebarSearchResults);
-    var seq = ++sidebarSearchRequestSeq;
-    if (session.apiMode === "mock") {
-      sidebarSearchLoading = false;
-      sidebarSearchResults = [];
-      sidebarSearchError = "";
-      renderSidebarSearchResults([]);
-      return;
-    }
-    if (typeof Api === "undefined" || typeof Api.searchDepartments !== "function") {
-      sidebarSearchLoading = false;
-      sidebarSearchError = "Поиск недоступен";
-      renderSidebarSearchResults([]);
-      return;
-    }
-    Api.searchDepartments({ q: q, top_k: 5 }).then(function (result) {
-      if (seq !== sidebarSearchRequestSeq) return;
-      sidebarSearchLoading = false;
-      if (!result || result.unauthorized) {
-        sidebarSearchError = "Требуется повторный вход";
-        sidebarSearchResults = [];
-        renderSidebarSearchResults([]);
-        return;
-      }
-      if (!result.ok) {
-        sidebarSearchError = result.error || "Ошибка поиска";
-        sidebarSearchResults = [];
-        renderSidebarSearchResults([]);
-        return;
-      }
-      sidebarSearchError = "";
-      sidebarSearchResults = normalizeSidebarSearchResults(result.results);
-      renderSidebarSearchResults(sidebarSearchResults);
-    });
-  }
-
-  if (dashSidebarSearchInputEl) {
-    dashSidebarSearchInputEl.addEventListener("input", function (e) {
-      onSidebarSearchInput(e.target.value);
-    });
   }
 
   function navigateToHierarchyLevel(levelIndex) {
-    if (levelIndex < 0 || levelIndex >= hierarchyStack.length) return;
-    hierarchyStack = hierarchyStack.slice(0, levelIndex + 1);
-    if (levelIndex === 0) {
-      selectedViewId = "self";
-    } else {
-      var parent = hierarchyStack[hierarchyStack.length - 1];
-      selectedViewId = "dept:" + encodeURIComponent(parent);
+    if (typeof DashboardHierarchyNav === "undefined" || !DashboardHierarchyNav) return;
+    if (typeof DashboardHierarchyNav.navigateToHierarchyLevel === "function") {
+      DashboardHierarchyNav.navigateToHierarchyLevel(levelIndex);
     }
-    viewContextUser = sessionUser;
-    refreshSubordinateTabsFromApi().then(function () {
-      updateTopBarForView();
-      loadKpiTilesAndChartsForView();
-    });
   }
 
   function hideClaimsTableHelpPopover() {
@@ -1003,13 +814,6 @@
     });
     document.addEventListener("keydown", function (e) {
       if (e.key === "Escape") hideClaimsTableHelpPopover();
-    });
-  }
-
-  if (dashSidebarBackBtnEl) {
-    dashSidebarBackBtnEl.addEventListener("click", function () {
-      if (hierarchyStack.length <= 1) return;
-      navigateToHierarchyLevel(hierarchyStack.length - 2);
     });
   }
 
@@ -2341,210 +2145,40 @@
     setTimeout(run, 0);
   }
 
-  /**
-   * @param {boolean} [includeSelf=true] — на корне иерархии добавляем «Мой дашборд»; во вложенных подразделениях — только дочерние вкладки.
-   */
-  function buildTargetsFromChildren(children, includeSelf) {
-    var rest = (children || []).map(function (name) {
-      var n = name != null ? String(name).trim() : "";
-      var id = "dept:" + encodeURIComponent(n || "unknown");
-      return {
-        id: id,
-        label: n.length ? n : "—",
-        department: n,
-        viewDepartment: n,
-        user: sessionUser,
-      };
-    });
-    if (includeSelf === false) return rest;
-    var selfEntry = { id: "self", label: "Мой дашборд", user: sessionUser };
-    return [selfEntry].concat(rest);
-  }
-
-  /** Хлебные крошки по `hierarchyStack` (скрыты в mock или на корне). */
   function renderHierarchyBreadcrumb() {
-    var el = document.getElementById("dashboard-hierarchy-breadcrumb");
-    updateSidebarBackButton();
-    if (!el) return;
-    if (session.apiMode === "mock" || hierarchyStack.length <= 1) {
-      el.hidden = true;
-      el.innerHTML = "";
-      return;
+    if (typeof DashboardHierarchyNav === "undefined" || !DashboardHierarchyNav) return;
+    if (typeof DashboardHierarchyNav.renderHierarchyBreadcrumb === "function") {
+      DashboardHierarchyNav.renderHierarchyBreadcrumb();
     }
-    el.hidden = false;
-    el.innerHTML = "";
-    hierarchyStack.forEach(function (seg, i) {
-      if (i > 0) {
-        var sep = document.createElement("span");
-        sep.className = "dash-hierarchy-sep";
-        sep.textContent = " / ";
-        sep.setAttribute("aria-hidden", "true");
-        el.appendChild(sep);
-      }
-      var btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "dash-hierarchy-crumb";
-      btn.textContent = DashUi.capitalizeHeaderTitle(String(seg));
-      (function (idx) {
-        btn.addEventListener("click", function () {
-          navigateToHierarchyLevel(idx);
-        });
-      })(i);
-      el.appendChild(btn);
-    });
-    filterSidebarViewTabs();
   }
 
   /** Перезагружает `viewTargets` по `Api.fetchImmediateSubordinates` для текущего родителя в стеке. */
   function refreshSubordinateTabsFromApi() {
-    return new Promise(function (resolve) {
-      if (session.apiMode === "mock") {
-        resolve();
-        return;
-      }
-      if (!hierarchyStack.length || typeof Api === "undefined" || typeof Api.fetchImmediateSubordinates !== "function") {
-        viewTargets = [{ id: "self", label: "Мой дашборд", user: sessionUser }];
-        renderViewTabs();
-        renderHierarchyBreadcrumb();
-        resolve();
-        return;
-      }
-      var parent = hierarchyStack[hierarchyStack.length - 1];
-      Api.fetchImmediateSubordinates({ department: parent })
-        .then(function (r) {
-          if (r.unauthorized) {
-            Auth.logout();
-            window.location.href = "login.html";
-            return;
-          }
-          var atRoot = hierarchyStack.length <= 1;
-          if (r.ok && r.immediate_children && r.immediate_children.length) {
-            viewTargets = buildTargetsFromChildren(r.immediate_children, atRoot);
-          } else {
-            viewTargets = atRoot
-              ? [{ id: "self", label: "Мой дашборд", user: sessionUser }]
-              : [];
-          }
-          renderViewTabs();
-          renderHierarchyBreadcrumb();
-          resolve();
-        })
-        .catch(function () {
-          viewTargets =
-            hierarchyStack.length <= 1
-              ? [{ id: "self", label: "Мой дашборд", user: sessionUser }]
-              : [];
-          renderViewTabs();
-          renderHierarchyBreadcrumb();
-          resolve();
-        });
-    });
+    if (typeof DashboardHierarchyNav === "undefined" || !DashboardHierarchyNav) {
+      return Promise.resolve();
+    }
+    if (typeof DashboardHierarchyNav.refreshSubordinateTabsFromApi === "function") {
+      return DashboardHierarchyNav.refreshSubordinateTabsFromApi();
+    }
+    return Promise.resolve();
   }
 
-  /**
-   * Первичная загрузка вкладок: mock — из MockData; live — дети отдела пользователя.
-   * @returns {Promise<Array<{id:string,label:string,user:object,department?:string}>>}
-   */
   function loadViewTargets() {
-    return new Promise(function (resolve) {
-      hierarchyStack = [];
-      resetSidebarSearch();
-      if (session.apiMode === "mock") {
-        resolve(MockData.getViewableDashboardTargets(sessionUser));
-        return;
-      }
-      var rootDept = sessionUser.department != null ? String(sessionUser.department).trim() : "";
-      if (!rootDept) {
-        resolve([{ id: "self", label: "Мой дашборд", user: sessionUser }]);
-        return;
-      }
-      if (typeof Api === "undefined" || typeof Api.fetchImmediateSubordinates !== "function") {
-        resolve([{ id: "self", label: "Мой дашборд", user: sessionUser }]);
-        return;
-      }
-      Api.fetchImmediateSubordinates({ department: rootDept })
-        .then(function (r) {
-          if (r.unauthorized) {
-            Auth.logout();
-            window.location.href = "login.html";
-            return;
-          }
-          if (r.ok && r.immediate_children && r.immediate_children.length) {
-            hierarchyStack = [rootDept];
-            resolve(buildTargetsFromChildren(r.immediate_children));
-          } else {
-            resolve([{ id: "self", label: "Мой дашборд", user: sessionUser }]);
-          }
-        })
-        .catch(function () {
-          resolve([{ id: "self", label: "Мой дашборд", user: sessionUser }]);
-        });
-    });
+    if (typeof DashboardHierarchyNav === "undefined" || !DashboardHierarchyNav) {
+      return Promise.resolve([{ id: "self", label: "Мой дашборд", user: sessionUser }]);
+    }
+    if (typeof DashboardHierarchyNav.loadViewTargets === "function") {
+      return DashboardHierarchyNav.loadViewTargets();
+    }
+    return Promise.resolve([{ id: "self", label: "Мой дашборд", user: sessionUser }]);
   }
 
   /** Вкладки `viewTargets` + переключение вида и перезагрузка KPI. */
   function renderViewTabs() {
-    var nav = document.getElementById("dashboard-view-tabs");
-    if (!nav) return;
-    nav.innerHTML = "";
-    var onlySelf =
-      viewTargets &&
-      viewTargets.length === 1 &&
-      viewTargets[0].id === "self";
-    if (!viewTargets || viewTargets.length === 0 || onlySelf) {
-      nav.hidden = true;
-      updateSidebarSearchEmptyState(false);
-      renderHierarchyBreadcrumb();
-      return;
+    if (typeof DashboardHierarchyNav === "undefined" || !DashboardHierarchyNav) return;
+    if (typeof DashboardHierarchyNav.renderViewTabs === "function") {
+      DashboardHierarchyNav.renderViewTabs();
     }
-    nav.hidden = false;
-    var inner = document.createElement("div");
-    inner.className = "dash-view-tabs-inner";
-    viewTargets.forEach(function (t) {
-      var btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "dash-view-tab";
-      btn.setAttribute("role", "tab");
-      btn.setAttribute("data-target-id", t.id);
-      btn.setAttribute("aria-selected", t.id === selectedViewId ? "true" : "false");
-      var span = document.createElement("span");
-      span.className = "dash-view-tab-text";
-      span.textContent =
-        t.label != null && String(t.label).trim()
-          ? DashUi.capitalizeHeaderTitle(String(t.label).trim())
-          : t.label || t.id;
-      btn.appendChild(span);
-      btn.addEventListener("click", function () {
-        if (selectedViewId === t.id) return;
-        selectedViewId = t.id;
-        viewContextUser = t.user;
-        if (t.id === "self") {
-          if (sessionUser.department) {
-            hierarchyStack = [String(sessionUser.department).trim()];
-          } else {
-            hierarchyStack = [];
-          }
-        } else {
-          hierarchyStack.push(t.department);
-        }
-        if (session.apiMode === "mock") {
-          inner.querySelectorAll(".dash-view-tab").forEach(function (b) {
-            b.setAttribute("aria-selected", b.getAttribute("data-target-id") === selectedViewId ? "true" : "false");
-          });
-          updateTopBarForView();
-          loadKpiTilesAndChartsForView();
-          return;
-        }
-        refreshSubordinateTabsFromApi().then(function () {
-          updateTopBarForView();
-          loadKpiTilesAndChartsForView();
-        });
-      });
-      inner.appendChild(btn);
-    });
-    nav.appendChild(inner);
-    renderHierarchyBreadcrumb();
-    filterSidebarViewTabs();
   }
 
   /** Показ спиннера, скрытие основного контента. */
