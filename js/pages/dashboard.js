@@ -2414,11 +2414,15 @@
       if (!series.length) return acc;
       var accent = getAllChartsPaletteColor(idx);
       var label = indicator.optionLabel || indicator.title || series[0].name;
+      var pairKey = "indicator-" + String(idx);
 
       acc.push({
         type: "line",
         name: label,
         legendLabel: shortenLineLegendLabel(label, "Ф"),
+        indicatorLabel: label,
+        pairKey: pairKey,
+        valueRole: "fact",
         color: accent,
         data: series[0].data.slice(),
         marker: {
@@ -2436,6 +2440,9 @@
           type: "line",
           name: label + " (план)",
           legendLabel: shortenLineLegendLabel(label, "П"),
+          indicatorLabel: label,
+          pairKey: pairKey,
+          valueRole: "plan",
           color: getChartPlanColor(accent),
           data: series[1].data.slice(),
           dashStyle: series[1].dashStyle || "Dash",
@@ -2447,6 +2454,68 @@
 
       return acc;
     }, []);
+  }
+
+  function findLineSeriesByRole(chart, pairKey, role) {
+    if (!chart || !pairKey || !role || !chart.series) return null;
+    for (var i = 0; i < chart.series.length; i++) {
+      var series = chart.series[i];
+      var opts = (series && series.userOptions) || {};
+      if (opts.pairKey === pairKey && opts.valueRole === role) return series;
+    }
+    return null;
+  }
+
+  function getSeriesPointValue(series, pointIndex) {
+    if (!series || !series.points || pointIndex < 0 || pointIndex >= series.points.length) return null;
+    var point = series.points[pointIndex];
+    if (!point || point.y == null || isNaN(Number(point.y))) return null;
+    return Number(point.y);
+  }
+
+  function buildAllIndicatorsLineTooltip() {
+    var point = this.point;
+    var series = this.series;
+    var chart = series && series.chart;
+    var opts = (series && series.userOptions) || {};
+    var pointIndex = point ? point.index : -1;
+    var pairKey = opts.pairKey;
+    var factSeries = opts.valueRole === "fact" ? series : findLineSeriesByRole(chart, pairKey, "fact");
+    var planSeries = opts.valueRole === "plan" ? series : findLineSeriesByRole(chart, pairKey, "plan");
+    var factValue = getSeriesPointValue(factSeries, pointIndex);
+    var planValue = getSeriesPointValue(planSeries, pointIndex);
+    var indicatorLabel = opts.indicatorLabel || series.name || "Показатель";
+    var html = '<span style="font-size:10px">' + DashUi.escapeHtml(String(this.x)) + "</span><br/>";
+
+    html +=
+      '<span style="color:#64748b">KPI:</span> <b>' +
+      DashUi.escapeHtml(indicatorLabel) +
+      "</b><br/>";
+
+    if (planValue != null) {
+      html +=
+        '<span style="color:' + planSeries.color + '">\u25cf</span> План: <b>' +
+        DashUi.escapeHtml(DashUi.formatNumber(planValue)) +
+        "</b><br/>";
+    }
+
+    if (factValue != null) {
+      html +=
+        '<span style="color:' + factSeries.color + '">\u25cf</span> Факт: <b>' +
+        DashUi.escapeHtml(DashUi.formatNumber(factValue)) +
+        "</b><br/>";
+    }
+
+    if (planValue == null && factValue == null && point && point.y != null) {
+      html +=
+        '<span style="color:' + point.color + '">\u25cf</span> ' +
+        DashUi.escapeHtml(opts.valueRole === "plan" ? "План" : "Факт") +
+        ": <b>" +
+        DashUi.escapeHtml(DashUi.formatNumber(point.y)) +
+        "</b><br/>";
+    }
+
+    return html;
   }
 
   function buildBarChartSeriesForAllIndicators(indicators) {
@@ -2591,9 +2660,17 @@
             : this.name;
         },
       },
-      tooltip: { shared: true },
+      tooltip: {
+        shared: false,
+        useHTML: true,
+        formatter: buildAllIndicatorsLineTooltip,
+      },
       plotOptions: {
-        series: { animation: false },
+        series: {
+          animation: false,
+          findNearestPointBy: "xy",
+          stickyTracking: false,
+        },
         line: {
           marker: { enabled: true, radius: 4, symbol: "circle" },
           lineWidth: 2,
