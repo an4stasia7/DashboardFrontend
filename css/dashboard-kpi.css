@@ -679,6 +679,14 @@ article.kpi-tile[data-no-flip="1"] {
   line-height: 1.45;
 }
 
+.kpi-tile-face--front .kpi-tile-updated-at {
+  margin: 8px 0 0;
+  font-size: 0.82rem;
+  line-height: 1.35;
+  color: var(--muted);
+  opacity: 0.92;
+}
+
 .kpi-tile-face--front .kpi-tile-plan-fact-period {
   display: block;
   margin-top: 5px;

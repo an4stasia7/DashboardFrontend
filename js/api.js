@@ -463,6 +463,7 @@
         var hasData = typeof item.has_data === "boolean" ? item.has_data : undefined;
         var units = firstStringValue(["units", "unit", "uom", "measure_unit", "measurement_unit"]);
         var frequency = firstStringValue(["frequency", "periodicity", "update_frequency", "frequency_label"]);
+        var cacheUpdatedAt = firstStringValue(["cache_updated_at"]);
         return {
           kpi_id: item.kpi_id != null ? String(item.kpi_id) : "",
           title: title,
@@ -470,6 +471,7 @@
           period: item.period != null ? String(item.period) : "",
           units: units,
           frequency: frequency,
+          cache_updated_at: cacheUpdatedAt,
           formula: formulaSrc != null ? String(formulaSrc) : null,
           plan_fact_period_label:
             item.plan_fact_period_label != null

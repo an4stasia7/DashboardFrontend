@@ -65,6 +65,25 @@
     return String(v);
   }
 
+  function formatKpiTileUpdatedAt(value) {
+    if (value == null) return "";
+    var text = String(value).trim();
+    if (!text) return "";
+    var normalized = text.replace(" ", "T");
+    var match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+    if (match) {
+      return match[3] + "." + match[2] + "." + match[1] + " " + match[4] + ":" + match[5];
+    }
+    var parsed = new Date(normalized);
+    if (isNaN(parsed.getTime())) return "";
+    var day = String(parsed.getDate()).padStart(2, "0");
+    var month = String(parsed.getMonth() + 1).padStart(2, "0");
+    var year = String(parsed.getFullYear());
+    var hours = String(parsed.getHours()).padStart(2, "0");
+    var minutes = String(parsed.getMinutes()).padStart(2, "0");
+    return day + "." + month + "." + year + " " + hours + ":" + minutes;
+  }
+
   function kpiTilePlanFactValuePresent(v) {
     if (v === undefined || v === null) return false;
     if (typeof v === "number") return !isNaN(v);
@@ -99,6 +118,7 @@
     ragCell: ragCell,
     capitalizeHeaderTitle: capitalizeHeaderTitle,
     formatKpiTilePlanFactValue: formatKpiTilePlanFactValue,
+    formatKpiTileUpdatedAt: formatKpiTileUpdatedAt,
     kpiTilePlanFactValuePresent: kpiTilePlanFactValuePresent,
     kpiTileHasPlanAndFact: kpiTileHasPlanAndFact,
     scrollElementIntoViewCentered: scrollElementIntoViewCentered,

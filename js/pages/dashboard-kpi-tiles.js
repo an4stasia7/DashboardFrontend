@@ -108,6 +108,21 @@
     );
   }
 
+  function buildKpiTileUpdatedAtHtml(tile) {
+    var formatted =
+      typeof DashUi !== "undefined" && DashUi && typeof DashUi.formatKpiTileUpdatedAt === "function"
+        ? DashUi.formatKpiTileUpdatedAt(tile && tile.cache_updated_at)
+        : "";
+    if (!formatted) return "";
+    return (
+      '<p class="kpi-tile-updated-at" title="' +
+      DashUi.escapeHtml("Последнее обновление данных") +
+      '">' +
+      DashUi.escapeHtml("Обновлено: " + formatted) +
+      "</p>"
+    );
+  }
+
   function buildKpiTileBodyHtml(tile, hasPf, pfPeriod) {
     var generatedFlag = tile.has_data === false ? buildKpiTileGeneratedFlagHtml() : "";
     var periodExtra =
@@ -130,6 +145,7 @@
       DashUi.escapeHtml(tile.period) +
       periodExtra +
       "</p>" +
+      buildKpiTileUpdatedAtHtml(tile) +
       "</div>"
     );
   }
