@@ -71,75 +71,20 @@
 
   /* ---------- Навигация по месяцам ---------- */
 
-  var MONTH_NAMES_RU = [
-    "", "январь", "февраль", "март", "апрель", "май", "июнь",
-    "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"
-  ];
-  var currentPeriodMonth = null;
-  var currentPeriodYear = null;
-  var availableMonths = [];
-  var availableMonthsContextKey = "";
-
-  /** Для навигации по месяцам: значение плана/факта считается заданным (как в api.js). */
-  function navPlanFactValuePresent(v) {
-    if (v === undefined || v === null) return false;
-    if (typeof v === "number") return !isNaN(v);
-    if (typeof v === "string") return String(v).trim() !== "";
-    return true;
-  }
-
-  /** Точка линейного графика годится для переключателя, если в ней есть календарный месяц и хотя бы одно значение. */
-  function navPointHasPeriodValue(pt) {
-    if (!pt) return false;
-    var key = monthYearKey(pt.year, pt.month);
-    if (key < 0) return false;
-    return navPlanFactValuePresent(pt.fact) || navPlanFactValuePresent(pt.plan);
-  }
-
-  function monthYearKey(year, month) {
-    var y = parseInt(String(year), 10);
-    var m = parseInt(String(month), 10);
-    if (isNaN(y) || isNaN(m) || m < 1 || m > 12) return -1;
-    return y * 100 + m;
-  }
-
   function periodKeyInAvailableMonths(y, m, slots) {
-    var k = monthYearKey(y, m);
-    if (k < 0) return false;
-    for (var i = 0; i < slots.length; i++) {
-      if (slots[i].key === k) return true;
+    if (typeof DashboardMonthNav === "undefined" || !DashboardMonthNav) return false;
+    if (typeof DashboardMonthNav.periodKeyInAvailableMonths === "function") {
+      return DashboardMonthNav.periodKeyInAvailableMonths(y, m, slots);
     }
     return false;
   }
 
-  function mergeAvailableMonthSlots(baseSlots, nextSlots) {
-    var merged = [];
-    var seen = Object.create(null);
-    function pushSlot(slot) {
-      if (!slot || slot.key == null || seen[slot.key]) return;
-      seen[slot.key] = true;
-      merged.push({
-        month: slot.month,
-        year: slot.year,
-        key: slot.key,
-      });
-    }
-    (baseSlots || []).forEach(pushSlot);
-    (nextSlots || []).forEach(pushSlot);
-    merged.sort(function (a, b) {
-      return a.key - b.key;
-    });
-    return merged;
-  }
-
   function getMonthNavigatorContextKey() {
-    var viewId = selectedViewId != null ? String(selectedViewId) : "";
-    var dept = getDepartmentForCurrentKpiContext();
-    var nick =
-      viewContextUser && viewContextUser.nickname != null
-        ? String(viewContextUser.nickname).trim()
-        : "";
-    return [viewId, dept, nick].join("|");
+    if (typeof DashboardMonthNav === "undefined" || !DashboardMonthNav) return "";
+    if (typeof DashboardMonthNav.getMonthNavigatorContextKey === "function") {
+      return DashboardMonthNav.getMonthNavigatorContextKey();
+    }
+    return "";
   }
 
   /**
@@ -147,105 +92,32 @@
    * В новом JSON у месячной линии часто есть только `fact`, поэтому достаточно любого осмысленного значения в точке.
    */
   function setAvailableMonthsFromChartPoints(chartIndicators, options) {
-    options = options || {};
-    var nextMonths = [];
-    if (!chartIndicators) return;
-    var lines = chartIndicators.line || [];
-    for (var li = 0; li < lines.length; li++) {
-      var pts = lines[li].points;
-      if (!pts) continue;
-      for (var pi = 0; pi < pts.length; pi++) {
-        var pt = pts[pi];
-        if (!navPointHasPeriodValue(pt)) continue;
-        var key = monthYearKey(pt.year, pt.month);
-        if (key < 0) continue;
-        var exists = false;
-        for (var ei = 0; ei < nextMonths.length; ei++) {
-          if (nextMonths[ei] && nextMonths[ei].key === key) {
-            exists = true;
-            break;
-          }
-        }
-        if (!exists) {
-          nextMonths.push({
-            month: parseInt(String(pt.month), 10),
-            year: parseInt(String(pt.year), 10),
-            key: key,
-          });
-        }
-      }
+    if (typeof DashboardMonthNav === "undefined" || !DashboardMonthNav) return;
+    if (typeof DashboardMonthNav.setAvailableMonthsFromChartPoints === "function") {
+      DashboardMonthNav.setAvailableMonthsFromChartPoints(chartIndicators, options);
     }
-    availableMonths = options.preserveExisting
-      ? mergeAvailableMonthSlots(availableMonths, nextMonths)
-      : nextMonths;
-    availableMonthsContextKey =
-      options.contextKey != null ? String(options.contextKey) : availableMonthsContextKey;
-  }
-
-  function getCurrentMonthIndex() {
-    if (currentPeriodMonth == null || currentPeriodYear == null) return -1;
-    var key = currentPeriodYear * 100 + currentPeriodMonth;
-    for (var i = 0; i < availableMonths.length; i++) {
-      if (availableMonths[i].key === key) return i;
-    }
-    return -1;
   }
 
   function updateMonthNavigatorUI() {
-    var nav = document.getElementById("month-navigator");
-    var label = document.getElementById("month-nav-label");
-    var prevBtn = document.getElementById("month-nav-prev");
-    var nextBtn = document.getElementById("month-nav-next");
-    if (!nav) return;
-
-    if (currentPeriodMonth == null || currentPeriodYear == null) {
-      nav.hidden = true;
-      return;
+    if (typeof DashboardMonthNav === "undefined" || !DashboardMonthNav) return;
+    if (typeof DashboardMonthNav.updateMonthNavigatorUI === "function") {
+      DashboardMonthNav.updateMonthNavigatorUI();
     }
-
-    nav.hidden = false;
-    var monthName = MONTH_NAMES_RU[currentPeriodMonth] || String(currentPeriodMonth);
-    if (label) label.textContent = monthName + " " + currentPeriodYear;
-
-    var idx = getCurrentMonthIndex();
-    if (prevBtn) prevBtn.disabled = idx <= 0;
-    if (nextBtn) nextBtn.disabled = idx < 0 || idx >= availableMonths.length - 1;
   }
 
   function navigateToMonth(month, year) {
-    currentPeriodMonth = month;
-    currentPeriodYear = year;
-    updateMonthNavigatorUI();
-    loadKpiTilesAndChartsForView();
+    if (typeof DashboardMonthNav === "undefined" || !DashboardMonthNav) return;
+    if (typeof DashboardMonthNav.navigateToMonth === "function") {
+      DashboardMonthNav.navigateToMonth(month, year);
+    }
   }
 
   function navigateToQuarter(quarter, year) {
-    var lastMonth = quarter * 3;
-    navigateToMonth(lastMonth, year);
+    if (typeof DashboardMonthNav === "undefined" || !DashboardMonthNav) return;
+    if (typeof DashboardMonthNav.navigateToQuarter === "function") {
+      DashboardMonthNav.navigateToQuarter(quarter, year);
+    }
   }
-
-  (function initMonthNavigator() {
-    var prevBtn = document.getElementById("month-nav-prev");
-    var nextBtn = document.getElementById("month-nav-next");
-    if (prevBtn) {
-      prevBtn.addEventListener("click", function () {
-        var idx = getCurrentMonthIndex();
-        if (idx > 0) {
-          var prev = availableMonths[idx - 1];
-          navigateToMonth(prev.month, prev.year);
-        }
-      });
-    }
-    if (nextBtn) {
-      nextBtn.addEventListener("click", function () {
-        var idx = getCurrentMonthIndex();
-        if (idx >= 0 && idx < availableMonths.length - 1) {
-          var next = availableMonths[idx + 1];
-          navigateToMonth(next.month, next.year);
-        }
-      });
-    }
-  })();
 
   function setDebugJsonSectionExpanded(expanded) {
     if (!debugJsonToggleBtnEl || !debugJsonSectionEl) return;
@@ -399,28 +271,28 @@
         },
         getDepartmentForCurrentKpiContext: getDepartmentForCurrentKpiContext,
         getPeriodState: function () {
+          if (typeof DashboardMonthNav === "undefined" || !DashboardMonthNav) {
+            return {
+              currentPeriodMonth: null,
+              currentPeriodYear: null,
+              availableMonths: [],
+              availableMonthsContextKey: "",
+            };
+          }
+          if (typeof DashboardMonthNav.getPeriodState === "function") {
+            return DashboardMonthNav.getPeriodState();
+          }
           return {
-            currentPeriodMonth: currentPeriodMonth,
-            currentPeriodYear: currentPeriodYear,
-            availableMonths: availableMonths,
-            availableMonthsContextKey: availableMonthsContextKey,
+            currentPeriodMonth: null,
+            currentPeriodYear: null,
+            availableMonths: [],
+            availableMonthsContextKey: "",
           };
         },
         setPeriodState: function (nextState) {
-          if (!nextState || typeof nextState !== "object") return;
-          if (Object.prototype.hasOwnProperty.call(nextState, "currentPeriodMonth")) {
-            currentPeriodMonth = nextState.currentPeriodMonth;
-          }
-          if (Object.prototype.hasOwnProperty.call(nextState, "currentPeriodYear")) {
-            currentPeriodYear = nextState.currentPeriodYear;
-          }
-          if (Object.prototype.hasOwnProperty.call(nextState, "availableMonths")) {
-            availableMonths = Array.isArray(nextState.availableMonths) ? nextState.availableMonths : [];
-          }
-          if (Object.prototype.hasOwnProperty.call(nextState, "availableMonthsContextKey")) {
-            availableMonthsContextKey = nextState.availableMonthsContextKey != null
-              ? String(nextState.availableMonthsContextKey)
-              : "";
+          if (typeof DashboardMonthNav === "undefined" || !DashboardMonthNav) return;
+          if (typeof DashboardMonthNav.setPeriodState === "function") {
+            DashboardMonthNav.setPeriodState(nextState);
           }
         },
         getMonthNavigatorContextKey: getMonthNavigatorContextKey,
@@ -458,6 +330,24 @@
         },
         setLastKpiResponseDepartment: function (value) {
           lastKpiResponseDepartment = value;
+        },
+      });
+    }
+  })();
+
+  (function initMonthNavModule() {
+    if (typeof DashboardMonthNav === "undefined" || !DashboardMonthNav) return;
+    if (typeof DashboardMonthNav.init === "function") {
+      DashboardMonthNav.init({
+        getSelectedViewId: function () {
+          return selectedViewId;
+        },
+        getDepartmentForCurrentKpiContext: getDepartmentForCurrentKpiContext,
+        getViewContextUser: function () {
+          return viewContextUser;
+        },
+        onPeriodChange: function () {
+          loadKpiTilesAndChartsForView();
         },
       });
     }
