@@ -335,7 +335,10 @@
       if (i > 0) {
         var sep = document.createElement("span");
         sep.className = "dash-hierarchy-sep";
-        sep.textContent = " / ";
+        sep.innerHTML =
+          '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">' +
+          '<path d="M3.5 6L8 10.5L12.5 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>' +
+          "</svg>";
         sep.setAttribute("aria-hidden", "true");
         el.appendChild(sep);
       }
@@ -343,11 +346,16 @@
       btn.type = "button";
       btn.className = "dash-hierarchy-crumb";
       btn.textContent = DashUi.capitalizeHeaderTitle(String(seg));
-      (function (idx) {
-        btn.addEventListener("click", function () {
-          navigateToHierarchyLevel(idx);
-        });
-      })(i);
+      if (i === hierarchyStack.length - 1) {
+        btn.setAttribute("aria-current", "page");
+        btn.disabled = true;
+      } else {
+        (function (idx) {
+          btn.addEventListener("click", function () {
+            navigateToHierarchyLevel(idx);
+          });
+        })(i);
+      }
       el.appendChild(btn);
     });
     filterSidebarViewTabs();
