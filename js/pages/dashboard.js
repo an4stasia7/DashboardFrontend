@@ -46,8 +46,6 @@
   var waterfallChartInstance = null;
   var waterfallChartIndicators = [];
   var donutChartInstances = [];
-  var deferredChartsAndTablesBootToken = 0;
-
   /** Плитки KPI последней отрисовки — для синхронизации круговых с 6 плитками */
   var lastKpiTiles = null;
 
@@ -384,6 +382,82 @@
         onUnauthorized: function () {
           Auth.logout();
           window.location.href = "login.html";
+        },
+      });
+    }
+  })();
+
+  (function initDataLoaderModule() {
+    if (typeof DashboardDataLoader === "undefined" || !DashboardDataLoader) return;
+    if (typeof DashboardDataLoader.init === "function") {
+      DashboardDataLoader.init({
+        getSelectedViewId: function () {
+          return selectedViewId;
+        },
+        getViewContextUser: function () {
+          return viewContextUser;
+        },
+        getDepartmentForCurrentKpiContext: getDepartmentForCurrentKpiContext,
+        getPeriodState: function () {
+          return {
+            currentPeriodMonth: currentPeriodMonth,
+            currentPeriodYear: currentPeriodYear,
+            availableMonths: availableMonths,
+            availableMonthsContextKey: availableMonthsContextKey,
+          };
+        },
+        setPeriodState: function (nextState) {
+          if (!nextState || typeof nextState !== "object") return;
+          if (Object.prototype.hasOwnProperty.call(nextState, "currentPeriodMonth")) {
+            currentPeriodMonth = nextState.currentPeriodMonth;
+          }
+          if (Object.prototype.hasOwnProperty.call(nextState, "currentPeriodYear")) {
+            currentPeriodYear = nextState.currentPeriodYear;
+          }
+          if (Object.prototype.hasOwnProperty.call(nextState, "availableMonths")) {
+            availableMonths = Array.isArray(nextState.availableMonths) ? nextState.availableMonths : [];
+          }
+          if (Object.prototype.hasOwnProperty.call(nextState, "availableMonthsContextKey")) {
+            availableMonthsContextKey = nextState.availableMonthsContextKey != null
+              ? String(nextState.availableMonthsContextKey)
+              : "";
+          }
+        },
+        getMonthNavigatorContextKey: getMonthNavigatorContextKey,
+        setAvailableMonthsFromChartPoints: setAvailableMonthsFromChartPoints,
+        periodKeyInAvailableMonths: periodKeyInAvailableMonths,
+        updateMonthNavigatorUI: updateMonthNavigatorUI,
+        closeKpiTileDrilldown: closeKpiTileDrilldown,
+        renderKpiTiles: renderKpiTiles,
+        updateTopBarForView: updateTopBarForView,
+        rememberDrilldownKpiTiles: rememberDrilldownKpiTiles,
+        initCharts: initCharts,
+        initTables: initTables,
+        onUnauthorized: function () {
+          Auth.logout();
+          window.location.href = "login.html";
+        },
+        pushDashboardDebugNote: pushDashboardDebugNote,
+        fetchKpis: function (opts) {
+          return Api.fetchKpis(opts);
+        },
+        fetchKpiAll: function (opts) {
+          return Api.fetchKpiAll(opts);
+        },
+        getSessionApiMode: function () {
+          return session.apiMode;
+        },
+        getMockKpiTilesForRole: function (role) {
+          return MockData.getKpiTilesForRole(role);
+        },
+        setLastApiChartIndicators: function (value) {
+          lastApiChartIndicators = value;
+        },
+        setLastApiTableRows: function (value) {
+          lastApiTableRows = value;
+        },
+        setLastKpiResponseDepartment: function (value) {
+          lastKpiResponseDepartment = value;
         },
       });
     }
@@ -2121,28 +2195,18 @@
   }
 
   function cancelDeferredChartsAndTablesBoot() {
-    deferredChartsAndTablesBootToken++;
+    if (typeof DashboardDataLoader === "undefined" || !DashboardDataLoader) return;
+    if (typeof DashboardDataLoader.cancelDeferredChartsAndTablesBoot === "function") {
+      DashboardDataLoader.cancelDeferredChartsAndTablesBoot();
+    }
   }
 
   /** Шапка и плитки показываются сразу, а тяжёлые графики/таблицы догружаются позже. */
   function bootChartsAndTablesDeferred() {
-    var token = ++deferredChartsAndTablesBootToken;
-    var run = function () {
-      if (token !== deferredChartsAndTablesBootToken) return;
-      requestAnimationFrame(function () {
-        if (token !== deferredChartsAndTablesBootToken) return;
-        requestAnimationFrame(function () {
-          if (token !== deferredChartsAndTablesBootToken) return;
-          initCharts();
-          initTables();
-        });
-      });
-    };
-    if (typeof window !== "undefined" && typeof window.requestIdleCallback === "function") {
-      window.requestIdleCallback(run, { timeout: 120 });
-      return;
+    if (typeof DashboardDataLoader === "undefined" || !DashboardDataLoader) return;
+    if (typeof DashboardDataLoader.bootChartsAndTablesDeferred === "function") {
+      DashboardDataLoader.bootChartsAndTablesDeferred();
     }
-    setTimeout(run, 0);
   }
 
   function renderHierarchyBreadcrumb() {
@@ -2183,18 +2247,18 @@
 
   /** Показ спиннера, скрытие основного контента. */
   function showLoading() {
-    var loader = document.getElementById("dash-loading");
-    var content = document.getElementById("dash-content");
-    if (loader) loader.hidden = false;
-    if (content) content.hidden = true;
+    if (typeof DashboardDataLoader === "undefined" || !DashboardDataLoader) return;
+    if (typeof DashboardDataLoader.showLoading === "function") {
+      DashboardDataLoader.showLoading();
+    }
   }
 
   /** Скрытие спиннера, показ контента. */
   function hideLoading() {
-    var loader = document.getElementById("dash-loading");
-    var content = document.getElementById("dash-content");
-    if (loader) loader.hidden = true;
-    if (content) content.hidden = false;
+    if (typeof DashboardDataLoader === "undefined" || !DashboardDataLoader) return;
+    if (typeof DashboardDataLoader.hideLoading === "function") {
+      DashboardDataLoader.hideLoading();
+    }
   }
 
   /**
@@ -2203,85 +2267,10 @@
    * @param {string} [_source] — зарезервировано для логирования источника вызова
    */
   function applyApiResult(result, _source) {
-    closeKpiTileDrilldown();
-    var elHint = document.getElementById("dash-user-hint");
-    if (elHint) elHint.removeAttribute("title");
-    if (result.unauthorized) {
-      Auth.logout();
-      window.location.href = "login.html";
-      return;
+    if (typeof DashboardDataLoader === "undefined" || !DashboardDataLoader) return;
+    if (typeof DashboardDataLoader.applyApiResult === "function") {
+      DashboardDataLoader.applyApiResult(result, _source);
     }
-    if (result.ok && result.data) {
-      var dep = result.data.department;
-      lastKpiResponseDepartment =
-        dep != null && String(dep).trim() ? String(dep).trim() : null;
-    }
-    lastApiChartIndicators = result.chartIndicators || null;
-    lastApiTableRows = result.tableRows || null;
-
-    var monthContextKey = getMonthNavigatorContextKey();
-    var preserveMonthSlots =
-      currentPeriodMonth != null &&
-      currentPeriodYear != null &&
-      availableMonthsContextKey === monthContextKey;
-    setAvailableMonthsFromChartPoints(lastApiChartIndicators, {
-      preserveExisting: preserveMonthSlots,
-      contextKey: monthContextKey,
-    });
-
-    var data = result.ok && result.data ? result.data : null;
-    var respMonth = data && data.month != null ? Number(data.month) : null;
-    var respYear = data && data.year != null ? Number(data.year) : null;
-    if (respMonth != null && isNaN(respMonth)) respMonth = null;
-    if (respYear != null && isNaN(respYear)) respYear = null;
-
-    var respInSlots =
-      respMonth != null &&
-      respYear != null &&
-      respMonth >= 1 &&
-      respMonth <= 12 &&
-      periodKeyInAvailableMonths(respYear, respMonth, availableMonths);
-
-    var curInSlots =
-      currentPeriodMonth != null &&
-      currentPeriodYear != null &&
-      periodKeyInAvailableMonths(currentPeriodYear, currentPeriodMonth, availableMonths);
-
-    if (curInSlots) {
-      /* оставляем выбор пользователя после смены месяца стрелками */
-    } else if (respInSlots) {
-      currentPeriodMonth = respMonth;
-      currentPeriodYear = respYear;
-    } else if (availableMonths.length) {
-      var lastSlot = availableMonths[availableMonths.length - 1];
-      currentPeriodMonth = lastSlot.month;
-      currentPeriodYear = lastSlot.year;
-    } else if (respMonth != null && respYear != null) {
-      currentPeriodMonth = respMonth;
-      currentPeriodYear = respYear;
-    } else {
-      currentPeriodMonth = null;
-      currentPeriodYear = null;
-    }
-
-    updateMonthNavigatorUI();
-
-    var role = viewContextUser.role;
-    if (result.ok && result.tiles && result.tiles.length > 0) {
-      var cacheKey =
-        result.data &&
-        result.data.department != null &&
-        String(result.data.department).trim()
-          ? String(result.data.department).trim()
-          : getDepartmentForCurrentKpiContext();
-      if (cacheKey) rememberDrilldownKpiTiles(cacheKey, result.tiles.slice());
-      renderKpiTiles(result.tiles);
-    } else {
-      renderKpiTiles(MockData.getKpiTilesForRole(role));
-    }
-    updateTopBarForView();
-    hideLoading();
-    bootChartsAndTablesDeferred();
   }
 
   /**
@@ -2289,95 +2278,10 @@
    * При ошибке или mock — fallback на `MockData`.
    */
   function loadKpiTilesAndChartsForView() {
-    closeKpiTileDrilldown();
-    cancelDeferredChartsAndTablesBoot();
-    showLoading();
-    var isSelf = selectedViewId === "self";
-    var role = viewContextUser.role;
-    var elHint = document.getElementById("dash-user-hint");
-    var fallback = function () {
-      lastApiChartIndicators = null;
-      lastApiTableRows = null;
-      lastKpiResponseDepartment = null;
-      availableMonths = [];
-      availableMonthsContextKey = "";
-      currentPeriodMonth = null;
-      currentPeriodYear = null;
-      updateMonthNavigatorUI();
-      renderKpiTiles(MockData.getKpiTilesForRole(role));
-      updateTopBarForView();
-      hideLoading();
-      bootChartsAndTablesDeferred();
-    };
-    var periodOpts = {};
-    if (currentPeriodMonth != null) periodOpts.month = currentPeriodMonth;
-    if (currentPeriodYear != null) periodOpts.year = currentPeriodYear;
-
-    if (!isSelf) {
-      if (session.apiMode === "mock") {
-        pushDashboardDebugNote("UI (mock)", "Подчинённый вид — запросы KPI не выполняются");
-        fallback();
-        return;
-      }
-      var subDept = getDepartmentForCurrentKpiContext();
-      if (subDept && typeof Api !== "undefined" && typeof Api.fetchKpiAll === "function") {
-        var allOpts = { department: subDept };
-        if (periodOpts.month != null) allOpts.month = periodOpts.month;
-        if (periodOpts.year != null) allOpts.year = periodOpts.year;
-        Api.fetchKpiAll(allOpts)
-          .then(function (result) {
-            if (result.unauthorized) {
-              applyApiResult(result, "Api.fetchKpiAll({department})");
-              return;
-            }
-            if (!result.ok) {
-              var msg =
-                result.status === 403
-                  ? "Нет доступа к этому подразделению (403)."
-                  : result.status === 404
-                    ? "Подразделение не найдено (404)."
-                    : result.error || "Ошибка загрузки KPI подразделения.";
-              if (elHint) elHint.setAttribute("title", msg);
-              fallback();
-              return;
-            }
-            applyApiResult(result, "Api.fetchKpiAll({department: \"" + subDept + "\"})");
-          })
-          .catch(function () {
-            fallback();
-          });
-        return;
-      }
-      fallback();
-      return;
+    if (typeof DashboardDataLoader === "undefined" || !DashboardDataLoader) return;
+    if (typeof DashboardDataLoader.loadKpiTilesAndChartsForView === "function") {
+      DashboardDataLoader.loadKpiTilesAndChartsForView();
     }
-    if (session.apiMode === "mock" || typeof Api === "undefined" || typeof Api.fetchKpis !== "function") {
-      pushDashboardDebugNote("UI (mock)", "mock или Api недоступен — KPI не запрашивались");
-      fallback();
-      return;
-    }
-    var selfDept = getDepartmentForCurrentKpiContext();
-    var fetchSelf =
-      selfDept && typeof Api.fetchKpis === "function"
-        ? function () {
-            var opts = { department: selfDept };
-            if (periodOpts.month != null) opts.month = periodOpts.month;
-            if (periodOpts.year != null) opts.year = periodOpts.year;
-            return Api.fetchKpis(opts);
-          }
-        : function () {
-            return Api.fetchKpis(periodOpts);
-          };
-    fetchSelf()
-      .then(function (result) {
-        applyApiResult(
-          result,
-          selfDept ? "Api.fetchKpis({department: \"" + selfDept + "\"})" : "Api.fetchKpis()"
-        );
-      })
-      .catch(function () {
-        fallback();
-      });
   }
 
   viewTargets = [{ id: "self", label: "Мой дашборд", user: sessionUser }];
