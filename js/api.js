@@ -1278,6 +1278,7 @@
           rag: rag,
           deviation: devStr,
           comment: tableRowComment(row, tk),
+          tableKey: tk != null ? String(tk).trim() : "",
           raw: row,
         };
       })

@@ -64,6 +64,9 @@
   var kpiHelpPopoverEl = document.getElementById("kpi-help-popover");
   var claimsTableHelpBtnEl = document.getElementById("claims-table-help-btn");
   var claimsTableHelpPopoverEl = document.getElementById("claims-table-help-popover");
+  var claimsTableTitleTextEl = document.getElementById("claims-table-title-text");
+  var claimsTableHelpWrapEl = document.getElementById("claims-table-help-wrap");
+  var overdueDebtTableTitleEl = document.getElementById("overdue-debt-table-title");
   var debugJsonToggleBtnEl = document.getElementById("debug-kpi-json-toggle");
   var debugJsonSectionEl = document.getElementById("debug-kpi-json-section");
   var DONUT_CHARTS_PER_PAGE = 6;
@@ -1102,11 +1105,49 @@
 
   /* ---------- Таблицы дашборда ---------- */
 
+  function normalizeDashboardRole(value) {
+    return value == null ? "" : String(value).trim().toLocaleLowerCase("ru-RU");
+  }
+
+  function isBoardChairUser(user) {
+    if (!user || typeof user !== "object") return false;
+    var role = normalizeDashboardRole(user.role);
+    var department = normalizeDashboardRole(user.department);
+    return role === "председатель совета директоров" || department === "председатель совета директоров";
+  }
+
+  function shouldUseBoardChairExecutiveTables() {
+    return isBoardChairUser(sessionUser) && selectedViewId === "self";
+  }
+
+  function updateDashboardTableTitlesForRole() {
+    var isBoardChairOwnDashboard = shouldUseBoardChairExecutiveTables();
+
+    if (claimsTableTitleTextEl) {
+      claimsTableTitleTextEl.textContent = isBoardChairOwnDashboard ? "ТОП-10 отклонений" : "Претензии";
+    }
+
+    if (overdueDebtTableTitleEl) {
+      overdueDebtTableTitleEl.textContent = isBoardChairOwnDashboard
+        ? "ТОП-10 решений / эскалаций"
+        : "Расшифровка просроченной дебиторской задолженности";
+    }
+
+    if (claimsTableHelpWrapEl) {
+      claimsTableHelpWrapEl.hidden = isBoardChairOwnDashboard;
+    }
+    if (isBoardChairOwnDashboard) {
+      hideClaimsTableHelpPopover();
+    }
+  }
+
   function initTables() {
+    updateDashboardTableTitlesForRole();
     if (typeof DashboardClaimsTable === "undefined" || !DashboardClaimsTable) return;
     if (typeof DashboardClaimsTable.init === "function") {
       DashboardClaimsTable.init({
         rows: lastApiTableRows,
+        executiveMode: shouldUseBoardChairExecutiveTables(),
       });
     }
   }

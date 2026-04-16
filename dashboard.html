@@ -167,8 +167,8 @@
       <div class="tables-row">
         <section class="table-panel">
           <h2 class="table-panel-title">
-            <span>Претензии</span>
-            <span class="table-title-help-wrap">
+            <span id="claims-table-title-text">Претензии</span>
+            <span class="table-title-help-wrap" id="claims-table-help-wrap">
               <button
                 type="button"
                 id="claims-table-help-btn"
@@ -220,7 +220,7 @@
           </div>
         </section>
         <section class="table-panel">
-          <h2>Расшифровка просроченной дебиторской задолженности</h2>
+          <h2 id="overdue-debt-table-title">Расшифровка просроченной дебиторской задолженности</h2>
           <div class="dashboard-table-wrap">
             <table id="table-overdue-debt" class="dashboard-table" aria-label="Расшифровка просроченной дебиторской задолженности">
               <thead>
@@ -278,6 +278,15 @@
         <form method="dialog" class="kpi-thresholds-dialog-actions">
           <button type="submit" class="btn-dialog-close">Закрыть</button>
         </form>
+      </div>
+    </dialog>
+
+    <dialog id="chart-preview-dialog" class="chart-preview-dialog" aria-labelledby="chart-preview-dialog-title">
+      <div class="chart-preview-dialog-panel">
+        <div class="chart-preview-dialog-head">
+          <h2 id="chart-preview-dialog-title" class="chart-preview-dialog-title">Просмотр графика</h2>
+        </div>
+        <div id="chart-preview-dialog-body" class="chart-preview-dialog-body"></div>
       </div>
     </dialog>
 

@@ -76,6 +76,140 @@
     return year + "-" + month + "-" + day;
   }
 
+  var DEFAULT_TOP_DEVIATIONS_HEADERS = [
+    "Код",
+    "Наименование",
+    "Партнер/Клиент",
+    "Дата обращения",
+    "Дата окончания (план)",
+    "Заказ клиента",
+    "Подразделение заказа",
+    "Номенклатура",
+    "Описание претензии",
+    "Статус",
+    "Сумма документа заказа, руб.",
+  ];
+  var DEFAULT_OVERDUE_DEBT_HEADERS = ["№ Заказа клиента", "Контрагент", "Сумма", "Дн. просрочки", "Причина", "Действие"];
+  var EXECUTIVE_DEVIATIONS_HEADERS = ["Показатель", "Факт", "План", "RAG", "Комментарий"];
+  var EXECUTIVE_DECISIONS_HEADERS = ["Вопрос", "Факт", "План", "RAG", "Решение"];
+
+  function setTableHeaders(tableId, headers) {
+    var table = document.getElementById(tableId);
+    var headRow = table ? table.querySelector("thead tr") : null;
+    if (!headRow) return;
+    headRow.innerHTML = headers
+      .map(function (header) {
+        return "<th>" + header + "</th>";
+      })
+      .join("");
+  }
+
+  function setTopDeviationsTableMode(executiveMode) {
+    var table = document.getElementById("table-top-deviations");
+    if (!table) return;
+    table.classList.toggle("dashboard-table--executive", !!executiveMode);
+    if (table.tFoot) {
+      table.tFoot.hidden = !!executiveMode;
+    }
+  }
+
+  function setOverdueDebtTableMode(executiveMode) {
+    var table = document.getElementById("table-overdue-debt");
+    if (!table) return;
+    table.classList.toggle("dashboard-table--executive", !!executiveMode);
+  }
+
+  function formatExecutiveTableValue(value) {
+    if (value == null || value === "") return "—";
+    if (typeof DashUi !== "undefined" && DashUi && typeof DashUi.formatKpiTilePlanFactValue === "function") {
+      return DashUi.formatKpiTilePlanFactValue(value);
+    }
+    return tableTextOrDash(value);
+  }
+
+  function buildExecutiveRagHtml(rag) {
+    var key = tableTextOrDash(rag).toLocaleLowerCase("ru-RU");
+    var normalized = key === "green" || key === "yellow" || key === "red" || key === "blue" ? key : "blue";
+    if (typeof DashUi !== "undefined" && DashUi && typeof DashUi.ragCell === "function") {
+      return DashUi.ragCell(normalized);
+    }
+    return '<span class="rag-dot rag-' + normalized + '" title="' + normalized + '"></span>';
+  }
+
+  function appendExecutiveTableRow(tbody, titleValue, factValue, planValue, ragValue, tailValue) {
+    var tr = document.createElement("tr");
+    var titleTd = document.createElement("td");
+    titleTd.textContent = tableTextOrDash(titleValue);
+    tr.appendChild(titleTd);
+
+    var factTd = document.createElement("td");
+    factTd.textContent = formatExecutiveTableValue(factValue);
+    tr.appendChild(factTd);
+
+    var planTd = document.createElement("td");
+    planTd.textContent = formatExecutiveTableValue(planValue);
+    tr.appendChild(planTd);
+
+    var ragTd = document.createElement("td");
+    ragTd.className = "dashboard-table-rag-cell";
+    ragTd.innerHTML = buildExecutiveRagHtml(ragValue);
+    tr.appendChild(ragTd);
+
+    var tailTd = document.createElement("td");
+    tailTd.textContent = tableTextOrDash(tailValue);
+    tr.appendChild(tailTd);
+
+    tbody.appendChild(tr);
+  }
+
+  function isExecutiveDecisionRow(row) {
+    var key = row && row.tableKey != null ? String(row.tableKey).trim().toLocaleLowerCase("ru-RU") : "";
+    if (!key) return false;
+    return /реш|эскал|escal|decision|solution|question|issue/.test(key);
+  }
+
+  function splitExecutiveRows(rows) {
+    var sourceRows = Array.isArray(rows) ? rows : [];
+    var decisionRows = sourceRows.filter(isExecutiveDecisionRow);
+    var deviationRows = sourceRows.filter(function (row) {
+      return !isExecutiveDecisionRow(row);
+    });
+    if (!deviationRows.length) deviationRows = sourceRows.slice();
+    return {
+      deviations: deviationRows.slice(0, 10),
+      decisions: decisionRows.slice(0, 10),
+    };
+  }
+
+  function renderExecutiveTables(rows) {
+    var topBody = document.querySelector("#table-top-deviations tbody");
+    var debtBody = document.querySelector("#table-overdue-debt tbody");
+    if (!topBody || !debtBody) return;
+
+    setTableHeaders("table-top-deviations", EXECUTIVE_DEVIATIONS_HEADERS);
+    setTableHeaders("table-overdue-debt", EXECUTIVE_DECISIONS_HEADERS);
+    setTopDeviationsTableMode(true);
+    setOverdueDebtTableMode(true);
+
+    topBody.innerHTML = "";
+    debtBody.innerHTML = "";
+
+    var groups = splitExecutiveRows(rows);
+    groups.deviations.forEach(function (row) {
+      appendExecutiveTableRow(topBody, row.kpi, row.fact, row.plan, row.rag, row.comment);
+    });
+    groups.decisions.forEach(function (row) {
+      appendExecutiveTableRow(debtBody, row.kpi, row.fact, row.plan, row.rag, row.comment);
+    });
+  }
+
+  function resetDefaultTables() {
+    setTableHeaders("table-top-deviations", DEFAULT_TOP_DEVIATIONS_HEADERS);
+    setTableHeaders("table-overdue-debt", DEFAULT_OVERDUE_DEBT_HEADERS);
+    setTopDeviationsTableMode(false);
+    setOverdueDebtTableMode(false);
+  }
+
   function renderClaimsTableRows(rows) {
     var table = document.getElementById("table-top-deviations");
     var tbody = table ? table.querySelector("tbody") : null;
@@ -627,6 +761,7 @@
   function init(options) {
     options = options || {};
     var rows = Array.isArray(options.rows) ? options.rows : [];
+    var executiveMode = !!options.executiveMode;
     destroyClaimsTables();
 
     var topBody = document.querySelector("#table-top-deviations tbody");
@@ -634,6 +769,12 @@
     if (topBody) topBody.innerHTML = "";
     if (debtBody) debtBody.innerHTML = "";
 
+    if (executiveMode) {
+      renderExecutiveTables(rows);
+      return;
+    }
+
+    resetDefaultTables();
     renderClaimsTableRows(rows);
     initClaimsDataTable();
   }

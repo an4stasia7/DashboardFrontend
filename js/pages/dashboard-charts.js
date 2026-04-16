@@ -4,10 +4,12 @@
   var waterfallChartInstance = null;
   var waterfallChartIndicators = [];
   var donutChartInstances = [];
+  var chartPreviewInstances = [];
 
   var dashboardChartsResizeObserver = null;
   var dashboardChartsResizeFrame = null;
   var dashboardChartsResizeBound = false;
+  var chartPreviewDialogBound = false;
   var latestContext = {};
 
   function mergeContext(nextContext) {
@@ -115,6 +117,137 @@
     });
   }
 
+  function destroyChartPreviewCharts() {
+    chartPreviewInstances.forEach(function (chart) {
+      if (chart && typeof chart.destroy === "function") chart.destroy();
+    });
+    chartPreviewInstances = [];
+  }
+
+  function getChartPreviewDialogElements() {
+    return {
+      dialog: document.getElementById("chart-preview-dialog"),
+      title: document.getElementById("chart-preview-dialog-title"),
+      body: document.getElementById("chart-preview-dialog-body"),
+    };
+  }
+
+  function closeChartPreviewDialog() {
+    var elements = getChartPreviewDialogElements();
+    destroyChartPreviewCharts();
+    if (elements.body) elements.body.innerHTML = "";
+    if (elements.dialog && typeof elements.dialog.close === "function" && elements.dialog.open) {
+      elements.dialog.close();
+    }
+  }
+
+  function ensureChartPreviewDialogBindings() {
+    var elements = getChartPreviewDialogElements();
+    if (!elements.dialog || chartPreviewDialogBound) return;
+    chartPreviewDialogBound = true;
+    elements.dialog.addEventListener("click", function (event) {
+      if (event.target === elements.dialog) closeChartPreviewDialog();
+    });
+    elements.dialog.addEventListener("close", function () {
+      destroyChartPreviewCharts();
+      if (elements.body) elements.body.innerHTML = "";
+    });
+  }
+
+  function buildPreviewChartOptions(chart, height) {
+    if (!chart || typeof Highcharts === "undefined") return null;
+    var options = Highcharts.merge({}, chart.userOptions || {}, {
+      chart: {
+        backgroundColor: "transparent",
+        animation: false,
+        reflow: true,
+        height: height || 520,
+      },
+      title: { text: null },
+    });
+    if (options.chart && options.chart.events) {
+      delete options.chart.events.click;
+    }
+    if (options.plotOptions && options.plotOptions.line && options.plotOptions.line.point && options.plotOptions.line.point.events) {
+      delete options.plotOptions.line.point.events.click;
+    }
+    if (options.plotOptions && options.plotOptions.column && options.plotOptions.column.point && options.plotOptions.column.point.events) {
+      delete options.plotOptions.column.point.events.click;
+    }
+    return options;
+  }
+
+  function openChartPreviewDialog(title, renderFn) {
+    var elements = getChartPreviewDialogElements();
+    if (!elements.dialog || !elements.body || typeof renderFn !== "function") return;
+    ensureChartPreviewDialogBindings();
+    destroyChartPreviewCharts();
+    elements.body.innerHTML = "";
+    if (elements.title) elements.title.textContent = title || "Просмотр графика";
+    if (typeof elements.dialog.showModal === "function") {
+      if (!elements.dialog.open) elements.dialog.showModal();
+    } else {
+      elements.dialog.setAttribute("open", "open");
+    }
+    renderFn(elements.body);
+  }
+
+  function createPreviewChartHost(parent) {
+    var host = document.createElement("div");
+    host.className = "chart-preview-chart-host";
+    parent.appendChild(host);
+    return host;
+  }
+
+  function openLineChartPreview() {
+    if (!lineChartInstance || typeof Highcharts === "undefined") return;
+    openChartPreviewDialog(
+      document.getElementById("line-chart-title") ? document.getElementById("line-chart-title").textContent : "Тренд",
+      function (body) {
+        var host = createPreviewChartHost(body);
+        var options = buildPreviewChartOptions(lineChartInstance, 540);
+        if (!options) return;
+        var preview = Highcharts.chart(host, options);
+        chartPreviewInstances.push(preview);
+        setTimeout(function () {
+          if (preview && typeof preview.reflow === "function") preview.reflow();
+        }, 0);
+      }
+    );
+  }
+
+  function openBarChartPreview() {
+    if (!waterfallChartInstance || typeof Highcharts === "undefined") return;
+    openChartPreviewDialog(
+      document.getElementById("bar-chart-title") ? document.getElementById("bar-chart-title").textContent : "План / факт",
+      function (body) {
+        var host = createPreviewChartHost(body);
+        var options = buildPreviewChartOptions(waterfallChartInstance, 540);
+        if (!options) return;
+        var preview = Highcharts.chart(host, options);
+        chartPreviewInstances.push(preview);
+        setTimeout(function () {
+          if (preview && typeof preview.reflow === "function") preview.reflow();
+        }, 0);
+      }
+    );
+  }
+
+  function bindChartPreviewTrigger(el, openFn) {
+    if (!el || typeof openFn !== "function" || el._chartPreviewBound) return;
+    el._chartPreviewBound = true;
+    el.classList.add("chart-preview-trigger");
+    el.addEventListener("click", function () {
+      openFn();
+    });
+  }
+
+  function bindChartPreviewTriggers() {
+    bindChartPreviewTrigger(document.getElementById("chart-line"), openLineChartPreview);
+    bindChartPreviewTrigger(document.getElementById("chart-bar"), openBarChartPreview);
+    bindChartPreviewTrigger(document.getElementById("donuts-grid"), openDonutChartsPreview);
+  }
+
   function findPlanSeriesIndexForRag(series) {
     for (var i = 0; i < series.length; i++) {
       var n = String(series[i].name || "").toLowerCase();
@@ -218,6 +351,58 @@
       return Highcharts.color(baseColor).brighten(0.08).setOpacity(0.45).get();
     }
     return getChartColorVariant(baseColor, 0.08);
+  }
+
+  function formatBarChartAxisLabel(value) {
+    var text = value == null ? "" : String(value).replace(/\s+/g, " ").trim();
+    if (!text) return "";
+    var words = text.split(" ");
+    if (words.length <= 1 || text.length <= 16) return DashUi.escapeHtml(text);
+
+    var splitIndex = 1;
+    var bestDelta = Infinity;
+    for (var i = 1; i < words.length; i++) {
+      var left = words.slice(0, i).join(" ");
+      var right = words.slice(i).join(" ");
+      var delta = Math.abs(left.length - right.length);
+      if (delta < bestDelta) {
+        bestDelta = delta;
+        splitIndex = i;
+      }
+    }
+
+    var firstLine = words.slice(0, splitIndex).join(" ").trim();
+    var secondLine = words.slice(splitIndex).join(" ").trim();
+    if (!firstLine || !secondLine) return DashUi.escapeHtml(text);
+    return (
+      '<span style="display:inline-block;white-space:normal;text-align:center;line-height:1.2;">' +
+      DashUi.escapeHtml(firstLine) +
+      "<br>" +
+      DashUi.escapeHtml(secondLine) +
+      "</span>"
+    );
+  }
+
+  function buildBarChartXAxis(categories, title) {
+    return {
+      categories: categories,
+      title: { text: title || "Показатель" },
+      lineColor: "#cbd5e1",
+      labels: {
+        useHTML: true,
+        autoRotation: false,
+        reserveSpace: true,
+        rotation: 0,
+        style: {
+          whiteSpace: "normal",
+          textAlign: "center",
+          fontSize: "11px",
+        },
+        formatter: function () {
+          return formatBarChartAxisLabel(this.value);
+        },
+      },
+    };
   }
 
   function shortenLineLegendLabel(label, suffix) {
@@ -371,12 +556,11 @@
       lineChartInstance = null;
     }
 
-    var pointsData = indicator.points || [];
     var chartClickHandler = function (e) {
-      var pointIndex = e.point ? e.point.index : -1;
-      if (pointIndex < 0 || !pointsData.length) return;
-      var pt = pointsData[pointIndex];
-      if (pt && pt.month && pt.year) navigateToMonthSafe(pt.month, pt.year);
+      if (e && e.originalEvent && typeof e.originalEvent.stopPropagation === "function") {
+        e.originalEvent.stopPropagation();
+      }
+      openLineChartPreview();
     };
 
     lineChartInstance = Highcharts.chart(elLine, {
@@ -585,7 +769,6 @@
       waterfallChartInstance = null;
     }
 
-    var barPoints = indicator.points || [];
     var barTooltipFormatter = function () {
       var pts = this.points || [];
       var pointIndex = pts.length && pts[0] && pts[0].point ? pts[0].point.index : -1;
@@ -605,21 +788,17 @@
       return html;
     };
     var barClickHandler = function (e) {
-      var pointIndex = e.point ? e.point.index : -1;
-      if (pointIndex < 0 || !barPoints.length) return;
-      var pt = barPoints[pointIndex];
-      if (pt && pt.quarter && pt.year) navigateToQuarterSafe(pt.quarter, pt.year);
+      if (e && e.originalEvent && typeof e.originalEvent.stopPropagation === "function") {
+        e.originalEvent.stopPropagation();
+      }
+      openBarChartPreview();
     };
 
     waterfallChartInstance = Highcharts.chart(elBar, {
       chart: { type: "column", backgroundColor: "transparent", height: 300, animation: false, reflow: false },
       title: { text: null },
       credits: { enabled: false },
-      xAxis: {
-        categories: cats.slice(),
-        title: { text: indicator.xAxisTitle || "Показатель" },
-        lineColor: "#cbd5e1",
-      },
+      xAxis: buildBarChartXAxis(cats.slice(), indicator.xAxisTitle || "Показатель"),
       yAxis: {
         title: { text: indicator.yAxisTitle || "Значение" },
         gridLineColor: "#f1f5f9",
@@ -669,11 +848,7 @@
       chart: { type: "column", backgroundColor: "transparent", height: 300, animation: false, reflow: false },
       title: { text: null },
       credits: { enabled: false },
-      xAxis: {
-        categories: categories,
-        title: { text: "Показатели" },
-        lineColor: "#cbd5e1",
-      },
+      xAxis: buildBarChartXAxis(categories, "Показатели"),
       yAxis: {
         title: { text: "План / факт" },
         gridLineColor: "#f1f5f9",
@@ -760,6 +935,102 @@
     donutChartInstances = [];
   }
 
+  function buildDonutChartSeriesData(displayPct, fill, track) {
+    if (displayPct >= 100) {
+      var over = displayPct - 100;
+      return [
+        { name: "100%", y: 100, color: fill },
+        { name: "Сверх 100%", y: over, color: Highcharts.color(fill).brighten(0.25).get() },
+      ];
+    }
+    return [
+      { name: "Показатель", y: displayPct, color: fill },
+      { name: "До 100%", y: 100 - displayPct, color: track },
+    ];
+  }
+
+  function buildDonutChartOptions(tile, chartSize) {
+    var pres = MockData.getKpiTilePresentation(tile);
+    var pct = pres.percent;
+    var fill = pres.fillColor;
+    var track = "#e2e8f0";
+    var displayPct = Math.max(0, pct);
+    var pctLabel = MockData.formatKpiPercentLabel(pct) + "%";
+    return {
+      chart: {
+        type: "pie",
+        backgroundColor: "transparent",
+        height: chartSize,
+        margin: [0, 0, 0, 0],
+        animation: false,
+      },
+      title: {
+        text: pctLabel,
+        align: "center",
+        verticalAlign: "middle",
+        y: 2,
+        style: {
+          fontSize: chartSize <= 108 ? "11px" : chartSize >= 200 ? "17px" : "13px",
+          fontWeight: "700",
+          color: fill,
+        },
+      },
+      credits: { enabled: false },
+      tooltip: { enabled: false },
+      plotOptions: {
+        pie: {
+          innerSize: "70%",
+          dataLabels: { enabled: false },
+          states: { hover: { enabled: false } },
+          borderWidth: 0,
+          startAngle: 0,
+          animation: false,
+        },
+      },
+      series: [{ data: buildDonutChartSeriesData(displayPct, fill, track) }],
+    };
+  }
+
+  function renderDonutChartIntoContainer(chartDiv, tile, chartSize) {
+    return Highcharts.chart(chartDiv, buildDonutChartOptions(tile, chartSize));
+  }
+
+  function openDonutChartsPreview() {
+    var tiles = getCurrentTiles();
+    if (!tiles || !tiles.length || typeof Highcharts === "undefined") return;
+    openChartPreviewDialog("Показатели KPI", function (body) {
+      var grid = document.createElement("div");
+      grid.className = "chart-preview-donuts-grid";
+      body.appendChild(grid);
+
+      tiles.forEach(function (tile) {
+        var cell = document.createElement("div");
+        cell.className = "chart-preview-donut-cell";
+
+        var chartHost = document.createElement("div");
+        chartHost.className = "chart-preview-donut-chart";
+
+        var label = document.createElement("div");
+        label.className = "chart-preview-donut-label";
+        label.textContent = tile.title || tile.badge || "";
+        label.title = tile.title || "";
+
+        cell.appendChild(chartHost);
+        cell.appendChild(label);
+        grid.appendChild(cell);
+
+        var preview = renderDonutChartIntoContainer(chartHost, tile, 220);
+        chartPreviewInstances.push(preview);
+      });
+
+      setTimeout(function () {
+        chartPreviewInstances.forEach(function (chart) {
+          if (chart && typeof chart.reflow === "function") chart.reflow();
+        });
+      }, 0);
+    });
+  }
+
   function renderDonutCharts(context) {
     mergeContext(context);
 
@@ -780,11 +1051,6 @@
     updateDonutChartsPagerUISafe(tiles.length);
 
     visibleTiles.forEach(function (tile, idx) {
-      var pres = MockData.getKpiTilePresentation(tile);
-      var pct = pres.percent;
-      var fill = pres.fillColor;
-      var track = "#e2e8f0";
-
       var cell = document.createElement("div");
       cell.className = "donut-cell";
       var chartDiv = document.createElement("div");
@@ -797,64 +1063,15 @@
       cell.appendChild(chartDiv);
       cell.appendChild(label);
       grid.appendChild(cell);
-
-      var displayPct = Math.max(0, pct);
-      var seriesData;
-      if (displayPct >= 100) {
-        var over = displayPct - 100;
-        seriesData = [
-          { name: "100%", y: 100, color: fill },
-          { name: "Сверх 100%", y: over, color: Highcharts.color(fill).brighten(0.25).get() },
-        ];
-      } else {
-        seriesData = [
-          { name: "Показатель", y: displayPct, color: fill },
-          { name: "До 100%", y: 100 - displayPct, color: track },
-        ];
-      }
-
-      var pctLabel = MockData.formatKpiPercentLabel(pct) + "%";
       var containerWidth = chartDiv.clientWidth || cell.clientWidth || 120;
       var chartSize = Math.max(96, Math.min(140, containerWidth));
-
-      var chart = Highcharts.chart(chartDiv, {
-        chart: {
-          type: "pie",
-          backgroundColor: "transparent",
-          height: chartSize,
-          margin: [0, 0, 0, 0],
-          animation: false,
-        },
-        title: {
-          text: pctLabel,
-          align: "center",
-          verticalAlign: "middle",
-          y: 2,
-          style: {
-            fontSize: chartSize <= 108 ? "11px" : "13px",
-            fontWeight: "700",
-            color: fill,
-          },
-        },
-        credits: { enabled: false },
-        tooltip: { enabled: false },
-        plotOptions: {
-          pie: {
-            innerSize: "70%",
-            dataLabels: { enabled: false },
-            states: { hover: { enabled: false } },
-            borderWidth: 0,
-            startAngle: 0,
-            animation: false,
-          },
-        },
-        series: [{ data: seriesData }],
-      });
+      var chart = renderDonutChartIntoContainer(chartDiv, tile, chartSize);
       donutChartInstances.push(chart);
     });
   }
 
   function destroyAllDashboardCharts() {
+    closeChartPreviewDialog();
     if (lineChartInstance) {
       lineChartInstance.destroy();
       lineChartInstance = null;
@@ -876,6 +1093,7 @@
     }
 
     ensureDashboardChartsResizeObserver();
+    bindChartPreviewTriggers();
 
     Highcharts.setOptions({
       lang: {

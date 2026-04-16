@@ -91,6 +91,10 @@
   overflow: visible;
 }
 
+.chart-preview-trigger {
+  cursor: zoom-in;
+}
+
 .donut-charts-pager {
   display: flex;
   align-items: center;
@@ -362,6 +366,15 @@
 
 .dashboard-table-wrap--claims {
   overflow: visible;
+}
+
+.dashboard-table-wrap--claims .dashboard-table.dashboard-table--executive {
+  min-width: 0;
+}
+
+.dashboard-table-wrap--claims:has(.dashboard-table.dashboard-table--executive) {
+  overflow-x: auto;
+  overflow-y: hidden;
 }
 
 .claims-column-head {
@@ -711,6 +724,74 @@
   overflow-wrap: break-word;
   word-break: normal;
   hyphens: auto;
+}
+
+.dashboard-table.dashboard-table--executive {
+  table-layout: fixed;
+  min-width: 100%;
+}
+
+.dashboard-table#table-top-deviations.dashboard-table--executive th:nth-child(1),
+.dashboard-table#table-top-deviations.dashboard-table--executive td:nth-child(1),
+.dashboard-table#table-overdue-debt.dashboard-table--executive th:nth-child(1),
+.dashboard-table#table-overdue-debt.dashboard-table--executive td:nth-child(1) {
+  width: 30%;
+  min-width: 0;
+}
+
+.dashboard-table#table-top-deviations.dashboard-table--executive th:nth-child(2),
+.dashboard-table#table-top-deviations.dashboard-table--executive td:nth-child(2),
+.dashboard-table#table-top-deviations.dashboard-table--executive th:nth-child(3),
+.dashboard-table#table-top-deviations.dashboard-table--executive td:nth-child(3),
+.dashboard-table#table-overdue-debt.dashboard-table--executive th:nth-child(2),
+.dashboard-table#table-overdue-debt.dashboard-table--executive td:nth-child(2),
+.dashboard-table#table-overdue-debt.dashboard-table--executive th:nth-child(3),
+.dashboard-table#table-overdue-debt.dashboard-table--executive td:nth-child(3) {
+  width: 12%;
+  min-width: 0;
+}
+
+.dashboard-table#table-top-deviations.dashboard-table--executive th:nth-child(4),
+.dashboard-table#table-top-deviations.dashboard-table--executive td:nth-child(4),
+.dashboard-table#table-overdue-debt.dashboard-table--executive th:nth-child(4),
+.dashboard-table#table-overdue-debt.dashboard-table--executive td:nth-child(4) {
+  width: 8%;
+  min-width: 0;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.dashboard-table#table-top-deviations.dashboard-table--executive th:nth-child(5),
+.dashboard-table#table-top-deviations.dashboard-table--executive td:nth-child(5),
+.dashboard-table#table-overdue-debt.dashboard-table--executive th:nth-child(5),
+.dashboard-table#table-overdue-debt.dashboard-table--executive td:nth-child(5) {
+  width: 38%;
+  min-width: 0;
+}
+
+.dashboard-table.dashboard-table--executive thead th,
+.dashboard-table.dashboard-table--executive tbody td {
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: normal;
+  line-height: 1.4;
+}
+
+.dashboard-table.dashboard-table--executive thead th {
+  padding: 12px 12px;
+}
+
+.dashboard-table.dashboard-table--executive tbody td {
+  padding: 10px 12px;
+}
+
+.dashboard-table.dashboard-table--executive tbody td:nth-child(4) .rag-dot {
+  margin: 0 auto;
+}
+
+.dashboard-table-rag-cell {
+  text-align: center;
+  vertical-align: middle !important;
 }
 
 /* DataTables overrides */
