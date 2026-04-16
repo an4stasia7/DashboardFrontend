@@ -66,7 +66,7 @@ article.kpi-tile.kpi-tile--page-hidden {
   display: none !important;
 }
 
-.kpi-tiles-pager {
+.dash-kpi-tiles-block #kpi-tiles-pager {
   position: absolute;
   inset: 0;
   display: block;
@@ -79,7 +79,7 @@ article.kpi-tile.kpi-tile--page-hidden {
   border-radius: 0;
 }
 
-.kpi-tiles-pager[hidden] {
+.dash-kpi-tiles-block #kpi-tiles-pager[hidden] {
   display: none !important;
 }
 
@@ -142,7 +142,7 @@ article.kpi-tile.kpi-tile--page-hidden {
   cursor: default;
 }
 
-.kpi-tiles-pager-label {
+.dash-kpi-tiles-block #kpi-tiles-page-label {
   display: none;
 }
 

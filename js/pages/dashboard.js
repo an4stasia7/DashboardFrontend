@@ -571,17 +571,7 @@
     );
   }
 
-  /* ---------- KPI: синонимы названий и сопоставление плиток (drilldown) ---------- */
-
-  /**
-   * Группы синонимов из `js/const/arraykpi.js` (`window.KPI_NAME_SYNONYM_GROUPS`).
-   * @returns {string[][]}
-   */
-  function getKpiSynonymGroups() {
-    return window.KPI_NAME_SYNONYM_GROUPS && Array.isArray(window.KPI_NAME_SYNONYM_GROUPS)
-      ? window.KPI_NAME_SYNONYM_GROUPS
-      : [];
-  }
+  /* ---------- KPI: нормализация названий и сопоставление плиток (drilldown) ---------- */
 
   /** Нормализация заголовка KPI для сравнения (регистр, кавычки, пробелы). */
   function normalizeKpiTitleForMatch(s) {
@@ -592,66 +582,44 @@
       .trim();
   }
 
-  /** Совпадение двух названий KPI с учётом нормализации и вхождения подстроки. */
+  function titlesExactlyMatchForKpi(a, b) {
+    var na = normalizeKpiTitleForMatch(a);
+    var nb = normalizeKpiTitleForMatch(b);
+    if (!na || !nb) return false;
+    return na === nb;
+  }
+
+  /** Совпадение двух названий KPI после нормализации регистра и пробелов. */
   function titlesMatchForKpi(a, b) {
     var na = normalizeKpiTitleForMatch(a);
     var nb = normalizeKpiTitleForMatch(b);
     if (!na || !nb) return false;
-    if (na === nb) return true;
-    if (na.indexOf(nb) !== -1 || nb.indexOf(na) !== -1) return true;
-    return false;
-  }
-
-  /** Первая группа синонимов, в которой встречается название плитки, иначе `null`. */
-  function findSynonymGroupForTileTitle(title) {
-    var groups = getKpiSynonymGroups();
-    if (!normalizeKpiTitleForMatch(title)) return null;
-    for (var g = 0; g < groups.length; g++) {
-      var grp = groups[g];
-      if (!grp || !grp.length) continue;
-      for (var i = 0; i < grp.length; i++) {
-        if (titlesMatchForKpi(title, grp[i])) return grp;
-      }
-    }
-    return null;
+    return na === nb;
   }
 
   /**
-   * Совпадает ли плитка с целью подсветки после навигации (kpi_id или синонимы / заголовок).
+   * Совпадает ли плитка с целью подсветки после навигации (kpi_id или нормализованный заголовок).
    * @param {object} tile
    * @param {{ kpi_id?: string, title?: string }} focus
    */
   function tileMatchesFocusTarget(tile, focus) {
     if (!tile || !focus) return false;
     if (focus.kpi_id && tile.kpi_id && String(focus.kpi_id) === String(tile.kpi_id)) return true;
-    var group = findSynonymGroupForTileTitle(focus.title);
-    if (group) {
-      for (var j = 0; j < group.length; j++) {
-        if (titlesMatchForKpi(tile.title, group[j])) return true;
-      }
-    }
     return titlesMatchForKpi(tile.title, focus.title);
   }
 
   /**
-   * Ищет плитку дочернего отдела, соответствующую выбранной (по kpi_id или группе синонимов).
+   * Ищет плитку дочернего отдела, соответствующую выбранной (по kpi_id или нормализованному заголовку).
    * @param {object[]|null|undefined} childTiles
    * @param {object} clickedTile
-   * @param {string[]|null} synonymGroup
    */
-  function findMatchingTileAmongChildren(childTiles, clickedTile, synonymGroup) {
+  function findMatchingTileAmongChildren(childTiles, clickedTile) {
     if (!childTiles || !clickedTile) return null;
     for (var i = 0; i < childTiles.length; i++) {
       var t = childTiles[i];
       if (!t) continue;
       if (clickedTile.kpi_id && t.kpi_id && String(clickedTile.kpi_id) === String(t.kpi_id)) return t;
-      if (synonymGroup) {
-        for (var j = 0; j < synonymGroup.length; j++) {
-          if (titlesMatchForKpi(t.title, synonymGroup[j])) return t;
-        }
-      } else if (titlesMatchForKpi(t.title, clickedTile.title)) {
-        return t;
-      }
+      if (titlesMatchForKpi(t.title, clickedTile.title)) return t;
     }
     return null;
   }
@@ -724,6 +692,8 @@
         kpiPct: "—",
         rag: "blue",
         isCurrentContext: !!isCurrentContext,
+        focus_kpi_id: "",
+        focus_title: "",
       };
     }
     var pres = MockData.getKpiTilePresentation(tile);
@@ -739,6 +709,8 @@
       kpiPct: pctLabel,
       rag: pres.rag || "blue",
       isCurrentContext: !!isCurrentContext,
+      focus_kpi_id: tile.kpi_id != null ? String(tile.kpi_id).trim() : "",
+      focus_title: tile.title != null ? String(tile.title).trim() : "",
     };
   }
 
@@ -752,13 +724,12 @@
    * Собирает строки drilldown только по дочерним отделам (без пустых / без KPI).
    * @param {{ name: string, tiles: object[] }[]} results
    * @param {object} clicked
-   * @param {string[]|null} synonymGroup
    */
-  function buildDrilldownRowsForChildrenOnly(results, clicked, synonymGroup) {
+  function buildDrilldownRowsForChildrenOnly(results, clicked) {
     var rows = [];
     (results || []).forEach(function (item) {
       if (!item || !item.name) return;
-      var matched = findMatchingTileAmongChildren(item.tiles || [], clicked, synonymGroup);
+      var matched = findMatchingTileAmongChildren(item.tiles || [], clicked);
       if (!matched) return;
       var childRow = drillRowFromTile(item.name, matched, false);
       if (drillRowHasNoKpiValue(childRow)) return;
@@ -1219,7 +1190,7 @@
    * @param {string} deptName
    * @param {object|null|undefined} [contextTile] — плитка, с оборота которой кликнули дочерний отдел (если несколько открыты)
    */
-  function navigateDashboardToDepartmentFromDrill(deptName, contextTile) {
+  function navigateDashboardToDepartmentFromDrill(deptName, contextTile, focusTarget) {
     var d = deptName != null ? String(deptName).trim() : "";
     if (!d) return;
     var ctx = getDepartmentForCurrentKpiContext();
@@ -1227,8 +1198,17 @@
       closeKpiTileDrilldown();
       return;
     }
+    var explicitFocus =
+      focusTarget && (focusTarget.kpi_id || focusTarget.title)
+        ? {
+            kpi_id: focusTarget.kpi_id != null ? String(focusTarget.kpi_id).trim() : "",
+            title: focusTarget.title != null ? String(focusTarget.title).trim() : "",
+          }
+        : null;
     var focusTile = contextTile || drilldownContextTile;
-    if (focusTile) {
+    if (explicitFocus) {
+      pendingKpiTileFocus = explicitFocus;
+    } else if (focusTile) {
       pendingKpiTileFocus = {
         kpi_id: focusTile.kpi_id != null ? String(focusTile.kpi_id) : "",
         title: focusTile.title != null ? String(focusTile.title) : "",
@@ -1256,7 +1236,6 @@
     var state = getKpiTileDetailsState(tileIndex);
     if (state.loading || state.loaded) return;
     var parentDept = getDepartmentForCurrentKpiContext();
-    var synonymGroup = findSynonymGroupForTileTitle(clicked.title || "");
     state.loading = true;
     state.loaded = false;
     state.rows = [];
@@ -1330,7 +1309,7 @@
         }).then(function (results) {
           state.loading = false;
           state.loaded = true;
-          state.rows = sortDrilldownRows(buildDrilldownRowsForChildrenOnly(results, clicked, synonymGroup));
+          state.rows = sortDrilldownRows(buildDrilldownRowsForChildrenOnly(results, clicked));
           state.hint = children.length && state.rows.length === 0
             ? "Среди дочерних отделов нет данных по этому показателю или KPI не заполнен."
             : "";
@@ -1394,6 +1373,8 @@
       var tr = document.createElement("tr");
       tr.className = "kpi-tile-drilldown-row";
       if (r.department) tr.setAttribute("data-department", r.department);
+      if (r.focus_kpi_id) tr.setAttribute("data-focus-kpi-id", r.focus_kpi_id);
+      if (r.focus_title) tr.setAttribute("data-focus-title", r.focus_title);
       if (r.isCurrentContext) tr.setAttribute("data-no-nav", "1");
       var td1 = document.createElement("td");
       td1.textContent = DashUi.capitalizeHeaderTitle(r.department);
@@ -1429,13 +1410,22 @@
   var drillTbodyEl = document.getElementById("kpi-tile-drilldown-tbody");
   var drillCloseEl = document.getElementById("kpi-tile-drilldown-close");
   if (drillCloseEl) drillCloseEl.addEventListener("click", closeKpiTileDrilldown);
+
+  function buildDrilldownFocusTargetFromElement(el) {
+    if (!el || typeof el.getAttribute !== "function") return null;
+    var focusKpiId = el.getAttribute("data-focus-kpi-id") || "";
+    var focusTitle = el.getAttribute("data-focus-title") || "";
+    if (!focusKpiId && !focusTitle) return null;
+    return { kpi_id: focusKpiId, title: focusTitle };
+  }
+
   if (drillTbodyEl) {
     drillTbodyEl.addEventListener("click", function (e) {
       var tr = e.target.closest("tr.kpi-tile-drilldown-row--nav");
       if (!tr || !drillTbodyEl.contains(tr)) return;
       var dept = tr.getAttribute("data-department");
       if (!dept) return;
-      navigateDashboardToDepartmentFromDrill(dept);
+      navigateDashboardToDepartmentFromDrill(dept, null, buildDrilldownFocusTargetFromElement(tr));
     });
     drillTbodyEl.addEventListener("keydown", function (e) {
       if (e.key !== "Enter" && e.key !== " ") return;
@@ -1443,7 +1433,7 @@
       if (!tr || !drillTbodyEl.contains(tr)) return;
       e.preventDefault();
       var dept = tr.getAttribute("data-department");
-      if (dept) navigateDashboardToDepartmentFromDrill(dept);
+      if (dept) navigateDashboardToDepartmentFromDrill(dept, null, buildDrilldownFocusTargetFromElement(tr));
     });
   }
 
