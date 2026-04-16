@@ -280,25 +280,14 @@
     });
   })();
 
-  (function initKpiTilesPager() {
-    var prevBtn = document.getElementById("kpi-tiles-page-prev");
-    var nextBtn = document.getElementById("kpi-tiles-page-next");
-    if (prevBtn) {
-      prevBtn.addEventListener("click", function () {
-        if (kpiTilesPageIndex <= 0) return;
-        closeKpiTileDrilldown();
-        kpiTilesPageIndex--;
-        updateKpiTilesPagerUI();
-      });
-    }
-    if (nextBtn) {
-      nextBtn.addEventListener("click", function () {
-        var n = lastKpiTiles ? lastKpiTiles.length : 0;
-        var pages = Math.max(1, Math.ceil(n / KPI_TILES_PER_PAGE));
-        if (kpiTilesPageIndex >= pages - 1) return;
-        closeKpiTileDrilldown();
-        kpiTilesPageIndex++;
-        updateKpiTilesPagerUI();
+  (function initKpiTilesModule() {
+    if (typeof DashboardKpiTiles === "undefined" || !DashboardKpiTiles) return;
+    if (typeof DashboardKpiTiles.init === "function") {
+      DashboardKpiTiles.init({
+        tiles: lastKpiTiles,
+        flippedTileIndices: flippedTileIndices,
+        getTileDetailsState: getKpiTileDetailsState,
+        onBeforePageChange: closeKpiTileDrilldown,
       });
     }
   })();
@@ -1053,122 +1042,44 @@
   }
 
   function buildKpiTileChildrenHtml(state) {
-    if (!state) return '<div class="kpi-tile-back-message">Нет данных.</div>';
-    if (state.loading) {
-      return (
-        '<div class="kpi-tile-back-loading">' +
-        '<span class="kpi-tile-back-loading-spinner" aria-hidden="true"></span>' +
-        "<span>Загрузка дочерних отделов…</span>" +
-        "</div>"
-      );
+    if (typeof DashboardKpiTiles === "undefined" || !DashboardKpiTiles) {
+      return '<div class="kpi-tile-back-message">Нет данных.</div>';
     }
-    if (state.rows && state.rows.length) {
-      return (
-        '<div class="kpi-tile-children-list">' +
-        state.rows
-          .map(function (row) {
-            var ragClass = row.rag || "blue";
-            return (
-              '<a class="kpi-tile-child-item kpi-tile-child-link" tabindex="0" data-department="' +
-              DashUi.escapeHtml(row.department) +
-              '">' +
-              '<span class="kpi-tile-child-dot rag-dot rag-' + ragClass + '"></span>' +
-              '<span class="kpi-tile-child-name">' +
-              DashUi.escapeHtml(DashUi.capitalizeHeaderTitle(row.department)) +
-              "</span>" +
-              '<span class="kpi-tile-child-value">' +
-              DashUi.escapeHtml(row.kpiPct) +
-              '</span>' +
-              '<svg class="kpi-tile-child-chevron" width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4.5 2.5L8 6L4.5 9.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
-              "</a>"
-            );
-          })
-          .join("") +
-        "</div>"
-      );
+    if (typeof DashboardKpiTiles.buildKpiTileChildrenHtml === "function") {
+      return DashboardKpiTiles.buildKpiTileChildrenHtml(state);
     }
-    return (
-      '<div class="kpi-tile-back-message">' +
-      DashUi.escapeHtml(state.hint || "Для этого показателя пока нет доступных дочерних отделов.") +
-      "</div>"
-    );
+    return '<div class="kpi-tile-back-message">Нет данных.</div>';
   }
 
   function buildKpiTileBackFaceHtml(tile, tileIndex) {
-    var state = getKpiTileDetailsState(tileIndex);
-    var pres = MockData.getKpiTilePresentation(tile);
-    var percentLabel = MockData.formatKpiPercentLabel(pres.percent) + "%";
-    var hint = tile && tile.hint != null ? String(tile.hint).trim() : "";
-    var period = tile && tile.period != null ? String(tile.period).trim() : "";
-    var code = tile && (tile.badge || tile.kpi_id) ? String(tile.badge || tile.kpi_id).trim() : "";
-    var hasPf = DashUi.kpiTileHasPlanAndFact(tile);
-    var showHelp = shouldShowKpiTileHelp(tile);
-    var showPercent = shouldShowKpiTilePercent(tile);
-    if (shouldRenderKpiTileBackDepartmentsOnly(tile)) {
-      return (
-        '<div class="kpi-tile-back-section kpi-tile-back-section--only">' +
-        '<div class="kpi-tile-back-section-title">Информация по отделам</div>' +
-        buildKpiTileChildrenHtml(state) +
-        "</div>"
-      );
+    if (typeof DashboardKpiTiles === "undefined" || !DashboardKpiTiles) return "";
+    if (typeof DashboardKpiTiles.buildKpiTileBackFaceHtml === "function") {
+      return DashboardKpiTiles.buildKpiTileBackFaceHtml(tile, tileIndex);
     }
-    return (
-      '<div class="kpi-tile-back-head">' +
-      '<div class="kpi-tile-back-head-copy">' +
-      (code ? '<span class="kpi-tile-back-badge">' + DashUi.escapeHtml(code) + "</span>" : "") +
-      '<h3 class="kpi-tile-back-title">' +
-      DashUi.escapeHtml(tile && tile.title ? tile.title : "Показатель") +
-      "</h3>" +
-      (period ? '<p class="kpi-tile-back-period">' + DashUi.escapeHtml(period) + "</p>" : "") +
-      "</div>" +
-      '<div class="kpi-tile-back-head-actions">' +
-      '<button type="button" class="kpi-tile-flip-action" aria-label="Вернуться к карточке">Назад</button>' +
-      "</div></div>" +
-      '<div class="kpi-tile-back-summary">' +
-      (showPercent
-        ? '<div class="kpi-tile-back-summary-item kpi-tile-back-summary-item--kpi">' +
-          (showHelp ? buildKpiTileHelpButtonHtml() : "") +
-          '<span class="kpi-tile-back-summary-label">KPI</span>' +
-          '<strong class="kpi-tile-back-kpi-pct">' +
-          DashUi.escapeHtml(percentLabel) +
-          "</strong></div>"
-        : "") +
-      (hasPf && shouldRenderKpiTileBack(tile)
-        ? '<div class="kpi-tile-back-summary-item"><span class="kpi-tile-back-summary-label">План / факт</span><strong>' +
-          DashUi.escapeHtml(DashUi.formatKpiTilePlanFactValue(tile.plan)) +
-          " / " +
-          DashUi.escapeHtml(DashUi.formatKpiTilePlanFactValue(tile.fact)) +
-          "</strong></div>"
-        : "") +
-      "</div>" +
-      (hint ? '<p class="kpi-tile-back-hint">' + DashUi.escapeHtml(hint) + "</p>" : "") +
-      '<div class="kpi-tile-back-section">' +
-      '<div class="kpi-tile-back-section-title">Информация по отделам</div>' +
-      buildKpiTileChildrenHtml(state) +
-      "</div>"
-    );
+    return "";
   }
 
   function renderKpiTileBackFace(articleEl, tileIndex) {
-    if (!articleEl || !lastKpiTiles || !lastKpiTiles[tileIndex]) return;
-    var backFace = articleEl.querySelector(".kpi-tile-face--back");
-    if (!backFace) return;
-    var tile = lastKpiTiles[tileIndex];
-    backFace.innerHTML = buildKpiTileBackFaceHtml(tile, tileIndex);
+    if (typeof DashboardKpiTiles === "undefined" || !DashboardKpiTiles) return;
+    if (typeof DashboardKpiTiles.renderBackFace === "function") {
+      DashboardKpiTiles.renderBackFace({
+        tiles: lastKpiTiles,
+        articleEl: articleEl,
+        tileIndex: tileIndex,
+        getTileDetailsState: getKpiTileDetailsState,
+      });
+    }
   }
 
   function syncKpiTileFlipState() {
-    var articles = document.querySelectorAll("#kpi-container article.kpi-tile");
-    articles.forEach(function (articleEl) {
-      var idx = articleEl.getAttribute("data-kpi-tile-index");
-      var i = idx != null ? +idx : NaN;
-      var isActive = !isNaN(i) && flippedTileIndices.has(i);
-      articleEl.classList.toggle("is-flipped", isActive);
-      articleEl.setAttribute("aria-expanded", isActive ? "true" : "false");
-      if (isActive) {
-        renderKpiTileBackFace(articleEl, i);
-      }
-    });
+    if (typeof DashboardKpiTiles === "undefined" || !DashboardKpiTiles) return;
+    if (typeof DashboardKpiTiles.syncFlipState === "function") {
+      DashboardKpiTiles.syncFlipState({
+        tiles: lastKpiTiles,
+        flippedTileIndices: flippedTileIndices,
+        getTileDetailsState: getKpiTileDetailsState,
+      });
+    }
   }
 
   /** Скрывает drilldown на карточке и legacy-панель, если она ещё есть в DOM. */
@@ -1518,207 +1429,45 @@
 
   /* ---------- Разметка HTML KPI-плиток ---------- */
 
-  var KPI_TILE_MSG_GENERATED_DATA = "Данные были сгенерированы";
-  var KPI_TILE_TITLE_PLAN_FACT_PERIOD = "Период, за который показаны план и факт";
-  var KPI_TILE_ARIA_METRICS_PF = "План и факт";
-
   function getKpiTileException(tile) {
-    var cfg = window.KPI_TILE_EXCEPTIONS || null;
-    if (!cfg || !tile) return null;
-    var key = tile.kpi_id != null && String(tile.kpi_id).trim()
-      ? String(tile.kpi_id).trim()
-      : tile.badge != null && String(tile.badge).trim()
-        ? String(tile.badge).trim()
-        : "";
-    return key && cfg[key] ? cfg[key] : null;
+    if (typeof DashboardKpiTiles === "undefined" || !DashboardKpiTiles) return null;
+    if (typeof DashboardKpiTiles.getKpiTileException === "function") {
+      return DashboardKpiTiles.getKpiTileException(tile);
+    }
+    return null;
   }
 
   function shouldShowKpiTileHelp(tile) {
-    var rule = getKpiTileException(tile);
-    return !(rule && rule.hideHelp);
-  }
-
-  function shouldShowKpiTilePercent(tile) {
-    var rule = getKpiTileException(tile);
-    return !(rule && rule.hideKpiPercent);
+    if (typeof DashboardKpiTiles === "undefined" || !DashboardKpiTiles) return true;
+    if (typeof DashboardKpiTiles.shouldShowKpiTileHelp === "function") {
+      return DashboardKpiTiles.shouldShowKpiTileHelp(tile);
+    }
+    return true;
   }
 
   function shouldRenderKpiTileBack(tile) {
-    var rule = getKpiTileException(tile);
-    return !(rule && rule.disableBack);
+    if (typeof DashboardKpiTiles === "undefined" || !DashboardKpiTiles) return true;
+    if (typeof DashboardKpiTiles.shouldRenderKpiTileBack === "function") {
+      return DashboardKpiTiles.shouldRenderKpiTileBack(tile);
+    }
+    return true;
   }
 
   function shouldRenderKpiTileBackDepartmentsOnly(tile) {
-    var rule = getKpiTileException(tile);
-    return !!(rule && rule.backDepartmentsOnly);
-  }
-
-  /** Кнопка «?» для модалки с формулой и цветовыми порогами KPI. */
-  function buildKpiTileHelpButtonHtml() {
-    return (
-      '<button type="button" class="kpi-tile-help" aria-label="Справка: формула и цветовые пороги показателя" aria-haspopup="dialog" aria-controls="kpi-thresholds-dialog">' +
-      '<span class="kpi-tile-help-icon" aria-hidden="true">?</span>' +
-      "</button>"
-    );
-  }
-
-  /** Верхняя строка плитки: бейдж kpi_id. */
-  function buildKpiTileBadgeRowHtml(tile) {
-    var helpHtml = shouldShowKpiTileHelp(tile) ? buildKpiTileHelpButtonHtml() : "";
-    return (
-      '<div class="kpi-tile-badge-row">' +
-      '<span class="badge">' +
-      DashUi.escapeHtml(tile.badge) +
-      "</span>" +
-      helpHtml +
-      "</div>"
-    );
-  }
-
-  function buildKpiTileGeneratedFlagHtml() {
-    return (
-      '<span class="kpi-tile-generated-flag" title="' +
-      DashUi.escapeHtml(KPI_TILE_MSG_GENERATED_DATA) +
-      '" role="img" aria-label="' +
-      DashUi.escapeHtml(KPI_TILE_MSG_GENERATED_DATA) +
-      '">!</span>'
-    );
-  }
-
-  /** Заголовок плитки, период и опционально подпись периода план/факт. */
-  function buildKpiTileBodyHtml(tile, hasPf, pfPeriod) {
-    var generatedFlag = tile.has_data === false ? buildKpiTileGeneratedFlagHtml() : "";
-    var periodExtra =
-      hasPf && pfPeriod
-        ? '<span class="kpi-tile-plan-fact-period" title="' +
-          DashUi.escapeHtml(KPI_TILE_TITLE_PLAN_FACT_PERIOD) +
-          '">План/факт: ' +
-          DashUi.escapeHtml(pfPeriod) +
-          "</span>"
-        : "";
-    return (
-      '<div class="tile-body">' +
-      '<div class="kpi-tile-title-row">' +
-      "<h3>" +
-      DashUi.escapeHtml(tile.title) +
-      "</h3>" +
-      generatedFlag +
-      "</div>" +
-      '<p class="period">' +
-      DashUi.escapeHtml(tile.period) +
-      periodExtra +
-      "</p></div>"
-    );
-  }
-
-  /** Однострочный блок `план/факт`. */
-  function buildKpiTilePlanFactStackHtml(planShown, factShown) {
-    var pfStackClass = "kpi-tile-pf-stack";
-    return (
-      '<div class="' +
-      pfStackClass +
-      '">' +
-      '<div class="kpi-tile-pf-inline">' +
-      '<div class="kpi-tile-pf-inline-row">' +
-      '<span class="kpi-tile-pf-pill">' +
-      DashUi.escapeHtml(planShown) +
-      '<span class="kpi-tile-pf-slash" aria-hidden="true">/</span>' +
-      DashUi.escapeHtml(factShown) +
-      '</span><span class="kpi-tile-pf-inline-label">План / факт</span></div></div></div>'
-    );
-  }
-
-  function buildKpiTileFactOnlyHtml(factShown) {
-    var pfStackClass = "kpi-tile-pf-stack";
-    return (
-      '<div class="' +
-      pfStackClass +
-      '">' +
-      '<div class="kpi-tile-pf-inline">' +
-      '<div class="kpi-tile-pf-inline-row">' +
-      '<span class="kpi-tile-pf-pill">' +
-      DashUi.escapeHtml(factShown) +
-      '</span><span class="kpi-tile-pf-inline-label">Факт</span></div></div></div>'
-    );
-  }
-
-  /** Нижняя зона лицевой стороны: только план/факт (kpi_pct на лице не показываем). */
-  function buildKpiTileMetricsSectionHtml(tile, hasPf, planShown, factShown) {
-    var rule = getKpiTileException(tile);
-    if (rule && rule.factOnly) {
-      return (
-        '<div class="kpi-tile-metrics kpi-tile-metrics--pf-only" aria-label="Факт">' +
-        buildKpiTileFactOnlyHtml(factShown) +
-        "</div>"
-      );
+    if (typeof DashboardKpiTiles === "undefined" || !DashboardKpiTiles) return false;
+    if (typeof DashboardKpiTiles.shouldRenderKpiTileBackDepartmentsOnly === "function") {
+      return DashboardKpiTiles.shouldRenderKpiTileBackDepartmentsOnly(tile);
     }
-    if (!hasPf) return "";
-    var inner = buildKpiTilePlanFactStackHtml(planShown, factShown);
-    return (
-      '<div class="kpi-tile-metrics kpi-tile-metrics--pf-only" aria-label="' +
-      DashUi.escapeHtml(KPI_TILE_ARIA_METRICS_PF) +
-      '">' +
-      inner +
-      "</div>"
-    );
-  }
-
-  function buildKpiTileFrontFaceHtml(tile, hasPf, planShown, factShown, pfPeriod) {
-    return (
-      '<section class="kpi-tile-face kpi-tile-face--front">' +
-      buildKpiTileBadgeRowHtml(tile) +
-      buildKpiTileBodyHtml(tile, hasPf, pfPeriod) +
-      buildKpiTileMetricsSectionHtml(tile, hasPf, planShown, factShown) +
-      "</section>"
-    );
-  }
-
-  function applyKpiTilesPageVisibility() {
-    var container = document.getElementById("kpi-container");
-    if (!container) return;
-    var articles = container.querySelectorAll("article.kpi-tile");
-    var n = articles.length;
-    if (n <= KPI_TILES_PER_PAGE) {
-      articles.forEach(function (art) {
-        art.classList.remove("kpi-tile--page-hidden");
-      });
-      return;
-    }
-    var start = kpiTilesPageIndex * KPI_TILES_PER_PAGE;
-    var end = start + KPI_TILES_PER_PAGE;
-    articles.forEach(function (art, idx) {
-      art.classList.toggle("kpi-tile--page-hidden", idx < start || idx >= end);
-    });
+    return false;
   }
 
   function updateKpiTilesPagerUI() {
-    var container = document.getElementById("kpi-container");
-    var pager = document.getElementById("kpi-tiles-pager");
-    var prevBtn = document.getElementById("kpi-tiles-page-prev");
-    var nextBtn = document.getElementById("kpi-tiles-page-next");
-    var label = document.getElementById("kpi-tiles-page-label");
-    var nDom = container ? container.querySelectorAll("article.kpi-tile").length : 0;
-    var n = nDom > 0 ? nDom : lastKpiTiles ? lastKpiTiles.length : 0;
-    if (!pager) return;
-    /* Переключатель только если плиток больше 6 (ровно 6 — без пейджера) */
-    if (n <= KPI_TILES_PER_PAGE) {
-      kpiTilesPageIndex = 0;
-      applyKpiTilesPageVisibility();
-      pager.setAttribute("hidden", "");
-      pager.hidden = true;
-      if (prevBtn) prevBtn.disabled = true;
-      if (nextBtn) nextBtn.disabled = true;
-      if (label) label.textContent = "";
-      return;
+    if (typeof DashboardKpiTiles === "undefined" || !DashboardKpiTiles) return;
+    if (typeof DashboardKpiTiles.updatePagerUI === "function") {
+      DashboardKpiTiles.updatePagerUI({
+        tiles: lastKpiTiles,
+      });
     }
-    var pages = Math.ceil(n / KPI_TILES_PER_PAGE);
-    kpiTilesPageIndex = Math.min(Math.max(0, kpiTilesPageIndex), pages - 1);
-    applyKpiTilesPageVisibility();
-    pager.removeAttribute("hidden");
-    pager.hidden = false;
-    if (label) label.textContent = kpiTilesPageIndex + 1 + " / " + pages;
-    if (prevBtn) prevBtn.disabled = kpiTilesPageIndex <= 0;
-    if (nextBtn) nextBtn.disabled = kpiTilesPageIndex >= pages - 1;
   }
 
   /**
@@ -1728,68 +1477,21 @@
    */
   function renderKpiTiles(tiles) {
     lastKpiTiles = tiles && tiles.length ? tiles : null;
-    const container = document.getElementById("kpi-container");
-    container.innerHTML = "";
     flippedTileIndices.clear();
     kpiTileDetailsState = Object.create(null);
-    var focusRef = pendingKpiTileFocus;
-    var focusApplied = false;
-    tiles.forEach(function (tile, i) {
-      const el = document.createElement("article");
-      var pres = MockData.getKpiTilePresentation(tile);
-      var rule = getKpiTileException(tile);
-      var frontAccentColor = rule && rule.frontAccentColor ? String(rule.frontAccentColor).trim() : "";
-      el.className = "kpi-tile";
-      el.style.setProperty("--tile-rag-color", pres.fillColor);
-      el.style.setProperty("--tile-front-accent-color", frontAccentColor || pres.fillColor);
-      el.style.setProperty(
-        "--tile-top-border-color",
-        frontAccentColor || (rule && rule.headerColor === "dashboard" ? "var(--navy)" : pres.fillColor)
-      );
-      el.setAttribute("tabindex", "0");
-      el.setAttribute("aria-expanded", "false");
-      if (!shouldRenderKpiTileBack(tile)) {
-        el.setAttribute("data-no-flip", "1");
-      }
-      if (focusRef && !focusApplied && tileMatchesFocusTarget(tile, focusRef)) {
-        el.classList.add("kpi-tile--focus");
-        el.setAttribute("aria-current", "true");
-        focusApplied = true;
-      }
-      var hasPf = DashUi.kpiTileHasPlanAndFact(tile);
-      var planShown = DashUi.formatKpiTilePlanFactValue(tile.plan);
-      var factShown = DashUi.formatKpiTilePlanFactValue(tile.fact);
-      var pfPeriod =
-        tile.plan_fact_period_label != null
-          ? String(tile.plan_fact_period_label).trim()
-          : "";
-      el.setAttribute("data-kpi-tile-index", String(i));
-      if (!hasPf) {
-        el.classList.add("kpi-tile--pct-only");
-      }
-      el.innerHTML =
-        '<div class="kpi-tile-inner">' +
-        buildKpiTileFrontFaceHtml(tile, hasPf, planShown, factShown, pfPeriod) +
-        '<section class="kpi-tile-face kpi-tile-face--back"></section>' +
-        "</div>";
-      container.appendChild(el);
-    });
-    if (focusRef) {
-      pendingKpiTileFocus = null;
-      if (focusApplied) {
-        var focusedEl = container.querySelector("article.kpi-tile--focus");
-        DashUi.scrollElementIntoViewCentered(focusedEl);
-        if (focusedEl) {
-          setTimeout(function () {
-            focusedEl.classList.remove("kpi-tile--focus");
-            focusedEl.removeAttribute("aria-current");
-          }, 4000);
-        }
-      }
-    }
-    kpiTilesPageIndex = 0;
     donutChartsPageIndex = 0;
-    updateKpiTilesPagerUI();
+    if (typeof DashboardKpiTiles === "undefined" || !DashboardKpiTiles) return;
+    if (typeof DashboardKpiTiles.render === "function") {
+      DashboardKpiTiles.render({
+        tiles: lastKpiTiles,
+        flippedTileIndices: flippedTileIndices,
+        pendingFocus: pendingKpiTileFocus,
+        matchFocusTarget: tileMatchesFocusTarget,
+        clearPendingFocus: function () {
+          pendingKpiTileFocus = null;
+        },
+      });
+    }
   }
 
   /* ---------- Таблицы дашборда ---------- */
