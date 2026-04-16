@@ -745,7 +745,7 @@
 
 .table-panel .claims-table-top {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: space-between;
   align-items: center;
   gap: 10px 16px;
@@ -778,6 +778,175 @@
 .table-panel .claims-table-top .dataTables_length,
 .table-panel .claims-table-top .dataTables_filter {
   margin-bottom: 0;
+}
+
+.table-panel .claims-table-top .dataTables_filter.claims-table-search-host {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-left: auto;
+}
+
+.claims-table-search {
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px 10px;
+  width: auto;
+  margin-left: auto;
+}
+
+.claims-table-search-fields {
+  position: relative;
+  flex: 0 0 210px;
+}
+
+.claims-table-search-fields-toggle {
+  width: 100%;
+  min-height: 36px;
+  border: 1px solid #d7e0ec;
+  border-radius: 8px;
+  padding: 7px 12px;
+  background: #fff;
+  color: #334155;
+  font: inherit;
+  font-size: 0.84rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.claims-table-search-fields-toggle:hover,
+.claims-table-search-fields-toggle:focus-visible {
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 2px rgba(29, 78, 216, 0.12);
+  outline: none;
+}
+
+.claims-table-search-fields-toggle-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.claims-table-search-fields-toggle-icon {
+  flex: 0 0 auto;
+  color: #64748b;
+}
+
+.claims-table-search-fields-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 110;
+  width: min(320px, calc(100vw - 48px));
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 12px;
+  border: 1px solid #c5d0e4;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
+}
+
+.claims-table-search-fields-title {
+  margin: 0 0 8px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--text);
+  text-align: left;
+}
+
+.claims-table-search-fields-options {
+  display: grid;
+  gap: 6px;
+}
+
+.claims-table-search-field-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 0.82rem;
+  color: var(--text);
+  text-align: left;
+  line-height: 1.3;
+}
+
+.claims-table-search-field-check input {
+  margin: 2px 0 0;
+  flex: 0 0 auto;
+}
+
+.claims-table-search-inputs {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+
+.table-panel .claims-table-search-text,
+.table-panel .claims-table-search-date {
+  min-height: 36px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 0.84rem;
+  outline: none;
+  background: #fff;
+}
+
+.table-panel .claims-table-search-text {
+  flex: 0 0 160px;
+  min-width: 160px;
+  max-width: 160px;
+}
+
+.table-panel .claims-table-search-date {
+  flex: 0 0 170px;
+}
+
+.table-panel .claims-table-search-text:focus,
+.table-panel .claims-table-search-date:focus {
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 2px rgba(29, 78, 216, 0.15);
+}
+
+.table-panel .claims-table-search-text:disabled,
+.table-panel .claims-table-search-date:disabled {
+  background: #f8fafc;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+.claims-table-search-reset {
+  min-height: 36px;
+  border: 1px solid #d7e0ec;
+  border-radius: 8px;
+  padding: 6px 12px;
+  background: #fff;
+  color: #334155;
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.claims-table-search-reset:hover,
+.claims-table-search-reset:focus-visible {
+  border-color: var(--accent-blue);
+  background: #eef3fb;
+  outline: none;
+}
+
+.claims-table-search-reset:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .table-panel .dataTables_wrapper .dataTables_info,
@@ -849,6 +1018,20 @@
   .line-chart-metric-select {
     width: 100%;
     min-width: 0;
+  }
+
+  .claims-table-search,
+  .claims-table-search-inputs {
+    justify-content: stretch;
+  }
+
+  .claims-table-search-fields,
+  .table-panel .claims-table-search-text,
+  .table-panel .claims-table-search-date,
+  .claims-table-search-reset {
+    width: 100%;
+    min-width: 0;
+    flex-basis: 100%;
   }
 
   .tables-row {

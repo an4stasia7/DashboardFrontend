@@ -1913,6 +1913,35 @@
     return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   }
 
+  function normalizeClaimsSearchText(value) {
+    return String(value == null ? "" : value)
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLocaleLowerCase("ru-RU");
+  }
+
+  function normalizeClaimsSearchDate(value) {
+    var s = String(value == null ? "" : value).trim();
+    if (!s || s === "—") return "";
+
+    var match = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) return match[1] + "-" + match[2] + "-" + match[3];
+
+    match = s.match(/^(\d{2})[./-](\d{2})[./-](\d{4})$/);
+    if (match) return match[3] + "-" + match[2] + "-" + match[1];
+
+    match = s.match(/^(\d{4})[./-](\d{2})[./-](\d{2})$/);
+    if (match) return match[1] + "-" + match[2] + "-" + match[3];
+
+    var parsed = new Date(s);
+    if (isNaN(parsed.getTime())) return "";
+
+    var year = parsed.getFullYear();
+    var month = String(parsed.getMonth() + 1).padStart(2, "0");
+    var day = String(parsed.getDate()).padStart(2, "0");
+    return year + "-" + month + "-" + day;
+  }
+
   function initClaimsDataTable() {
     if (typeof $ === "undefined" || !$.fn || !$.fn.DataTable) return;
     var table = $("#table-top-deviations");
@@ -1927,17 +1956,17 @@
     }
 
     var columnConfigs = [
-      { index: 0, label: "Код", type: "filter" },
-      { index: 1, label: "Наименование", type: "filter" },
-      { index: 2, label: "Партнер/Клиент", type: "filter" },
-      { index: 3, label: "Дата обращения", type: "sort" },
-      { index: 4, label: "Дата окончания", type: "sort" },
-      { index: 5, label: "Заказ клиента", type: "filter" },
-      { index: 6, label: "Подразделение заказа", type: "filter" },
-      { index: 7, label: "Номенклатура", type: "filter" },
-      { index: 8, label: "Описание претензии", type: "none" },
-      { index: 9, label: "Статус", type: "filter" },
-      { index: 10, label: "Сумма документа заказа, руб.", type: "sort" },
+      { index: 0, label: "Код", type: "filter", searchType: "text" },
+      { index: 1, label: "Наименование", type: "filter", searchType: "text" },
+      { index: 2, label: "Партнер/Клиент", type: "filter", searchType: "text" },
+      { index: 3, label: "Дата обращения", type: "sort", searchType: "date" },
+      { index: 4, label: "Дата окончания", type: "sort", searchType: "date" },
+      { index: 5, label: "Заказ клиента", type: "filter", searchType: "text" },
+      { index: 6, label: "Подразделение заказа", type: "filter", searchType: "text" },
+      { index: 7, label: "Номенклатура", type: "filter", searchType: "text" },
+      { index: 8, label: "Описание претензии", type: "none", searchType: "text" },
+      { index: 9, label: "Статус", type: "filter", searchType: "text" },
+      { index: 10, label: "Сумма документа заказа, руб.", type: "sort", searchType: "text" },
     ];
 
     var dataTable = table.DataTable({
@@ -1974,6 +2003,247 @@
     });
 
     updateClaimsTotalRow(dataTable);
+
+    var searchFieldConfigs = columnConfigs.filter(function (config) {
+      return !!config.searchType;
+    });
+    var claimsSearchState = {
+      fields: [],
+      text: "",
+      date: "",
+    };
+    var claimsAdvancedSearchKey = "claims-table-advanced";
+    if ($.fn.dataTable && $.fn.dataTable.ext && Array.isArray($.fn.dataTable.ext.search)) {
+      for (var extIdx = $.fn.dataTable.ext.search.length - 1; extIdx >= 0; extIdx--) {
+        var extSearchFn = $.fn.dataTable.ext.search[extIdx];
+        if (extSearchFn && extSearchFn._claimsAdvancedSearchKey === claimsAdvancedSearchKey) {
+          $.fn.dataTable.ext.search.splice(extIdx, 1);
+        }
+      }
+    }
+
+    function getClaimsSearchFieldsByType(type) {
+      return searchFieldConfigs.filter(function (config) {
+        return claimsSearchState.fields.indexOf(config.index) !== -1 && config.searchType === type;
+      });
+    }
+
+    function rowMatchesClaimsSearchText(rowData, fields, query, searchAllColumns) {
+      if (!query) return true;
+      if (searchAllColumns) {
+        for (var rowIndex = 0; rowIndex < rowData.length; rowIndex++) {
+          var rowValue = normalizeClaimsSearchText(rowData[rowIndex]);
+          if (rowValue && rowValue.indexOf(query) !== -1) return true;
+        }
+        return false;
+      }
+      if (!fields.length) return true;
+      for (var fieldIdx = 0; fieldIdx < fields.length; fieldIdx++) {
+        var field = fields[fieldIdx];
+        var value = normalizeClaimsSearchText(rowData[field.index]);
+        if (value && value.indexOf(query) !== -1) return true;
+      }
+      return false;
+    }
+
+    function rowMatchesClaimsSearchDate(rowData, fields, dateValue) {
+      if (!fields.length || !dateValue) return true;
+      for (var fieldIdx = 0; fieldIdx < fields.length; fieldIdx++) {
+        var field = fields[fieldIdx];
+        if (normalizeClaimsSearchDate(rowData[field.index]) === dateValue) return true;
+      }
+      return false;
+    }
+
+    var claimsAdvancedSearchFn = function (settings, data) {
+      if (!settings || settings.nTable !== table[0]) return true;
+      var activeTextFields = getClaimsSearchFieldsByType("text");
+      var activeDateFields = getClaimsSearchFieldsByType("date");
+      var textQuery = normalizeClaimsSearchText(claimsSearchState.text);
+      var dateQuery = claimsSearchState.date;
+      return rowMatchesClaimsSearchText(data, activeTextFields, textQuery, !claimsSearchState.fields.length) &&
+        rowMatchesClaimsSearchDate(data, activeDateFields, dateQuery);
+    };
+    claimsAdvancedSearchFn._claimsAdvancedSearchKey = claimsAdvancedSearchKey;
+    $.fn.dataTable.ext.search.push(claimsAdvancedSearchFn);
+
+    function buildClaimsAdvancedSearch() {
+      if (!wrapper.length) return;
+      var topBar = wrapper.find(".claims-table-top");
+      if (!topBar.length) return;
+      var filterHost = topBar.find(".dataTables_filter");
+      if (!filterHost.length) return;
+
+      filterHost.empty();
+      filterHost.attr("role", "search");
+      filterHost.addClass("claims-table-search-host");
+
+      var searchWrap = document.createElement("div");
+      searchWrap.className = "claims-table-search";
+
+      var fieldsWrap = document.createElement("div");
+      fieldsWrap.className = "claims-table-search-fields";
+
+      var fieldsToggle = document.createElement("button");
+      fieldsToggle.type = "button";
+      fieldsToggle.className = "claims-table-search-fields-toggle";
+      fieldsToggle.setAttribute("aria-expanded", "false");
+      fieldsToggle.innerHTML =
+        '<span class="claims-table-search-fields-toggle-text">Выберите поля</span>' +
+        '<span class="claims-table-search-fields-toggle-icon" aria-hidden="true">▾</span>';
+
+      var fieldsMenu = document.createElement("div");
+      fieldsMenu.className = "claims-table-search-fields-menu";
+      fieldsMenu.hidden = true;
+
+      var fieldsTitle = document.createElement("p");
+      fieldsTitle.className = "claims-table-search-fields-title";
+      fieldsTitle.textContent = "Поля для поиска";
+      fieldsMenu.appendChild(fieldsTitle);
+
+      var fieldsOptions = document.createElement("div");
+      fieldsOptions.className = "claims-table-search-fields-options";
+      searchFieldConfigs.forEach(function (config) {
+        var optionLabel = document.createElement("label");
+        optionLabel.className = "claims-table-search-field-check";
+
+        var checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.value = String(config.index);
+        checkbox.addEventListener("change", function () {
+          claimsSearchState.fields = Array.from(fieldsOptions.querySelectorAll('input[type="checkbox"]:checked')).map(
+            function (input) {
+              return Number(input.value);
+            }
+          );
+          if (claimsSearchState.fields.length && !getClaimsSearchFieldsByType("text").length) claimsSearchState.text = "";
+          if (claimsSearchState.fields.length && !getClaimsSearchFieldsByType("date").length) claimsSearchState.date = "";
+          updateClaimsAdvancedSearchUi();
+          dataTable.draw();
+        });
+
+        var textSpan = document.createElement("span");
+        textSpan.textContent = config.label;
+
+        optionLabel.appendChild(checkbox);
+        optionLabel.appendChild(textSpan);
+        fieldsOptions.appendChild(optionLabel);
+      });
+      fieldsMenu.appendChild(fieldsOptions);
+      fieldsWrap.appendChild(fieldsToggle);
+      fieldsWrap.appendChild(fieldsMenu);
+
+      var controlsWrap = document.createElement("div");
+      controlsWrap.className = "claims-table-search-inputs";
+
+      var textInput = document.createElement("input");
+      textInput.type = "search";
+      textInput.className = "claims-table-search-text";
+      textInput.placeholder = "Поиск по всем полям";
+      textInput.addEventListener("input", function () {
+        claimsSearchState.text = textInput.value;
+        dataTable.draw();
+      });
+
+      var dateInput = document.createElement("input");
+      dateInput.type = "date";
+      dateInput.className = "claims-table-search-date";
+      dateInput.hidden = true;
+      dateInput.disabled = true;
+      dateInput.addEventListener("change", function () {
+        claimsSearchState.date = dateInput.value;
+        dataTable.draw();
+      });
+
+      var resetBtn = document.createElement("button");
+      resetBtn.type = "button";
+      resetBtn.className = "claims-table-search-reset";
+      resetBtn.textContent = "Сбросить";
+      resetBtn.addEventListener("click", function () {
+        claimsSearchState.fields = [];
+        claimsSearchState.text = "";
+        claimsSearchState.date = "";
+        fieldsOptions.querySelectorAll('input[type="checkbox"]').forEach(function (input) {
+          input.checked = false;
+        });
+        updateClaimsAdvancedSearchUi();
+        dataTable.draw();
+      });
+
+      controlsWrap.appendChild(textInput);
+      controlsWrap.appendChild(dateInput);
+      controlsWrap.appendChild(resetBtn);
+
+      searchWrap.appendChild(fieldsWrap);
+      searchWrap.appendChild(controlsWrap);
+      filterHost[0].appendChild(searchWrap);
+
+      function closeClaimsAdvancedSearchMenu() {
+        fieldsMenu.hidden = true;
+        fieldsToggle.setAttribute("aria-expanded", "false");
+      }
+
+      function updateClaimsAdvancedSearchUi() {
+        var activeTextFields = getClaimsSearchFieldsByType("text");
+        var activeDateFields = getClaimsSearchFieldsByType("date");
+        var buttonText = "Выберите поля";
+        if (claimsSearchState.fields.length === 1) {
+          var selectedConfig = searchFieldConfigs.find(function (config) {
+            return config.index === claimsSearchState.fields[0];
+          });
+          buttonText = selectedConfig ? selectedConfig.label : buttonText;
+        } else if (claimsSearchState.fields.length > 1) {
+          buttonText = "Выбрано полей: " + claimsSearchState.fields.length;
+        }
+
+        fieldsToggle.querySelector(".claims-table-search-fields-toggle-text").textContent = buttonText;
+        fieldsToggle.title = claimsSearchState.fields
+          .map(function (fieldIndex) {
+            var config = searchFieldConfigs.find(function (fieldConfig) {
+              return fieldConfig.index === fieldIndex;
+            });
+            return config ? config.label : "";
+          })
+          .filter(Boolean)
+          .join(", ");
+
+        textInput.value = claimsSearchState.text;
+        textInput.hidden = false;
+        textInput.disabled = claimsSearchState.fields.length > 0 && !activeTextFields.length;
+        textInput.placeholder = "Поиск";
+
+        dateInput.value = claimsSearchState.date;
+        dateInput.hidden = !activeDateFields.length;
+        dateInput.disabled = !activeDateFields.length;
+        dateInput.setAttribute(
+          "aria-label",
+          activeDateFields.length === 1
+            ? "Дата для поиска по полю " + activeDateFields[0].label
+            : "Дата для поиска по выбранным полям"
+        );
+
+        resetBtn.disabled = !claimsSearchState.fields.length && !claimsSearchState.text && !claimsSearchState.date;
+      }
+
+      fieldsToggle.addEventListener("click", function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+        var shouldOpen = fieldsMenu.hidden;
+        closeClaimsAdvancedSearchMenu();
+        fieldsMenu.hidden = !shouldOpen;
+        fieldsToggle.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
+      });
+
+      $(document)
+        .off("click.claimsAdvancedSearchMenu")
+        .on("click.claimsAdvancedSearchMenu", function (event) {
+          if (!searchWrap.contains(event.target)) closeClaimsAdvancedSearchMenu();
+        });
+
+      updateClaimsAdvancedSearchUi();
+    }
+
+    buildClaimsAdvancedSearch();
 
     var activeFilters = {};
     var activeSortColumn = null;
