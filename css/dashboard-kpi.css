@@ -688,6 +688,34 @@ article.kpi-tile[data-no-flip="1"] {
   opacity: 0.95;
 }
 
+.kpi-tile-front-meta,
+.kpi-tile-back-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-top: 10px;
+}
+
+.kpi-tile-meta-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  font-size: 0.84rem;
+  line-height: 1.35;
+}
+
+.kpi-tile-meta-label {
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.kpi-tile-meta-value {
+  color: var(--text);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
 .kpi-plan-fact {
   margin-top: 4px;
   padding-top: 12px;
@@ -772,6 +800,10 @@ article.kpi-tile[data-no-flip="1"] {
   font-size: 0.8rem;
   color: var(--muted);
   line-height: 1.4;
+}
+
+.kpi-tile-back-meta {
+  margin-top: 8px;
 }
 
 .kpi-tile-flip-action {

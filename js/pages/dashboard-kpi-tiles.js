@@ -129,7 +129,8 @@
       '<p class="period">' +
       DashUi.escapeHtml(tile.period) +
       periodExtra +
-      "</p></div>"
+      "</p>" +
+      "</div>"
     );
   }
 
@@ -241,6 +242,11 @@
     if (shouldRenderKpiTileBackDepartmentsOnly(tile)) {
       return (
         '<div class="kpi-tile-back-section kpi-tile-back-section--only">' +
+        (code ? '<span class="kpi-tile-back-badge">' + DashUi.escapeHtml(code) + "</span>" : "") +
+        '<h3 class="kpi-tile-back-title">' +
+        DashUi.escapeHtml(tile && tile.title ? tile.title : "Показатель") +
+        "</h3>" +
+        (period ? '<p class="kpi-tile-back-period">' + DashUi.escapeHtml(period) + "</p>" : "") +
         '<div class="kpi-tile-back-section-title">Информация по отделам</div>' +
         buildKpiTileChildrenHtml(state) +
         "</div>"
