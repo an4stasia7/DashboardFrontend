@@ -237,7 +237,19 @@
 
       </div><!-- /.dash-content -->
 
-          <section class="table-panel" id="debug-kpi-json-section" style="margin-top:24px">
+          <div class="debug-toggle-row">
+            <button
+              type="button"
+              id="debug-kpi-json-toggle"
+              class="debug-toggle-link"
+              aria-expanded="false"
+              aria-controls="debug-kpi-json-section"
+            >
+              Для разработчика
+            </button>
+          </div>
+
+          <section class="table-panel" id="debug-kpi-json-section" style="margin-top:24px" hidden>
             <h2>DEBUG: все JSON-ответы API</h2>
             <p class="debug-json-log-hint">Журнал запросов: вход (POST login), KPI (GET /api/kpi/, /api/kpi/all/), подчинённые (GET immediate-subordinates). Новые записи сверху.</p>
             <div id="debug-kpi-json" class="debug-kpi-json-panel"></div>

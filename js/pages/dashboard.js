@@ -72,6 +72,8 @@
   var kpiHelpPopoverEl = document.getElementById("kpi-help-popover");
   var claimsTableHelpBtnEl = document.getElementById("claims-table-help-btn");
   var claimsTableHelpPopoverEl = document.getElementById("claims-table-help-popover");
+  var debugJsonToggleBtnEl = document.getElementById("debug-kpi-json-toggle");
+  var debugJsonSectionEl = document.getElementById("debug-kpi-json-section");
   var dashSidebarBackBtnEl = document.getElementById("dash-sidebar-back-btn");
   var dashSidebarSearchInputEl = document.getElementById("dash-sidebar-search-input");
   var dashSidebarSearchEmptyEl = document.getElementById("dash-sidebar-search-empty");
@@ -263,6 +265,21 @@
         }
       });
     }
+  })();
+
+  function setDebugJsonSectionExpanded(expanded) {
+    if (!debugJsonToggleBtnEl || !debugJsonSectionEl) return;
+    debugJsonSectionEl.hidden = !expanded;
+    debugJsonToggleBtnEl.setAttribute("aria-expanded", expanded ? "true" : "false");
+    debugJsonToggleBtnEl.textContent = expanded ? "Скрыть блок для разработчика" : "Для разработчика";
+  }
+
+  (function initDebugJsonToggle() {
+    if (!debugJsonToggleBtnEl || !debugJsonSectionEl) return;
+    setDebugJsonSectionExpanded(false);
+    debugJsonToggleBtnEl.addEventListener("click", function () {
+      setDebugJsonSectionExpanded(debugJsonSectionEl.hidden);
+    });
   })();
 
   (function initKpiTilesPager() {

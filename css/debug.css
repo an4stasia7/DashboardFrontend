@@ -1,4 +1,28 @@
 /* DEBUG: журнал всех JSON-ответов API */
+.debug-toggle-row {
+  margin-top: 12px;
+  text-align: center;
+}
+
+.debug-toggle-link {
+  appearance: none;
+  border: none;
+  background: transparent;
+  padding: 0;
+  color: #64748b;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.debug-toggle-link:hover,
+.debug-toggle-link:focus-visible {
+  color: #334155;
+  outline: none;
+}
+
 .debug-kpi-json-panel {
   background: #1e293b;
   color: #e2e8f0;
