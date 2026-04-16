@@ -1950,7 +1950,7 @@
         { targets: [3, 4], orderable: true },
         { targets: [10], type: "num-fmt", orderable: true },
       ],
-      dom: '<"claims-table-top"lf>rt<"claims-table-bottom"ip>',
+      dom: '<"claims-table-top"lf><"claims-table-scroll"rt><"claims-table-bottom"ip>',
       footerCallback: function () {
         updateClaimsTotalRow(this.api());
       },

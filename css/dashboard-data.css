@@ -295,8 +295,7 @@
 }
 
 .dashboard-table-wrap--claims {
-  overflow-x: auto;
-  overflow-y: visible;
+  overflow: visible;
 }
 
 .claims-column-head {
@@ -753,6 +752,29 @@
   padding: 14px 22px 10px;
 }
 
+.table-panel .dashboard-table-wrap--claims .dataTables_wrapper {
+  position: relative;
+}
+
+.table-panel .dashboard-table-wrap--claims .claims-table-scroll {
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
+.table-panel .dashboard-table-wrap--claims .claims-table-top,
+.table-panel .dashboard-table-wrap--claims .claims-table-bottom {
+  position: sticky;
+  left: 0;
+  background: rgba(255, 255, 255, 0.96);
+  z-index: 6;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+}
+
+.table-panel .dashboard-table-wrap--claims .claims-table-top {
+  top: 12px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
 .table-panel .claims-table-top .dataTables_length,
 .table-panel .claims-table-top .dataTables_filter {
   margin-bottom: 0;
@@ -772,6 +794,11 @@
   align-items: center;
   gap: 10px 16px;
   padding: 14px 22px 18px;
+}
+
+.table-panel .dashboard-table-wrap--claims .claims-table-bottom {
+  bottom: 12px;
+  border-top: 1px solid #e2e8f0;
 }
 
 .table-panel .claims-table-bottom .dataTables_info,
