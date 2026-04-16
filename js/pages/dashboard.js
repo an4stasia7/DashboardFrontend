@@ -58,12 +58,8 @@
   /** Подпись в шапке из поля department последнего успешного ответа KPI (json) */
   var lastKpiResponseDepartment = null;
 
-  /** Плитка, для которой последний раз открывали drilldown (резерв; при переходе по детям берётся плитка клика) */
-  var drilldownContextTile = null;
   /** Индексы перевёрнутых KPI-карточек (можно держать открытыми несколько) */
   var flippedTileIndices = new Set();
-  /** Состояние загрузки дочерних отделов на обороте карточек */
-  var kpiTileDetailsState = Object.create(null);
   /** После перехода из drilldown — подсветить соответствующую плитку на новом виде */
   var pendingKpiTileFocus = null;
   /** Hover/focus popover для кнопки `?` */
@@ -81,9 +77,6 @@
   var sidebarSearchError = "";
   var sidebarSearchResults = [];
 
-  /** Пагинация плиток KPI: не более 6 на экране (3 колонки × 2 ряда) */
-  var KPI_TILES_PER_PAGE = 6;
-  var kpiTilesPageIndex = 0;
   var DONUT_CHARTS_PER_PAGE = 6;
   var donutChartsPageIndex = 0;
 
@@ -288,6 +281,56 @@
         flippedTileIndices: flippedTileIndices,
         getTileDetailsState: getKpiTileDetailsState,
         onBeforePageChange: closeKpiTileDrilldown,
+      });
+    }
+  })();
+
+  (function initKpiDrilldownModule() {
+    if (typeof DashboardKpiDrilldown === "undefined" || !DashboardKpiDrilldown) return;
+    if (typeof DashboardKpiDrilldown.bindLegacyPanel === "function") {
+      DashboardKpiDrilldown.bindLegacyPanel({
+        getTiles: function () {
+          return lastKpiTiles;
+        },
+        getFlippedTileIndices: function () {
+          return flippedTileIndices;
+        },
+        getDepartmentForCurrentKpiContext: getDepartmentForCurrentKpiContext,
+        hideKpiHelpPopover: hideKpiHelpPopover,
+        syncKpiTileFlipState: syncKpiTileFlipState,
+        renderKpiTileBackFace: renderKpiTileBackFace,
+        shouldRenderKpiTileBack: shouldRenderKpiTileBack,
+        setPendingFocus: function (value) {
+          pendingKpiTileFocus = value;
+        },
+        goToDepartmentDashboard: function (deptName) {
+          hierarchyStack = hierarchyStack.concat([deptName]);
+          selectedViewId = "dept:" + encodeURIComponent(deptName);
+          viewContextUser = sessionUser;
+          if (session.apiMode === "mock") {
+            renderViewTabs();
+            updateTopBarForView();
+            loadKpiTilesAndChartsForView();
+            return;
+          }
+          refreshSubordinateTabsFromApi().then(function () {
+            updateTopBarForView();
+            loadKpiTilesAndChartsForView();
+          });
+        },
+        loadDrilldownTilesForDept: loadDrilldownTilesForDept,
+        mapWithConcurrencyLimit: mapWithConcurrencyLimit,
+        onUnauthorized: function () {
+          Auth.logout();
+          window.location.href = "login.html";
+        },
+        getSessionApiMode: function () {
+          return session.apiMode;
+        },
+        getSessionUserDepartment: function () {
+          return sessionUser.department != null ? String(sessionUser.department).trim() : "";
+        },
+        findMatchingTileAmongChildren: findMatchingTileAmongChildren,
       });
     }
   })();
@@ -665,97 +708,26 @@
     return pct == null ? "—" : MockData.formatKpiPercentLabel(pct) + "%";
   }
 
-  /**
-   * Строка таблицы drilldown: отдел, подпись %, RAG; `isCurrentContext` — текущий узел иерархии.
-   * @param {string} deptName
-   * @param {object|null} tile
-   * @param {boolean} isCurrentContext
-   */
-  function drillRowFromTile(deptName, tile, isCurrentContext) {
-    var label = deptName != null ? String(deptName).trim() : "—";
-    if (!tile) {
-      return {
-        department: label,
-        kpiPct: "—",
-        rag: "blue",
-        isCurrentContext: !!isCurrentContext,
-        focus_kpi_id: "",
-        focus_title: "",
-      };
-    }
-    var pres = MockData.getKpiTilePresentation(tile);
-    var pct =
-      tile.kpi_pct != null && typeof tile.kpi_pct === "number" && !isNaN(tile.kpi_pct)
-        ? tile.kpi_pct
-        : tile.kpi_pst != null && typeof tile.kpi_pst === "number" && !isNaN(tile.kpi_pst)
-          ? tile.kpi_pst
-          : pres.percent;
-    var pctLabel = MockData.formatKpiPercentLabel(pct) + "%";
-    return {
-      department: label,
-      kpiPct: pctLabel,
-      rag: pres.rag || "blue",
-      isCurrentContext: !!isCurrentContext,
-      focus_kpi_id: tile.kpi_id != null ? String(tile.kpi_id).trim() : "",
-      focus_title: tile.title != null ? String(tile.title).trim() : "",
-    };
-  }
-
-  /** Строка дочернего отдела без реального KPI (прочерк) — не показываем в списке. */
-  function drillRowHasNoKpiValue(row) {
-    if (!row || row.kpiPct == null) return true;
-    return String(row.kpiPct).indexOf("—") !== -1;
-  }
-
-  /**
-   * Собирает строки drilldown только по дочерним отделам (без пустых / без KPI).
-   * @param {{ name: string, tiles: object[] }[]} results
-   * @param {object} clicked
-   */
-  function buildDrilldownRowsForChildrenOnly(results, clicked) {
-    var rows = [];
-    (results || []).forEach(function (item) {
-      if (!item || !item.name) return;
-      var matched = findMatchingTileAmongChildren(item.tiles || [], clicked);
-      if (!matched) return;
-      var childRow = drillRowFromTile(item.name, matched, false);
-      if (drillRowHasNoKpiValue(childRow)) return;
-      rows.push(childRow);
-    });
-    return rows;
-  }
-
   /* ---------- KPI-card drilldown: flip-card с детьми; пороги — в модалке по «?» ---------- */
 
-  function drilldownRagSortWeight(rag) {
-    var key = rag != null ? String(rag).toLowerCase().trim() : "";
-    if (key === "red") return 0;
-    if (key === "yellow") return 1;
-    if (key === "green") return 2;
-    if (key === "blue") return 3;
-    return 4;
-  }
-
-  function sortDrilldownRows(rows) {
-    return (rows || []).slice().sort(function (a, b) {
-      var ragDiff = drilldownRagSortWeight(a && a.rag) - drilldownRagSortWeight(b && b.rag);
-      if (ragDiff !== 0) return ragDiff;
-      var aName = a && a.department ? String(a.department).toLowerCase() : "";
-      var bName = b && b.department ? String(b.department).toLowerCase() : "";
-      return aName.localeCompare(bName, "ru");
-    });
-  }
-
   function getKpiTileDetailsState(tileIndex) {
-    if (!kpiTileDetailsState[tileIndex]) {
-      kpiTileDetailsState[tileIndex] = {
+    if (typeof DashboardKpiDrilldown === "undefined" || !DashboardKpiDrilldown) {
+      return {
         loading: false,
         loaded: false,
         rows: [],
         hint: "",
       };
     }
-    return kpiTileDetailsState[tileIndex];
+    if (typeof DashboardKpiDrilldown.getKpiTileDetailsState === "function") {
+      return DashboardKpiDrilldown.getKpiTileDetailsState(tileIndex);
+    }
+    return {
+      loading: false,
+      loaded: false,
+      rows: [],
+      hint: "",
+    };
   }
 
   function hideKpiHelpPopover() {
@@ -1084,12 +1056,16 @@
 
   /** Скрывает drilldown на карточке и legacy-панель, если она ещё есть в DOM. */
   function closeKpiTileDrilldown() {
-    drilldownContextTile = null;
-    flippedTileIndices.clear();
-    hideKpiHelpPopover();
-    var panel = document.getElementById("kpi-tile-drilldown");
-    if (panel) panel.hidden = true;
-    syncKpiTileFlipState();
+    if (typeof DashboardKpiDrilldown === "undefined" || !DashboardKpiDrilldown) return;
+    if (typeof DashboardKpiDrilldown.close === "function") {
+      DashboardKpiDrilldown.close({
+        getFlippedTileIndices: function () {
+          return flippedTileIndices;
+        },
+        hideKpiHelpPopover: hideKpiHelpPopover,
+        syncKpiTileFlipState: syncKpiTileFlipState,
+      });
+    }
   }
 
   function positionKpiDrilldownPanel() {}
@@ -1100,148 +1076,72 @@
    * @param {object|null|undefined} [contextTile] — плитка, с оборота которой кликнули дочерний отдел (если несколько открыты)
    */
   function navigateDashboardToDepartmentFromDrill(deptName, contextTile, focusTarget) {
-    var d = deptName != null ? String(deptName).trim() : "";
-    if (!d) return;
-    var ctx = getDepartmentForCurrentKpiContext();
-    if (d === ctx) {
-      closeKpiTileDrilldown();
-      return;
-    }
-    var explicitFocus =
-      focusTarget && (focusTarget.kpi_id || focusTarget.title)
-        ? {
-            kpi_id: focusTarget.kpi_id != null ? String(focusTarget.kpi_id).trim() : "",
-            title: focusTarget.title != null ? String(focusTarget.title).trim() : "",
+    if (typeof DashboardKpiDrilldown === "undefined" || !DashboardKpiDrilldown) return;
+    if (typeof DashboardKpiDrilldown.navigateToDepartmentFromDrill === "function") {
+      DashboardKpiDrilldown.navigateToDepartmentFromDrill(deptName, contextTile, focusTarget, {
+        getTiles: function () {
+          return lastKpiTiles;
+        },
+        getFlippedTileIndices: function () {
+          return flippedTileIndices;
+        },
+        getDepartmentForCurrentKpiContext: getDepartmentForCurrentKpiContext,
+        hideKpiHelpPopover: hideKpiHelpPopover,
+        syncKpiTileFlipState: syncKpiTileFlipState,
+        renderKpiTileBackFace: renderKpiTileBackFace,
+        shouldRenderKpiTileBack: shouldRenderKpiTileBack,
+        setPendingFocus: function (value) {
+          pendingKpiTileFocus = value;
+        },
+        goToDepartmentDashboard: function (deptNameValue) {
+          hierarchyStack = hierarchyStack.concat([deptNameValue]);
+          selectedViewId = "dept:" + encodeURIComponent(deptNameValue);
+          viewContextUser = sessionUser;
+          if (session.apiMode === "mock") {
+            renderViewTabs();
+            updateTopBarForView();
+            loadKpiTilesAndChartsForView();
+            return;
           }
-        : null;
-    var focusTile = contextTile || drilldownContextTile;
-    if (explicitFocus) {
-      pendingKpiTileFocus = explicitFocus;
-    } else if (focusTile) {
-      pendingKpiTileFocus = {
-        kpi_id: focusTile.kpi_id != null ? String(focusTile.kpi_id) : "",
-        title: focusTile.title != null ? String(focusTile.title) : "",
-      };
+          refreshSubordinateTabsFromApi().then(function () {
+            updateTopBarForView();
+            loadKpiTilesAndChartsForView();
+          });
+        },
+      });
     }
-    hierarchyStack = hierarchyStack.concat([d]);
-    selectedViewId = "dept:" + encodeURIComponent(d);
-    viewContextUser = sessionUser;
-    closeKpiTileDrilldown();
-    if (session.apiMode === "mock") {
-      renderViewTabs();
-      updateTopBarForView();
-      loadKpiTilesAndChartsForView();
-      return;
-    }
-    refreshSubordinateTabsFromApi().then(function () {
-      updateTopBarForView();
-      loadKpiTilesAndChartsForView();
-    });
   }
 
   function loadKpiTileDrilldownData(tileIndex) {
-    if (!lastKpiTiles || !lastKpiTiles[tileIndex]) return;
-    var clicked = lastKpiTiles[tileIndex];
-    var state = getKpiTileDetailsState(tileIndex);
-    if (state.loading || state.loaded) return;
-    var parentDept = getDepartmentForCurrentKpiContext();
-    state.loading = true;
-    state.loaded = false;
-    state.rows = [];
-    state.hint = "";
-    renderKpiTileBackFace(
-      document.querySelector(
-        '#kpi-container article.kpi-tile[data-kpi-tile-index="' + String(tileIndex) + '"]'
-      ),
-      tileIndex
-    );
-    if (session.apiMode === "mock" || typeof Api === "undefined" || !Api.fetchImmediateSubordinates) {
-      state.loading = false;
-      state.loaded = true;
-      state.hint =
-        "Список дочерних отделов доступен в режиме API. В mock-режиме показана только информация по самой карточке.";
-      renderKpiTileBackFace(
-        document.querySelector(
-          '#kpi-container article.kpi-tile[data-kpi-tile-index="' + String(tileIndex) + '"]'
-        ),
-        tileIndex
-      );
-      return;
-    }
-    if (!parentDept) {
-      state.loading = false;
-      state.loaded = true;
-      state.hint = "В профиле не указано подразделение, поэтому список дочерних отделов недоступен.";
-      renderKpiTileBackFace(
-        document.querySelector(
-          '#kpi-container article.kpi-tile[data-kpi-tile-index="' + String(tileIndex) + '"]'
-        ),
-        tileIndex
-      );
-      return;
-    }
-    Api.fetchImmediateSubordinates({ department: parentDept })
-      .then(function (r) {
-        if (r.unauthorized) {
+    if (typeof DashboardKpiDrilldown === "undefined" || !DashboardKpiDrilldown) return;
+    if (typeof DashboardKpiDrilldown.loadKpiTileDrilldownData === "function") {
+      DashboardKpiDrilldown.loadKpiTileDrilldownData(tileIndex, {
+        getTiles: function () {
+          return lastKpiTiles;
+        },
+        getFlippedTileIndices: function () {
+          return flippedTileIndices;
+        },
+        getDepartmentForCurrentKpiContext: getDepartmentForCurrentKpiContext,
+        hideKpiHelpPopover: hideKpiHelpPopover,
+        syncKpiTileFlipState: syncKpiTileFlipState,
+        renderKpiTileBackFace: renderKpiTileBackFace,
+        shouldRenderKpiTileBack: shouldRenderKpiTileBack,
+        loadDrilldownTilesForDept: loadDrilldownTilesForDept,
+        mapWithConcurrencyLimit: mapWithConcurrencyLimit,
+        onUnauthorized: function () {
           Auth.logout();
           window.location.href = "login.html";
-          return;
-        }
-        var parentDeptNorm = String(parentDept).trim();
-        var selfDeptNorm =
-          sessionUser.department != null ? String(sessionUser.department).trim() : "";
-        var childrenRaw = r.ok && Array.isArray(r.immediate_children) ? r.immediate_children : [];
-        var children = childrenRaw
-          .map(function (c) {
-            return c != null ? String(c).trim() : "";
-          })
-          .filter(function (n) {
-            return n && n !== parentDeptNorm && n !== selfDeptNorm;
-          });
-        if (!children.length) {
-          state.loading = false;
-          state.loaded = true;
-          state.rows = [];
-          state.hint = childrenRaw.length
-            ? "В ответе API нет других дочерних отделов кроме текущего контекста."
-            : "У этого подразделения нет дочерних отделов в ответе API.";
-          renderKpiTileBackFace(
-            document.querySelector(
-              '#kpi-container article.kpi-tile[data-kpi-tile-index="' + String(tileIndex) + '"]'
-            ),
-            tileIndex
-          );
-          return;
-        }
-        return mapWithConcurrencyLimit(children, DRILLDOWN_FETCH_CONCURRENCY, function (childName) {
-          return loadDrilldownTilesForDept(childName);
-        }).then(function (results) {
-          state.loading = false;
-          state.loaded = true;
-          state.rows = sortDrilldownRows(buildDrilldownRowsForChildrenOnly(results, clicked));
-          state.hint = children.length && state.rows.length === 0
-            ? "Среди дочерних отделов нет данных по этому показателю или KPI не заполнен."
-            : "";
-          renderKpiTileBackFace(
-            document.querySelector(
-              '#kpi-container article.kpi-tile[data-kpi-tile-index="' + String(tileIndex) + '"]'
-            ),
-            tileIndex
-          );
-        });
-      })
-      .catch(function () {
-        state.loading = false;
-        state.loaded = true;
-        state.rows = [];
-        state.hint = "Не удалось загрузить список дочерних отделов.";
-        renderKpiTileBackFace(
-          document.querySelector(
-            '#kpi-container article.kpi-tile[data-kpi-tile-index="' + String(tileIndex) + '"]'
-          ),
-          tileIndex
-        );
+        },
+        getSessionApiMode: function () {
+          return session.apiMode;
+        },
+        getSessionUserDepartment: function () {
+          return sessionUser.department != null ? String(sessionUser.department).trim() : "";
+        },
+        findMatchingTileAmongChildren: findMatchingTileAmongChildren,
       });
+    }
   }
 
   /**
@@ -1249,101 +1149,35 @@
    * @param {number} tileIndex — индекс в `lastKpiTiles` / `data-kpi-tile-index`
    */
   function openKpiTileDrilldown(tileIndex) {
-    if (!lastKpiTiles || !lastKpiTiles[tileIndex]) return;
-    if (!shouldRenderKpiTileBack(lastKpiTiles[tileIndex])) return;
-    if (flippedTileIndices.has(tileIndex)) {
-      flippedTileIndices.delete(tileIndex);
-      if (drilldownContextTile === lastKpiTiles[tileIndex]) {
-        drilldownContextTile = null;
-      }
-      syncKpiTileFlipState();
-      return;
+    if (typeof DashboardKpiDrilldown === "undefined" || !DashboardKpiDrilldown) return;
+    if (typeof DashboardKpiDrilldown.open === "function") {
+      DashboardKpiDrilldown.open(tileIndex, {
+        getTiles: function () {
+          return lastKpiTiles;
+        },
+        getFlippedTileIndices: function () {
+          return flippedTileIndices;
+        },
+        getDepartmentForCurrentKpiContext: getDepartmentForCurrentKpiContext,
+        hideKpiHelpPopover: hideKpiHelpPopover,
+        syncKpiTileFlipState: syncKpiTileFlipState,
+        renderKpiTileBackFace: renderKpiTileBackFace,
+        shouldRenderKpiTileBack: shouldRenderKpiTileBack,
+        loadDrilldownTilesForDept: loadDrilldownTilesForDept,
+        mapWithConcurrencyLimit: mapWithConcurrencyLimit,
+        onUnauthorized: function () {
+          Auth.logout();
+          window.location.href = "login.html";
+        },
+        getSessionApiMode: function () {
+          return session.apiMode;
+        },
+        getSessionUserDepartment: function () {
+          return sessionUser.department != null ? String(sessionUser.department).trim() : "";
+        },
+        findMatchingTileAmongChildren: findMatchingTileAmongChildren,
+      });
     }
-    drilldownContextTile = lastKpiTiles[tileIndex];
-    flippedTileIndices.add(tileIndex);
-    syncKpiTileFlipState();
-    loadKpiTileDrilldownData(tileIndex);
-    DashUi.scrollElementIntoViewCentered(
-      document.querySelector(
-        '#kpi-container article.kpi-tile[data-kpi-tile-index="' + String(tileIndex) + '"]'
-      )
-    );
-  }
-
-  /**
-   * Заполняет tbody drilldown; навигационные строки получают `data-department` и role=link.
-   * @param {object[]} rows
-   * @param {HTMLTableSectionElement} tbody
-   * @param {HTMLTableElement} table
-   */
-  function renderKpiDrilldownTableRows(rows, tbody, table) {
-    tbody.innerHTML = "";
-    rows.forEach(function (r) {
-      var tr = document.createElement("tr");
-      tr.className = "kpi-tile-drilldown-row";
-      if (r.department) tr.setAttribute("data-department", r.department);
-      if (r.focus_kpi_id) tr.setAttribute("data-focus-kpi-id", r.focus_kpi_id);
-      if (r.focus_title) tr.setAttribute("data-focus-title", r.focus_title);
-      if (r.isCurrentContext) tr.setAttribute("data-no-nav", "1");
-      var td1 = document.createElement("td");
-      td1.textContent = DashUi.capitalizeHeaderTitle(r.department);
-      var td2 = document.createElement("td");
-      td2.textContent = r.kpiPct;
-      td2.className = "kpi-tile-drilldown-pct";
-      var td3 = document.createElement("td");
-      var dot = document.createElement("span");
-      dot.className = "rag-dot rag-" + (r.rag || "blue");
-      dot.title = r.rag || "";
-      td3.appendChild(dot);
-      tr.appendChild(td1);
-      tr.appendChild(td2);
-      tr.appendChild(td3);
-      if (!r.isCurrentContext && r.department && r.department !== "—") {
-        tr.classList.add("kpi-tile-drilldown-row--nav");
-        tr.setAttribute("tabindex", "0");
-        tr.setAttribute("role", "link");
-        tr.setAttribute(
-          "aria-label",
-          "Открыть дашборд отдела «" + r.department + "»"
-        );
-      } else {
-        tr.classList.add("kpi-tile-drilldown-row--static");
-      }
-      tbody.appendChild(tr);
-    });
-    table.hidden = rows.length === 0;
-    positionKpiDrilldownPanel();
-  }
-
-  /* Однократная привязка: закрытие drilldown и переход по клику/Enter на строке отдела */
-  var drillTbodyEl = document.getElementById("kpi-tile-drilldown-tbody");
-  var drillCloseEl = document.getElementById("kpi-tile-drilldown-close");
-  if (drillCloseEl) drillCloseEl.addEventListener("click", closeKpiTileDrilldown);
-
-  function buildDrilldownFocusTargetFromElement(el) {
-    if (!el || typeof el.getAttribute !== "function") return null;
-    var focusKpiId = el.getAttribute("data-focus-kpi-id") || "";
-    var focusTitle = el.getAttribute("data-focus-title") || "";
-    if (!focusKpiId && !focusTitle) return null;
-    return { kpi_id: focusKpiId, title: focusTitle };
-  }
-
-  if (drillTbodyEl) {
-    drillTbodyEl.addEventListener("click", function (e) {
-      var tr = e.target.closest("tr.kpi-tile-drilldown-row--nav");
-      if (!tr || !drillTbodyEl.contains(tr)) return;
-      var dept = tr.getAttribute("data-department");
-      if (!dept) return;
-      navigateDashboardToDepartmentFromDrill(dept, null, buildDrilldownFocusTargetFromElement(tr));
-    });
-    drillTbodyEl.addEventListener("keydown", function (e) {
-      if (e.key !== "Enter" && e.key !== " ") return;
-      var tr = e.target.closest("tr.kpi-tile-drilldown-row--nav");
-      if (!tr || !drillTbodyEl.contains(tr)) return;
-      e.preventDefault();
-      var dept = tr.getAttribute("data-department");
-      if (dept) navigateDashboardToDepartmentFromDrill(dept, null, buildDrilldownFocusTargetFromElement(tr));
-    });
   }
 
   /* ---------- Диалог порогов KPI (KaTeX: DashLatex) ---------- */
@@ -1478,7 +1312,11 @@
   function renderKpiTiles(tiles) {
     lastKpiTiles = tiles && tiles.length ? tiles : null;
     flippedTileIndices.clear();
-    kpiTileDetailsState = Object.create(null);
+    if (typeof DashboardKpiDrilldown !== "undefined" && DashboardKpiDrilldown) {
+      if (typeof DashboardKpiDrilldown.resetState === "function") {
+        DashboardKpiDrilldown.resetState();
+      }
+    }
     donutChartsPageIndex = 0;
     if (typeof DashboardKpiTiles === "undefined" || !DashboardKpiTiles) return;
     if (typeof DashboardKpiTiles.render === "function") {
