@@ -39,14 +39,12 @@
   var selectedViewId = "self";
   /** Путь от подразделения пользователя вниз по дереву (для запроса детей и хлебных крошек) */
   var hierarchyStack = [];
-  /** Экземпляр Highcharts левого (линейного) графика — пересоздаём при смене показателя */
+  /** Временное состояние chart-блока до полного выноса в DashboardCharts. */
   var lineChartInstance = null;
   var lineChartIndicators = [];
   var CHART_SELECT_ALL_VALUE = "__all__";
-
   var waterfallChartInstance = null;
   var waterfallChartIndicators = [];
-
   var donutChartInstances = [];
   var deferredChartsAndTablesBootToken = 0;
 
@@ -3361,6 +3359,54 @@
     renderDonutCharts();
 
     setTimeout(scheduleDashboardChartsResize, 100);
+  }
+
+  function showDashboardChartsModuleError() {
+    var msg =
+      '<p class="chart-load-error" style="margin:0;padding:20px;color:#64748b;font-size:14px;">Графики недоступны: не загрузился модуль DashboardCharts.</p>';
+    ["chart-line", "chart-bar", "donuts-grid"].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.innerHTML = msg;
+    });
+  }
+
+  function destroyAllDashboardCharts() {
+    if (typeof DashboardCharts === "undefined" || !DashboardCharts) return;
+    if (typeof DashboardCharts.destroyAllDashboardCharts === "function") {
+      DashboardCharts.destroyAllDashboardCharts();
+    }
+  }
+
+  function renderDonutCharts() {
+    if (typeof DashboardCharts === "undefined" || !DashboardCharts) return;
+    if (typeof DashboardCharts.renderDonutCharts === "function") {
+      DashboardCharts.renderDonutCharts({
+        currentTiles: lastKpiTiles,
+        getVisibleDonutTiles: getVisibleDonutTiles,
+        updateDonutChartsPagerUI: updateDonutChartsPagerUI,
+      });
+    }
+  }
+
+  function initCharts() {
+    if (typeof DashboardCharts === "undefined" || !DashboardCharts) {
+      showDashboardChartsModuleError();
+      return;
+    }
+    if (typeof DashboardCharts.initCharts !== "function") {
+      showDashboardChartsModuleError();
+      return;
+    }
+    DashboardCharts.initCharts({
+      role: viewContextUser.role,
+      apiChartIndicators: lastApiChartIndicators,
+      currentTiles: lastKpiTiles,
+      chartSelectAllValue: CHART_SELECT_ALL_VALUE,
+      getVisibleDonutTiles: getVisibleDonutTiles,
+      updateDonutChartsPagerUI: updateDonutChartsPagerUI,
+      onNavigateToMonth: navigateToMonth,
+      onNavigateToQuarter: navigateToQuarter,
+    });
   }
 
   function cancelDeferredChartsAndTablesBoot() {
