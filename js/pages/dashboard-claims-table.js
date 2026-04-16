@@ -218,7 +218,7 @@
 
     if (!Array.isArray(rows) || !rows.length) return;
 
-    rows.forEach(function (item) {
+    rows.filter(isClaimsTableRow).forEach(function (item) {
       var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
       if (!raw) return;
       var tr = document.createElement("tr");
@@ -244,6 +244,62 @@
       });
       tbody.appendChild(tr);
     });
+  }
+
+  function isClaimsTableRow(item) {
+    var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
+    if (!raw || isOverdueDebtRow(item)) return false;
+    return (
+      raw.code != null ||
+      raw.name != null ||
+      raw.partner != null ||
+      raw.date_reg != null ||
+      raw.date_plan != null ||
+      raw.order_num != null ||
+      raw.order_dept != null ||
+      raw.nomenclature != null ||
+      raw.description != null ||
+      raw.status != null ||
+      raw.order_sum != null
+    );
+  }
+
+  function isOverdueDebtRow(item) {
+    var key = item && item.tableKey != null ? String(item.tableKey).trim().toLocaleLowerCase("ru-RU") : "";
+    return key === "kd-t-overdue";
+  }
+
+  function renderOverdueDebtTableRows(rows) {
+    var table = document.getElementById("table-overdue-debt");
+    var tbody = table ? table.querySelector("tbody") : null;
+    if (!table || !tbody) return;
+    tbody.innerHTML = "";
+
+    if (!Array.isArray(rows) || !rows.length) return;
+
+    rows
+      .filter(isOverdueDebtRow)
+      .forEach(function (item) {
+        var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
+        if (!raw) return;
+        var tr = document.createElement("tr");
+        [
+          "—",
+          tableTextOrDash(raw.counterparty),
+          formatClaimsOrderSum(raw.amount),
+          raw.days_overdue != null && raw.days_overdue !== "" ? tableTextOrDash(raw.days_overdue) : "—",
+          tableTextOrDash(raw.reason),
+          "—",
+        ].forEach(function (value, cellIndex) {
+          var td = document.createElement("td");
+          td.textContent = value;
+          if (cellIndex === 2) {
+            td.setAttribute("data-order", getClaimsOrderSumSortValue(raw.amount));
+          }
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
   }
 
   function initClaimsDataTable() {
@@ -776,6 +832,7 @@
 
     resetDefaultTables();
     renderClaimsTableRows(rows);
+    renderOverdueDebtTableRows(rows);
     initClaimsDataTable();
   }
 
