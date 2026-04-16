@@ -50,6 +50,7 @@
 
 /* KPI tiles: не более 6 на экране (3×2), остальное — постранично */
 .dash-kpi-tiles-block {
+  position: relative;
   margin-bottom: 24px;
 }
 
@@ -66,55 +67,83 @@ article.kpi-tile.kpi-tile--page-hidden {
 }
 
 .kpi-tiles-pager {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 14px;
-  margin-top: 14px;
-  padding: 8px 12px;
-  background: var(--card, #fff);
-  border-radius: var(--radius, 10px);
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
-  border: 1px solid rgba(148, 163, 184, 0.15);
+  position: absolute;
+  inset: 0;
+  display: block;
+  pointer-events: none;
+  margin-top: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  border-radius: 0;
 }
 
 .kpi-tiles-pager[hidden] {
   display: none !important;
 }
 
-.kpi-tiles-pager-btn {
+.dash-kpi-tiles-block .kpi-tiles-pager-btn {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 5;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 32px;
-  height: 32px;
-  border-radius: 8px;
-  border: 1px solid #e2e8f0;
-  background: #fff;
-  color: var(--text);
+  width: 34px;
+  height: 72px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  background: rgba(20, 47, 86, 0.05);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: #ffffff;
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
   cursor: pointer;
   padding: 0;
-  transition: border-color 0.15s, color 0.15s, background 0.15s;
+  pointer-events: auto;
+  transition: transform 0.15s, border-color 0.15s, color 0.15s, background 0.15s, opacity 0.15s, box-shadow 0.15s;
 }
 
-.kpi-tiles-pager-btn:hover:not(:disabled) {
-  border-color: var(--accent-blue);
-  color: var(--accent-blue);
-  background: rgba(37, 99, 235, 0.04);
+.dash-kpi-tiles-block #kpi-tiles-page-prev {
+  left: -22px;
 }
 
-.kpi-tiles-pager-btn:disabled {
-  opacity: 0.35;
+.dash-kpi-tiles-block #kpi-tiles-page-next {
+  right: -22px;
+}
+
+.dash-kpi-tiles-block .kpi-tiles-pager-btn svg {
+  display: block;
+  width: 20px;
+  height: 30px;
+}
+
+.dash-kpi-tiles-block .kpi-tiles-pager-btn:hover:not(:disabled) {
+  transform: translateY(-50%) scale(1.04);
+  border-color: rgba(255, 255, 255, 0.92);
+  color: #ffffff;
+  background: rgba(29, 78, 216, 0.72);
+  box-shadow: 0 14px 30px rgba(29, 78, 216, 0.26);
+}
+
+.dash-kpi-tiles-block .kpi-tiles-pager-btn:focus-visible {
+  transform: translateY(-50%) scale(1.04);
+  border-color: rgba(255, 255, 255, 0.96);
+  background: rgba(29, 78, 216, 0.76);
+  box-shadow: 0 0 0 3px rgba(191, 219, 254, 0.65), 0 14px 30px rgba(29, 78, 216, 0.22);
+  outline: none;
+}
+
+.dash-kpi-tiles-block .kpi-tiles-pager-btn:disabled {
+  opacity: 0.16;
+  box-shadow: none;
   cursor: default;
 }
 
 .kpi-tiles-pager-label {
-  font-size: 0.88rem;
-  font-weight: 700;
-  color: var(--text);
-  min-width: 3.5rem;
-  text-align: center;
-  user-select: none;
+  display: none;
 }
 
 .kpi-grid {
@@ -961,6 +990,19 @@ article.kpi-tile[data-no-flip="1"] {
 }
 
 @media (max-width: 768px) {
+  .dash-kpi-tiles-block .kpi-tiles-pager-btn {
+    width: 30px;
+    height: 60px;
+  }
+
+  .dash-kpi-tiles-block #kpi-tiles-page-prev {
+    left: -8px;
+  }
+
+  .dash-kpi-tiles-block #kpi-tiles-page-next {
+    right: -8px;
+  }
+
   .dash-kpi-tiles-block #kpi-container {
     grid-template-columns: 1fr;
     gap: 14px;
