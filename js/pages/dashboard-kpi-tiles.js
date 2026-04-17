@@ -124,12 +124,15 @@
   }
 
   function buildKpiTileBodyHtml(tile, hasPf, pfPeriod) {
+    var rule = getKpiTileException(tile);
+    var isFactOnly = !!(rule && rule.factOnly);
     var generatedFlag = tile.has_data === false ? buildKpiTileGeneratedFlagHtml() : "";
     var periodExtra =
-      hasPf && pfPeriod
+      (hasPf || isFactOnly) && pfPeriod
         ? '<span class="kpi-tile-plan-fact-period" title="' +
-          DashUi.escapeHtml(KPI_TILE_TITLE_PLAN_FACT_PERIOD) +
-          '">План/факт: ' +
+          DashUi.escapeHtml(isFactOnly ? "Период факта" : KPI_TILE_TITLE_PLAN_FACT_PERIOD) +
+          '">' +
+          (isFactOnly ? "Факт: " : "План/факт: ") +
           DashUi.escapeHtml(pfPeriod) +
           "</span>"
         : "";
