@@ -439,19 +439,91 @@
   }
 
   /**
+   * Извлекает `?for=` из URL запроса KPI.
+   * @param {string} url
+   * @returns {string}
+   */
+  function parseForFromKpiUrl(url) {
+    if (url == null || String(url).trim() === "") return "";
+    try {
+      var base =
+        typeof window !== "undefined" && window.location && window.location.href
+          ? window.location.href
+          : "http://local/";
+      var u = new URL(String(url), base);
+      var v = u.searchParams.get("for");
+      return v != null ? String(v).trim() : "";
+    } catch (e) {
+      return "";
+    }
+  }
+
+  /**
+   * true, если у объекта есть хотя бы одно KPI-поле верхнего уровня.
+   * @param {any} obj
+   * @returns {boolean}
+   */
+  function hasKpiStructureKeys(obj) {
+    return !!(
+      obj &&
+      typeof obj === "object" &&
+      (obj[KPI_JSON_KEY_TILES] || obj[KPI_JSON_KEY_CHARTS] || obj[KPI_JSON_KEY_TABLES])
+    );
+  }
+
+  /**
+   * Разворачивает обёртку `{ departments: [ { for, Плитки, Графики, Таблицы, ... } ] }` в плоский объект.
+   * Выбор элемента: сначала по `?for=` из URL, иначе первый со структурой KPI, иначе первый.
+   * @param {object|null} body
+   * @param {string} [url]
+   * @returns {object|null}
+   */
+  function unwrapKpiResponseBody(body, url) {
+    if (!body || typeof body !== "object") return body;
+    if (hasKpiStructureKeys(body)) return body;
+    var deps = body.departments;
+    if (!Array.isArray(deps) || !deps.length) return body;
+    var forParam = parseForFromKpiUrl(url || "");
+    var matched = null;
+    if (forParam) {
+      for (var i = 0; i < deps.length; i++) {
+        var item = deps[i];
+        if (!item || typeof item !== "object") continue;
+        var itemFor = item.for != null ? String(item.for).trim() : "";
+        if (itemFor && itemFor === forParam) {
+          matched = item;
+          break;
+        }
+      }
+    }
+    if (!matched) {
+      for (var j = 0; j < deps.length; j++) {
+        if (hasKpiStructureKeys(deps[j])) {
+          matched = deps[j];
+          break;
+        }
+      }
+    }
+    if (!matched) matched = deps[0];
+    return matched || body;
+  }
+
+  /**
    * Единая постобработка успешного JSON KPI: плитки, графики, таблица план/факт, подстановка план/факт на плитки.
    * @param {object|null} data — распарсенное тело ответа GET /api/kpi/ или /api/kpi/all/
    * @param {string} [requestUrl] — полный URL запроса (для выбора месяца план/факт по ?month=&year=)
-   * @returns {{ tiles: object[], chartIndicators: object, tableRows: object[] }}
+   * @returns {{ tiles: object[], chartIndicators: object, tableRows: object[], unwrappedData: object|null }}
    */
   function processKpiResponseBody(data, requestUrl) {
-    var tiles = normalizeKpiListFromApiResponse(data);
+    var body = unwrapKpiResponseBody(data, requestUrl || "");
+    var tiles = normalizeKpiListFromApiResponse(body);
     var qp = parseMonthYearFromKpiUrl(requestUrl || "");
-    applyPlanFactFromJsonLastPeriodToTiles(data, tiles, qp.year, qp.month);
+    applyPlanFactFromJsonLastPeriodToTiles(body, tiles, qp.year, qp.month);
     return {
       tiles: tiles,
-      chartIndicators: buildChartIndicatorsFromApiResponse(data),
-      tableRows: buildTableRowsFromApiResponse(data),
+      chartIndicators: buildChartIndicatorsFromApiResponse(body),
+      tableRows: buildTableRowsFromApiResponse(body),
+      unwrappedData: body,
     };
   }
 
@@ -507,7 +579,9 @@
             };
           }
           var processed = processKpiResponseBody(data, url);
-          return Object.assign({ ok: true, data: data }, processed);
+          var unwrapped = processed.unwrappedData || data;
+          delete processed.unwrappedData;
+          return Object.assign({ ok: true, data: unwrapped, raw: data }, processed);
         });
       })
       .catch(function (err) {
