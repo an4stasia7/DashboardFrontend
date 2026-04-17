@@ -131,3 +131,71 @@
 .btn-dialog-close:hover {
   filter: brightness(1.08);
 }
+
+.chart-preview-dialog {
+  padding: 0;
+  border: none;
+  border-radius: 18px;
+  width: min(1180px, calc(100vw - 40px));
+  max-width: min(1180px, calc(100vw - 40px));
+  background: transparent;
+  box-shadow: 0 28px 60px rgba(15, 23, 42, 0.35);
+}
+
+.chart-preview-dialog::backdrop {
+  background: rgba(15, 23, 42, 0.48);
+}
+
+.chart-preview-dialog-panel {
+  padding: 20px 20px 18px;
+  background: var(--card, #fff);
+  border-radius: 18px;
+}
+
+.chart-preview-dialog-head {
+  margin-bottom: 14px;
+}
+
+.chart-preview-dialog-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--text);
+}
+
+.chart-preview-dialog-body {
+  min-height: 420px;
+}
+
+.chart-preview-chart-host {
+  width: 100%;
+  min-height: 520px;
+}
+
+.chart-preview-donuts-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 18px;
+}
+
+.chart-preview-donut-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.chart-preview-donut-chart {
+  width: 100%;
+  min-height: 220px;
+}
+
+.chart-preview-donut-label {
+  font-size: 0.84rem;
+  line-height: 1.35;
+  color: var(--text);
+  text-align: center;
+  overflow-wrap: break-word;
+}

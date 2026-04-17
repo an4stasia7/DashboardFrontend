@@ -14,6 +14,12 @@
         <div class="dash-sidebar-panel">
           <div class="dash-sidebar-head">
             <h2 class="dash-sidebar-title">Навигация</h2>
+            <nav
+              class="dash-hierarchy-breadcrumb"
+              id="dashboard-hierarchy-breadcrumb"
+              aria-label="Уровень в структуре подразделений"
+              hidden
+            ></nav>
             <div class="dash-sidebar-subhead">
               <p class="dash-sidebar-subtitle">Доступные отделы</p>
               <button
@@ -28,25 +34,19 @@
                 </svg>
               </button>
             </div>
-            <label class="dash-sidebar-search" for="dash-sidebar-search-input">
-              <span class="dash-sidebar-search-label">Поиск</span>
+            <div class="dash-sidebar-search">
               <input
                 type="search"
                 id="dash-sidebar-search-input"
                 class="dash-sidebar-search-input"
                 placeholder="Найти отдел"
+                aria-label="Найти отдел"
                 autocomplete="off"
                 spellcheck="false"
               />
-            </label>
+            </div>
             <p id="dash-sidebar-search-empty" class="dash-sidebar-search-empty" hidden>Ничего не найдено</p>
           </div>
-          <nav
-            class="dash-hierarchy-breadcrumb"
-            id="dashboard-hierarchy-breadcrumb"
-            aria-label="Уровень в структуре подразделений"
-            hidden
-          ></nav>
           <nav
             class="dash-view-tabs"
             id="dashboard-view-tabs"
@@ -89,11 +89,15 @@
         <div id="kpi-container"></div>
         <nav class="kpi-tiles-pager" id="kpi-tiles-pager" hidden aria-label="Страницы плиток KPI">
           <button type="button" class="kpi-tiles-pager-btn" id="kpi-tiles-page-prev" aria-label="Предыдущая страница плиток">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M10 3L5 8L10 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <svg width="20" height="30" viewBox="0 0 20 30" fill="none" aria-hidden="true">
+              <path d="M13.5 4L6.5 15L13.5 26" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
           </button>
           <span class="kpi-tiles-pager-label" id="kpi-tiles-page-label"></span>
           <button type="button" class="kpi-tiles-pager-btn" id="kpi-tiles-page-next" aria-label="Следующая страница плиток">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6 3L11 8L6 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            <svg width="20" height="30" viewBox="0 0 20 30" fill="none" aria-hidden="true">
+              <path d="M6.5 4L13.5 15L6.5 26" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
           </button>
         </nav>
       </div>
@@ -163,8 +167,8 @@
       <div class="tables-row">
         <section class="table-panel">
           <h2 class="table-panel-title">
-            <span>Претензии</span>
-            <span class="table-title-help-wrap">
+            <span id="claims-table-title-text">Претензии</span>
+            <span class="table-title-help-wrap" id="claims-table-help-wrap">
               <button
                 type="button"
                 id="claims-table-help-btn"
@@ -216,7 +220,7 @@
           </div>
         </section>
         <section class="table-panel">
-          <h2>Расшифровка просроченной дебиторской задолженности</h2>
+          <h2 id="overdue-debt-table-title">Расшифровка просроченной дебиторской задолженности</h2>
           <div class="dashboard-table-wrap">
             <table id="table-overdue-debt" class="dashboard-table" aria-label="Расшифровка просроченной дебиторской задолженности">
               <thead>
@@ -237,7 +241,19 @@
 
       </div><!-- /.dash-content -->
 
-          <section class="table-panel" id="debug-kpi-json-section" style="margin-top:24px">
+          <div class="debug-toggle-row">
+            <button
+              type="button"
+              id="debug-kpi-json-toggle"
+              class="debug-toggle-link"
+              aria-expanded="false"
+              aria-controls="debug-kpi-json-section"
+            >
+              Для разработчика
+            </button>
+          </div>
+
+          <section class="table-panel" id="debug-kpi-json-section" style="margin-top:24px" hidden>
             <h2>DEBUG: все JSON-ответы API</h2>
             <p class="debug-json-log-hint">Журнал запросов: вход (POST login), KPI (GET /api/kpi/, /api/kpi/all/), подчинённые (GET immediate-subordinates). Новые записи сверху.</p>
             <div id="debug-kpi-json" class="debug-kpi-json-panel"></div>
@@ -265,8 +281,16 @@
       </div>
     </dialog>
 
+    <dialog id="chart-preview-dialog" class="chart-preview-dialog" aria-labelledby="chart-preview-dialog-title">
+      <div class="chart-preview-dialog-panel">
+        <div class="chart-preview-dialog-head">
+          <h2 id="chart-preview-dialog-title" class="chart-preview-dialog-title">Просмотр графика</h2>
+        </div>
+        <div id="chart-preview-dialog-body" class="chart-preview-dialog-body"></div>
+      </div>
+    </dialog>
+
     <script src="js/config.js"></script>
-    <script src="js/const/arraykpi.js"></script>
     <script src="js/const/kpiTileExceptions.js"></script>
     <script src="js/mockData.js"></script>
     <script src="js/auth.js"></script>
@@ -280,6 +304,13 @@
     <script src="js/utils/dash-ui-leaf.js"></script>
     <script src="js/utils/dash-latex.js"></script>
     <script src="js/pages/dash-debug-log.js"></script>
+    <script src="js/pages/dashboard-hierarchy-nav.js"></script>
+    <script src="js/pages/dashboard-data-loader.js"></script>
+    <script src="js/pages/dashboard-month-nav.js"></script>
+    <script src="js/pages/dashboard-kpi-tiles.js"></script>
+    <script src="js/pages/dashboard-kpi-drilldown.js"></script>
+    <script src="js/pages/dashboard-claims-table.js"></script>
+    <script src="js/pages/dashboard-charts.js"></script>
     <script src="js/pages/dashboard.js"></script>
   </body>
 </html>

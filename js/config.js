@@ -4,7 +4,7 @@
  */
 (function (global) {
   var AppConfig = {
-    API_BASE_URL: "http://192.168.5.219:8000", 
+    API_BASE_URL: "http://192.168.5.219:8000",
     // API_BASE_URL: "http://192.168.1.157:8000",
 
     API_LOGIN_PATH: "/api/user/login/",

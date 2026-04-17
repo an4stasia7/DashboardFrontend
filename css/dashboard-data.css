@@ -91,6 +91,76 @@
   overflow: visible;
 }
 
+.chart-preview-trigger {
+  cursor: zoom-in;
+}
+
+.donut-charts-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-top: 14px;
+  flex-shrink: 0;
+}
+
+.donut-charts-pager[hidden] {
+  display: none !important;
+}
+
+.donut-charts-pager .kpi-tiles-pager-btn {
+  position: static;
+  transform: none;
+  z-index: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid #94a3b8;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  color: #334155;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s, background 0.15s, box-shadow 0.15s, opacity 0.15s;
+}
+
+.donut-charts-pager .kpi-tiles-pager-btn svg {
+  display: block;
+  width: 16px;
+  height: 16px;
+}
+
+.donut-charts-pager .kpi-tiles-pager-btn:hover:not(:disabled) {
+  border-color: var(--accent-blue, #2b5ca6);
+  color: var(--accent-blue, #2b5ca6);
+  background: #ffffff;
+  box-shadow: 0 8px 18px rgba(43, 92, 166, 0.16);
+}
+
+.donut-charts-pager .kpi-tiles-pager-btn:focus-visible {
+  outline: none;
+  border-color: var(--accent-blue, #2b5ca6);
+  box-shadow: 0 0 0 3px rgba(147, 197, 253, 0.45);
+}
+
+.donut-charts-pager .kpi-tiles-pager-btn:disabled {
+  opacity: 0.45;
+  box-shadow: none;
+  cursor: default;
+}
+
+.donut-charts-pager .kpi-tiles-pager-label {
+  min-width: 40px;
+  text-align: center;
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--text);
+  user-select: none;
+}
+
 .donut-cell .donut-label {
   font-size: 0.7rem;
   color: var(--muted);
@@ -124,7 +194,9 @@
   flex-direction: column;
   align-items: flex-start;
   gap: 4px;
-  flex-shrink: 0;
+  flex: 1 1 220px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .line-chart-metric-label-text {
@@ -136,7 +208,8 @@
 }
 
 .line-chart-metric-select {
-  min-width: 200px;
+  width: 100%;
+  min-width: 0;
   max-width: 100%;
   padding: 6px 28px 6px 10px;
   font-size: 0.85rem;
@@ -291,8 +364,16 @@
 }
 
 .dashboard-table-wrap--claims {
+  overflow: visible;
+}
+
+.dashboard-table-wrap--claims .dashboard-table.dashboard-table--executive {
+  min-width: 0;
+}
+
+.dashboard-table-wrap--claims:has(.dashboard-table.dashboard-table--executive) {
   overflow-x: auto;
-  overflow-y: visible;
+  overflow-y: hidden;
 }
 
 .claims-column-head {
@@ -644,6 +725,74 @@
   hyphens: auto;
 }
 
+.dashboard-table.dashboard-table--executive {
+  table-layout: fixed;
+  min-width: 100%;
+}
+
+.dashboard-table#table-top-deviations.dashboard-table--executive th:nth-child(1),
+.dashboard-table#table-top-deviations.dashboard-table--executive td:nth-child(1),
+.dashboard-table#table-overdue-debt.dashboard-table--executive th:nth-child(1),
+.dashboard-table#table-overdue-debt.dashboard-table--executive td:nth-child(1) {
+  width: 30%;
+  min-width: 0;
+}
+
+.dashboard-table#table-top-deviations.dashboard-table--executive th:nth-child(2),
+.dashboard-table#table-top-deviations.dashboard-table--executive td:nth-child(2),
+.dashboard-table#table-top-deviations.dashboard-table--executive th:nth-child(3),
+.dashboard-table#table-top-deviations.dashboard-table--executive td:nth-child(3),
+.dashboard-table#table-overdue-debt.dashboard-table--executive th:nth-child(2),
+.dashboard-table#table-overdue-debt.dashboard-table--executive td:nth-child(2),
+.dashboard-table#table-overdue-debt.dashboard-table--executive th:nth-child(3),
+.dashboard-table#table-overdue-debt.dashboard-table--executive td:nth-child(3) {
+  width: 12%;
+  min-width: 0;
+}
+
+.dashboard-table#table-top-deviations.dashboard-table--executive th:nth-child(4),
+.dashboard-table#table-top-deviations.dashboard-table--executive td:nth-child(4),
+.dashboard-table#table-overdue-debt.dashboard-table--executive th:nth-child(4),
+.dashboard-table#table-overdue-debt.dashboard-table--executive td:nth-child(4) {
+  width: 8%;
+  min-width: 0;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.dashboard-table#table-top-deviations.dashboard-table--executive th:nth-child(5),
+.dashboard-table#table-top-deviations.dashboard-table--executive td:nth-child(5),
+.dashboard-table#table-overdue-debt.dashboard-table--executive th:nth-child(5),
+.dashboard-table#table-overdue-debt.dashboard-table--executive td:nth-child(5) {
+  width: 38%;
+  min-width: 0;
+}
+
+.dashboard-table.dashboard-table--executive thead th,
+.dashboard-table.dashboard-table--executive tbody td {
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-break: normal;
+  line-height: 1.4;
+}
+
+.dashboard-table.dashboard-table--executive thead th {
+  padding: 12px 12px;
+}
+
+.dashboard-table.dashboard-table--executive tbody td {
+  padding: 10px 12px;
+}
+
+.dashboard-table.dashboard-table--executive tbody td:nth-child(4) .rag-dot {
+  margin: 0 auto;
+}
+
+.dashboard-table-rag-cell {
+  text-align: center;
+  vertical-align: middle !important;
+}
+
 /* DataTables overrides */
 .table-panel table.dataTable {
   border-collapse: collapse !important;
@@ -708,16 +857,208 @@
 
 .table-panel .claims-table-top {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: space-between;
   align-items: center;
   gap: 10px 16px;
   padding: 14px 22px 0;
 }
 
+.table-panel .dashboard-table-wrap--claims .dataTables_wrapper {
+  position: relative;
+}
+
+.table-panel .dashboard-table-wrap--claims .claims-table-scroll {
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
+.table-panel .dashboard-table-wrap--claims .claims-table-top,
+.table-panel .dashboard-table-wrap--claims .claims-table-bottom {
+  position: sticky;
+  left: 0;
+  background: rgba(255, 255, 255, 0.96);
+  z-index: 6;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+}
+
+.table-panel .dashboard-table-wrap--claims .claims-table-top {
+  top: 12px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
 .table-panel .claims-table-top .dataTables_length,
 .table-panel .claims-table-top .dataTables_filter {
   margin-bottom: 0;
+}
+
+.table-panel .claims-table-top .dataTables_filter.claims-table-search-host {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin-left: auto;
+}
+
+.claims-table-search {
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px 10px;
+  width: auto;
+  margin-left: auto;
+}
+
+.claims-table-search-fields {
+  position: relative;
+  flex: 0 0 210px;
+}
+
+.claims-table-search-fields-toggle {
+  width: 100%;
+  min-height: 36px;
+  border: 1px solid #d7e0ec;
+  border-radius: 8px;
+  padding: 7px 12px;
+  background: #fff;
+  color: #334155;
+  font: inherit;
+  font-size: 0.84rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.claims-table-search-fields-toggle:hover,
+.claims-table-search-fields-toggle:focus-visible {
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 2px rgba(29, 78, 216, 0.12);
+  outline: none;
+}
+
+.claims-table-search-fields-toggle-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+}
+
+.claims-table-search-fields-toggle-icon {
+  flex: 0 0 auto;
+  color: #64748b;
+}
+
+.claims-table-search-fields-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 110;
+  width: min(320px, calc(100vw - 48px));
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 12px;
+  border: 1px solid #c5d0e4;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
+}
+
+.claims-table-search-fields-title {
+  margin: 0 0 8px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--text);
+  text-align: left;
+}
+
+.claims-table-search-fields-options {
+  display: grid;
+  gap: 6px;
+}
+
+.claims-table-search-field-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 0.82rem;
+  color: var(--text);
+  text-align: left;
+  line-height: 1.3;
+}
+
+.claims-table-search-field-check input {
+  margin: 2px 0 0;
+  flex: 0 0 auto;
+}
+
+.claims-table-search-inputs {
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: nowrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+
+.table-panel .claims-table-search-text,
+.table-panel .claims-table-search-date {
+  min-height: 36px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 0.84rem;
+  outline: none;
+  background: #fff;
+}
+
+.table-panel .claims-table-search-text {
+  flex: 0 0 160px;
+  min-width: 160px;
+  max-width: 160px;
+}
+
+.table-panel .claims-table-search-date {
+  flex: 0 0 170px;
+}
+
+.table-panel .claims-table-search-text:focus,
+.table-panel .claims-table-search-date:focus {
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 2px rgba(29, 78, 216, 0.15);
+}
+
+.table-panel .claims-table-search-text:disabled,
+.table-panel .claims-table-search-date:disabled {
+  background: #f8fafc;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+.claims-table-search-reset {
+  min-height: 36px;
+  border: 1px solid #d7e0ec;
+  border-radius: 8px;
+  padding: 6px 12px;
+  background: #fff;
+  color: #334155;
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+}
+
+.claims-table-search-reset:hover,
+.claims-table-search-reset:focus-visible {
+  border-color: var(--accent-blue);
+  background: #eef3fb;
+  outline: none;
+}
+
+.claims-table-search-reset:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .table-panel .dataTables_wrapper .dataTables_info,
@@ -734,6 +1075,11 @@
   align-items: center;
   gap: 10px 16px;
   padding: 14px 22px 18px;
+}
+
+.table-panel .dashboard-table-wrap--claims .claims-table-bottom {
+  bottom: 12px;
+  border-top: 1px solid #e2e8f0;
 }
 
 .table-panel .claims-table-bottom .dataTables_info,
@@ -784,6 +1130,20 @@
   .line-chart-metric-select {
     width: 100%;
     min-width: 0;
+  }
+
+  .claims-table-search,
+  .claims-table-search-inputs {
+    justify-content: stretch;
+  }
+
+  .claims-table-search-fields,
+  .table-panel .claims-table-search-text,
+  .table-panel .claims-table-search-date,
+  .claims-table-search-reset {
+    width: 100%;
+    min-width: 0;
+    flex-basis: 100%;
   }
 
   .tables-row {
