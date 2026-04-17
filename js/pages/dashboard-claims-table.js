@@ -43,6 +43,61 @@
     }
   }
 
+  function updateLawsuitsTotalRow(dataTableApi) {
+    if (!dataTableApi || typeof dataTableApi.column !== "function") return;
+    var total = 0;
+    dataTableApi
+      .column(3, { search: "applied" })
+      .nodes()
+      .each(function (cell) {
+        if (!cell || typeof cell.getAttribute !== "function") return;
+        var rawValue = cell.getAttribute("data-order");
+        var n = Number(rawValue);
+        if (!isNaN(n)) total += n;
+      });
+
+    var footerCell = document.getElementById("lawsuits-table-total-sum");
+    if (footerCell) {
+      footerCell.textContent = total.toLocaleString("ru-RU", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+    }
+  }
+
+  function updateOverdueDebtTotalRow(dataTableApi) {
+    var total = 0;
+    if (dataTableApi && typeof dataTableApi.rows === "function") {
+      dataTableApi
+        .rows({ search: "applied" })
+        .nodes()
+        .each(function (row) {
+          var cell = row && row.cells && row.cells.length > 5 ? row.cells[5] : null;
+          if (!cell || typeof cell.getAttribute !== "function") return;
+          var rawValue = cell.getAttribute("data-order");
+          var n = Number(rawValue);
+          if (!isNaN(n)) total += n;
+        });
+    } else {
+      var rows = document.querySelectorAll("#table-overdue-debt tbody tr");
+      rows.forEach(function (row) {
+        var cell = row && row.cells && row.cells.length > 5 ? row.cells[5] : null;
+        if (!cell || typeof cell.getAttribute !== "function") return;
+        var rawValue = cell.getAttribute("data-order");
+        var n = Number(rawValue);
+        if (!isNaN(n)) total += n;
+      });
+    }
+
+    var footerCell = document.getElementById("overdue-debt-table-total-sum");
+    if (footerCell) {
+      footerCell.textContent = total.toLocaleString("ru-RU", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+    }
+  }
+
   function escapeRegexForDataTable(value) {
     return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   }
@@ -89,7 +144,7 @@
     "Статус",
     "Сумма документа заказа, руб.",
   ];
-  var DEFAULT_OVERDUE_DEBT_HEADERS = ["№ Заказа клиента", "Контрагент", "Сумма", "Дн. просрочки", "Причина", "Действие"];
+  var DEFAULT_OVERDUE_DEBT_HEADERS = ["№ Заказа клиента", "Контрагент", "Просрочка, дн.", "Причина", "Действие", "Сумма, руб"];
   var EXECUTIVE_DEVIATIONS_HEADERS = ["Показатель", "Факт", "План", "RAG", "Комментарий"];
   var EXECUTIVE_DECISIONS_HEADERS = ["Вопрос", "Факт", "План", "RAG", "Решение"];
 
@@ -117,6 +172,9 @@
     var table = document.getElementById("table-overdue-debt");
     if (!table) return;
     table.classList.toggle("dashboard-table--executive", !!executiveMode);
+    if (table.tFoot) {
+      table.tFoot.hidden = !!executiveMode;
+    }
   }
 
   function formatExecutiveTableValue(value) {
@@ -269,6 +327,62 @@
     return key === "kd-t-overdue";
   }
 
+  function isLawsuitsRow(item) {
+    var key = item && item.tableKey != null ? String(item.tableKey).trim().toLocaleLowerCase("ru-RU") : "";
+    if (!key) return false;
+    return (
+      key === "kd-t-lawsuits" ||
+      key === "kd-t-courts" ||
+      key === "kd-t-suits" ||
+      key === "суды" ||
+      key === "lawsuits" ||
+      key === "courts"
+    );
+  }
+
+  function pickLawsuitsField(raw, fields) {
+    for (var i = 0; i < fields.length; i++) {
+      var key = fields[i];
+      if (key in raw && raw[key] != null && raw[key] !== "") return raw[key];
+    }
+    return null;
+  }
+
+  function renderLawsuitsTableRows(rows) {
+    var table = document.getElementById("table-lawsuits");
+    var tbody = table ? table.querySelector("tbody") : null;
+    if (!table || !tbody) return;
+    tbody.innerHTML = "";
+
+    if (!Array.isArray(rows) || !rows.length) return;
+
+    rows
+      .filter(isLawsuitsRow)
+      .forEach(function (item) {
+        var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
+        if (!raw) return;
+        var amount = pickLawsuitsField(raw, ["claim_amount", "amount", "sum", "requirement_sum", "requirements_sum"]);
+        var tr = document.createElement("tr");
+        [
+          tableTextOrDash(pickLawsuitsField(raw, ["doc_type", "document_type", "documentType"])),
+          tableTextOrDash(pickLawsuitsField(raw, ["counterparty", "partner", "contragent"])),
+          tableTextOrDash(pickLawsuitsField(raw, ["subject", "dispute_subject", "dispute", "topic"])),
+          formatClaimsOrderSum(amount),
+          tableTextOrDash(pickLawsuitsField(raw, ["gk_role", "role", "company_role"])),
+          tableTextOrDash(pickLawsuitsField(raw, ["legal_entity", "entity", "company", "jur_entity", "ur_entity"])),
+          tableTextOrDash(pickLawsuitsField(raw, ["department", "subdivision", "unit", "division"])),
+        ].forEach(function (value, cellIndex) {
+          var td = document.createElement("td");
+          td.textContent = value;
+          if (cellIndex === 3) {
+            td.setAttribute("data-order", getClaimsOrderSumSortValue(amount));
+          }
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+  }
+
   function renderOverdueDebtTableRows(rows) {
     var table = document.getElementById("table-overdue-debt");
     var tbody = table ? table.querySelector("tbody") : null;
@@ -286,14 +400,14 @@
         [
           "—",
           tableTextOrDash(raw.counterparty),
-          formatClaimsOrderSum(raw.amount),
           raw.days_overdue != null && raw.days_overdue !== "" ? tableTextOrDash(raw.days_overdue) : "—",
           tableTextOrDash(raw.reason),
           "—",
+          formatClaimsOrderSum(raw.amount),
         ].forEach(function (value, cellIndex) {
           var td = document.createElement("td");
           td.textContent = value;
-          if (cellIndex === 2) {
+          if (cellIndex === 5) {
             td.setAttribute("data-order", getClaimsOrderSumSortValue(raw.amount));
           }
           tr.appendChild(td);
@@ -302,12 +416,22 @@
       });
   }
 
-  function initClaimsDataTable() {
-    if (typeof $ === "undefined" || !$.fn || !$.fn.DataTable) return;
-    var table = $("#table-top-deviations");
-    if (!table.length) return;
+  function initInteractiveDashboardTable(options) {
+    if (typeof $ === "undefined" || !$.fn || !$.fn.DataTable) return null;
+    options = options || {};
+    var tableSelector = options.tableSelector;
+    var wrapperSelector = options.wrapperSelector || ".dashboard-table-wrap--claims";
+    var columnConfigs = Array.isArray(options.columnConfigs) ? options.columnConfigs : [];
+    var initialOrder = Array.isArray(options.initialOrder) ? options.initialOrder : [];
+    var columnDefs = Array.isArray(options.columnDefs) ? options.columnDefs : [];
+    var advancedSearchKey = options.advancedSearchKey || String(tableSelector || "dashboard-table");
+    var footerCallback = typeof options.footerCallback === "function" ? options.footerCallback : null;
+    var afterInit = typeof options.afterInit === "function" ? options.afterInit : null;
 
-    var wrapper = table.closest(".dashboard-table-wrap--claims");
+    var table = $(tableSelector);
+    if (!table.length) return null;
+
+    var wrapper = table.closest(wrapperSelector);
     if (wrapper.length) {
       wrapper.find(".claims-column-filter-menu").remove();
     }
@@ -315,22 +439,8 @@
       table.DataTable().destroy();
     }
 
-    var columnConfigs = [
-      { index: 0, label: "Код", type: "filter", searchType: "text" },
-      { index: 1, label: "Наименование", type: "filter", searchType: "text" },
-      { index: 2, label: "Партнер/Клиент", type: "filter", searchType: "text" },
-      { index: 3, label: "Дата обращения", type: "sort", searchType: "date" },
-      { index: 4, label: "Дата окончания", type: "sort", searchType: "date" },
-      { index: 5, label: "Заказ клиента", type: "filter", searchType: "text" },
-      { index: 6, label: "Подразделение заказа", type: "filter", searchType: "text" },
-      { index: 7, label: "Номенклатура", type: "filter", searchType: "text" },
-      { index: 8, label: "Описание претензии", type: "none", searchType: "text" },
-      { index: 9, label: "Статус", type: "filter", searchType: "text" },
-      { index: 10, label: "Сумма документа заказа, руб.", type: "sort", searchType: "text" },
-    ];
-
     var dataTable = table.DataTable({
-      order: [[10, "desc"]],
+      order: initialOrder,
       paging: true,
       pageLength: 10,
       lengthMenu: [10, 25, 50],
@@ -351,18 +461,14 @@
           last: "Последняя",
         },
       },
-      columnDefs: [
-        { targets: "_all", orderable: false },
-        { targets: [3, 4], orderable: true },
-        { targets: [10], type: "num-fmt", orderable: true },
-      ],
+      columnDefs: columnDefs,
       dom: '<"claims-table-top"lf><"claims-table-scroll"rt><"claims-table-bottom"ip>',
-      footerCallback: function () {
-        updateClaimsTotalRow(this.api());
-      },
+      footerCallback: footerCallback || undefined,
     });
 
-    updateClaimsTotalRow(dataTable);
+    if (afterInit) {
+      afterInit(dataTable);
+    }
 
     var searchFieldConfigs = columnConfigs.filter(function (config) {
       return !!config.searchType;
@@ -372,11 +478,10 @@
       text: "",
       date: "",
     };
-    var claimsAdvancedSearchKey = "claims-table-advanced";
     if ($.fn.dataTable && $.fn.dataTable.ext && Array.isArray($.fn.dataTable.ext.search)) {
       for (var extIdx = $.fn.dataTable.ext.search.length - 1; extIdx >= 0; extIdx--) {
         var extSearchFn = $.fn.dataTable.ext.search[extIdx];
-        if (extSearchFn && extSearchFn._claimsAdvancedSearchKey === claimsAdvancedSearchKey) {
+        if (extSearchFn && extSearchFn._claimsAdvancedSearchKey === advancedSearchKey) {
           $.fn.dataTable.ext.search.splice(extIdx, 1);
         }
       }
@@ -424,7 +529,7 @@
       return rowMatchesClaimsSearchText(data, activeTextFields, textQuery, !claimsSearchState.fields.length) &&
         rowMatchesClaimsSearchDate(data, activeDateFields, dateQuery);
     };
-    claimsAdvancedSearchFn._claimsAdvancedSearchKey = claimsAdvancedSearchKey;
+    claimsAdvancedSearchFn._claimsAdvancedSearchKey = advancedSearchKey;
     $.fn.dataTable.ext.search.push(claimsAdvancedSearchFn);
 
     function buildClaimsAdvancedSearch() {
@@ -804,10 +909,101 @@
     document.addEventListener("click", function (event) {
       if (!table[0].contains(event.target)) closeAllClaimsMenus();
     });
+
+    return dataTable;
+  }
+
+  function initClaimsDataTable() {
+    return initInteractiveDashboardTable({
+      tableSelector: "#table-top-deviations",
+      wrapperSelector: ".dashboard-table-wrap--claims",
+      advancedSearchKey: "claims-table-advanced",
+      columnConfigs: [
+        { index: 0, label: "Код", type: "filter", searchType: "text" },
+        { index: 1, label: "Наименование", type: "filter", searchType: "text" },
+        { index: 2, label: "Партнер/Клиент", type: "filter", searchType: "text" },
+        { index: 3, label: "Дата обращения", type: "sort", searchType: "date" },
+        { index: 4, label: "Дата окончания", type: "sort", searchType: "date" },
+        { index: 5, label: "Заказ клиента", type: "filter", searchType: "text" },
+        { index: 6, label: "Подразделение заказа", type: "filter", searchType: "text" },
+        { index: 7, label: "Номенклатура", type: "filter", searchType: "text" },
+        { index: 8, label: "Описание претензии", type: "none", searchType: "text" },
+        { index: 9, label: "Статус", type: "filter", searchType: "text" },
+        { index: 10, label: "Сумма документа заказа, руб.", type: "sort", searchType: "text" },
+      ],
+      initialOrder: [[10, "desc"]],
+      columnDefs: [
+        { targets: "_all", orderable: false },
+        { targets: [3, 4], orderable: true },
+        { targets: [10], type: "num-fmt", orderable: true },
+      ],
+      footerCallback: function () {
+        updateClaimsTotalRow(this.api());
+      },
+      afterInit: function (dataTable) {
+        updateClaimsTotalRow(dataTable);
+      },
+    });
+  }
+
+  function initLawsuitsDataTable() {
+    return initInteractiveDashboardTable({
+      tableSelector: "#table-lawsuits",
+      wrapperSelector: ".dashboard-table-wrap--lawsuits",
+      advancedSearchKey: "lawsuits-table-advanced",
+      columnConfigs: [
+        { index: 0, label: "Тип документа", type: "filter", searchType: "text" },
+        { index: 1, label: "Контрагент", type: "filter", searchType: "text" },
+        { index: 2, label: "Предмет спора", type: "filter", searchType: "text" },
+        { index: 3, label: "Сумма требований, руб.", type: "sort", searchType: "text" },
+        { index: 4, label: "Роль ГК в споре", type: "filter", searchType: "text" },
+        { index: 5, label: "Юр. лицо", type: "filter", searchType: "text" },
+        { index: 6, label: "Подразделение", type: "filter", searchType: "text" },
+      ],
+      initialOrder: [[3, "desc"]],
+      columnDefs: [
+        { targets: "_all", orderable: false },
+        { targets: [3], type: "num-fmt", orderable: true },
+      ],
+      footerCallback: function () {
+        updateLawsuitsTotalRow(this.api());
+      },
+      afterInit: function (dataTable) {
+        updateLawsuitsTotalRow(dataTable);
+      },
+    });
+  }
+
+  function initOverdueDebtDataTable() {
+    return initInteractiveDashboardTable({
+      tableSelector: "#table-overdue-debt",
+      wrapperSelector: ".dashboard-table-wrap--overdue-debt",
+      advancedSearchKey: "overdue-debt-table-advanced",
+      columnConfigs: [
+        { index: 0, label: "№ Заказа клиента", type: "filter", searchType: "text" },
+        { index: 1, label: "Контрагент", type: "filter", searchType: "text" },
+        { index: 2, label: "Просрочка, дн.", type: "sort", searchType: "text" },
+        { index: 3, label: "Причина", type: "filter", searchType: "text" },
+        { index: 4, label: "Действие", type: "none", searchType: "text" },
+        { index: 5, label: "Сумма, руб", type: "sort", searchType: "text" },
+      ],
+      initialOrder: [[5, "desc"]],
+      columnDefs: [
+        { targets: "_all", orderable: false },
+        { targets: [2], type: "num", orderable: true },
+        { targets: [5], type: "num-fmt", orderable: true },
+      ],
+      footerCallback: function () {
+        updateOverdueDebtTotalRow(this.api());
+      },
+      afterInit: function (dataTable) {
+        updateOverdueDebtTotalRow(dataTable);
+      },
+    });
   }
 
   function destroyClaimsTables() {
-    ["#table-plan-fact", "#table-top-deviations", "#table-overdue-debt"].forEach(function (selector) {
+    ["#table-plan-fact", "#table-top-deviations", "#table-overdue-debt", "#table-lawsuits"].forEach(function (selector) {
       if (typeof $ !== "undefined" && $.fn && $.fn.DataTable && $.fn.DataTable.isDataTable(selector)) {
         $(selector).DataTable().destroy();
       }
@@ -818,12 +1014,16 @@
     options = options || {};
     var rows = Array.isArray(options.rows) ? options.rows : [];
     var executiveMode = !!options.executiveMode;
+    var enhanceOverdueDebtTable = !!options.enhanceOverdueDebtTable;
+    var enableLawsuitsTable = !!options.enableLawsuitsTable;
     destroyClaimsTables();
 
     var topBody = document.querySelector("#table-top-deviations tbody");
     var debtBody = document.querySelector("#table-overdue-debt tbody");
+    var lawsuitsBody = document.querySelector("#table-lawsuits tbody");
     if (topBody) topBody.innerHTML = "";
     if (debtBody) debtBody.innerHTML = "";
+    if (lawsuitsBody) lawsuitsBody.innerHTML = "";
 
     if (executiveMode) {
       renderExecutiveTables(rows);
@@ -834,6 +1034,13 @@
     renderClaimsTableRows(rows);
     renderOverdueDebtTableRows(rows);
     initClaimsDataTable();
+    if (enhanceOverdueDebtTable) {
+      initOverdueDebtDataTable();
+    }
+    if (enableLawsuitsTable) {
+      renderLawsuitsTableRows(rows);
+      initLawsuitsDataTable();
+    }
   }
 
   global.DashboardClaimsTable = {

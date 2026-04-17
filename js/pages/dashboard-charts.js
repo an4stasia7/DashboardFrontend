@@ -278,13 +278,33 @@
     return false;
   }
 
-  function buildLineChartSeriesFactOnly(indicator) {
+  function getLineIndicatorIndex(indicator) {
+    if (!indicator || !lineChartIndicators || !lineChartIndicators.length) return -1;
+    var directIndex = lineChartIndicators.indexOf(indicator);
+    if (directIndex >= 0) return directIndex;
+    if (indicator.id == null) return -1;
+    var indicatorId = String(indicator.id);
+    for (var i = 0; i < lineChartIndicators.length; i++) {
+      var current = lineChartIndicators[i];
+      if (!current || current.id == null) continue;
+      if (String(current.id) === indicatorId) return i;
+    }
+    return -1;
+  }
+
+  function getLineIndicatorAccentColor(indicator) {
+    var index = getLineIndicatorIndex(indicator);
+    if (index < 0) return "";
+    return getAllChartsPaletteColor(index);
+  }
+
+  function buildLineChartSeriesFactOnly(indicator, accentColor) {
     var series = indicator.series;
     if (!series || !series.length) return [];
     var factIdx = findFactSeriesIndexForRag(series);
     if (factIdx < 0 || factIdx >= series.length) factIdx = 0;
     var factSeries = series[factIdx];
-    var factColor = factSeries.color || "#2563eb";
+    var factColor = accentColor || factSeries.color || "#2563eb";
     var chartSeries = [
       {
         type: "line",
@@ -422,9 +442,9 @@
   function buildLineChartSeriesForAllIndicators(indicators) {
     if (!indicators || !indicators.length) return [];
     return indicators.reduce(function (acc, indicator, idx) {
-      var series = buildLineChartSeriesFactOnly(indicator);
+      var accent = getLineIndicatorAccentColor(indicator) || getAllChartsPaletteColor(idx);
+      var series = buildLineChartSeriesFactOnly(indicator, accent);
       if (!series.length) return acc;
-      var accent = getAllChartsPaletteColor(idx);
       var label = indicator.optionLabel || indicator.title || series[0].name;
       var pairKey = "indicator-" + String(idx);
 
@@ -563,6 +583,7 @@
       openLineChartPreview();
     };
 
+    var accentColor = getLineIndicatorAccentColor(indicator);
     lineChartInstance = Highcharts.chart(elLine, {
       chart: { type: "line", backgroundColor: "transparent", height: 300, animation: false, reflow: false },
       title: { text: null },
@@ -599,7 +620,7 @@
           point: { events: { click: chartClickHandler } },
         },
       },
-      series: buildLineChartSeriesFactOnly(indicator),
+      series: buildLineChartSeriesFactOnly(indicator, accentColor),
     });
   }
 

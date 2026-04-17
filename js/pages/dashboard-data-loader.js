@@ -21,6 +21,11 @@
     return typeof fn === "function" ? fn() : {};
   }
 
+  function getChairmanDashboardCatalogId() {
+    var fn = getContext().getChairmanDashboardCatalogId;
+    return typeof fn === "function" ? fn() : "";
+  }
+
   function getDepartmentForCurrentKpiContext() {
     var fn = getContext().getDepartmentForCurrentKpiContext;
     return typeof fn === "function" ? fn() : "";

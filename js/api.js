@@ -83,6 +83,9 @@
     if (dept) {
       u += (u.indexOf("?") === -1 ? "?" : "&") + "department=" + encodeURIComponent(dept);
     }
+    if (options.for != null && String(options.for).trim() !== "") {
+      u += (u.indexOf("?") === -1 ? "?" : "&") + "for=" + encodeURIComponent(String(options.for).trim());
+    }
     if (options.month != null) {
       u += (u.indexOf("?") === -1 ? "?" : "&") + "month=" + encodeURIComponent(String(options.month));
     }
@@ -114,6 +117,13 @@
   function kpiImmediateSubordinatesUrl() {
     var cfg = global.AppConfig || {};
     var p = cfg.API_KPI_IMMEDIATE_SUBORDINATES_PATH || "/api/kpi/immediate-subordinates/";
+    if (p.charAt(0) !== "/") p = "/" + p;
+    return baseUrl() + p;
+  }
+
+  function kpiChairmanCatalogUrl() {
+    var cfg = global.AppConfig || {};
+    var p = cfg.API_KPI_CHAIRMAN_CATALOG_PATH || "/api/kpi/chairman/for-catalog/";
     if (p.charAt(0) !== "/") p = "/" + p;
     return baseUrl() + p;
   }
@@ -226,6 +236,9 @@
     var dept = options.department != null ? String(options.department).trim() : "";
     if (!dept) return url;
     url += (url.indexOf("?") === -1 ? "?" : "&") + "department=" + encodeURIComponent(dept);
+    if (options.for != null && String(options.for).trim() !== "") {
+      url += (url.indexOf("?") === -1 ? "?" : "&") + "for=" + encodeURIComponent(String(options.for).trim());
+    }
     return url;
   }
 
@@ -297,6 +310,106 @@
           return { ok: false, error: "Нет связи с сервером (immediate-subordinates)" };
         }
         return { ok: false, error: m || "Ошибка запроса immediate-subordinates" };
+      });
+  }
+
+  function normalizeChairmanCatalogItem(item, labels, index) {
+    if (!item || typeof item !== "object") return null;
+    var rawId = item.id != null ? String(item.id).trim() : "";
+    if (!rawId) return null;
+    var labelsMap = labels && typeof labels === "object" ? labels : {};
+    var rawLabel =
+      item.label != null && String(item.label).trim() !== ""
+        ? String(item.label).trim()
+        : labelsMap[rawId] != null && String(labelsMap[rawId]).trim() !== ""
+          ? String(labelsMap[rawId]).trim()
+          : "";
+    var aliases = Array.isArray(item.aliases)
+      ? item.aliases
+          .map(function (alias) {
+            return alias != null ? String(alias).trim() : "";
+          })
+          .filter(Boolean)
+      : [];
+    return {
+      id: rawId,
+      label: rawLabel,
+      aliases: aliases,
+      raw: item,
+      index: index,
+    };
+  }
+
+  /**
+   * GET /api/kpi/chairman/for-catalog/ — список доступных дашбордов для ПСД.
+   * @returns {Promise<{ok:true,items:object[],labels:object,count:number,data:any}|{ok:false,error:string,status?:number,unauthorized?:boolean,skipped?:boolean}>}
+   */
+  function fetchChairmanDashboardCatalog() {
+    var cfg = global.AppConfig || {};
+    if (cfg.isMockApi && cfg.isMockApi()) {
+      return Promise.resolve({ ok: false, skipped: true });
+    }
+    var A = global.Auth;
+    if (!A || typeof A.getAuthHeaders !== "function") {
+      return Promise.resolve({ ok: false, error: "Модуль Auth не загружен" });
+    }
+    var authHeaders = A.getAuthHeaders();
+    if (!authHeaders.Authorization) {
+      return Promise.resolve({ ok: false, error: "Нет токена авторизации" });
+    }
+    var url = kpiChairmanCatalogUrl();
+    var headers = Object.assign({ Accept: "application/json" }, authHeaders);
+    var fetchOpts = { method: "GET", headers: headers };
+    if (cfg.FETCH_CREDENTIALS === "include") {
+      fetchOpts.credentials = "include";
+    }
+    return fetch(url, fetchOpts)
+      .then(function (res) {
+        return res.text().then(function (text) {
+          var data = null;
+          try {
+            data = text ? JSON.parse(text) : null;
+          } catch (e) {
+            data = null;
+          }
+          var dbgBody = data;
+          if (dbgBody === null && text) {
+            dbgBody = { _nonJson: text.slice(0, 2000) };
+          }
+          pushApiDebug("GET /api/kpi/chairman/for-catalog/", "GET", url, res.status, dbgBody);
+          if (res.status === 401) {
+            return { ok: false, status: 401, error: "Требуется повторный вход", unauthorized: true };
+          }
+          if (!res.ok) {
+            return {
+              ok: false,
+              status: res.status,
+              error: parseErrorBody(text) || "Ошибка каталога дашбордов ПСД (" + res.status + ")",
+            };
+          }
+          var labels = data && typeof data.labels === "object" && data.labels ? data.labels : {};
+          var rawItems = Array.isArray(data && data.items) ? data.items : [];
+          var items = rawItems
+            .map(function (item, index) {
+              return normalizeChairmanCatalogItem(item, labels, index);
+            })
+            .filter(Boolean);
+          return {
+            ok: true,
+            items: items,
+            labels: labels,
+            count: typeof data === "object" && data && typeof data.count === "number" ? data.count : items.length,
+            data: data,
+          };
+        });
+      })
+      .catch(function (err) {
+        var m = err && err.message ? err.message : String(err);
+        pushApiDebug("GET /api/kpi/chairman/for-catalog/", "GET", url, 0, { _networkError: m });
+        if (m.indexOf("Failed to fetch") !== -1 || m.indexOf("NetworkError") !== -1) {
+          return { ok: false, error: "Нет связи с сервером (каталог ПСД)" };
+        }
+        return { ok: false, error: m || "Ошибка запроса каталога ПСД" };
       });
   }
 
@@ -689,6 +802,20 @@
     return "";
   }
 
+  function formatPlanFactPeriodFromYearMonth(year, month) {
+    var y = parseIntLoose(year);
+    var m = parseIntLoose(month);
+    if (isNaN(y) || isNaN(m) || m < 1 || m > 12) return "";
+    return capitalizeRuMonthToken(MONTH_SHORT[m - 1]) + " " + y;
+  }
+
+  function kpiPeriodMatchesMonthYear(kp, year, month) {
+    if (!kp || typeof kp !== "object") return false;
+    var y = parseIntLoose(kp.year);
+    var m = parseIntLoose(kp.month);
+    return !isNaN(y) && !isNaN(m) && y === parseIntLoose(year) && m === parseIntLoose(month);
+  }
+
   /**
    * Точка линейного графика за конкретный календарный месяц (и plan, и fact).
    * @param {object[]} points
@@ -775,8 +902,9 @@
   }
 
   /**
-   * План/факт по kpi_id из Графики: помесячно — при заданных `filterYear`+`filterMonth` берётся эта точка,
-   * иначе последний месяц, где есть и plan, и fact; далее при необходимости квартал с тем же условием.
+   * План/факт по kpi_id из Графики: при заданных `filterYear`+`filterMonth`
+   * берётся только точка этого месяца; иначе — последний месяц, где есть и plan, и fact.
+   * Квартальная fallback-логика используется только без месячного фильтра.
    * @param {object|null} body
    * @param {number|null} [filterYear]
    * @param {number|null} [filterMonth] 1–12
@@ -806,8 +934,7 @@
         var kid = String(s.kpi_id);
         var last = useMonthFilter
           ? pickMonthlyPointWithPlanAndFactForYearMonth(points, filterYear, filterMonth)
-          : null;
-        if (!last) last = pickLatestMonthlyPointWithPlanAndFact(points);
+          : pickLatestMonthlyPointWithPlanAndFact(points);
         if (!last) return;
         var pk = monthlyPointSortKey(last);
         var prev = out[kid];
@@ -825,6 +952,7 @@
     });
 
     Object.keys(charts).forEach(function (keyBar) {
+      if (useMonthFilter) return;
       var chart = charts[keyBar];
       var seriesList = getChartSeriesList(chart);
       if (!chart || !chart.chart_type || !seriesList.length) return;
@@ -876,14 +1004,24 @@
   }
 
   /** Только блоки Таблицы: plan/fact по строкам (например сводка за период). */
-  function buildPlanFactLookupFromTablesOnly(body) {
+  function buildPlanFactLookupFromTablesOnly(body, filterYear, filterMonth) {
     var planFactLookup = {};
     if (!body) return planFactLookup;
     var tables = body[KPI_JSON_KEY_TABLES];
+    var useMonthFilter =
+      filterYear != null &&
+      filterMonth != null &&
+      !isNaN(filterYear) &&
+      !isNaN(filterMonth) &&
+      filterMonth >= 1 &&
+      filterMonth <= 12;
     forEachTablesRow(tables, function (tk, row) {
       if (!row || typeof row !== "object") return;
       var id = row.kpi_id != null ? String(row.kpi_id) : row.kpi_name != null ? String(row.kpi_name) : "";
       if (!id) return;
+      if (useMonthFilter) {
+        if (!row.kpi_period || !kpiPeriodMatchesMonthYear(row.kpi_period, filterYear, filterMonth)) return;
+      }
       if (row.plan !== undefined || row.fact !== undefined) {
         var prev = planFactLookup[id] || {};
         var periodLbl = "";
@@ -925,8 +1063,18 @@
    */
   function applyPlanFactFromJsonLastPeriodToTiles(body, tiles, filterYear, filterMonth) {
     if (!body || !tiles || !tiles.length) return;
+    var useMonthFilter =
+      filterYear != null &&
+      filterMonth != null &&
+      !isNaN(filterYear) &&
+      !isNaN(filterMonth) &&
+      filterMonth >= 1 &&
+      filterMonth <= 12;
+    var requestedPeriodLabel = useMonthFilter
+      ? formatPlanFactPeriodFromYearMonth(filterYear, filterMonth)
+      : "";
     var fromCharts = buildPlanFactFromChartsLastAvailable(body, filterYear, filterMonth);
-    var fromTables = buildPlanFactLookupFromTablesOnly(body);
+    var fromTables = buildPlanFactLookupFromTablesOnly(body, filterYear, filterMonth);
     tiles.forEach(function (tile) {
       var id = tile.kpi_id;
       if (!id) return;
@@ -941,24 +1089,29 @@
         tile.fact = ch.fact;
         if (ch.plan_fact_period_label) tile.plan_fact_period_label = String(ch.plan_fact_period_label);
         applyHasDataFromSource(tile, ch);
-        return;
-      }
-      if (tableBoth) {
+      } else if (tableBoth) {
         tile.plan = tb.plan;
         tile.fact = tb.fact;
         if (tb.plan_fact_period_label) tile.plan_fact_period_label = String(tb.plan_fact_period_label);
         applyHasDataFromSource(tile, tb);
-        return;
+      } else {
+        if (ch) {
+          if (planFactValuePresent(ch.plan)) tile.plan = ch.plan;
+          if (planFactValuePresent(ch.fact)) tile.fact = ch.fact;
+          applyHasDataFromSource(tile, ch);
+        }
+        if (tb) {
+          if (planFactValuePresent(tb.plan)) tile.plan = tb.plan;
+          if (planFactValuePresent(tb.fact)) tile.fact = tb.fact;
+          applyHasDataFromSource(tile, tb);
+        }
       }
-      if (ch) {
-        if (planFactValuePresent(ch.plan)) tile.plan = ch.plan;
-        if (planFactValuePresent(ch.fact)) tile.fact = ch.fact;
-        applyHasDataFromSource(tile, ch);
-      }
-      if (tb) {
-        if (planFactValuePresent(tb.plan)) tile.plan = tb.plan;
-        if (planFactValuePresent(tb.fact)) tile.fact = tb.fact;
-        applyHasDataFromSource(tile, tb);
+      if (
+        useMonthFilter &&
+        requestedPeriodLabel &&
+        (planFactValuePresent(tile.plan) || planFactValuePresent(tile.fact))
+      ) {
+        tile.plan_fact_period_label = requestedPeriodLabel;
       }
     });
   }
@@ -1690,6 +1843,7 @@
    * @property {function({department?: string}=): Promise} fetchKpiAll — GET /api/kpi/all/
    * @property {function(): Promise} fetchKpiUsers — GET без токена, список для login
    * @property {function({department?: string}=): Promise} fetchImmediateSubordinates
+   * @property {function(): Promise} fetchChairmanDashboardCatalog
    */
   global.Api = {
     login: login,
@@ -1704,6 +1858,7 @@
     fetchKpis: fetchKpis,
     fetchKpiAll: fetchKpiAll,
     fetchImmediateSubordinates: fetchImmediateSubordinates,
+    fetchChairmanDashboardCatalog: fetchChairmanDashboardCatalog,
     searchDepartments: searchDepartments,
     normalizeKpiListFromApiResponse: normalizeKpiListFromApiResponse,
     buildChartIndicatorsFromApiResponse: buildChartIndicatorsFromApiResponse,

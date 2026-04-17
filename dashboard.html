@@ -66,6 +66,13 @@
             <button type="button" class="btn-logout" id="btn-logout">Выйти</button>
           </div>
         </header>
+        <nav
+          class="dash-chairman-tabs"
+          id="dashboard-chairman-tabs"
+          role="tablist"
+          aria-label="Доступные дашборды председателя совета директоров"
+          hidden
+        ></nav>
         <main class="dash-main">
 
       <div class="dash-loading" id="dash-loading">
@@ -82,6 +89,16 @@
         <span class="month-nav-label" id="month-nav-label">—</span>
         <button type="button" class="month-nav-arrow month-nav-next" id="month-nav-next" aria-label="Следующий месяц">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 3L11 8L6 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <button
+          type="button"
+          class="month-nav-warning"
+          id="month-nav-warning"
+          aria-label="Данные представлены не за полный месяц"
+          title="Данные представлены не за полный месяц"
+          hidden
+        >
+          <span class="month-nav-warning-icon" aria-hidden="true">!</span>
         </button>
       </nav>
 
@@ -168,6 +185,32 @@
         <section class="table-panel">
           <h2 class="table-panel-title">
             <span id="claims-table-title-text">Претензии</span>
+            <nav
+              id="claims-table-switcher"
+              class="claims-table-switcher"
+              role="tablist"
+              aria-label="Переключение таблиц"
+              hidden
+            >
+              <button
+                type="button"
+                class="claims-table-switcher-btn"
+                data-claims-view="claims"
+                role="tab"
+                aria-selected="true"
+              >
+                Претензии
+              </button>
+              <button
+                type="button"
+                class="claims-table-switcher-btn"
+                data-claims-view="lawsuits"
+                role="tab"
+                aria-selected="false"
+              >
+                Суды
+              </button>
+            </nav>
             <span class="table-title-help-wrap" id="claims-table-help-wrap">
               <button
                 type="button"
@@ -192,7 +235,7 @@
               </span>
             </span>
           </h2>
-          <div class="dashboard-table-wrap dashboard-table-wrap--claims">
+          <div class="dashboard-table-wrap dashboard-table-wrap--claims" data-claims-view="claims">
             <table id="table-top-deviations" class="dashboard-table" aria-label="Таблица претензий">
               <thead>
                 <tr>
@@ -218,22 +261,55 @@
               </tfoot>
             </table>
           </div>
+          <div
+            class="dashboard-table-wrap dashboard-table-wrap--claims dashboard-table-wrap--lawsuits"
+            data-claims-view="lawsuits"
+            hidden
+          >
+            <table id="table-lawsuits" class="dashboard-table" aria-label="Таблица судов">
+              <thead>
+                <tr>
+                  <th>Тип документа</th>
+                  <th>Контрагент</th>
+                  <th>Предмет спора</th>
+                  <th>Сумма требований, руб.</th>
+                  <th>Роль ГК в споре</th>
+                  <th>Юр. лицо</th>
+                  <th>Подразделение</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+              <tfoot>
+                <tr>
+                  <th colspan="3">Итого</th>
+                  <th id="lawsuits-table-total-sum">0,00</th>
+                  <th colspan="3"></th>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
         </section>
         <section class="table-panel">
           <h2 id="overdue-debt-table-title">Расшифровка просроченной дебиторской задолженности</h2>
-          <div class="dashboard-table-wrap">
+          <div class="dashboard-table-wrap dashboard-table-wrap--claims dashboard-table-wrap--overdue-debt">
             <table id="table-overdue-debt" class="dashboard-table" aria-label="Расшифровка просроченной дебиторской задолженности">
               <thead>
                 <tr>
                   <th>№ Заказа клиента</th>
                   <th>Контрагент</th>
-                  <th>Сумма</th>
-                  <th>Дн. просрочки</th>
+                  <th>Просрочка, дн.</th>
                   <th>Причина</th>
                   <th>Действие</th>
+                  <th>Сумма, руб</th>
                 </tr>
               </thead>
               <tbody></tbody>
+              <tfoot>
+                <tr>
+                  <th colspan="5">Итого</th>
+                  <th id="overdue-debt-table-total-sum">0,00</th>
+                </tr>
+              </tfoot>
             </table>
           </div>
         </section>
@@ -241,6 +317,13 @@
 
       </div><!-- /.dash-content -->
 
+          <section class="table-panel" id="debug-kpi-json-section" style="margin-top:24px" hidden>
+            <h2>DEBUG: все JSON-ответы API</h2>
+            <p class="debug-json-log-hint">Журнал запросов: вход (POST login), KPI (GET /api/kpi/, /api/kpi/all/), подчинённые (GET immediate-subordinates). Новые записи сверху.</p>
+            <div id="debug-kpi-json" class="debug-kpi-json-panel"></div>
+          </section>
+        </main>
+        <footer class="dash-footer">
           <div class="debug-toggle-row">
             <button
               type="button"
@@ -252,13 +335,7 @@
               Для разработчика
             </button>
           </div>
-
-          <section class="table-panel" id="debug-kpi-json-section" style="margin-top:24px" hidden>
-            <h2>DEBUG: все JSON-ответы API</h2>
-            <p class="debug-json-log-hint">Журнал запросов: вход (POST login), KPI (GET /api/kpi/, /api/kpi/all/), подчинённые (GET immediate-subordinates). Новые записи сверху.</p>
-            <div id="debug-kpi-json" class="debug-kpi-json-panel"></div>
-          </section>
-        </main>
+        </footer>
       </div>
     </div>
 

@@ -65,6 +65,26 @@
     return String(v);
   }
 
+  function formatKpiTileUnits(units) {
+    return units == null ? "" : String(units).trim();
+  }
+
+  function formatKpiTileFactValueWithUnits(fact, units) {
+    var factText = formatKpiTilePlanFactValue(fact);
+    var unitsText = formatKpiTileUnits(units);
+    if (!unitsText || factText === "—") return factText;
+    return factText + " " + unitsText;
+  }
+
+  function formatKpiTilePlanFactPair(plan, fact, units) {
+    var planText = formatKpiTilePlanFactValue(plan);
+    var factText = formatKpiTilePlanFactValue(fact);
+    var unitsText = formatKpiTileUnits(units);
+    var pairText = planText + "/" + factText;
+    if (!unitsText) return pairText;
+    return pairText + " " + unitsText;
+  }
+
   function formatKpiTileUpdatedAt(value) {
     if (value == null) return "";
     var text = String(value).trim();
@@ -118,6 +138,9 @@
     ragCell: ragCell,
     capitalizeHeaderTitle: capitalizeHeaderTitle,
     formatKpiTilePlanFactValue: formatKpiTilePlanFactValue,
+    formatKpiTileUnits: formatKpiTileUnits,
+    formatKpiTileFactValueWithUnits: formatKpiTileFactValueWithUnits,
+    formatKpiTilePlanFactPair: formatKpiTilePlanFactPair,
     formatKpiTileUpdatedAt: formatKpiTileUpdatedAt,
     kpiTilePlanFactValuePresent: kpiTilePlanFactValuePresent,
     kpiTileHasPlanAndFact: kpiTileHasPlanAndFact,

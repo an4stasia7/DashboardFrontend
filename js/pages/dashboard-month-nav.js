@@ -8,6 +8,7 @@
   var currentPeriodYear = null;
   var availableMonths = [];
   var availableMonthsContextKey = "";
+  var availableMonthsByContext = Object.create(null);
   var latestContext = {};
   var bound = false;
 
@@ -105,38 +106,48 @@
 
   function setAvailableMonthsFromChartPoints(chartIndicators, options) {
     options = options || {};
+    var nextContextKey =
+      options.contextKey != null ? String(options.contextKey) : availableMonthsContextKey;
     var nextMonths = [];
-    if (!chartIndicators) return;
-    var lines = chartIndicators.line || [];
-    for (var li = 0; li < lines.length; li++) {
-      var pts = lines[li].points;
-      if (!pts) continue;
-      for (var pi = 0; pi < pts.length; pi++) {
-        var pt = pts[pi];
-        if (!navPointHasPeriodValue(pt)) continue;
-        var key = monthYearKey(pt.year, pt.month);
-        if (key < 0) continue;
-        var exists = false;
-        for (var ei = 0; ei < nextMonths.length; ei++) {
-          if (nextMonths[ei] && nextMonths[ei].key === key) {
-            exists = true;
-            break;
+    if (chartIndicators) {
+      var lines = chartIndicators.line || [];
+      for (var li = 0; li < lines.length; li++) {
+        var pts = lines[li].points;
+        if (!pts) continue;
+        for (var pi = 0; pi < pts.length; pi++) {
+          var pt = pts[pi];
+          if (!navPointHasPeriodValue(pt)) continue;
+          var key = monthYearKey(pt.year, pt.month);
+          if (key < 0) continue;
+          var exists = false;
+          for (var ei = 0; ei < nextMonths.length; ei++) {
+            if (nextMonths[ei] && nextMonths[ei].key === key) {
+              exists = true;
+              break;
+            }
           }
-        }
-        if (!exists) {
-          nextMonths.push({
-            month: parseInt(String(pt.month), 10),
-            year: parseInt(String(pt.year), 10),
-            key: key,
-          });
+          if (!exists) {
+            nextMonths.push({
+              month: parseInt(String(pt.month), 10),
+              year: parseInt(String(pt.year), 10),
+              key: key,
+            });
+          }
         }
       }
     }
-    availableMonths = options.preserveExisting
-      ? mergeAvailableMonthSlots(availableMonths, nextMonths)
-      : nextMonths;
-    availableMonthsContextKey =
-      options.contextKey != null ? String(options.contextKey) : availableMonthsContextKey;
+    var cachedMonths =
+      nextContextKey && Array.isArray(availableMonthsByContext[nextContextKey])
+        ? availableMonthsByContext[nextContextKey]
+        : [];
+    var baseMonths = options.preserveExisting
+      ? mergeAvailableMonthSlots(cachedMonths, availableMonths)
+      : cachedMonths;
+    availableMonths = mergeAvailableMonthSlots(baseMonths, nextMonths);
+    availableMonthsContextKey = nextContextKey;
+    if (nextContextKey) {
+      availableMonthsByContext[nextContextKey] = mergeAvailableMonthSlots([], availableMonths);
+    }
   }
 
   function getCurrentMonthIndex() {
@@ -148,21 +159,38 @@
     return -1;
   }
 
+  function isIncompleteCurrentMonth(month, year) {
+    var m = parseInt(String(month), 10);
+    var y = parseInt(String(year), 10);
+    if (isNaN(m) || isNaN(y) || m < 1 || m > 12) return false;
+    var now = new Date();
+    var nowMonth = now.getMonth() + 1;
+    var nowYear = now.getFullYear();
+    if (m !== nowMonth || y !== nowYear) return false;
+    var lastDayOfMonth = new Date(y, m, 0).getDate();
+    return now.getDate() < lastDayOfMonth;
+  }
+
   function updateMonthNavigatorUI() {
     var nav = document.getElementById("month-navigator");
     var label = document.getElementById("month-nav-label");
     var prevBtn = document.getElementById("month-nav-prev");
     var nextBtn = document.getElementById("month-nav-next");
+    var warning = document.getElementById("month-nav-warning");
     if (!nav) return;
 
     if (currentPeriodMonth == null || currentPeriodYear == null) {
       nav.hidden = true;
+      if (warning) warning.hidden = true;
       return;
     }
 
     nav.hidden = false;
     var monthName = MONTH_NAMES_RU[currentPeriodMonth] || String(currentPeriodMonth);
     if (label) label.textContent = monthName + " " + currentPeriodYear;
+    if (warning) {
+      warning.hidden = !isIncompleteCurrentMonth(currentPeriodMonth, currentPeriodYear);
+    }
 
     var idx = getCurrentMonthIndex();
     if (prevBtn) prevBtn.disabled = idx <= 0;
@@ -204,6 +232,9 @@
     if (Object.prototype.hasOwnProperty.call(nextState, "availableMonthsContextKey")) {
       availableMonthsContextKey =
         nextState.availableMonthsContextKey != null ? String(nextState.availableMonthsContextKey) : "";
+    }
+    if (availableMonthsContextKey) {
+      availableMonthsByContext[availableMonthsContextKey] = mergeAvailableMonthSlots([], availableMonths);
     }
   }
 

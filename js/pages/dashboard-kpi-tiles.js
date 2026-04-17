@@ -124,12 +124,15 @@
   }
 
   function buildKpiTileBodyHtml(tile, hasPf, pfPeriod) {
+    var rule = getKpiTileException(tile);
+    var isFactOnly = !!(rule && rule.factOnly);
     var generatedFlag = tile.has_data === false ? buildKpiTileGeneratedFlagHtml() : "";
     var periodExtra =
-      hasPf && pfPeriod
+      (hasPf || isFactOnly) && pfPeriod
         ? '<span class="kpi-tile-plan-fact-period" title="' +
-          DashUi.escapeHtml(KPI_TILE_TITLE_PLAN_FACT_PERIOD) +
-          '">План/факт: ' +
+          DashUi.escapeHtml(isFactOnly ? "Период факта" : KPI_TILE_TITLE_PLAN_FACT_PERIOD) +
+          '">' +
+          (isFactOnly ? "Факт: " : "План/факт: ") +
           DashUi.escapeHtml(pfPeriod) +
           "</span>"
         : "";
@@ -150,15 +153,13 @@
     );
   }
 
-  function buildKpiTilePlanFactStackHtml(planShown, factShown) {
+  function buildKpiTilePlanFactStackHtml(planFactShown) {
     return (
       '<div class="kpi-tile-pf-stack">' +
       '<div class="kpi-tile-pf-inline">' +
       '<div class="kpi-tile-pf-inline-row">' +
       '<span class="kpi-tile-pf-pill">' +
-      DashUi.escapeHtml(planShown) +
-      '<span class="kpi-tile-pf-slash" aria-hidden="true">/</span>' +
-      DashUi.escapeHtml(factShown) +
+      DashUi.escapeHtml(planFactShown) +
       '</span><span class="kpi-tile-pf-inline-label">План / факт</span></div></div></div>'
     );
   }
@@ -174,7 +175,7 @@
     );
   }
 
-  function buildKpiTileMetricsSectionHtml(tile, hasPf, planShown, factShown) {
+  function buildKpiTileMetricsSectionHtml(tile, hasPf, planFactShown, factShown) {
     var rule = getKpiTileException(tile);
     if (rule && rule.factOnly) {
       return (
@@ -188,17 +189,17 @@
       '<div class="kpi-tile-metrics kpi-tile-metrics--pf-only" aria-label="' +
       DashUi.escapeHtml(KPI_TILE_ARIA_METRICS_PF) +
       '">' +
-      buildKpiTilePlanFactStackHtml(planShown, factShown) +
+      buildKpiTilePlanFactStackHtml(planFactShown) +
       "</div>"
     );
   }
 
-  function buildKpiTileFrontFaceHtml(tile, hasPf, planShown, factShown, pfPeriod) {
+  function buildKpiTileFrontFaceHtml(tile, hasPf, planFactShown, factShown, pfPeriod) {
     return (
       '<section class="kpi-tile-face kpi-tile-face--front">' +
       buildKpiTileBadgeRowHtml(tile) +
       buildKpiTileBodyHtml(tile, hasPf, pfPeriod) +
-      buildKpiTileMetricsSectionHtml(tile, hasPf, planShown, factShown) +
+      buildKpiTileMetricsSectionHtml(tile, hasPf, planFactShown, factShown) +
       "</section>"
     );
   }
@@ -253,6 +254,10 @@
     var period = tile && tile.period != null ? String(tile.period).trim() : "";
     var code = tile && (tile.badge || tile.kpi_id) ? String(tile.badge || tile.kpi_id).trim() : "";
     var hasPf = DashUi.kpiTileHasPlanAndFact(tile);
+    var planFactShown =
+      typeof DashUi.formatKpiTilePlanFactPair === "function"
+        ? DashUi.formatKpiTilePlanFactPair(tile.plan, tile.fact, tile.units)
+        : DashUi.formatKpiTilePlanFactValue(tile.plan) + "/" + DashUi.formatKpiTilePlanFactValue(tile.fact);
     var showHelp = shouldShowKpiTileHelp(tile);
     var showPercent = shouldShowKpiTilePercent(tile);
     if (shouldRenderKpiTileBackDepartmentsOnly(tile)) {
@@ -291,9 +296,7 @@
         : "") +
       (hasPf && shouldRenderKpiTileBack(tile)
         ? '<div class="kpi-tile-back-summary-item"><span class="kpi-tile-back-summary-label">План / факт</span><strong>' +
-          DashUi.escapeHtml(DashUi.formatKpiTilePlanFactValue(tile.plan)) +
-          " / " +
-          DashUi.escapeHtml(DashUi.formatKpiTilePlanFactValue(tile.fact)) +
+          DashUi.escapeHtml(planFactShown) +
           "</strong></div>"
         : "") +
       "</div>" +
@@ -425,8 +428,14 @@
       var rule = getKpiTileException(tile);
       var frontAccentColor = rule && rule.frontAccentColor ? String(rule.frontAccentColor).trim() : "";
       var hasPf = DashUi.kpiTileHasPlanAndFact(tile);
-      var planShown = DashUi.formatKpiTilePlanFactValue(tile.plan);
-      var factShown = DashUi.formatKpiTilePlanFactValue(tile.fact);
+      var planFactShown =
+        typeof DashUi.formatKpiTilePlanFactPair === "function"
+          ? DashUi.formatKpiTilePlanFactPair(tile.plan, tile.fact, tile.units)
+          : DashUi.formatKpiTilePlanFactValue(tile.plan) + "/" + DashUi.formatKpiTilePlanFactValue(tile.fact);
+      var factShown =
+        typeof DashUi.formatKpiTileFactValueWithUnits === "function"
+          ? DashUi.formatKpiTileFactValueWithUnits(tile.fact, tile.units)
+          : DashUi.formatKpiTilePlanFactValue(tile.fact);
       var pfPeriod =
         tile.plan_fact_period_label != null
           ? String(tile.plan_fact_period_label).trim()
@@ -455,7 +464,7 @@
       }
       el.innerHTML =
         '<div class="kpi-tile-inner">' +
-        buildKpiTileFrontFaceHtml(tile, hasPf, planShown, factShown, pfPeriod) +
+        buildKpiTileFrontFaceHtml(tile, hasPf, planFactShown, factShown, pfPeriod) +
         '<section class="kpi-tile-face kpi-tile-face--back"></section>' +
         "</div>";
       container.appendChild(el);
