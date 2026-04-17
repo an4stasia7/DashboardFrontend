@@ -126,6 +126,7 @@
 }
 
 .dash-workspace {
+  min-height: 100vh;
   min-width: 0;
   display: flex;
   flex-direction: column;
@@ -315,6 +316,7 @@
 }
 
 .dash-footer {
+  margin-top: auto;
   padding: 0 24px 20px;
 }
 
