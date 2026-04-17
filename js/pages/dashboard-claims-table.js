@@ -47,7 +47,7 @@
     if (!dataTableApi || typeof dataTableApi.column !== "function") return;
     var total = 0;
     dataTableApi
-      .column(3, { search: "applied" })
+      .column(6, { search: "applied" })
       .nodes()
       .each(function (cell) {
         if (!cell || typeof cell.getAttribute !== "function") return;
@@ -367,14 +367,14 @@
           tableTextOrDash(pickLawsuitsField(raw, ["doc_type", "document_type", "documentType"])),
           tableTextOrDash(pickLawsuitsField(raw, ["counterparty", "partner", "contragent"])),
           tableTextOrDash(pickLawsuitsField(raw, ["subject", "dispute_subject", "dispute", "topic"])),
-          formatClaimsOrderSum(amount),
           tableTextOrDash(pickLawsuitsField(raw, ["gk_role", "role", "company_role"])),
           tableTextOrDash(pickLawsuitsField(raw, ["legal_entity", "entity", "company", "jur_entity", "ur_entity"])),
           tableTextOrDash(pickLawsuitsField(raw, ["department", "subdivision", "unit", "division"])),
+          formatClaimsOrderSum(amount),
         ].forEach(function (value, cellIndex) {
           var td = document.createElement("td");
           td.textContent = value;
-          if (cellIndex === 3) {
+          if (cellIndex === 6) {
             td.setAttribute("data-order", getClaimsOrderSumSortValue(amount));
           }
           tr.appendChild(td);
@@ -955,15 +955,15 @@
         { index: 0, label: "Тип документа", type: "filter", searchType: "text" },
         { index: 1, label: "Контрагент", type: "filter", searchType: "text" },
         { index: 2, label: "Предмет спора", type: "filter", searchType: "text" },
-        { index: 3, label: "Сумма требований, руб.", type: "sort", searchType: "text" },
-        { index: 4, label: "Роль ГК в споре", type: "filter", searchType: "text" },
-        { index: 5, label: "Юр. лицо", type: "filter", searchType: "text" },
-        { index: 6, label: "Подразделение", type: "filter", searchType: "text" },
+        { index: 3, label: "Роль ГК в споре", type: "filter", searchType: "text" },
+        { index: 4, label: "Юр. лицо", type: "filter", searchType: "text" },
+        { index: 5, label: "Подразделение", type: "filter", searchType: "text" },
+        { index: 6, label: "Сумма требований, руб.", type: "sort", searchType: "text" },
       ],
-      initialOrder: [[3, "desc"]],
+      initialOrder: [[6, "desc"]],
       columnDefs: [
         { targets: "_all", orderable: false },
-        { targets: [3], type: "num-fmt", orderable: true },
+        { targets: [6], type: "num-fmt", orderable: true },
       ],
       footerCallback: function () {
         updateLawsuitsTotalRow(this.api());
