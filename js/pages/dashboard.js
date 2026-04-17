@@ -36,6 +36,8 @@
   var viewContextUser = sessionUser;
   /** Вкладки иерархии: { id, label, user, department? }[] — в live из immediate-subordinates; в mock из MockData */
   var viewTargets = [];
+  /** Верхний каталог дашбордов для ПСД */
+  var chairmanDashboardTargets = [];
   var selectedViewId = "self";
   /** Путь от подразделения пользователя вниз по дереву (для запроса детей и хлебных крошек) */
   var hierarchyStack = [];
@@ -236,6 +238,12 @@
         setViewTargets: function (value) {
           viewTargets = value;
         },
+        getChairmanDashboardTargets: function () {
+          return chairmanDashboardTargets;
+        },
+        setChairmanDashboardTargets: function (value) {
+          chairmanDashboardTargets = value;
+        },
         getSelectedViewId: function () {
           return selectedViewId;
         },
@@ -267,7 +275,19 @@
           if (typeof Api === "undefined" || typeof Api.fetchImmediateSubordinates !== "function") {
             return Promise.resolve({ ok: false, immediate_children: [] });
           }
-          return Api.fetchImmediateSubordinates({ department: department });
+          var opts = { department: department };
+          var chairmanFor = getChairmanDashboardCatalogId();
+          if (chairmanFor) {
+            opts.for = chairmanFor;
+            if (isChairmanRootHierarchy()) delete opts.department;
+          }
+          return Api.fetchImmediateSubordinates(opts);
+        },
+        fetchChairmanDashboardCatalog: function () {
+          if (typeof Api === "undefined" || typeof Api.fetchChairmanDashboardCatalog !== "function") {
+            return Promise.resolve({ ok: false, items: [], error: "Каталог ПСД недоступен" });
+          }
+          return Api.fetchChairmanDashboardCatalog();
         },
         searchDepartments: function (query) {
           if (typeof Api === "undefined" || typeof Api.searchDepartments !== "function") {
@@ -296,6 +316,7 @@
         getViewContextUser: function () {
           return viewContextUser;
         },
+        getChairmanDashboardCatalogId: getChairmanDashboardCatalogId,
         getDepartmentForCurrentKpiContext: getDepartmentForCurrentKpiContext,
         getPeriodState: function () {
           if (typeof DashboardMonthNav === "undefined" || !DashboardMonthNav) {
@@ -335,10 +356,22 @@
         onUnauthorized: handleUnauthorized,
         pushDashboardDebugNote: pushDashboardDebugNote,
         fetchKpis: function (opts) {
-          return Api.fetchKpis(opts);
+          var nextOpts = Object.assign({}, opts || {});
+          var chairmanFor = getChairmanDashboardCatalogId();
+          if (chairmanFor) {
+            nextOpts.for = chairmanFor;
+            if (isChairmanRootHierarchy()) delete nextOpts.department;
+          }
+          return Api.fetchKpis(nextOpts);
         },
         fetchKpiAll: function (opts) {
-          return Api.fetchKpiAll(opts);
+          var nextOpts = Object.assign({}, opts || {});
+          var chairmanFor = getChairmanDashboardCatalogId();
+          if (chairmanFor) {
+            nextOpts.for = chairmanFor;
+            if (isChairmanRootHierarchy()) delete nextOpts.department;
+          }
+          return Api.fetchKpiAll(nextOpts);
         },
         getSessionApiMode: function () {
           return session.apiMode;
@@ -490,6 +523,18 @@
   /** Активная вкладка из `viewTargets` по `selectedViewId`, иначе первая. */
   function getCurrentViewTarget() {
     return callHierarchyNav("getCurrentViewTarget", [], null);
+  }
+
+  function getChairmanDashboardCatalogId() {
+    var fromNav = callHierarchyNav("getActiveChairmanCatalogId", [], "");
+    if (fromNav) return fromNav;
+    var target = getCurrentViewTarget();
+    if (!target || target.catalogKind !== "chairman" || target.catalogId == null) return "";
+    return String(target.catalogId).trim();
+  }
+
+  function isChairmanRootHierarchy() {
+    return Array.isArray(hierarchyStack) && hierarchyStack.length <= 1;
   }
 
   /**
@@ -1240,7 +1285,9 @@
   loadKpiTilesAndChartsForView();
   loadViewTargets().then(function (targets) {
     viewTargets = targets && targets.length ? targets : [{ id: "self", label: "Мой дашборд", user: sessionUser }];
-    renderViewTabs();
-    updateTopBarForView();
+    refreshSubordinateTabsFromApi().then(function () {
+      renderViewTabs();
+      updateTopBarForView();
+    });
   });
 })();

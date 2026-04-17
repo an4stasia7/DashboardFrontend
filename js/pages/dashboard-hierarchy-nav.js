@@ -25,6 +25,16 @@
     if (typeof fn === "function") fn(value);
   }
 
+  function getChairmanDashboardTargets() {
+    var fn = getContext().getChairmanDashboardTargets;
+    return typeof fn === "function" ? fn() : [];
+  }
+
+  function setChairmanDashboardTargets(value) {
+    var fn = getContext().setChairmanDashboardTargets;
+    if (typeof fn === "function") fn(value);
+  }
+
   function getSelectedViewId() {
     var fn = getContext().getSelectedViewId;
     return typeof fn === "function" ? fn() : "self";
@@ -87,6 +97,13 @@
       : Promise.resolve({ ok: false, immediate_children: [] });
   }
 
+  function fetchChairmanDashboardCatalog() {
+    var fn = getContext().fetchChairmanDashboardCatalog;
+    return typeof fn === "function"
+      ? fn()
+      : Promise.resolve({ ok: false, items: [], error: "Каталог ПСД недоступен" });
+  }
+
   function searchDepartments(query) {
     var fn = getContext().searchDepartments;
     return typeof fn === "function"
@@ -97,6 +114,21 @@
   function getMockViewableDashboardTargets() {
     var fn = getContext().getMockViewableDashboardTargets;
     return typeof fn === "function" ? fn() : [];
+  }
+
+  function normalizeDashboardRole(value) {
+    return value == null ? "" : String(value).trim().toLocaleLowerCase("ru-RU");
+  }
+
+  function isBoardChairUser(user) {
+    if (!user || typeof user !== "object") return false;
+    var role = normalizeDashboardRole(user.role);
+    var department = normalizeDashboardRole(user.department);
+    return role === "председатель совета директоров" || department === "председатель совета директоров";
+  }
+
+  function isChairmanTarget(target) {
+    return !!(target && target.catalogKind === "chairman");
   }
 
   function normalizeSidebarSearchText(value) {
@@ -186,11 +218,198 @@
   function getCurrentViewTarget() {
     var viewTargets = getViewTargets();
     var selectedViewId = getSelectedViewId();
-    if (!viewTargets || !viewTargets.length) return null;
-    for (var i = 0; i < viewTargets.length; i++) {
-      if (viewTargets[i].id === selectedViewId) return viewTargets[i];
+    if (viewTargets && viewTargets.length) {
+      for (var i = 0; i < viewTargets.length; i++) {
+        if (viewTargets[i].id === selectedViewId) return viewTargets[i];
+      }
     }
-    return viewTargets[0];
+    var chairmanTargets = getChairmanDashboardTargets();
+    for (var ci = 0; ci < chairmanTargets.length; ci++) {
+      if (chairmanTargets[ci] && chairmanTargets[ci].id === selectedViewId) return chairmanTargets[ci];
+    }
+    var hierarchy = getHierarchyStack();
+    if (Array.isArray(hierarchy) && hierarchy.length) {
+      var root = hierarchy[0] != null ? String(hierarchy[0]).trim() : "";
+      if (root) {
+        var byRoot = findChairmanTargetByRootDepartment(root);
+        if (byRoot) return byRoot;
+      }
+    }
+    return viewTargets[0] || chairmanTargets[0] || null;
+  }
+
+  function buildTargetsFromChairmanCatalog(items) {
+    var sessionUser = getSessionUser();
+    var out = [];
+    var hasSelf = false;
+    (items || []).forEach(function (item, index) {
+      if (!item || typeof item !== "object") return;
+      var rawId = item.id != null ? String(item.id).trim() : "";
+      if (!rawId) return;
+      var rawLabel = item.label != null ? String(item.label).trim() : "";
+      var aliases = Array.isArray(item.aliases)
+        ? item.aliases
+            .map(function (alias) {
+              return alias != null ? String(alias).trim() : "";
+            })
+            .filter(Boolean)
+        : [];
+      if (rawId === "my_dashboard") {
+        var selfDeptRaw =
+          sessionUser && sessionUser.department != null ? String(sessionUser.department).trim() : "";
+        out.push({
+          id: "self",
+          label: "Мой дашборд",
+          user: sessionUser,
+          aliases: aliases,
+          catalogKind: "chairman",
+          catalogId: rawId,
+          catalogIndex: index,
+          department: selfDeptRaw,
+        });
+        hasSelf = true;
+        return;
+      }
+      var department = rawLabel || rawId;
+      out.push({
+        id: "chairman:" + encodeURIComponent(rawId),
+        label: department,
+        department: department,
+        viewDepartment: department,
+        user: sessionUser,
+        aliases: aliases,
+        catalogKind: "chairman",
+        catalogId: rawId,
+        catalogIndex: index,
+      });
+    });
+    if (!hasSelf) {
+      var fallbackSelfDept =
+        sessionUser && sessionUser.department != null ? String(sessionUser.department).trim() : "";
+      out.unshift({
+        id: "self",
+        label: "Мой дашборд",
+        user: sessionUser,
+        aliases: ["my_dashboard"],
+        catalogKind: "chairman",
+        catalogId: "my_dashboard",
+        catalogIndex: -1,
+        department: fallbackSelfDept,
+      });
+    }
+    return out;
+  }
+
+  function isViewTargetActive(target, selectedViewId, hierarchyStack) {
+    if (!target) return false;
+    if (target.id === selectedViewId) return true;
+    if (!isChairmanTarget(target) || target.id === "self") return false;
+    if (!hierarchyStack || !hierarchyStack.length) return false;
+    var root = hierarchyStack[0] != null ? String(hierarchyStack[0]).trim() : "";
+    var dept = target.department != null ? String(target.department).trim() : "";
+    return !!root && !!dept && root === dept;
+  }
+
+  function findChairmanTargetByRootDepartment(rootDepartment) {
+    var root = rootDepartment != null ? String(rootDepartment).trim() : "";
+    if (!root) return null;
+    var chairmanTargets = getChairmanDashboardTargets();
+    for (var i = 0; i < chairmanTargets.length; i++) {
+      var target = chairmanTargets[i];
+      var dept = target && target.department != null ? String(target.department).trim() : "";
+      if (dept && dept === root) return target;
+    }
+    return null;
+  }
+
+  function resolveChairmanSelectedViewIdFromHierarchy(hierarchy) {
+    var path = Array.isArray(hierarchy) ? hierarchy : [];
+    if (!path.length) return "self";
+    var target = findChairmanTargetByRootDepartment(path[0]);
+    return target && target.id ? target.id : "self";
+  }
+
+  function getActiveChairmanCatalogTarget() {
+    var chairmanTargets = getChairmanDashboardTargets();
+    if (!Array.isArray(chairmanTargets) || !chairmanTargets.length) return null;
+    var selectedViewId = getSelectedViewId();
+    for (var i = 0; i < chairmanTargets.length; i++) {
+      var t = chairmanTargets[i];
+      if (t && t.id === selectedViewId) return t;
+    }
+    var hierarchy = getHierarchyStack();
+    if (Array.isArray(hierarchy) && hierarchy.length) {
+      var root = hierarchy[0] != null ? String(hierarchy[0]).trim() : "";
+      if (root) {
+        var byRoot = findChairmanTargetByRootDepartment(root);
+        if (byRoot) return byRoot;
+      }
+    }
+    return null;
+  }
+
+  function getActiveChairmanCatalogId() {
+    var target = getActiveChairmanCatalogTarget();
+    if (!target || target.catalogId == null) return "";
+    return String(target.catalogId).trim();
+  }
+
+  function renderChairmanDashboardTabs() {
+    var nav = document.getElementById("dashboard-chairman-tabs");
+    var chairmanTargets = getChairmanDashboardTargets();
+    var selectedViewId = getSelectedViewId();
+    var hierarchyStack = getHierarchyStack();
+    var sessionUser = getSessionUser();
+    if (!nav) return;
+    nav.innerHTML = "";
+    if (!isBoardChairUser(sessionUser) || !chairmanTargets || chairmanTargets.length <= 1) {
+      nav.hidden = true;
+      return;
+    }
+    nav.hidden = false;
+    var inner = document.createElement("div");
+    inner.className = "dash-view-tabs-inner";
+    chairmanTargets.forEach(function (t) {
+      if (!t) return;
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "dash-view-tab";
+      btn.setAttribute("role", "tab");
+      btn.setAttribute("data-target-id", t.id);
+      btn.setAttribute("aria-selected", isViewTargetActive(t, selectedViewId, hierarchyStack) ? "true" : "false");
+      var span = document.createElement("span");
+      span.className = "dash-view-tab-text";
+      span.textContent =
+        t.label != null && String(t.label).trim()
+          ? DashUi.capitalizeHeaderTitle(String(t.label).trim())
+          : t.id;
+      btn.appendChild(span);
+      btn.addEventListener("click", function () {
+        if (isViewTargetActive(t, getSelectedViewId(), getHierarchyStack())) return;
+        setSelectedViewId(t.id);
+        setViewContextUser(t.user || sessionUser);
+        if (t.id === "self") {
+          var selfDept = sessionUser && sessionUser.department != null ? String(sessionUser.department).trim() : "";
+          setHierarchyStack(selfDept ? [selfDept] : []);
+        } else {
+          setHierarchyStack(t.department ? [String(t.department).trim()] : []);
+        }
+        if (getSessionApiMode() === "mock") {
+          renderChairmanDashboardTabs();
+          renderViewTabs();
+          updateTopBarForView();
+          navigateAfterViewChange();
+          return;
+        }
+        refreshSubordinateTabsFromApi().then(function () {
+          renderChairmanDashboardTabs();
+          updateTopBarForView();
+          navigateAfterViewChange();
+        });
+      });
+      inner.appendChild(btn);
+    });
+    nav.appendChild(inner);
   }
 
   function getDepartmentForCurrentKpiContext() {
@@ -388,7 +607,7 @@
         return;
       }
       if (!hierarchyStack.length) {
-        setViewTargets([{ id: "self", label: "Мой дашборд", user: sessionUser }]);
+        setViewTargets([]);
         renderViewTabs();
         renderHierarchyBreadcrumb();
         resolve();
@@ -522,9 +741,36 @@
       setHierarchyStack([]);
       resetSidebarSearch();
       if (getSessionApiMode() === "mock") {
+        setChairmanDashboardTargets([]);
         resolve(getMockViewableDashboardTargets());
         return;
       }
+      if (isBoardChairUser(sessionUser)) {
+        fetchChairmanDashboardCatalog()
+          .then(function (result) {
+            if (result && result.unauthorized) {
+              onUnauthorized();
+              return;
+            }
+            if (result && result.ok && Array.isArray(result.items) && result.items.length) {
+              var targets = buildTargetsFromChairmanCatalog(result.items);
+              setChairmanDashboardTargets(targets);
+              var selfDept = sessionUser && sessionUser.department != null ? String(sessionUser.department).trim() : "";
+              setHierarchyStack(selfDept ? [selfDept] : []);
+              setSelectedViewId(resolveChairmanSelectedViewIdFromHierarchy(getHierarchyStack()));
+              resolve([]);
+              return;
+            }
+            setChairmanDashboardTargets([]);
+            resolve([{ id: "self", label: "Мой дашборд", user: sessionUser }]);
+          })
+          .catch(function () {
+            setChairmanDashboardTargets([]);
+            resolve([{ id: "self", label: "Мой дашборд", user: sessionUser }]);
+          });
+        return;
+      }
+      setChairmanDashboardTargets([]);
       var rootDept = sessionUser && sessionUser.department != null ? String(sessionUser.department).trim() : "";
       if (!rootDept) {
         resolve([{ id: "self", label: "Мой дашборд", user: sessionUser }]);
@@ -556,6 +802,7 @@
     var selectedViewId = getSelectedViewId();
     if (!nav) return;
     nav.innerHTML = "";
+    renderChairmanDashboardTabs();
     var onlySelf = viewTargets && viewTargets.length === 1 && viewTargets[0].id === "self";
     if (!viewTargets || viewTargets.length === 0 || onlySelf) {
       nav.hidden = true;
@@ -566,13 +813,14 @@
     nav.hidden = false;
     var inner = document.createElement("div");
     inner.className = "dash-view-tabs-inner";
+    var hierarchyStack = getHierarchyStack();
     viewTargets.forEach(function (t) {
       var btn = document.createElement("button");
       btn.type = "button";
       btn.className = "dash-view-tab";
       btn.setAttribute("role", "tab");
       btn.setAttribute("data-target-id", t.id);
-      btn.setAttribute("aria-selected", t.id === selectedViewId ? "true" : "false");
+      btn.setAttribute("aria-selected", isViewTargetActive(t, selectedViewId, hierarchyStack) ? "true" : "false");
       var span = document.createElement("span");
       span.className = "dash-view-tab-text";
       span.textContent =
@@ -581,7 +829,7 @@
           : t.label || t.id;
       btn.appendChild(span);
       btn.addEventListener("click", function () {
-        if (getSelectedViewId() === t.id) return;
+        if (!isChairmanTarget(t) && getSelectedViewId() === t.id) return;
         setSelectedViewId(t.id);
         setViewContextUser(t.user);
         if (t.id === "self") {
@@ -640,6 +888,7 @@
     activateSidebarSearchResult: activateSidebarSearchResult,
     clearSidebarSearchState: clearSidebarSearchState,
     filterSidebarViewTabs: filterSidebarViewTabs,
+    getActiveChairmanCatalogId: getActiveChairmanCatalogId,
     getCurrentViewTarget: getCurrentViewTarget,
     getDepartmentForCurrentKpiContext: getDepartmentForCurrentKpiContext,
     init: init,
