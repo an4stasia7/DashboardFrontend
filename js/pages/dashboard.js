@@ -71,22 +71,35 @@
     window.location.href = "login.html";
   }
 
+  function callMonthNav(methodName, args, fallbackValue) {
+    if (typeof DashboardMonthNav === "undefined" || !DashboardMonthNav) return fallbackValue;
+    var method = DashboardMonthNav[methodName];
+    if (typeof method !== "function") return fallbackValue;
+    return method.apply(DashboardMonthNav, Array.isArray(args) ? args : []);
+  }
+
+  function callHierarchyNav(methodName, args, fallbackValue) {
+    if (typeof DashboardHierarchyNav === "undefined" || !DashboardHierarchyNav) return fallbackValue;
+    var method = DashboardHierarchyNav[methodName];
+    if (typeof method !== "function") return fallbackValue;
+    return method.apply(DashboardHierarchyNav, Array.isArray(args) ? args : []);
+  }
+
+  function callDataLoader(methodName, args, fallbackValue) {
+    if (typeof DashboardDataLoader === "undefined" || !DashboardDataLoader) return fallbackValue;
+    var method = DashboardDataLoader[methodName];
+    if (typeof method !== "function") return fallbackValue;
+    return method.apply(DashboardDataLoader, Array.isArray(args) ? args : []);
+  }
+
   /* ---------- Навигация по месяцам ---------- */
 
   function periodKeyInAvailableMonths(y, m, slots) {
-    if (typeof DashboardMonthNav === "undefined" || !DashboardMonthNav) return false;
-    if (typeof DashboardMonthNav.periodKeyInAvailableMonths === "function") {
-      return DashboardMonthNav.periodKeyInAvailableMonths(y, m, slots);
-    }
-    return false;
+    return callMonthNav("periodKeyInAvailableMonths", [y, m, slots], false);
   }
 
   function getMonthNavigatorContextKey() {
-    if (typeof DashboardMonthNav === "undefined" || !DashboardMonthNav) return "";
-    if (typeof DashboardMonthNav.getMonthNavigatorContextKey === "function") {
-      return DashboardMonthNav.getMonthNavigatorContextKey();
-    }
-    return "";
+    return callMonthNav("getMonthNavigatorContextKey", [], "");
   }
 
   /**
@@ -94,31 +107,19 @@
    * В новом JSON у месячной линии часто есть только `fact`, поэтому достаточно любого осмысленного значения в точке.
    */
   function setAvailableMonthsFromChartPoints(chartIndicators, options) {
-    if (typeof DashboardMonthNav === "undefined" || !DashboardMonthNav) return;
-    if (typeof DashboardMonthNav.setAvailableMonthsFromChartPoints === "function") {
-      DashboardMonthNav.setAvailableMonthsFromChartPoints(chartIndicators, options);
-    }
+    callMonthNav("setAvailableMonthsFromChartPoints", [chartIndicators, options]);
   }
 
   function updateMonthNavigatorUI() {
-    if (typeof DashboardMonthNav === "undefined" || !DashboardMonthNav) return;
-    if (typeof DashboardMonthNav.updateMonthNavigatorUI === "function") {
-      DashboardMonthNav.updateMonthNavigatorUI();
-    }
+    callMonthNav("updateMonthNavigatorUI");
   }
 
   function navigateToMonth(month, year) {
-    if (typeof DashboardMonthNav === "undefined" || !DashboardMonthNav) return;
-    if (typeof DashboardMonthNav.navigateToMonth === "function") {
-      DashboardMonthNav.navigateToMonth(month, year);
-    }
+    callMonthNav("navigateToMonth", [month, year]);
   }
 
   function navigateToQuarter(quarter, year) {
-    if (typeof DashboardMonthNav === "undefined" || !DashboardMonthNav) return;
-    if (typeof DashboardMonthNav.navigateToQuarter === "function") {
-      DashboardMonthNav.navigateToQuarter(quarter, year);
-    }
+    callMonthNav("navigateToQuarter", [quarter, year]);
   }
 
   function setDebugJsonSectionExpanded(expanded) {
@@ -126,6 +127,74 @@
     debugJsonSectionEl.hidden = !expanded;
     debugJsonToggleBtnEl.setAttribute("aria-expanded", expanded ? "true" : "false");
     debugJsonToggleBtnEl.textContent = expanded ? "Скрыть блок для разработчика" : "Для разработчика";
+  }
+
+  function getSessionUserDepartment() {
+    return sessionUser.department != null ? String(sessionUser.department).trim() : "";
+  }
+
+  function goToDepartmentDashboard(deptName) {
+    hierarchyStack = hierarchyStack.concat([deptName]);
+    selectedViewId = "dept:" + encodeURIComponent(deptName);
+    viewContextUser = sessionUser;
+    if (session.apiMode === "mock") {
+      renderViewTabs();
+      updateTopBarForView();
+      loadKpiTilesAndChartsForView();
+      return;
+    }
+    refreshSubordinateTabsFromApi().then(function () {
+      updateTopBarForView();
+      loadKpiTilesAndChartsForView();
+    });
+  }
+
+  function createKpiDrilldownBaseContext() {
+    return {
+      getTiles: function () {
+        return lastKpiTiles;
+      },
+      getFlippedTileIndices: function () {
+        return flippedTileIndices;
+      },
+      getDepartmentForCurrentKpiContext: getDepartmentForCurrentKpiContext,
+      hideKpiHelpPopover: hideKpiHelpPopover,
+      syncKpiTileFlipState: syncKpiTileFlipState,
+      renderKpiTileBackFace: renderKpiTileBackFace,
+      shouldRenderKpiTileBack: shouldRenderKpiTileBack,
+    };
+  }
+
+  function createKpiDrilldownDataContext() {
+    return Object.assign(createKpiDrilldownBaseContext(), {
+      loadDrilldownTilesForDept: loadDrilldownTilesForDept,
+      mapWithConcurrencyLimit: mapWithConcurrencyLimit,
+      onUnauthorized: handleUnauthorized,
+      getSessionApiMode: function () {
+        return session.apiMode;
+      },
+      getSessionUserDepartment: getSessionUserDepartment,
+      findMatchingTileAmongChildren: findMatchingTileAmongChildren,
+    });
+  }
+
+  function createKpiDrilldownNavigationContext() {
+    return Object.assign(createKpiDrilldownBaseContext(), {
+      setPendingFocus: function (value) {
+        pendingKpiTileFocus = value;
+      },
+      goToDepartmentDashboard: goToDepartmentDashboard,
+    });
+  }
+
+  function createKpiDrilldownCloseContext() {
+    return {
+      getFlippedTileIndices: function () {
+        return flippedTileIndices;
+      },
+      hideKpiHelpPopover: hideKpiHelpPopover,
+      syncKpiTileFlipState: syncKpiTileFlipState,
+    };
   }
 
   (function initDebugJsonToggle() {
@@ -151,47 +220,9 @@
   (function initKpiDrilldownModule() {
     if (typeof DashboardKpiDrilldown === "undefined" || !DashboardKpiDrilldown) return;
     if (typeof DashboardKpiDrilldown.bindLegacyPanel === "function") {
-      DashboardKpiDrilldown.bindLegacyPanel({
-        getTiles: function () {
-          return lastKpiTiles;
-        },
-        getFlippedTileIndices: function () {
-          return flippedTileIndices;
-        },
-        getDepartmentForCurrentKpiContext: getDepartmentForCurrentKpiContext,
-        hideKpiHelpPopover: hideKpiHelpPopover,
-        syncKpiTileFlipState: syncKpiTileFlipState,
-        renderKpiTileBackFace: renderKpiTileBackFace,
-        shouldRenderKpiTileBack: shouldRenderKpiTileBack,
-        setPendingFocus: function (value) {
-          pendingKpiTileFocus = value;
-        },
-        goToDepartmentDashboard: function (deptName) {
-          hierarchyStack = hierarchyStack.concat([deptName]);
-          selectedViewId = "dept:" + encodeURIComponent(deptName);
-          viewContextUser = sessionUser;
-          if (session.apiMode === "mock") {
-            renderViewTabs();
-            updateTopBarForView();
-            loadKpiTilesAndChartsForView();
-            return;
-          }
-          refreshSubordinateTabsFromApi().then(function () {
-            updateTopBarForView();
-            loadKpiTilesAndChartsForView();
-          });
-        },
-        loadDrilldownTilesForDept: loadDrilldownTilesForDept,
-        mapWithConcurrencyLimit: mapWithConcurrencyLimit,
-        onUnauthorized: handleUnauthorized,
-        getSessionApiMode: function () {
-          return session.apiMode;
-        },
-        getSessionUserDepartment: function () {
-          return sessionUser.department != null ? String(sessionUser.department).trim() : "";
-        },
-        findMatchingTileAmongChildren: findMatchingTileAmongChildren,
-      });
+      DashboardKpiDrilldown.bindLegacyPanel(
+        Object.assign(createKpiDrilldownDataContext(), createKpiDrilldownNavigationContext())
+      );
     }
   })();
 
@@ -458,11 +489,7 @@
 
   /** Активная вкладка из `viewTargets` по `selectedViewId`, иначе первая. */
   function getCurrentViewTarget() {
-    if (typeof DashboardHierarchyNav === "undefined" || !DashboardHierarchyNav) return null;
-    if (typeof DashboardHierarchyNav.getCurrentViewTarget === "function") {
-      return DashboardHierarchyNav.getCurrentViewTarget();
-    }
-    return null;
+    return callHierarchyNav("getCurrentViewTarget", [], null);
   }
 
   /**
@@ -470,19 +497,12 @@
    * @returns {string}
    */
   function getDepartmentForCurrentKpiContext() {
-    if (typeof DashboardHierarchyNav === "undefined" || !DashboardHierarchyNav) return "";
-    if (typeof DashboardHierarchyNav.getDepartmentForCurrentKpiContext === "function") {
-      return DashboardHierarchyNav.getDepartmentForCurrentKpiContext();
-    }
-    return "";
+    return callHierarchyNav("getDepartmentForCurrentKpiContext", [], "");
   }
 
   /** Заголовок страницы и подсказка пользователя в зависимости от выбранной вкладки / крошек. */
   function updateTopBarForView() {
-    if (typeof DashboardHierarchyNav === "undefined" || !DashboardHierarchyNav) return;
-    if (typeof DashboardHierarchyNav.updateTopBarForView === "function") {
-      DashboardHierarchyNav.updateTopBarForView();
-    }
+    callHierarchyNav("updateTopBarForView");
   }
 
   document.getElementById("btn-logout").addEventListener("click", handleUnauthorized);
@@ -703,38 +723,23 @@
   }
 
   function updateSidebarBackButton() {
-    if (typeof DashboardHierarchyNav === "undefined" || !DashboardHierarchyNav) return;
-    if (typeof DashboardHierarchyNav.updateSidebarBackButton === "function") {
-      DashboardHierarchyNav.updateSidebarBackButton();
-    }
+    callHierarchyNav("updateSidebarBackButton");
   }
 
   function filterSidebarViewTabs() {
-    if (typeof DashboardHierarchyNav === "undefined" || !DashboardHierarchyNav) return;
-    if (typeof DashboardHierarchyNav.filterSidebarViewTabs === "function") {
-      DashboardHierarchyNav.filterSidebarViewTabs();
-    }
+    callHierarchyNav("filterSidebarViewTabs");
   }
 
   function resetSidebarSearch() {
-    if (typeof DashboardHierarchyNav === "undefined" || !DashboardHierarchyNav) return;
-    if (typeof DashboardHierarchyNav.resetSidebarSearch === "function") {
-      DashboardHierarchyNav.resetSidebarSearch();
-    }
+    callHierarchyNav("resetSidebarSearch");
   }
 
   function onSidebarSearchInput(value) {
-    if (typeof DashboardHierarchyNav === "undefined" || !DashboardHierarchyNav) return;
-    if (typeof DashboardHierarchyNav.onSidebarSearchInput === "function") {
-      DashboardHierarchyNav.onSidebarSearchInput(value);
-    }
+    callHierarchyNav("onSidebarSearchInput", [value]);
   }
 
   function navigateToHierarchyLevel(levelIndex) {
-    if (typeof DashboardHierarchyNav === "undefined" || !DashboardHierarchyNav) return;
-    if (typeof DashboardHierarchyNav.navigateToHierarchyLevel === "function") {
-      DashboardHierarchyNav.navigateToHierarchyLevel(levelIndex);
-    }
+    callHierarchyNav("navigateToHierarchyLevel", [levelIndex]);
   }
 
   function hideClaimsTableHelpPopover() {
@@ -816,13 +821,7 @@
   function closeKpiTileDrilldown() {
     if (typeof DashboardKpiDrilldown === "undefined" || !DashboardKpiDrilldown) return;
     if (typeof DashboardKpiDrilldown.close === "function") {
-      DashboardKpiDrilldown.close({
-        getFlippedTileIndices: function () {
-          return flippedTileIndices;
-        },
-        hideKpiHelpPopover: hideKpiHelpPopover,
-        syncKpiTileFlipState: syncKpiTileFlipState,
-      });
+      DashboardKpiDrilldown.close(createKpiDrilldownCloseContext());
     }
   }
 
@@ -834,66 +833,19 @@
   function navigateDashboardToDepartmentFromDrill(deptName, contextTile, focusTarget) {
     if (typeof DashboardKpiDrilldown === "undefined" || !DashboardKpiDrilldown) return;
     if (typeof DashboardKpiDrilldown.navigateToDepartmentFromDrill === "function") {
-      DashboardKpiDrilldown.navigateToDepartmentFromDrill(deptName, contextTile, focusTarget, {
-        getTiles: function () {
-          return lastKpiTiles;
-        },
-        getFlippedTileIndices: function () {
-          return flippedTileIndices;
-        },
-        getDepartmentForCurrentKpiContext: getDepartmentForCurrentKpiContext,
-        hideKpiHelpPopover: hideKpiHelpPopover,
-        syncKpiTileFlipState: syncKpiTileFlipState,
-        renderKpiTileBackFace: renderKpiTileBackFace,
-        shouldRenderKpiTileBack: shouldRenderKpiTileBack,
-        setPendingFocus: function (value) {
-          pendingKpiTileFocus = value;
-        },
-        goToDepartmentDashboard: function (deptNameValue) {
-          hierarchyStack = hierarchyStack.concat([deptNameValue]);
-          selectedViewId = "dept:" + encodeURIComponent(deptNameValue);
-          viewContextUser = sessionUser;
-          if (session.apiMode === "mock") {
-            renderViewTabs();
-            updateTopBarForView();
-            loadKpiTilesAndChartsForView();
-            return;
-          }
-          refreshSubordinateTabsFromApi().then(function () {
-            updateTopBarForView();
-            loadKpiTilesAndChartsForView();
-          });
-        },
-      });
+      DashboardKpiDrilldown.navigateToDepartmentFromDrill(
+        deptName,
+        contextTile,
+        focusTarget,
+        createKpiDrilldownNavigationContext()
+      );
     }
   }
 
   function loadKpiTileDrilldownData(tileIndex) {
     if (typeof DashboardKpiDrilldown === "undefined" || !DashboardKpiDrilldown) return;
     if (typeof DashboardKpiDrilldown.loadKpiTileDrilldownData === "function") {
-      DashboardKpiDrilldown.loadKpiTileDrilldownData(tileIndex, {
-        getTiles: function () {
-          return lastKpiTiles;
-        },
-        getFlippedTileIndices: function () {
-          return flippedTileIndices;
-        },
-        getDepartmentForCurrentKpiContext: getDepartmentForCurrentKpiContext,
-        hideKpiHelpPopover: hideKpiHelpPopover,
-        syncKpiTileFlipState: syncKpiTileFlipState,
-        renderKpiTileBackFace: renderKpiTileBackFace,
-        shouldRenderKpiTileBack: shouldRenderKpiTileBack,
-        loadDrilldownTilesForDept: loadDrilldownTilesForDept,
-        mapWithConcurrencyLimit: mapWithConcurrencyLimit,
-        onUnauthorized: handleUnauthorized,
-        getSessionApiMode: function () {
-          return session.apiMode;
-        },
-        getSessionUserDepartment: function () {
-          return sessionUser.department != null ? String(sessionUser.department).trim() : "";
-        },
-        findMatchingTileAmongChildren: findMatchingTileAmongChildren,
-      });
+      DashboardKpiDrilldown.loadKpiTileDrilldownData(tileIndex, createKpiDrilldownDataContext());
     }
   }
 
@@ -904,29 +856,7 @@
   function openKpiTileDrilldown(tileIndex) {
     if (typeof DashboardKpiDrilldown === "undefined" || !DashboardKpiDrilldown) return;
     if (typeof DashboardKpiDrilldown.open === "function") {
-      DashboardKpiDrilldown.open(tileIndex, {
-        getTiles: function () {
-          return lastKpiTiles;
-        },
-        getFlippedTileIndices: function () {
-          return flippedTileIndices;
-        },
-        getDepartmentForCurrentKpiContext: getDepartmentForCurrentKpiContext,
-        hideKpiHelpPopover: hideKpiHelpPopover,
-        syncKpiTileFlipState: syncKpiTileFlipState,
-        renderKpiTileBackFace: renderKpiTileBackFace,
-        shouldRenderKpiTileBack: shouldRenderKpiTileBack,
-        loadDrilldownTilesForDept: loadDrilldownTilesForDept,
-        mapWithConcurrencyLimit: mapWithConcurrencyLimit,
-        onUnauthorized: handleUnauthorized,
-        getSessionApiMode: function () {
-          return session.apiMode;
-        },
-        getSessionUserDepartment: function () {
-          return sessionUser.department != null ? String(sessionUser.department).trim() : "";
-        },
-        findMatchingTileAmongChildren: findMatchingTileAmongChildren,
-      });
+      DashboardKpiDrilldown.open(tileIndex, createKpiDrilldownDataContext());
     }
   }
 
@@ -1229,70 +1159,44 @@
   }
 
   function cancelDeferredChartsAndTablesBoot() {
-    if (typeof DashboardDataLoader === "undefined" || !DashboardDataLoader) return;
-    if (typeof DashboardDataLoader.cancelDeferredChartsAndTablesBoot === "function") {
-      DashboardDataLoader.cancelDeferredChartsAndTablesBoot();
-    }
+    callDataLoader("cancelDeferredChartsAndTablesBoot");
   }
 
   /** Шапка и плитки показываются сразу, а тяжёлые графики/таблицы догружаются позже. */
   function bootChartsAndTablesDeferred() {
-    if (typeof DashboardDataLoader === "undefined" || !DashboardDataLoader) return;
-    if (typeof DashboardDataLoader.bootChartsAndTablesDeferred === "function") {
-      DashboardDataLoader.bootChartsAndTablesDeferred();
-    }
+    callDataLoader("bootChartsAndTablesDeferred");
   }
 
   function renderHierarchyBreadcrumb() {
-    if (typeof DashboardHierarchyNav === "undefined" || !DashboardHierarchyNav) return;
-    if (typeof DashboardHierarchyNav.renderHierarchyBreadcrumb === "function") {
-      DashboardHierarchyNav.renderHierarchyBreadcrumb();
-    }
+    callHierarchyNav("renderHierarchyBreadcrumb");
   }
 
   /** Перезагружает `viewTargets` по `Api.fetchImmediateSubordinates` для текущего родителя в стеке. */
   function refreshSubordinateTabsFromApi() {
-    if (typeof DashboardHierarchyNav === "undefined" || !DashboardHierarchyNav) {
-      return Promise.resolve();
-    }
-    if (typeof DashboardHierarchyNav.refreshSubordinateTabsFromApi === "function") {
-      return DashboardHierarchyNav.refreshSubordinateTabsFromApi();
-    }
-    return Promise.resolve();
+    return callHierarchyNav("refreshSubordinateTabsFromApi", [], Promise.resolve());
   }
 
   function loadViewTargets() {
-    if (typeof DashboardHierarchyNav === "undefined" || !DashboardHierarchyNav) {
-      return Promise.resolve([{ id: "self", label: "Мой дашборд", user: sessionUser }]);
-    }
-    if (typeof DashboardHierarchyNav.loadViewTargets === "function") {
-      return DashboardHierarchyNav.loadViewTargets();
-    }
-    return Promise.resolve([{ id: "self", label: "Мой дашборд", user: sessionUser }]);
+    return callHierarchyNav(
+      "loadViewTargets",
+      [],
+      Promise.resolve([{ id: "self", label: "Мой дашборд", user: sessionUser }])
+    );
   }
 
   /** Вкладки `viewTargets` + переключение вида и перезагрузка KPI. */
   function renderViewTabs() {
-    if (typeof DashboardHierarchyNav === "undefined" || !DashboardHierarchyNav) return;
-    if (typeof DashboardHierarchyNav.renderViewTabs === "function") {
-      DashboardHierarchyNav.renderViewTabs();
-    }
+    callHierarchyNav("renderViewTabs");
   }
 
   /** Показ спиннера, скрытие основного контента. */
   function showLoading() {
-    if (typeof DashboardDataLoader === "undefined" || !DashboardDataLoader) return;
-    if (typeof DashboardDataLoader.showLoading === "function") {
-      DashboardDataLoader.showLoading();
-    }
+    callDataLoader("showLoading");
   }
 
   /** Скрытие спиннера, показ контента. */
   function hideLoading() {
-    if (typeof DashboardDataLoader === "undefined" || !DashboardDataLoader) return;
-    if (typeof DashboardDataLoader.hideLoading === "function") {
-      DashboardDataLoader.hideLoading();
-    }
+    callDataLoader("hideLoading");
   }
 
   /**
@@ -1301,10 +1205,7 @@
    * @param {string} [_source] — зарезервировано для логирования источника вызова
    */
   function applyApiResult(result, _source) {
-    if (typeof DashboardDataLoader === "undefined" || !DashboardDataLoader) return;
-    if (typeof DashboardDataLoader.applyApiResult === "function") {
-      DashboardDataLoader.applyApiResult(result, _source);
-    }
+    callDataLoader("applyApiResult", [result, _source]);
   }
 
   /**
@@ -1312,10 +1213,7 @@
    * При ошибке или mock — fallback на `MockData`.
    */
   function loadKpiTilesAndChartsForView() {
-    if (typeof DashboardDataLoader === "undefined" || !DashboardDataLoader) return;
-    if (typeof DashboardDataLoader.loadKpiTilesAndChartsForView === "function") {
-      DashboardDataLoader.loadKpiTilesAndChartsForView();
-    }
+    callDataLoader("loadKpiTilesAndChartsForView");
   }
 
   viewTargets = [{ id: "self", label: "Мой дашборд", user: sessionUser }];
