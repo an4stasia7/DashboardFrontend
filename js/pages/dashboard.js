@@ -1116,8 +1116,19 @@
     return role === "председатель совета директоров" || department === "председатель совета директоров";
   }
 
+  function isCommercialDirectorUser(user) {
+    if (!user || typeof user !== "object") return false;
+    var role = normalizeDashboardRole(user.role);
+    var department = normalizeDashboardRole(user.department);
+    return role === "коммерческий директор" || department === "коммерческий директор" || department === "коммерция";
+  }
+
   function shouldUseBoardChairExecutiveTables() {
     return isBoardChairUser(sessionUser) && selectedViewId === "self";
+  }
+
+  function shouldUseCommercialDirectorOverdueDebtEnhancements() {
+    return isCommercialDirectorUser(sessionUser) && !shouldUseBoardChairExecutiveTables();
   }
 
   function updateDashboardTableTitlesForRole() {
@@ -1148,6 +1159,7 @@
       DashboardClaimsTable.init({
         rows: lastApiTableRows,
         executiveMode: shouldUseBoardChairExecutiveTables(),
+        enhanceOverdueDebtTable: shouldUseCommercialDirectorOverdueDebtEnhancements(),
       });
     }
   }

@@ -221,19 +221,25 @@
         </section>
         <section class="table-panel">
           <h2 id="overdue-debt-table-title">Расшифровка просроченной дебиторской задолженности</h2>
-          <div class="dashboard-table-wrap">
+          <div class="dashboard-table-wrap dashboard-table-wrap--claims dashboard-table-wrap--overdue-debt">
             <table id="table-overdue-debt" class="dashboard-table" aria-label="Расшифровка просроченной дебиторской задолженности">
               <thead>
                 <tr>
                   <th>№ Заказа клиента</th>
                   <th>Контрагент</th>
-                  <th>Сумма</th>
-                  <th>Дн. просрочки</th>
+                  <th>Просрочка, дн.</th>
                   <th>Причина</th>
                   <th>Действие</th>
+                  <th>Сумма, руб</th>
                 </tr>
               </thead>
               <tbody></tbody>
+              <tfoot>
+                <tr>
+                  <th colspan="5">Итого</th>
+                  <th id="overdue-debt-table-total-sum">0,00</th>
+                </tr>
+              </tfoot>
             </table>
           </div>
         </section>

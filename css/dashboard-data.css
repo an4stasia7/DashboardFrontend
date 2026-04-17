@@ -814,7 +814,12 @@
 .table-panel table.dataTable#table-top-deviations thead .sorting_asc,
 .table-panel table.dataTable#table-top-deviations thead .sorting_desc,
 .table-panel table.dataTable#table-top-deviations thead .sorting_asc_disabled,
-.table-panel table.dataTable#table-top-deviations thead .sorting_desc_disabled {
+.table-panel table.dataTable#table-top-deviations thead .sorting_desc_disabled,
+.table-panel table.dataTable#table-overdue-debt thead .sorting,
+.table-panel table.dataTable#table-overdue-debt thead .sorting_asc,
+.table-panel table.dataTable#table-overdue-debt thead .sorting_desc,
+.table-panel table.dataTable#table-overdue-debt thead .sorting_asc_disabled,
+.table-panel table.dataTable#table-overdue-debt thead .sorting_desc_disabled {
   background-image: none !important;
 }
 
@@ -827,7 +832,17 @@
 .table-panel table.dataTable#table-top-deviations thead .sorting_asc_disabled::before,
 .table-panel table.dataTable#table-top-deviations thead .sorting_asc_disabled::after,
 .table-panel table.dataTable#table-top-deviations thead .sorting_desc_disabled::before,
-.table-panel table.dataTable#table-top-deviations thead .sorting_desc_disabled::after {
+.table-panel table.dataTable#table-top-deviations thead .sorting_desc_disabled::after,
+.table-panel table.dataTable#table-overdue-debt thead .sorting::before,
+.table-panel table.dataTable#table-overdue-debt thead .sorting::after,
+.table-panel table.dataTable#table-overdue-debt thead .sorting_asc::before,
+.table-panel table.dataTable#table-overdue-debt thead .sorting_asc::after,
+.table-panel table.dataTable#table-overdue-debt thead .sorting_desc::before,
+.table-panel table.dataTable#table-overdue-debt thead .sorting_desc::after,
+.table-panel table.dataTable#table-overdue-debt thead .sorting_asc_disabled::before,
+.table-panel table.dataTable#table-overdue-debt thead .sorting_asc_disabled::after,
+.table-panel table.dataTable#table-overdue-debt thead .sorting_desc_disabled::before,
+.table-panel table.dataTable#table-overdue-debt thead .sorting_desc_disabled::after {
   display: none !important;
   content: none !important;
 }
@@ -863,7 +878,9 @@
 }
 
 .dashboard-table#table-top-deviations tfoot th,
-.table-panel table.dataTable#table-top-deviations tfoot th {
+.table-panel table.dataTable#table-top-deviations tfoot th,
+.dashboard-table#table-overdue-debt tfoot th,
+.table-panel table.dataTable#table-overdue-debt tfoot th {
   background: #eef3fb !important;
   color: #0f172a !important;
   font-size: 0.9rem !important;
@@ -873,11 +890,13 @@
   border-bottom: none !important;
 }
 
-.dashboard-table#table-top-deviations tfoot th:first-child {
+.dashboard-table#table-top-deviations tfoot th:first-child,
+.dashboard-table#table-overdue-debt tfoot th:first-child {
   text-align: left;
 }
 
-.dashboard-table#table-top-deviations tfoot th:last-child {
+.dashboard-table#table-top-deviations tfoot th:last-child,
+.dashboard-table#table-overdue-debt tfoot th:last-child {
   text-align: right;
   white-space: nowrap;
 }
