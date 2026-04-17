@@ -314,6 +314,10 @@
   min-width: 0;
 }
 
+.dash-footer {
+  padding: 0 24px 20px;
+}
+
 .dash-structure-hint {
   margin: 0 0 14px;
   font-size: 0.82rem;
@@ -375,6 +379,10 @@
 
   .dash-main {
     padding: 18px 14px 32px;
+  }
+
+  .dash-footer {
+    padding: 0 14px 16px;
   }
 
   .dash-topbar-actions {
