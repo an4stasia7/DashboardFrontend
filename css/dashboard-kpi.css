@@ -578,12 +578,11 @@ article.kpi-tile[data-no-flip="1"] {
 }
 
 .kpi-tile-pf-inline-row {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: 8px;
   min-width: 0;
-  white-space: nowrap;
 }
 
 .kpi-tile-pf-pill {
@@ -614,12 +613,14 @@ article.kpi-tile[data-no-flip="1"] {
 }
 
 .kpi-tile-pf-inline-label {
-  flex: 0 0 auto;
+  flex: 1 1 auto;
+  min-width: 0;
   color: var(--muted);
   font-size: 0.8rem;
   font-weight: 500;
   line-height: 1.3;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .kpi-tile-badge-row {
