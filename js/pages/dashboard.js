@@ -1825,6 +1825,34 @@
     });
   }
 
+  function getClaimsOrderSumSortValue(v) {
+    if (v == null || v === "") return "";
+    var n = Number(v);
+    return isNaN(n) ? "" : String(n);
+  }
+
+  function updateClaimsTotalRow(dataTableApi) {
+    if (!dataTableApi || typeof dataTableApi.column !== "function") return;
+    var total = 0;
+    dataTableApi
+      .column(10, { search: "applied" })
+      .nodes()
+      .each(function (cell) {
+        if (!cell || typeof cell.getAttribute !== "function") return;
+        var rawValue = cell.getAttribute("data-order");
+        var n = Number(rawValue);
+        if (!isNaN(n)) total += n;
+      });
+
+    var footerCell = document.getElementById("claims-table-total-sum");
+    if (footerCell) {
+      footerCell.textContent = total.toLocaleString("ru-RU", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+    }
+  }
+
   function renderClaimsTableFromApi() {
     var table = document.getElementById("table-top-deviations");
     var tbody = table ? table.querySelector("tbody") : null;
@@ -1847,12 +1875,15 @@
         tableTextOrDash(raw.order_num),
         tableTextOrDash(raw.order_dept),
         tableTextOrDash(raw.nomenclature),
-        formatClaimsOrderSum(raw.order_sum),
         tableTextOrDash(raw.description),
         tableTextOrDash(raw.status),
-      ].forEach(function (value) {
+        formatClaimsOrderSum(raw.order_sum),
+      ].forEach(function (value, cellIndex) {
         var td = document.createElement("td");
         td.textContent = value;
+        if (cellIndex === 10) {
+          td.setAttribute("data-order", getClaimsOrderSumSortValue(raw.order_sum));
+        }
         tr.appendChild(td);
       });
       tbody.appendChild(tr);
@@ -1887,13 +1918,13 @@
       { index: 5, label: "Заказ клиента", type: "filter" },
       { index: 6, label: "Подразделение заказа", type: "filter" },
       { index: 7, label: "Номенклатура", type: "filter" },
-      { index: 8, label: "Сумма документа заказа, руб.", type: "sort" },
-      { index: 9, label: "Описание претензии", type: "none" },
-      { index: 10, label: "Статус", type: "filter" },
+      { index: 8, label: "Описание претензии", type: "none" },
+      { index: 9, label: "Статус", type: "filter" },
+      { index: 10, label: "Сумма документа заказа, руб.", type: "sort" },
     ];
 
     var dataTable = table.DataTable({
-      order: [[8, "desc"]],
+      order: [[10, "desc"]],
       paging: true,
       pageLength: 10,
       lengthMenu: [10, 25, 50],
@@ -1917,10 +1948,15 @@
       columnDefs: [
         { targets: "_all", orderable: false },
         { targets: [3, 4], orderable: true },
-        { targets: [8], type: "num-fmt", orderable: true },
+        { targets: [10], type: "num-fmt", orderable: true },
       ],
       dom: '<"claims-table-top"lf>rt<"claims-table-bottom"ip>',
+      footerCallback: function () {
+        updateClaimsTotalRow(this.api());
+      },
     });
+
+    updateClaimsTotalRow(dataTable);
 
     var activeFilters = {};
     var activeSortColumn = null;
@@ -2002,7 +2038,7 @@
       if (config.type === "sort") {
         var svgArrowUp = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M6 2L2 7h8L6 2z" fill="currentColor"/></svg>';
         var svgArrowDown = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M6 10L2 5h8L6 10z" fill="currentColor"/></svg>';
-        var svgArrowBoth = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M6 1L3 4.5h6L6 1z" fill="currentColor" opacity="0.35"/><path d="M6 11L3 7.5h6L6 11z" fill="currentColor" opacity="0.35"/></svg>';
+        var svgArrowBoth = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M6 1L3 4.5h6L6 1z" fill="currentColor"/><path d="M6 11L3 7.5h6L6 11z" fill="currentColor"/></svg>';
 
         var sortBtn = document.createElement("button");
         sortBtn.type = "button";
@@ -2273,30 +2309,57 @@
     return 0;
   }
 
-  /** Одна серия — только «факт» (план/цель/норма не рисуются), маркеры на точках. */
+  function lineSeriesHasNumericValues(data) {
+    if (!Array.isArray(data) || !data.length) return false;
+    for (var i = 0; i < data.length; i++) {
+      if (data[i] != null && !isNaN(Number(data[i]))) return true;
+    }
+    return false;
+  }
+
+  /** Для линейного графика рисует «факт» и, если есть, «план» пунктиром в близком оттенке. */
   function buildLineChartSeriesFactOnly(indicator) {
     var series = indicator.series;
     if (!series || !series.length) return [];
     var factIdx = findFactSeriesIndexForRag(series);
     if (factIdx < 0 || factIdx >= series.length) factIdx = 0;
-    var s = series[factIdx];
-    var col = s.color || "#2563eb";
-    return [
+    var factSeries = series[factIdx];
+    var factColor = factSeries.color || "#2563eb";
+    var chartSeries = [
       {
         type: "line",
-        name: s.name,
-        color: col,
-        data: s.data.slice(),
+        name: factSeries.name,
+        color: factColor,
+        data: factSeries.data.slice(),
         marker: {
           enabled: true,
           radius: 4,
           symbol: "circle",
           lineWidth: 2,
           lineColor: "#ffffff",
-          fillColor: col,
+          fillColor: factColor,
         },
       },
     ];
+
+    var planIdx = findPlanSeriesIndexForRag(series);
+    if (planIdx >= 0 && planIdx < series.length) {
+      var planSeries = series[planIdx];
+      if (lineSeriesHasNumericValues(planSeries.data)) {
+        chartSeries.push({
+          type: "line",
+          name: planSeries.name,
+          color: getChartPlanColor(factColor),
+          data: planSeries.data.slice(),
+          dashStyle: planSeries.dashStyle || "Dash",
+          marker: {
+            enabled: false,
+          },
+        });
+      }
+    }
+
+    return chartSeries;
   }
 
   var ALL_CHARTS_COLOR_PALETTE = [
@@ -2323,6 +2386,19 @@
     return baseColor;
   }
 
+  function getChartPlanColor(baseColor) {
+    if (typeof Highcharts !== "undefined" && Highcharts.color) {
+      return Highcharts.color(baseColor).brighten(0.08).setOpacity(0.45).get();
+    }
+    return getChartColorVariant(baseColor, 0.08);
+  }
+
+  function shortenLineLegendLabel(label, suffix) {
+    var text = label == null ? "" : String(label).trim();
+    if (text.length > 18) text = text.slice(0, 15).trim() + "...";
+    return suffix ? text + " · " + suffix : text;
+  }
+
   function pickIndicatorBarValue(values) {
     if (!values || !values.length) return null;
     for (var i = 0; i < values.length; i++) {
@@ -2333,28 +2409,44 @@
 
   function buildLineChartSeriesForAllIndicators(indicators) {
     if (!indicators || !indicators.length) return [];
-    return indicators
-      .map(function (indicator, idx) {
-        var series = buildLineChartSeriesFactOnly(indicator);
-        if (!series.length) return null;
-        var base = series[0];
-        var accent = getAllChartsPaletteColor(idx);
-        return {
+    return indicators.reduce(function (acc, indicator, idx) {
+      var series = buildLineChartSeriesFactOnly(indicator);
+      if (!series.length) return acc;
+      var accent = getAllChartsPaletteColor(idx);
+      var label = indicator.optionLabel || indicator.title || series[0].name;
+
+      acc.push({
+        type: "line",
+        name: label,
+        legendLabel: shortenLineLegendLabel(label, "Ф"),
+        color: accent,
+        data: series[0].data.slice(),
+        marker: {
+          enabled: true,
+          radius: 4,
+          symbol: "circle",
+          lineWidth: 2,
+          lineColor: "#ffffff",
+          fillColor: accent,
+        },
+      });
+
+      if (series.length > 1) {
+        acc.push({
           type: "line",
-          name: indicator.optionLabel || indicator.title || base.name,
-          color: accent,
-          data: base.data.slice(),
+          name: label + " (план)",
+          legendLabel: shortenLineLegendLabel(label, "П"),
+          color: getChartPlanColor(accent),
+          data: series[1].data.slice(),
+          dashStyle: series[1].dashStyle || "Dash",
           marker: {
-            enabled: true,
-            radius: 4,
-            symbol: "circle",
-            lineWidth: 2,
-            lineColor: "#ffffff",
-            fillColor: accent,
+            enabled: false,
           },
-        };
-      })
-      .filter(Boolean);
+        });
+      }
+
+      return acc;
+    }, []);
   }
 
   function buildBarChartSeriesForAllIndicators(indicators) {
@@ -2415,7 +2507,15 @@
         title: { text: indicator.yAxisTitle || "Значение" },
         gridLineColor: "#f1f5f9",
       },
-      legend: { align: "center", verticalAlign: "bottom" },
+      legend: {
+        align: "center",
+        verticalAlign: "bottom",
+        labelFormatter: function () {
+          return this.userOptions && this.userOptions.legendLabel
+            ? this.userOptions.legendLabel
+            : this.name;
+        },
+      },
       tooltip: { shared: true },
       plotOptions: {
         series: { animation: false },
@@ -2462,7 +2562,24 @@
         title: { text: baseIndicator.yAxisTitle || "Значение" },
         gridLineColor: "#f1f5f9",
       },
-      legend: { align: "center", verticalAlign: "bottom" },
+      legend: {
+        align: "center",
+        verticalAlign: "bottom",
+        layout: "horizontal",
+        itemDistance: 12,
+        symbolWidth: 18,
+        symbolPadding: 6,
+        itemStyle: {
+          fontSize: "11px",
+          fontWeight: "400",
+          textOverflow: "ellipsis",
+        },
+        labelFormatter: function () {
+          return this.userOptions && this.userOptions.legendLabel
+            ? this.userOptions.legendLabel
+            : this.name;
+        },
+      },
       tooltip: { shared: true },
       plotOptions: {
         series: { animation: false },
