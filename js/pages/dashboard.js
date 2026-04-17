@@ -282,7 +282,15 @@
           if (chairmanFor) {
             opts.for = chairmanFor;
             if (isChairmanRootHierarchy() && isVirtualChairmanCatalog(chairmanFor)) {
-              delete opts.department;
+              var sessDept =
+                sessionUser && sessionUser.department != null
+                  ? String(sessionUser.department).trim()
+                  : "";
+              if (sessDept) {
+                opts.department = sessDept;
+              } else {
+                delete opts.department;
+              }
             }
           }
           return Api.fetchImmediateSubordinates(opts);
