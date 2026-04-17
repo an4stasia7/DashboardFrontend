@@ -1032,12 +1032,23 @@
     return role === "коммерческий директор" || department === "коммерческий директор" || department === "коммерция";
   }
 
+  function isCommercialDepartmentContext(value) {
+    var normalized = normalizeDashboardRole(value);
+    return normalized === "коммерческий директор" || normalized === "коммерция";
+  }
+
   function shouldUseBoardChairExecutiveTables() {
     return isBoardChairUser(sessionUser) && selectedViewId === "self";
   }
 
   function shouldUseCommercialDirectorOverdueDebtEnhancements() {
-    return isCommercialDirectorUser(sessionUser) && !shouldUseBoardChairExecutiveTables();
+    var currentDepartment = getDepartmentForCurrentKpiContext();
+    return (
+      (isCommercialDirectorUser(viewContextUser) ||
+        isCommercialDepartmentContext(currentDepartment) ||
+        isCommercialDepartmentContext(lastKpiResponseDepartment)) &&
+      !shouldUseBoardChairExecutiveTables()
+    );
   }
 
   function updateDashboardTableTitlesForRole() {

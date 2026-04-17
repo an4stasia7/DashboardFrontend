@@ -44,17 +44,28 @@
   }
 
   function updateOverdueDebtTotalRow(dataTableApi) {
-    if (!dataTableApi || typeof dataTableApi.column !== "function") return;
     var total = 0;
-    dataTableApi
-      .column(5, { search: "applied" })
-      .nodes()
-      .each(function (cell) {
+    if (dataTableApi && typeof dataTableApi.rows === "function") {
+      dataTableApi
+        .rows({ search: "applied" })
+        .nodes()
+        .each(function (row) {
+          var cell = row && row.cells && row.cells.length > 5 ? row.cells[5] : null;
+          if (!cell || typeof cell.getAttribute !== "function") return;
+          var rawValue = cell.getAttribute("data-order");
+          var n = Number(rawValue);
+          if (!isNaN(n)) total += n;
+        });
+    } else {
+      var rows = document.querySelectorAll("#table-overdue-debt tbody tr");
+      rows.forEach(function (row) {
+        var cell = row && row.cells && row.cells.length > 5 ? row.cells[5] : null;
         if (!cell || typeof cell.getAttribute !== "function") return;
         var rawValue = cell.getAttribute("data-order");
         var n = Number(rawValue);
         if (!isNaN(n)) total += n;
       });
+    }
 
     var footerCell = document.getElementById("overdue-debt-table-total-sum");
     if (footerCell) {
