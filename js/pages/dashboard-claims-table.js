@@ -43,6 +43,28 @@
     }
   }
 
+  function updateLawsuitsTotalRow(dataTableApi) {
+    if (!dataTableApi || typeof dataTableApi.column !== "function") return;
+    var total = 0;
+    dataTableApi
+      .column(3, { search: "applied" })
+      .nodes()
+      .each(function (cell) {
+        if (!cell || typeof cell.getAttribute !== "function") return;
+        var rawValue = cell.getAttribute("data-order");
+        var n = Number(rawValue);
+        if (!isNaN(n)) total += n;
+      });
+
+    var footerCell = document.getElementById("lawsuits-table-total-sum");
+    if (footerCell) {
+      footerCell.textContent = total.toLocaleString("ru-RU", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+    }
+  }
+
   function updateOverdueDebtTotalRow(dataTableApi) {
     var total = 0;
     if (dataTableApi && typeof dataTableApi.rows === "function") {
@@ -303,6 +325,62 @@
   function isOverdueDebtRow(item) {
     var key = item && item.tableKey != null ? String(item.tableKey).trim().toLocaleLowerCase("ru-RU") : "";
     return key === "kd-t-overdue";
+  }
+
+  function isLawsuitsRow(item) {
+    var key = item && item.tableKey != null ? String(item.tableKey).trim().toLocaleLowerCase("ru-RU") : "";
+    if (!key) return false;
+    return (
+      key === "kd-t-lawsuits" ||
+      key === "kd-t-courts" ||
+      key === "kd-t-suits" ||
+      key === "суды" ||
+      key === "lawsuits" ||
+      key === "courts"
+    );
+  }
+
+  function pickLawsuitsField(raw, fields) {
+    for (var i = 0; i < fields.length; i++) {
+      var key = fields[i];
+      if (key in raw && raw[key] != null && raw[key] !== "") return raw[key];
+    }
+    return null;
+  }
+
+  function renderLawsuitsTableRows(rows) {
+    var table = document.getElementById("table-lawsuits");
+    var tbody = table ? table.querySelector("tbody") : null;
+    if (!table || !tbody) return;
+    tbody.innerHTML = "";
+
+    if (!Array.isArray(rows) || !rows.length) return;
+
+    rows
+      .filter(isLawsuitsRow)
+      .forEach(function (item) {
+        var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
+        if (!raw) return;
+        var amount = pickLawsuitsField(raw, ["claim_amount", "amount", "sum", "requirement_sum", "requirements_sum"]);
+        var tr = document.createElement("tr");
+        [
+          tableTextOrDash(pickLawsuitsField(raw, ["doc_type", "document_type", "documentType"])),
+          tableTextOrDash(pickLawsuitsField(raw, ["counterparty", "partner", "contragent"])),
+          tableTextOrDash(pickLawsuitsField(raw, ["subject", "dispute_subject", "dispute", "topic"])),
+          formatClaimsOrderSum(amount),
+          tableTextOrDash(pickLawsuitsField(raw, ["gk_role", "role", "company_role"])),
+          tableTextOrDash(pickLawsuitsField(raw, ["legal_entity", "entity", "company", "jur_entity", "ur_entity"])),
+          tableTextOrDash(pickLawsuitsField(raw, ["department", "subdivision", "unit", "division"])),
+        ].forEach(function (value, cellIndex) {
+          var td = document.createElement("td");
+          td.textContent = value;
+          if (cellIndex === 3) {
+            td.setAttribute("data-order", getClaimsOrderSumSortValue(amount));
+          }
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
   }
 
   function renderOverdueDebtTableRows(rows) {
@@ -868,6 +946,34 @@
     });
   }
 
+  function initLawsuitsDataTable() {
+    return initInteractiveDashboardTable({
+      tableSelector: "#table-lawsuits",
+      wrapperSelector: ".dashboard-table-wrap--lawsuits",
+      advancedSearchKey: "lawsuits-table-advanced",
+      columnConfigs: [
+        { index: 0, label: "Тип документа", type: "filter", searchType: "text" },
+        { index: 1, label: "Контрагент", type: "filter", searchType: "text" },
+        { index: 2, label: "Предмет спора", type: "filter", searchType: "text" },
+        { index: 3, label: "Сумма требований, руб.", type: "sort", searchType: "text" },
+        { index: 4, label: "Роль ГК в споре", type: "filter", searchType: "text" },
+        { index: 5, label: "Юр. лицо", type: "filter", searchType: "text" },
+        { index: 6, label: "Подразделение", type: "filter", searchType: "text" },
+      ],
+      initialOrder: [[3, "desc"]],
+      columnDefs: [
+        { targets: "_all", orderable: false },
+        { targets: [3], type: "num-fmt", orderable: true },
+      ],
+      footerCallback: function () {
+        updateLawsuitsTotalRow(this.api());
+      },
+      afterInit: function (dataTable) {
+        updateLawsuitsTotalRow(dataTable);
+      },
+    });
+  }
+
   function initOverdueDebtDataTable() {
     return initInteractiveDashboardTable({
       tableSelector: "#table-overdue-debt",
@@ -897,7 +1003,7 @@
   }
 
   function destroyClaimsTables() {
-    ["#table-plan-fact", "#table-top-deviations", "#table-overdue-debt"].forEach(function (selector) {
+    ["#table-plan-fact", "#table-top-deviations", "#table-overdue-debt", "#table-lawsuits"].forEach(function (selector) {
       if (typeof $ !== "undefined" && $.fn && $.fn.DataTable && $.fn.DataTable.isDataTable(selector)) {
         $(selector).DataTable().destroy();
       }
@@ -909,12 +1015,15 @@
     var rows = Array.isArray(options.rows) ? options.rows : [];
     var executiveMode = !!options.executiveMode;
     var enhanceOverdueDebtTable = !!options.enhanceOverdueDebtTable;
+    var enableLawsuitsTable = !!options.enableLawsuitsTable;
     destroyClaimsTables();
 
     var topBody = document.querySelector("#table-top-deviations tbody");
     var debtBody = document.querySelector("#table-overdue-debt tbody");
+    var lawsuitsBody = document.querySelector("#table-lawsuits tbody");
     if (topBody) topBody.innerHTML = "";
     if (debtBody) debtBody.innerHTML = "";
+    if (lawsuitsBody) lawsuitsBody.innerHTML = "";
 
     if (executiveMode) {
       renderExecutiveTables(rows);
@@ -927,6 +1036,10 @@
     initClaimsDataTable();
     if (enhanceOverdueDebtTable) {
       initOverdueDebtDataTable();
+    }
+    if (enableLawsuitsTable) {
+      renderLawsuitsTableRows(rows);
+      initLawsuitsDataTable();
     }
   }
 

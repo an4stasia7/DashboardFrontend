@@ -295,6 +295,49 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+}
+
+.claims-table-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 999px;
+  background: rgba(226, 232, 240, 0.7);
+  border: 1px solid rgba(148, 163, 184, 0.45);
+}
+
+.claims-table-switcher[hidden] {
+  display: none !important;
+}
+
+.claims-table-switcher-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: #475569;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.95rem;
+  line-height: 1.3;
+  padding: 6px 16px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.claims-table-switcher-btn:hover,
+.claims-table-switcher-btn:focus-visible {
+  color: var(--accent-blue, #2b5ca6);
+  outline: none;
+}
+
+.claims-table-switcher-btn.is-active,
+.claims-table-switcher-btn[aria-selected="true"] {
+  background: #ffffff;
+  color: var(--accent-blue, #2b5ca6);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
 }
 
 .table-title-help-wrap {

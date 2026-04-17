@@ -63,6 +63,8 @@
   var claimsTableTitleTextEl = document.getElementById("claims-table-title-text");
   var claimsTableHelpWrapEl = document.getElementById("claims-table-help-wrap");
   var overdueDebtTableTitleEl = document.getElementById("overdue-debt-table-title");
+  var claimsTableSwitcherEl = document.getElementById("claims-table-switcher");
+  var activeClaimsTableView = "claims";
   var debugJsonToggleBtnEl = document.getElementById("debug-kpi-json-toggle");
   var debugJsonSectionEl = document.getElementById("debug-kpi-json-section");
   var DONUT_CHARTS_PER_PAGE = 6;
@@ -279,7 +281,9 @@
           var chairmanFor = getChairmanDashboardCatalogId();
           if (chairmanFor) {
             opts.for = chairmanFor;
-            if (isChairmanRootHierarchy()) delete opts.department;
+            if (isChairmanRootHierarchy() && isVirtualChairmanCatalog(chairmanFor)) {
+              delete opts.department;
+            }
           }
           return Api.fetchImmediateSubordinates(opts);
         },
@@ -358,10 +362,7 @@
         fetchKpis: function (opts) {
           var nextOpts = Object.assign({}, opts || {});
           var chairmanFor = getChairmanDashboardCatalogId();
-          if (chairmanFor) {
-            nextOpts.for = chairmanFor;
-            if (isChairmanRootHierarchy()) delete nextOpts.department;
-          }
+          if (chairmanFor) nextOpts.for = chairmanFor;
           return Api.fetchKpis(nextOpts);
         },
         fetchKpiAll: function (opts) {
@@ -369,7 +370,9 @@
           var chairmanFor = getChairmanDashboardCatalogId();
           if (chairmanFor) {
             nextOpts.for = chairmanFor;
-            if (isChairmanRootHierarchy()) delete nextOpts.department;
+            if (isChairmanRootHierarchy() && isVirtualChairmanCatalog(chairmanFor)) {
+              delete nextOpts.department;
+            }
           }
           return Api.fetchKpiAll(nextOpts);
         },
@@ -535,6 +538,11 @@
 
   function isChairmanRootHierarchy() {
     return Array.isArray(hierarchyStack) && hierarchyStack.length <= 1;
+  }
+
+  function isVirtualChairmanCatalog(catalogId) {
+    var id = catalogId != null ? String(catalogId).trim() : "";
+    return !!id && id !== "my_dashboard";
   }
 
   /**
@@ -798,6 +806,16 @@
     var shouldShow = claimsTableHelpPopoverEl.hidden;
     claimsTableHelpPopoverEl.hidden = !shouldShow;
     claimsTableHelpBtnEl.setAttribute("aria-expanded", shouldShow ? "true" : "false");
+  }
+
+  if (claimsTableSwitcherEl) {
+    claimsTableSwitcherEl.addEventListener("click", function (e) {
+      var target = e.target && e.target.closest ? e.target.closest(".claims-table-switcher-btn") : null;
+      if (!target || !claimsTableSwitcherEl.contains(target)) return;
+      var view = target.getAttribute("data-claims-view") || "claims";
+      if (view === activeClaimsTableView) return;
+      applyClaimsTableView(view);
+    });
   }
 
   if (claimsTableHelpBtnEl && claimsTableHelpPopoverEl) {
@@ -1098,9 +1116,11 @@
 
   function updateDashboardTableTitlesForRole() {
     var isBoardChairOwnDashboard = shouldUseBoardChairExecutiveTables();
+    var showClaimsSwitcher = shouldUseCommercialDirectorOverdueDebtEnhancements();
 
     if (claimsTableTitleTextEl) {
       claimsTableTitleTextEl.textContent = isBoardChairOwnDashboard ? "ТОП-10 отклонений" : "Претензии";
+      claimsTableTitleTextEl.hidden = showClaimsSwitcher;
     }
 
     if (overdueDebtTableTitleEl) {
@@ -1110,9 +1130,55 @@
     }
 
     if (claimsTableHelpWrapEl) {
-      claimsTableHelpWrapEl.hidden = isBoardChairOwnDashboard;
+      claimsTableHelpWrapEl.hidden = isBoardChairOwnDashboard || activeClaimsTableView === "lawsuits";
     }
     if (isBoardChairOwnDashboard) {
+      hideClaimsTableHelpPopover();
+    }
+
+    updateClaimsTableSwitcherUi(showClaimsSwitcher);
+  }
+
+  function updateClaimsTableSwitcherUi(visible) {
+    var switcher = document.getElementById("claims-table-switcher");
+    if (!switcher) return;
+    switcher.hidden = !visible;
+    if (!visible) {
+      activeClaimsTableView = "claims";
+    }
+    applyClaimsTableView(activeClaimsTableView);
+  }
+
+  function applyClaimsTableView(view) {
+    var nextView = view === "lawsuits" ? "lawsuits" : "claims";
+    activeClaimsTableView = nextView;
+
+    var wrappers = document.querySelectorAll('[data-claims-view]');
+    wrappers.forEach(function (node) {
+      if (!node || typeof node.getAttribute !== "function") return;
+      if (node.tagName === "NAV" || node.tagName === "BUTTON") return;
+      var match = node.getAttribute("data-claims-view") === nextView;
+      node.hidden = !match;
+    });
+
+    var buttons = document.querySelectorAll(".claims-table-switcher-btn");
+    buttons.forEach(function (btn) {
+      var match = btn.getAttribute("data-claims-view") === nextView;
+      btn.setAttribute("aria-selected", match ? "true" : "false");
+      btn.classList.toggle("is-active", match);
+    });
+
+    if (claimsTableTitleTextEl) {
+      var switcherVisible = !document.getElementById("claims-table-switcher")
+        ? false
+        : !document.getElementById("claims-table-switcher").hidden;
+      claimsTableTitleTextEl.hidden = switcherVisible;
+    }
+
+    if (claimsTableHelpWrapEl) {
+      claimsTableHelpWrapEl.hidden = shouldUseBoardChairExecutiveTables() || nextView === "lawsuits";
+    }
+    if (nextView === "lawsuits") {
       hideClaimsTableHelpPopover();
     }
   }
@@ -1125,6 +1191,7 @@
         rows: lastApiTableRows,
         executiveMode: shouldUseBoardChairExecutiveTables(),
         enhanceOverdueDebtTable: shouldUseCommercialDirectorOverdueDebtEnhancements(),
+        enableLawsuitsTable: shouldUseCommercialDirectorOverdueDebtEnhancements(),
       });
     }
   }
