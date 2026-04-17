@@ -689,6 +689,20 @@
     return "";
   }
 
+  function formatPlanFactPeriodFromYearMonth(year, month) {
+    var y = parseIntLoose(year);
+    var m = parseIntLoose(month);
+    if (isNaN(y) || isNaN(m) || m < 1 || m > 12) return "";
+    return capitalizeRuMonthToken(MONTH_SHORT[m - 1]) + " " + y;
+  }
+
+  function kpiPeriodMatchesMonthYear(kp, year, month) {
+    if (!kp || typeof kp !== "object") return false;
+    var y = parseIntLoose(kp.year);
+    var m = parseIntLoose(kp.month);
+    return !isNaN(y) && !isNaN(m) && y === parseIntLoose(year) && m === parseIntLoose(month);
+  }
+
   /**
    * Точка линейного графика за конкретный календарный месяц (и plan, и fact).
    * @param {object[]} points
@@ -775,8 +789,9 @@
   }
 
   /**
-   * План/факт по kpi_id из Графики: помесячно — при заданных `filterYear`+`filterMonth` берётся эта точка,
-   * иначе последний месяц, где есть и plan, и fact; далее при необходимости квартал с тем же условием.
+   * План/факт по kpi_id из Графики: при заданных `filterYear`+`filterMonth`
+   * берётся только точка этого месяца; иначе — последний месяц, где есть и plan, и fact.
+   * Квартальная fallback-логика используется только без месячного фильтра.
    * @param {object|null} body
    * @param {number|null} [filterYear]
    * @param {number|null} [filterMonth] 1–12
@@ -806,8 +821,7 @@
         var kid = String(s.kpi_id);
         var last = useMonthFilter
           ? pickMonthlyPointWithPlanAndFactForYearMonth(points, filterYear, filterMonth)
-          : null;
-        if (!last) last = pickLatestMonthlyPointWithPlanAndFact(points);
+          : pickLatestMonthlyPointWithPlanAndFact(points);
         if (!last) return;
         var pk = monthlyPointSortKey(last);
         var prev = out[kid];
@@ -825,6 +839,7 @@
     });
 
     Object.keys(charts).forEach(function (keyBar) {
+      if (useMonthFilter) return;
       var chart = charts[keyBar];
       var seriesList = getChartSeriesList(chart);
       if (!chart || !chart.chart_type || !seriesList.length) return;
@@ -876,14 +891,24 @@
   }
 
   /** Только блоки Таблицы: plan/fact по строкам (например сводка за период). */
-  function buildPlanFactLookupFromTablesOnly(body) {
+  function buildPlanFactLookupFromTablesOnly(body, filterYear, filterMonth) {
     var planFactLookup = {};
     if (!body) return planFactLookup;
     var tables = body[KPI_JSON_KEY_TABLES];
+    var useMonthFilter =
+      filterYear != null &&
+      filterMonth != null &&
+      !isNaN(filterYear) &&
+      !isNaN(filterMonth) &&
+      filterMonth >= 1 &&
+      filterMonth <= 12;
     forEachTablesRow(tables, function (tk, row) {
       if (!row || typeof row !== "object") return;
       var id = row.kpi_id != null ? String(row.kpi_id) : row.kpi_name != null ? String(row.kpi_name) : "";
       if (!id) return;
+      if (useMonthFilter) {
+        if (!row.kpi_period || !kpiPeriodMatchesMonthYear(row.kpi_period, filterYear, filterMonth)) return;
+      }
       if (row.plan !== undefined || row.fact !== undefined) {
         var prev = planFactLookup[id] || {};
         var periodLbl = "";
@@ -925,8 +950,18 @@
    */
   function applyPlanFactFromJsonLastPeriodToTiles(body, tiles, filterYear, filterMonth) {
     if (!body || !tiles || !tiles.length) return;
+    var useMonthFilter =
+      filterYear != null &&
+      filterMonth != null &&
+      !isNaN(filterYear) &&
+      !isNaN(filterMonth) &&
+      filterMonth >= 1 &&
+      filterMonth <= 12;
+    var requestedPeriodLabel = useMonthFilter
+      ? formatPlanFactPeriodFromYearMonth(filterYear, filterMonth)
+      : "";
     var fromCharts = buildPlanFactFromChartsLastAvailable(body, filterYear, filterMonth);
-    var fromTables = buildPlanFactLookupFromTablesOnly(body);
+    var fromTables = buildPlanFactLookupFromTablesOnly(body, filterYear, filterMonth);
     tiles.forEach(function (tile) {
       var id = tile.kpi_id;
       if (!id) return;
@@ -941,24 +976,29 @@
         tile.fact = ch.fact;
         if (ch.plan_fact_period_label) tile.plan_fact_period_label = String(ch.plan_fact_period_label);
         applyHasDataFromSource(tile, ch);
-        return;
-      }
-      if (tableBoth) {
+      } else if (tableBoth) {
         tile.plan = tb.plan;
         tile.fact = tb.fact;
         if (tb.plan_fact_period_label) tile.plan_fact_period_label = String(tb.plan_fact_period_label);
         applyHasDataFromSource(tile, tb);
-        return;
+      } else {
+        if (ch) {
+          if (planFactValuePresent(ch.plan)) tile.plan = ch.plan;
+          if (planFactValuePresent(ch.fact)) tile.fact = ch.fact;
+          applyHasDataFromSource(tile, ch);
+        }
+        if (tb) {
+          if (planFactValuePresent(tb.plan)) tile.plan = tb.plan;
+          if (planFactValuePresent(tb.fact)) tile.fact = tb.fact;
+          applyHasDataFromSource(tile, tb);
+        }
       }
-      if (ch) {
-        if (planFactValuePresent(ch.plan)) tile.plan = ch.plan;
-        if (planFactValuePresent(ch.fact)) tile.fact = ch.fact;
-        applyHasDataFromSource(tile, ch);
-      }
-      if (tb) {
-        if (planFactValuePresent(tb.plan)) tile.plan = tb.plan;
-        if (planFactValuePresent(tb.fact)) tile.fact = tb.fact;
-        applyHasDataFromSource(tile, tb);
+      if (
+        useMonthFilter &&
+        requestedPeriodLabel &&
+        (planFactValuePresent(tile.plan) || planFactValuePresent(tile.fact))
+      ) {
+        tile.plan_fact_period_label = requestedPeriodLabel;
       }
     });
   }

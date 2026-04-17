@@ -159,21 +159,38 @@
     return -1;
   }
 
+  function isIncompleteCurrentMonth(month, year) {
+    var m = parseInt(String(month), 10);
+    var y = parseInt(String(year), 10);
+    if (isNaN(m) || isNaN(y) || m < 1 || m > 12) return false;
+    var now = new Date();
+    var nowMonth = now.getMonth() + 1;
+    var nowYear = now.getFullYear();
+    if (m !== nowMonth || y !== nowYear) return false;
+    var lastDayOfMonth = new Date(y, m, 0).getDate();
+    return now.getDate() < lastDayOfMonth;
+  }
+
   function updateMonthNavigatorUI() {
     var nav = document.getElementById("month-navigator");
     var label = document.getElementById("month-nav-label");
     var prevBtn = document.getElementById("month-nav-prev");
     var nextBtn = document.getElementById("month-nav-next");
+    var warning = document.getElementById("month-nav-warning");
     if (!nav) return;
 
     if (currentPeriodMonth == null || currentPeriodYear == null) {
       nav.hidden = true;
+      if (warning) warning.hidden = true;
       return;
     }
 
     nav.hidden = false;
     var monthName = MONTH_NAMES_RU[currentPeriodMonth] || String(currentPeriodMonth);
     if (label) label.textContent = monthName + " " + currentPeriodYear;
+    if (warning) {
+      warning.hidden = !isIncompleteCurrentMonth(currentPeriodMonth, currentPeriodYear);
+    }
 
     var idx = getCurrentMonthIndex();
     if (prevBtn) prevBtn.disabled = idx <= 0;
