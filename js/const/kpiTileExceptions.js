@@ -52,5 +52,19 @@
     "MRK-04": {
       kpiPctOnly: true,
     },
+    "MRK-05": {
+      factOnly: true,
+      hideHelp: true,
+      hideKpiPercent: true,
+    },
+    "MRK-06": {
+      kpiPctOnly: true,
+    },
+    "MRK-07": {
+      kpiPctOnly: true,
+    },
+    "MRK-08": {
+      kpiPctOnly: true,
+    },
   };
 })(typeof window !== "undefined" ? window : globalThis);

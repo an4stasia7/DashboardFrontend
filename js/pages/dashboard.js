@@ -1586,9 +1586,142 @@
       });
     if (!filtered.length) return null;
 
+    function hasCashGapFields(point) {
+      return (
+        point &&
+        (parseNumberLoose(point.money_fact) != null || parseNumberLoose(point.shipments_fact) != null)
+      );
+    }
+
+    function hasRatioFields(point) {
+      return (
+        point &&
+        (parseNumberLoose(point.numerator_fact) != null ||
+          parseNumberLoose(point.denominator_fact) != null ||
+          parseNumberLoose(point.ytd_numerator_fact) != null ||
+          parseNumberLoose(point.ytd_denominator_fact) != null)
+      );
+    }
+
+    function buildCashGapPoint(rows) {
+      var money = 0;
+      var shipments = 0;
+      var hasMoney = false;
+      var hasShipments = false;
+      var hasData = false;
+      for (var i = 0; i < rows.length; i++) {
+        var point = rows[i];
+        if (!point) continue;
+        var moneyValue = parseNumberLoose(point.money_fact);
+        var shipmentsValue = parseNumberLoose(point.shipments_fact);
+        if (moneyValue != null) {
+          money += moneyValue;
+          hasMoney = true;
+        }
+        if (shipmentsValue != null) {
+          shipments += shipmentsValue;
+          hasShipments = true;
+        }
+        if (point.has_data === true) hasData = true;
+      }
+      if (!hasMoney && !hasShipments) return null;
+      return {
+        year: y,
+        month: m,
+        month_name: null,
+        plan: null,
+        fact: money - shipments,
+        kpi_pct: null,
+        has_data: hasData || hasMoney || hasShipments,
+      };
+    }
+
+    function buildRatioPoint(rows) {
+      var numerator = 0;
+      var denominator = 0;
+      var hasNumerator = false;
+      var hasDenominator = false;
+      var hasData = false;
+      var lastPct = null;
+      var lastRow = rows.length ? rows[rows.length - 1] : null;
+      for (var i = 0; i < rows.length; i++) {
+        var point = rows[i];
+        if (!point) continue;
+        var numeratorValue = parseNumberLoose(point.numerator_fact);
+        var denominatorValue = parseNumberLoose(point.denominator_fact);
+        var pctValue = parseNumberLoose(point.kpi_pct);
+        if (numeratorValue != null) {
+          numerator += numeratorValue;
+          hasNumerator = true;
+        }
+        if (denominatorValue != null) {
+          denominator += denominatorValue;
+          hasDenominator = true;
+        }
+        if (pctValue != null) lastPct = pctValue;
+        if (point.has_data === true) hasData = true;
+      }
+
+      var kpiPct = null;
+      if (hasNumerator && hasDenominator && Math.abs(denominator) > 0.000001) {
+        kpiPct = (numerator / denominator) * 100;
+      } else if (lastPct != null) {
+        kpiPct = lastPct;
+      } else if (lastRow) {
+        var ytdNumerator = parseNumberLoose(lastRow.ytd_numerator_fact);
+        var ytdDenominator = parseNumberLoose(lastRow.ytd_denominator_fact);
+        if (ytdNumerator != null && ytdDenominator != null && Math.abs(ytdDenominator) > 0.000001) {
+          kpiPct = (ytdNumerator / ytdDenominator) * 100;
+        }
+      }
+
+      if (kpiPct == null && !hasNumerator && !hasDenominator) return null;
+      return {
+        year: y,
+        month: m,
+        month_name: null,
+        plan: null,
+        fact: null,
+        kpi_pct: kpiPct,
+        has_data: hasData || hasNumerator || hasDenominator || kpiPct != null,
+      };
+    }
+
+    var hasCashGapSeries = false;
+    var hasRatioSeries = false;
+    for (var si = 0; si < filtered.length; si++) {
+      if (!hasCashGapSeries && hasCashGapFields(filtered[si])) hasCashGapSeries = true;
+      if (!hasRatioSeries && hasRatioFields(filtered[si])) hasRatioSeries = true;
+      if (hasCashGapSeries && hasRatioSeries) break;
+    }
+
     if (mode !== "quarter" && mode !== "ytd") {
       for (var ci = 0; ci < filtered.length; ci++) {
-        if (Number(filtered[ci].month) === m) return filtered[ci];
+        if (Number(filtered[ci].month) !== m) continue;
+        if (hasCashGapSeries) {
+          var currentCashGap = buildCashGapPoint([filtered[ci]]);
+          if (currentCashGap) return currentCashGap;
+        }
+        if (hasRatioSeries) {
+          var currentRatio = Object.assign({}, filtered[ci]);
+          if (currentRatio.kpi_pct == null) {
+            var ytdNumerator = parseNumberLoose(currentRatio.ytd_numerator_fact);
+            var ytdDenominator = parseNumberLoose(currentRatio.ytd_denominator_fact);
+            if (ytdNumerator != null && ytdDenominator != null && Math.abs(ytdDenominator) > 0.000001) {
+              currentRatio.kpi_pct = (ytdNumerator / ytdDenominator) * 100;
+            } else {
+              var numerator = parseNumberLoose(currentRatio.numerator_fact);
+              var denominator = parseNumberLoose(currentRatio.denominator_fact);
+              if (numerator != null && denominator != null && Math.abs(denominator) > 0.000001) {
+                currentRatio.kpi_pct = (numerator / denominator) * 100;
+              }
+            }
+          }
+          currentRatio.has_data =
+            currentRatio.has_data === true || currentRatio.kpi_pct != null || hasRatioFields(currentRatio);
+          return currentRatio;
+        }
+        return filtered[ci];
       }
       return null;
     }
@@ -1619,6 +1752,13 @@
       });
     }
     if (!bucket.length) return null;
+
+    if (hasCashGapSeries) {
+      return buildCashGapPoint(bucket);
+    }
+    if (hasRatioSeries) {
+      return buildRatioPoint(bucket);
+    }
 
     var plan = 0;
     var fact = 0;
