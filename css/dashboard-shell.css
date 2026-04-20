@@ -269,6 +269,7 @@
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 12px;
+  flex-shrink: 0;
 }
 
 .dash-topbar h1 {
@@ -295,6 +296,7 @@
 
 .dash-chairman-tabs {
   padding: 14px 24px 0;
+  flex-shrink: 0;
 }
 
 .dash-chairman-tabs[hidden] {
@@ -362,6 +364,139 @@
 .dash-footer {
   margin-top: auto;
   padding: 0 24px 20px;
+  flex-shrink: 0;
+}
+
+/* Обзор ПСД: main забирает высоту между шапкой и футером (ссылка «Для разработчика» снова внизу), карточки тянутся по высоте */
+.dash-workspace--chairman-overview .dash-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.dash-workspace--chairman-overview .dash-chairman-overview-bar:not([hidden]) {
+  flex-shrink: 0;
+}
+
+.dash-workspace--chairman-overview .dash-chairman-overview {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.dash-workspace--chairman-overview .dash-chairman-overview-layout {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.dash-workspace--chairman-overview .dash-chairman-overview-cards {
+  flex: 1 1 auto;
+  min-height: 0;
+  grid-auto-rows: minmax(0, 1fr);
+  align-content: stretch;
+}
+
+.dash-workspace--chairman-overview .dash-chairman-overview-card {
+  min-height: 0;
+  align-self: stretch;
+  height: 100%;
+}
+
+.dash-chairman-overview-tiles-wrap {
+  min-height: 0;
+}
+
+.dash-workspace--chairman-overview .dash-chairman-overview-card-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.dash-workspace--chairman-overview .dash-chairman-overview-tiles-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.dash-workspace--chairman-overview .dash-main > #debug-kpi-json-section:not([hidden]) {
+  flex-shrink: 0;
+}
+
+/* Пейджер карточек дашбордов ПСД (не строк KPI внутри карточки) */
+.dash-chairman-overview-cards-pager {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-shrink: 0;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(22, 52, 90, 0.1);
+}
+
+.dash-chairman-overview-cards-pager-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--navy, #16345a);
+  font-variant-numeric: tabular-nums;
+  min-width: 3.2em;
+  text-align: center;
+}
+
+.dash-chairman-overview-cards-pager-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 10px;
+  border: 1px solid rgba(22, 52, 90, 0.18);
+  background: rgba(22, 52, 90, 0.06);
+  color: var(--navy, #16345a);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.12s ease;
+}
+
+.dash-chairman-overview-cards-pager-btn svg {
+  display: block;
+  flex-shrink: 0;
+}
+
+.dash-chairman-overview-cards-pager-btn:hover:not(:disabled) {
+  background: rgba(22, 52, 90, 0.14);
+  border-color: rgba(22, 52, 90, 0.32);
+  color: var(--navy, #16345a);
+  box-shadow: 0 4px 12px rgba(22, 52, 90, 0.12);
+}
+
+.dash-chairman-overview-cards-pager-btn:active:not(:disabled) {
+  transform: scale(0.96);
+  background: rgba(22, 52, 90, 0.22);
+  border-color: rgba(22, 52, 90, 0.4);
+}
+
+.dash-chairman-overview-cards-pager-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(22, 52, 90, 0.22);
+  border-color: rgba(22, 52, 90, 0.38);
+}
+
+.dash-chairman-overview-cards-pager-btn:disabled {
+  opacity: 0.38;
+  cursor: default;
+  box-shadow: none;
 }
 
 .dash-structure-hint {
@@ -404,12 +539,37 @@
   display: none !important;
 }
 
-/* Overview-режим председателя совета директоров: две карточки-превью */
+/* Overview-режим председателя совета директоров: карточки на всю ширину колонки workspace */
+.dash-main > .dash-chairman-overview-bar,
+.dash-main > .dash-chairman-overview {
+  margin-left: -24px;
+  margin-right: -24px;
+  padding-left: 24px;
+  padding-right: 24px;
+  width: auto;
+  max-width: none;
+  box-sizing: border-box;
+}
+
 .dash-chairman-overview {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
-  gap: 20px;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   padding: 4px 0 8px;
+}
+
+.dash-chairman-overview-layout {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.dash-chairman-overview-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: 20px;
+  min-height: 0;
 }
 
 .dash-chairman-overview[hidden] {
@@ -421,6 +581,9 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
   padding: 22px 22px 20px;
   background: #ffffff;
   border: 1px solid rgba(22, 52, 90, 0.1);
@@ -626,7 +789,7 @@
 }
 
 @media (max-width: 720px) {
-  .dash-chairman-overview {
+  .dash-chairman-overview-cards {
     grid-template-columns: 1fr;
   }
 }
@@ -652,6 +815,14 @@
 
   .dash-main {
     padding: 18px 14px 32px;
+  }
+
+  .dash-main > .dash-chairman-overview-bar,
+  .dash-main > .dash-chairman-overview {
+    margin-left: -14px;
+    margin-right: -14px;
+    padding-left: 14px;
+    padding-right: 14px;
   }
 
   .dash-footer {

@@ -15,9 +15,14 @@
   var chairmanTabsEl = null;
   var dashLoadingEl = null;
 
+  /** Сколько карточек дашбордов показывать на одном «экране» (ряд в сетке). */
+  var CHAIRMAN_OVERVIEW_CARDS_PER_PAGE = 2;
+
   var state = {
     expandedCatalogId: null,
     cache: Object.create(null),
+    /** Страница среди карточек каталога (не строк KPI внутри карточки) */
+    cardPageIndex: 0,
     requestSeq: 0,
   };
 
@@ -85,6 +90,14 @@
     return !!overviewEl;
   }
 
+  /** Убирает «липкий» футер (margin-top: auto), иначе между карточками и «Для разработчика» — пустая полоса на всю высоту экрана. */
+  function setWorkspaceChairmanOverviewMode(on) {
+    var ws = document.querySelector(".dash-workspace");
+    if (!ws) return;
+    if (on) ws.classList.add("dash-workspace--chairman-overview");
+    else ws.classList.remove("dash-workspace--chairman-overview");
+  }
+
   function bindBackButton() {
     if (!backBtnEl || backBtnEl.__chairmanOverviewBound) return;
     backBtnEl.__chairmanOverviewBound = true;
@@ -127,6 +140,24 @@
     return u === "%" || u.indexOf("%") !== -1 || u === "процент" || u === "проценты";
   }
 
+  function titleEqualsKpiId(text, kpiId) {
+    if (text == null || text === "" || kpiId == null || kpiId === "") return false;
+    return String(text).trim().toLowerCase() === String(kpiId).trim().toLowerCase();
+  }
+
+  /** Заголовок строки в обзоре: без подстановки kpi_id (в т.ч. когда API кладёт id в title). */
+  function tileDisplayTitle(tile) {
+    if (!tile || typeof tile !== "object") return "—";
+    var kid = tile.kpi_id != null ? String(tile.kpi_id).trim() : "";
+    var t = tile.title != null ? String(tile.title).trim() : "";
+    if (titleEqualsKpiId(t, kid)) t = "";
+    var n = tile.name != null ? String(tile.name).trim() : "";
+    if (titleEqualsKpiId(n, kid)) n = "";
+    if (t) return t;
+    if (n) return n;
+    return "—";
+  }
+
   function formatTileValue(tile) {
     if (!tile) return "—";
     var unit = tile.units != null ? String(tile.units).trim() : "";
@@ -156,19 +187,12 @@
     dot.className = "dash-chairman-overview-tile-dot" + (rag ? " rag-" + rag : "");
     li.appendChild(dot);
 
-    if (tile && tile.badge) {
-      var badge = document.createElement("span");
-      badge.className = "dash-chairman-overview-tile-badge";
-      badge.textContent = String(tile.badge);
-      li.appendChild(badge);
-    }
-
     var text = document.createElement("span");
     text.className = "dash-chairman-overview-tile-text";
 
     var name = document.createElement("span");
     name.className = "dash-chairman-overview-tile-name";
-    var nameText = tile && tile.title ? String(tile.title) : tile && tile.kpi_id ? String(tile.kpi_id) : "—";
+    var nameText = tileDisplayTitle(tile);
     name.textContent = nameText;
     name.title = nameText;
 
@@ -243,10 +267,14 @@
 
     var list = document.createElement("ul");
     list.className = "dash-chairman-overview-tiles";
-    tiles.slice(0, 14).forEach(function (tile) {
+    tiles.forEach(function (tile) {
       list.appendChild(makeTileElement(tile));
     });
-    body.appendChild(list);
+
+    var tilesWrap = document.createElement("div");
+    tilesWrap.className = "dash-chairman-overview-tiles-wrap";
+    tilesWrap.appendChild(list);
+    body.appendChild(tilesWrap);
     return body;
   }
 
@@ -298,9 +326,74 @@
     var targets = getTargets();
     overviewEl.innerHTML = "";
     if (!targets.length) return;
-    targets.forEach(function (target) {
-      overviewEl.appendChild(buildCard(target));
+
+    var perPage = CHAIRMAN_OVERVIEW_CARDS_PER_PAGE;
+    var totalPages = Math.max(1, Math.ceil(targets.length / perPage));
+    var idx = state.cardPageIndex;
+    if (idx < 0 || isNaN(idx)) idx = 0;
+    if (idx > totalPages - 1) idx = totalPages - 1;
+    state.cardPageIndex = idx;
+
+    var start = idx * perPage;
+    var visibleTargets = targets.slice(start, start + perPage);
+
+    var layout = document.createElement("div");
+    layout.className = "dash-chairman-overview-layout";
+
+    var cardsRoot = document.createElement("div");
+    cardsRoot.className = "dash-chairman-overview-cards";
+    visibleTargets.forEach(function (target) {
+      cardsRoot.appendChild(buildCard(target));
     });
+    layout.appendChild(cardsRoot);
+
+    if (targets.length > perPage) {
+      var nav = document.createElement("nav");
+      nav.className = "dash-chairman-overview-cards-pager";
+      nav.setAttribute("aria-label", "Страницы карточек дашбордов");
+
+      var prevBtn = document.createElement("button");
+      prevBtn.type = "button";
+      prevBtn.className = "dash-chairman-overview-cards-pager-btn";
+      prevBtn.setAttribute("aria-label", "Предыдущие карточки");
+      prevBtn.disabled = idx <= 0;
+      prevBtn.innerHTML =
+        '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M10 3L5 8L10 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+      var label = document.createElement("span");
+      label.className = "dash-chairman-overview-cards-pager-label";
+      label.textContent = idx + 1 + " / " + totalPages;
+
+      var nextBtn = document.createElement("button");
+      nextBtn.type = "button";
+      nextBtn.className = "dash-chairman-overview-cards-pager-btn";
+      nextBtn.setAttribute("aria-label", "Следующие карточки");
+      nextBtn.disabled = idx >= totalPages - 1;
+      nextBtn.innerHTML =
+        '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6 3L11 8L6 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+
+      prevBtn.addEventListener("click", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (state.cardPageIndex <= 0) return;
+        state.cardPageIndex--;
+        render();
+      });
+      nextBtn.addEventListener("click", function (e) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (state.cardPageIndex >= totalPages - 1) return;
+        state.cardPageIndex++;
+        render();
+      });
+
+      nav.appendChild(prevBtn);
+      nav.appendChild(label);
+      nav.appendChild(nextBtn);
+      layout.appendChild(nav);
+    }
+
+    overviewEl.appendChild(layout);
   }
 
   function fetchTilesFor(catalogId) {
@@ -364,6 +457,7 @@
     if (chairmanTabsEl) chairmanTabsEl.hidden = true;
     if (overviewBarEl) overviewBarEl.hidden = true;
     if (dashLoadingEl) dashLoadingEl.hidden = true;
+    setWorkspaceChairmanOverviewMode(true);
     render();
     loadAll();
   }
@@ -371,6 +465,7 @@
   function hide() {
     if (!ensureDom()) return;
     overviewEl.hidden = true;
+    setWorkspaceChairmanOverviewMode(false);
   }
 
   function setExpandedBar(target) {
@@ -395,6 +490,7 @@
     if (!target) return;
     state.expandedCatalogId = target.catalogId || target.id || "";
     if (overviewEl) overviewEl.hidden = true;
+    setWorkspaceChairmanOverviewMode(false);
     setExpandedBar(target);
     call("onExpand", [target]);
   }
@@ -407,6 +503,7 @@
 
   function invalidate() {
     state.cache = Object.create(null);
+    state.cardPageIndex = 0;
   }
 
   function reload() {
