@@ -107,6 +107,31 @@
     return method.apply(DashboardChairmanOverview, Array.isArray(args) ? args : []);
   }
 
+  function attachActivePeriodToRequestOptions(opts) {
+    var nextOpts = Object.assign({}, opts || {});
+    if (nextOpts.month != null && nextOpts.year != null) {
+      return nextOpts;
+    }
+    if (typeof DashboardMonthNav === "undefined" || !DashboardMonthNav || typeof DashboardMonthNav.getPeriodState !== "function") {
+      return nextOpts;
+    }
+    var ps = DashboardMonthNav.getPeriodState();
+    var month = ps && ps.currentPeriodMonth != null ? Number(ps.currentPeriodMonth) : null;
+    var year = ps && ps.currentPeriodYear != null ? Number(ps.currentPeriodYear) : null;
+    if ((month == null || isNaN(month) || year == null || isNaN(year)) && ps && Array.isArray(ps.availableMonths) && ps.availableMonths.length) {
+      var lastSlot = ps.availableMonths[ps.availableMonths.length - 1];
+      month = lastSlot && lastSlot.month != null ? Number(lastSlot.month) : month;
+      year = lastSlot && lastSlot.year != null ? Number(lastSlot.year) : year;
+    }
+    if (nextOpts.month == null && month != null && !isNaN(month)) {
+      nextOpts.month = month;
+    }
+    if (nextOpts.year == null && year != null && !isNaN(year)) {
+      nextOpts.year = year;
+    }
+    return nextOpts;
+  }
+
   function isChairmanOverviewVisible() {
     return !!callChairmanOverview("isVisible", [], false);
   }
@@ -211,6 +236,28 @@
     return Object.assign(createKpiDrilldownBaseContext(), {
       loadDrilldownTilesForDept: loadDrilldownTilesForDept,
       mapWithConcurrencyLimit: mapWithConcurrencyLimit,
+      fetchImmediateSubordinates: function (department) {
+        if (typeof Api === "undefined" || typeof Api.fetchImmediateSubordinates !== "function") {
+          return Promise.resolve({ ok: false, immediate_children: [] });
+        }
+        var opts = { department: department };
+        var chairmanFor = getChairmanDashboardCatalogId();
+        if (chairmanFor && isChairmanRootHierarchy()) {
+          opts.for = chairmanFor;
+          if (isChairmanRootHierarchy() && isVirtualChairmanCatalog(chairmanFor)) {
+            var sessDept =
+              sessionUser && sessionUser.department != null
+                ? String(sessionUser.department).trim()
+                : "";
+            if (sessDept) {
+              opts.department = sessDept;
+            } else {
+              delete opts.department;
+            }
+          }
+        }
+        return Api.fetchImmediateSubordinates(opts);
+      },
       onUnauthorized: handleUnauthorized,
       getChairmanDashboardCatalogId: getChairmanDashboardCatalogId,
       getSessionApiMode: function () {
@@ -421,7 +468,7 @@
         onUnauthorized: handleUnauthorized,
         pushDashboardDebugNote: pushDashboardDebugNote,
         fetchKpis: function (opts) {
-          var nextOpts = Object.assign({}, opts || {});
+          var nextOpts = attachActivePeriodToRequestOptions(opts);
           var chairmanFor = getChairmanDashboardCatalogId();
           if (chairmanFor) {
             nextOpts.for = chairmanFor;
@@ -429,7 +476,7 @@
           return Api.fetchKpis(nextOpts);
         },
         fetchKpiAll: function (opts) {
-          var nextOpts = Object.assign({}, opts || {});
+          var nextOpts = attachActivePeriodToRequestOptions(opts);
           var chairmanFor = getChairmanDashboardCatalogId();
           if (chairmanFor) {
             nextOpts.for = chairmanFor;
@@ -1925,6 +1972,18 @@
     return isBoardChairUser(sessionUser) && selectedViewId === "self";
   }
 
+  function isBoardChairCommercialBlockContext() {
+    if (!isBoardChairUser(sessionUser)) return false;
+    var chairmanFor = getChairmanDashboardCatalogId();
+    return isVirtualChairmanCatalog(chairmanFor) && String(chairmanFor).trim() === "commerce";
+  }
+
+  function shouldUseClaimsAndLawsuitsSwitcher() {
+    if (shouldUseCommercialDirectorOverdueDebtEnhancements()) return true;
+    if (isBoardChairCommercialBlockContext()) return true;
+    return isBoardChairUser(sessionUser) && selectedViewId === "self";
+  }
+
   function shouldUseCommercialDirectorOverdueDebtEnhancements() {
     var currentDepartment = getDepartmentForCurrentKpiContext();
     return (
@@ -1937,7 +1996,7 @@
 
   function updateDashboardTableTitlesForRole() {
     var isBoardChairOwnDashboard = shouldUseBoardChairExecutiveTables();
-    var showClaimsSwitcher = shouldUseCommercialDirectorOverdueDebtEnhancements();
+    var showClaimsSwitcher = shouldUseClaimsAndLawsuitsSwitcher();
 
     if (claimsTableTitleTextEl) {
       claimsTableTitleTextEl.textContent = isBoardChairOwnDashboard ? "ТОП-10 отклонений" : "Претензии";
@@ -2010,9 +2069,9 @@
     if (typeof DashboardClaimsTable.init === "function") {
       DashboardClaimsTable.init({
         rows: lastApiTableRows,
-        executiveMode: shouldUseBoardChairExecutiveTables(),
+        executiveMode: false,
         enhanceOverdueDebtTable: shouldUseCommercialDirectorOverdueDebtEnhancements(),
-        enableLawsuitsTable: shouldUseCommercialDirectorOverdueDebtEnhancements(),
+        enableLawsuitsTable: shouldUseClaimsAndLawsuitsSwitcher(),
       });
     }
   }

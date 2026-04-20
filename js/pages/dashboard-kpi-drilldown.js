@@ -98,6 +98,20 @@
     return typeof fn === "function" ? fn() : "";
   }
 
+  function fetchImmediateSubordinatesSafe(department) {
+    var fn = getContext().fetchImmediateSubordinates;
+    if (typeof fn === "function") return fn(department);
+    if (typeof Api === "undefined" || !Api.fetchImmediateSubordinates) {
+      return Promise.resolve({ ok: false, immediate_children: [] });
+    }
+    var fetchOpts = { department: department };
+    var chairmanFor = getChairmanDashboardCatalogId();
+    if (chairmanFor) {
+      fetchOpts.for = chairmanFor;
+    }
+    return Api.fetchImmediateSubordinates(fetchOpts);
+  }
+
   function getPeriodCacheSignature() {
     if (typeof DashboardMonthNav === "undefined" || !DashboardMonthNav || typeof DashboardMonthNav.getPeriodState !== "function") {
       return "";
@@ -298,7 +312,7 @@
     state.hint = "";
     renderKpiTileBackFaceSafe(tileIndex);
 
-    if (getSessionApiMode() === "mock" || typeof Api === "undefined" || !Api.fetchImmediateSubordinates) {
+    if (getSessionApiMode() === "mock") {
       state.loading = false;
       state.loaded = true;
       state.hint =
@@ -315,13 +329,7 @@
       return;
     }
 
-    var fetchOpts = { department: parentDept };
-    var chairmanFor = getChairmanDashboardCatalogId();
-    if (chairmanFor) {
-      fetchOpts.for = chairmanFor;
-    }
-
-    Api.fetchImmediateSubordinates(fetchOpts)
+    fetchImmediateSubordinatesSafe(parentDept)
       .then(function (r) {
         if (r.unauthorized) {
           onUnauthorizedSafe();

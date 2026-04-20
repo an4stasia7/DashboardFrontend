@@ -1430,6 +1430,8 @@
     if (row && row.code != null && String(row.code).trim() !== "") return "code:" + String(row.code).trim();
     if (row && row.name != null && String(row.name).trim() !== "") return "name:" + String(row.name).trim();
     if (row && row.partner != null && String(row.partner).trim() !== "") return "partner:" + String(row.partner).trim();
+    if (row && row.number != null && String(row.number).trim() !== "") return "number:" + String(row.number).trim();
+    if (row && row.counterparty != null && String(row.counterparty).trim() !== "") return "counterparty:" + String(row.counterparty).trim();
     return String(tabKey || "table") + ":" + String(index);
   }
 
@@ -1440,10 +1442,13 @@
       (row.name != null && String(row.name).trim() !== "") ||
       (row.partner != null && String(row.partner).trim() !== "") ||
       (row.code != null && String(row.code).trim() !== "") ||
+      (row.number != null && String(row.number).trim() !== "") ||
+      (row.counterparty != null && String(row.counterparty).trim() !== "") ||
       row.plan !== undefined ||
       row.fact !== undefined ||
       row.order_sum !== undefined ||
-      row.amount !== undefined
+      row.amount !== undefined ||
+      row.claim_amount !== undefined
     );
   }
 
@@ -1496,7 +1501,9 @@
         var fromRowName = row.name != null ? String(row.name).trim() : "";
         var fromPartner = row.partner != null ? String(row.partner).trim() : "";
         var fromCode = row.code != null ? String(row.code).trim() : "";
-        var kpiBase = fromTiles || fromRowName || fromPartner || fromCode || kpiId || id || "—";
+        var fromNumber = row.number != null ? String(row.number).trim() : "";
+        var fromCounterparty = row.counterparty != null ? String(row.counterparty).trim() : "";
+        var kpiBase = fromTiles || fromRowName || fromPartner || fromCode || fromNumber || fromCounterparty || kpiId || id || "—";
         var dup = idCount[id] > 1;
         var section = tk != null ? String(tk).trim() : "";
         var kpiLabel = kpiBase + (dup && section ? " (" + section + ")" : "");
