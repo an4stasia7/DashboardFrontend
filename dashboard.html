@@ -75,6 +75,21 @@
         ></nav>
         <main class="dash-main">
 
+      <div class="dash-chairman-overview-bar" id="dash-chairman-overview-bar" hidden>
+        <button type="button" class="dash-chairman-overview-back" id="dash-chairman-overview-back">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M9.5 3L4.5 8L9.5 13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span>К обзору</span>
+        </button>
+        <span class="dash-chairman-overview-bar-title" id="dash-chairman-overview-bar-title"></span>
+      </div>
+
+      <section
+        id="dash-chairman-overview"
+        class="dash-chairman-overview"
+        aria-label="Обзорные дашборды председателя совета директоров"
+        hidden
+      ></section>
+
       <div class="dash-loading" id="dash-loading">
         <div class="dash-spinner"></div>
         <span class="dash-loading-text">Загрузка данных…</span>
@@ -429,6 +444,7 @@
     <script src="js/pages/dashboard-kpi-drilldown.js"></script>
     <script src="js/pages/dashboard-claims-table.js"></script>
     <script src="js/pages/dashboard-charts.js"></script>
+    <script src="js/pages/dashboard-chairman-overview.js"></script>
     <script src="js/pages/dashboard.js"></script>
   </body>
 </html>

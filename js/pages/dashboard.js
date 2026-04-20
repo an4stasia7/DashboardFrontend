@@ -100,6 +100,17 @@
     return method.apply(DashboardDataLoader, Array.isArray(args) ? args : []);
   }
 
+  function callChairmanOverview(methodName, args, fallbackValue) {
+    if (typeof DashboardChairmanOverview === "undefined" || !DashboardChairmanOverview) return fallbackValue;
+    var method = DashboardChairmanOverview[methodName];
+    if (typeof method !== "function") return fallbackValue;
+    return method.apply(DashboardChairmanOverview, Array.isArray(args) ? args : []);
+  }
+
+  function isChairmanOverviewVisible() {
+    return !!callChairmanOverview("isVisible", [], false);
+  }
+
   /* ---------- Навигация по месяцам ---------- */
 
   function periodKeyInAvailableMonths(y, m, slots) {
@@ -283,7 +294,7 @@
           }
           var opts = { department: department };
           var chairmanFor = getChairmanDashboardCatalogId();
-          if (chairmanFor) {
+          if (chairmanFor && isChairmanRootHierarchy()) {
             opts.for = chairmanFor;
             if (isChairmanRootHierarchy() && isVirtualChairmanCatalog(chairmanFor)) {
               var sessDept =
@@ -374,17 +385,16 @@
         fetchKpis: function (opts) {
           var nextOpts = Object.assign({}, opts || {});
           var chairmanFor = getChairmanDashboardCatalogId();
-          if (chairmanFor) nextOpts.for = chairmanFor;
+          if (chairmanFor && isChairmanRootHierarchy()) {
+            nextOpts.for = chairmanFor;
+          }
           return Api.fetchKpis(nextOpts);
         },
         fetchKpiAll: function (opts) {
           var nextOpts = Object.assign({}, opts || {});
           var chairmanFor = getChairmanDashboardCatalogId();
-          if (chairmanFor) {
+          if (chairmanFor && isChairmanRootHierarchy()) {
             nextOpts.for = chairmanFor;
-            if (isChairmanRootHierarchy() && isVirtualChairmanCatalog(chairmanFor)) {
-              delete nextOpts.department;
-            }
           }
           return Api.fetchKpiAll(nextOpts);
         },
@@ -414,6 +424,84 @@
     }
   })();
 
+  (function initChairmanOverviewModule() {
+    if (typeof DashboardChairmanOverview === "undefined" || !DashboardChairmanOverview) return;
+    if (typeof DashboardChairmanOverview.init !== "function") return;
+    DashboardChairmanOverview.init({
+      getChairmanTargets: function () {
+        return chairmanDashboardTargets || [];
+      },
+      getSessionUser: function () {
+        return sessionUser;
+      },
+      getHierarchyStack: function () {
+        return hierarchyStack;
+      },
+      getPeriodState: function () {
+        if (typeof DashboardMonthNav === "undefined" || !DashboardMonthNav) return null;
+        if (typeof DashboardMonthNav.getPeriodState !== "function") return null;
+        return DashboardMonthNav.getPeriodState();
+      },
+      fetchOverviewTiles: function (catalogId) {
+        if (typeof Api === "undefined" || typeof Api.fetchKpis !== "function") {
+          return Promise.resolve({ ok: false, tiles: [] });
+        }
+        var opts = {};
+        if (catalogId != null && String(catalogId).trim() !== "") {
+          opts.for = String(catalogId).trim();
+        }
+        if (typeof DashboardMonthNav !== "undefined" && DashboardMonthNav && typeof DashboardMonthNav.getPeriodState === "function") {
+          var ps = DashboardMonthNav.getPeriodState();
+          if (ps && ps.currentPeriodMonth != null) opts.month = Number(ps.currentPeriodMonth);
+          if (ps && ps.currentPeriodYear != null) opts.year = Number(ps.currentPeriodYear);
+        }
+        return Api.fetchKpis(opts);
+      },
+      onExpand: function (target) {
+        if (!target) return;
+        selectedViewId = target.id || "self";
+        viewContextUser = target.user || sessionUser;
+        var selfDeptRaw =
+          sessionUser && sessionUser.department != null ? String(sessionUser.department).trim() : "";
+        hierarchyStack = selfDeptRaw ? [selfDeptRaw] : [];
+        if (
+          typeof DashboardHierarchyNav !== "undefined" &&
+          DashboardHierarchyNav &&
+          typeof DashboardHierarchyNav.rememberChairmanCatalogId === "function"
+        ) {
+          DashboardHierarchyNav.rememberChairmanCatalogId(target.catalogId);
+        }
+        if (session.apiMode === "mock") {
+          renderViewTabs();
+          updateTopBarForView();
+          loadKpiTilesAndChartsForView();
+          return;
+        }
+        refreshSubordinateTabsFromApi().then(function () {
+          renderViewTabs();
+          updateTopBarForView();
+          loadKpiTilesAndChartsForView();
+        });
+      },
+      onBackToOverview: function () {
+        selectedViewId = "self";
+        viewContextUser = sessionUser;
+        var selfDept =
+          sessionUser && sessionUser.department != null ? String(sessionUser.department).trim() : "";
+        hierarchyStack = selfDept ? [selfDept] : [];
+        if (
+          typeof DashboardHierarchyNav !== "undefined" &&
+          DashboardHierarchyNav &&
+          typeof DashboardHierarchyNav.clearRememberedChairmanCatalogId === "function"
+        ) {
+          DashboardHierarchyNav.clearRememberedChairmanCatalogId();
+        }
+        renderViewTabs();
+        updateTopBarForView();
+      },
+    });
+  })();
+
   (function initMonthNavModule() {
     if (typeof DashboardMonthNav === "undefined" || !DashboardMonthNav) return;
     if (typeof DashboardMonthNav.init === "function") {
@@ -429,6 +517,10 @@
           return viewContextUser;
         },
         onPeriodChange: function () {
+          if (isChairmanOverviewVisible()) {
+            callChairmanOverview("reload", []);
+            return;
+          }
           loadKpiTilesAndChartsForView();
         },
         onAggregationModeChange: function (mode) {
@@ -467,11 +559,30 @@
 
   /* ---------- Кэш KPI при drilldown (меньше повторных GET) ---------- */
 
+  /** Ключ кэша drilldown: отдел + выбранный в навигаторе месяц (иначе данные «теряют» апрель и т.п.). */
+  function drilldownTilesCacheKey(deptName) {
+    var d = deptName != null ? String(deptName).trim() : "";
+    if (!d) return "";
+    if (typeof DashboardMonthNav !== "undefined" && DashboardMonthNav.getPeriodState) {
+      var ps = DashboardMonthNav.getPeriodState();
+      if (
+        ps &&
+        ps.currentPeriodMonth != null &&
+        ps.currentPeriodYear != null &&
+        !isNaN(Number(ps.currentPeriodMonth)) &&
+        !isNaN(Number(ps.currentPeriodYear))
+      ) {
+        return d + "\0" + ps.currentPeriodYear + "-" + ps.currentPeriodMonth;
+      }
+    }
+    return d;
+  }
+
   /** Сохраняет плитки отдела в LRU-кэш для повторного открытия drilldown. */
   function rememberDrilldownKpiTiles(dept, tiles) {
     var d = dept != null ? String(dept).trim() : "";
     if (!d || !tiles || !tiles.length) return;
-    drilldownKpiTilesCache[d] = tiles;
+    drilldownKpiTilesCache[drilldownTilesCacheKey(d)] = tiles;
     var keys = Object.keys(drilldownKpiTilesCache);
     while (keys.length > DRILLDOWN_KPI_CACHE_MAX) {
       delete drilldownKpiTilesCache[keys[0]];
@@ -483,14 +594,23 @@
   function loadDrilldownTilesForDept(deptName) {
     var cn = deptName != null ? String(deptName).trim() : "";
     if (!cn) return Promise.resolve({ name: cn, tiles: [] });
-    var cached = drilldownKpiTilesCache[cn];
+    var cacheKey = drilldownTilesCacheKey(cn);
+    var cached = drilldownKpiTilesCache[cacheKey];
     if (cached && cached.length) {
       return Promise.resolve({ name: cn, tiles: cached });
     }
     if (typeof Api === "undefined" || typeof Api.fetchKpis !== "function") {
       return Promise.resolve({ name: cn, tiles: [] });
     }
-    return Api.fetchKpis({ department: cn })
+    var fetchOpts = { department: cn };
+    if (typeof DashboardMonthNav !== "undefined" && DashboardMonthNav.getPeriodState) {
+      var ps = DashboardMonthNav.getPeriodState();
+      if (ps && ps.currentPeriodMonth != null && ps.currentPeriodYear != null) {
+        fetchOpts.month = Number(ps.currentPeriodMonth);
+        fetchOpts.year = Number(ps.currentPeriodYear);
+      }
+    }
+    return Api.fetchKpis(fetchOpts)
       .then(function (res) {
         var t = res.ok && res.tiles ? res.tiles.slice() : [];
         if (t.length) rememberDrilldownKpiTiles(cn, t);
@@ -1630,6 +1750,8 @@
    * При ошибке или mock — fallback на `MockData`.
    */
   function loadKpiTilesAndChartsForView() {
+    // Если мы на обзорном экране ПСД (2 карточки), полный дашборд НЕ должен появляться ниже.
+    if (isChairmanOverviewVisible()) return;
     callDataLoader("loadKpiTilesAndChartsForView");
   }
 
@@ -1643,12 +1765,25 @@
   } else {
     DashDebug.renderDebugJsonLogPanel();
   }
-  loadKpiTilesAndChartsForView();
+
+  var isBoardChairSession = isBoardChairUser(sessionUser);
+  if (isBoardChairSession && session.apiMode !== "mock") {
+    showLoading();
+  } else {
+    loadKpiTilesAndChartsForView();
+  }
+
   loadViewTargets().then(function (targets) {
     viewTargets = targets && targets.length ? targets : [{ id: "self", label: "Мой дашборд", user: sessionUser }];
     refreshSubordinateTabsFromApi().then(function () {
       renderViewTabs();
       updateTopBarForView();
+      var shown = callChairmanOverview("showIfNeeded", [], false);
+      if (shown) {
+        hideLoading();
+      } else if (isBoardChairSession && session.apiMode !== "mock") {
+        loadKpiTilesAndChartsForView();
+      }
     });
   });
 })();
