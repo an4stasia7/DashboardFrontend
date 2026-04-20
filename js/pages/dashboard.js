@@ -49,8 +49,12 @@
   var lastApiChartIndicators = null;
   /** Строки таблицы из API */
   var lastApiTableRows = null;
+  /** Последний raw-ответ KPI для локального пересчёта плиток ПСД */
+  var lastRawKpiResponse = null;
   /** Подпись в шапке из поля department последнего успешного ответа KPI (json) */
   var lastKpiResponseDepartment = null;
+  /** Режим агрегации плиток ПСД */
+  var chairmanAggregationMode = "current";
 
   /** Индексы перевёрнутых KPI-карточек (можно держать открытыми несколько) */
   var flippedTileIndices = new Set();
@@ -396,9 +400,16 @@
         setLastApiTableRows: function (value) {
           lastApiTableRows = value;
         },
+        setLastRawKpiResponse: function (value) {
+          lastRawKpiResponse = value;
+        },
         setLastKpiResponseDepartment: function (value) {
           lastKpiResponseDepartment = value;
         },
+        getChairmanAggregationMode: function () {
+          return chairmanAggregationMode;
+        },
+        getChairmanAggregatedTilesFromRaw: getChairmanAggregatedTilesFromRaw,
       });
     }
   })();
@@ -410,12 +421,19 @@
         getSelectedViewId: function () {
           return selectedViewId;
         },
+        getSessionUser: function () {
+          return sessionUser;
+        },
         getDepartmentForCurrentKpiContext: getDepartmentForCurrentKpiContext,
         getViewContextUser: function () {
           return viewContextUser;
         },
         onPeriodChange: function () {
           loadKpiTilesAndChartsForView();
+        },
+        onAggregationModeChange: function (mode) {
+          chairmanAggregationMode = mode || "current";
+          rerenderChairmanTilesFromRaw();
         },
       });
     }
@@ -1106,6 +1124,274 @@
   function isCommercialDepartmentContext(value) {
     var normalized = normalizeDashboardRole(value);
     return normalized === "коммерческий директор" || normalized === "коммерция";
+  }
+
+  function chairmanAggregationModeLabel(mode) {
+    if (mode === "quarter") return "За квартал";
+    if (mode === "ytd") return "С начала года";
+    return "На текущий момент";
+  }
+
+  function parseNumberLoose(value) {
+    if (typeof value === "number" && !isNaN(value)) return value;
+    if (value == null || value === "") return null;
+    var normalized = parseFloat(String(value).replace(/[^\d.,\-]/g, "").replace(",", "."));
+    return isNaN(normalized) ? null : normalized;
+  }
+
+  function getMonthShortRu(month) {
+    var names = ["янв.", "фев.", "март", "апр.", "май", "июнь", "июль", "авг.", "сент.", "окт.", "нояб.", "дек."];
+    var index = Number(month) - 1;
+    return index >= 0 && index < names.length ? names[index] : "";
+  }
+
+  function buildChairmanAggregationPeriodLabel(mode, year, month, points, selectedQuarters) {
+    var y = Number(year);
+    var m = Number(month);
+    if (isNaN(y) || isNaN(m) || m < 1 || m > 12) return "";
+    if (mode === "quarter") {
+      var qs = Array.isArray(selectedQuarters) ? selectedQuarters.slice() : [];
+      qs = qs
+        .map(function (v) { return parseInt(String(v), 10); })
+        .filter(function (q) { return !isNaN(q) && q >= 1 && q <= 4; })
+        .sort(function (a, b) { return a - b; });
+      if (!qs.length) {
+        qs = [Math.ceil(m / 3)];
+      }
+      var roman = ["I", "II", "III", "IV"];
+      var label = qs.map(function (q) { return (roman[q - 1] || String(q)) + " кв."; }).join(", ");
+      var minQ = qs[0];
+      var maxQ = qs[qs.length - 1];
+      var startMonth = (minQ - 1) * 3 + 1;
+      var endMonth = maxQ * 3;
+      return "Накопительно за " + label + " " + y + " (" + getMonthShortRu(startMonth) + "–" + getMonthShortRu(endMonth) + ")";
+    }
+    if (mode === "ytd") {
+      return "Накопительно с начала " + y + " г. (янв.–" + getMonthShortRu(m) + ")";
+    }
+    if (Array.isArray(points)) {
+      for (var i = 0; i < points.length; i++) {
+        var point = points[i];
+        if (!point) continue;
+        if (Number(point.year) === y && Number(point.month) === m) {
+          var monthName = point.month_name != null ? String(point.month_name).trim() : "";
+          if (monthName) {
+            return monthName.charAt(0).toUpperCase() + monthName.slice(1) + " " + y;
+          }
+        }
+      }
+    }
+    return getMonthShortRu(m) + " " + y;
+  }
+
+  function computeChairmanAggregatedPoint(item, year, month, mode, selectedQuarters) {
+    if (!item || typeof item !== "object") return null;
+    var points = Array.isArray(item.monthly_data) ? item.monthly_data.slice() : [];
+    if (!points.length) return null;
+    var y = Number(year);
+    var m = Number(month);
+    if (isNaN(y) || isNaN(m) || m < 1 || m > 12) return null;
+
+    var filtered = points
+      .filter(function (point) {
+        return point && Number(point.year) === y && Number(point.month) >= 1 && Number(point.month) <= 12;
+      })
+      .sort(function (a, b) {
+        return Number(a.month) - Number(b.month);
+      });
+    if (!filtered.length) return null;
+
+    if (mode !== "quarter" && mode !== "ytd") {
+      for (var ci = 0; ci < filtered.length; ci++) {
+        if (Number(filtered[ci].month) === m) return filtered[ci];
+      }
+      return null;
+    }
+
+    var bucket = [];
+    if (mode === "quarter") {
+      var qs = Array.isArray(selectedQuarters) ? selectedQuarters.slice() : [];
+      qs = qs
+        .map(function (v) { return parseInt(String(v), 10); })
+        .filter(function (q) { return !isNaN(q) && q >= 1 && q <= 4; })
+        .sort(function (a, b) { return a - b; });
+      if (!qs.length) qs = [Math.ceil(m / 3)];
+      var ranges = qs.map(function (q) {
+        return { start: (q - 1) * 3 + 1, end: q * 3 };
+      });
+      bucket = filtered.filter(function (point) {
+        var pointMonth = Number(point.month);
+        for (var i = 0; i < ranges.length; i++) {
+          if (pointMonth >= ranges[i].start && pointMonth <= ranges[i].end) return true;
+        }
+        return false;
+      });
+    } else {
+      var startMonth = 1;
+      bucket = filtered.filter(function (point) {
+        var pointMonth = Number(point.month);
+        return pointMonth >= startMonth && pointMonth <= m;
+      });
+    }
+    if (!bucket.length) return null;
+
+    var plan = 0;
+    var fact = 0;
+    var kpiPct = null;
+    var hasPlan = false;
+    var hasFact = false;
+    var lastPct = null;
+    var hasData = false;
+
+    bucket.forEach(function (point) {
+      var planValue = parseNumberLoose(point.plan);
+      var factValue = parseNumberLoose(point.fact);
+      var pctValue = parseNumberLoose(point.kpi_pct);
+      if (planValue != null) {
+        plan += planValue;
+        hasPlan = true;
+      }
+      if (factValue != null) {
+        fact += factValue;
+        hasFact = true;
+      }
+      if (pctValue != null) lastPct = pctValue;
+      if (point.has_data === true) hasData = true;
+    });
+
+    if (hasPlan && Math.abs(plan) > 0.000001 && hasFact) {
+      kpiPct = (fact / plan) * 100;
+    } else if (lastPct != null) {
+      kpiPct = lastPct;
+    }
+
+    return {
+      year: y,
+      month: m,
+      month_name: null,
+      plan: hasPlan ? plan : null,
+      fact: hasFact ? fact : null,
+      kpi_pct: kpiPct,
+      has_data: hasData || hasPlan || hasFact,
+    };
+  }
+
+  function normalizeKpiTileFromRawItem(rawItem, point, mode) {
+    if (!rawItem || typeof rawItem !== "object") return null;
+    var title = rawItem.name != null ? String(rawItem.name) : "";
+    if (!title && rawItem.kpi_id != null) title = String(rawItem.kpi_id);
+    if (!title) return null;
+    var thresholds = rawItem.thresholds && typeof rawItem.thresholds === "object" ? rawItem.thresholds : {};
+    var pointPct = point && typeof point.kpi_pct === "number" && !isNaN(point.kpi_pct) ? point.kpi_pct : null;
+    var itemPct =
+      typeof rawItem.kpi_pst === "number" && !isNaN(rawItem.kpi_pst)
+        ? rawItem.kpi_pst
+        : typeof rawItem.kpi_pct === "number" && !isNaN(rawItem.kpi_pct)
+          ? rawItem.kpi_pct
+          : null;
+    var periodState = typeof DashboardMonthNav !== "undefined" && DashboardMonthNav && typeof DashboardMonthNav.getPeriodState === "function"
+      ? DashboardMonthNav.getPeriodState()
+      : { currentPeriodMonth: null, currentPeriodYear: null };
+    var label =
+      point && periodState.currentPeriodYear != null && periodState.currentPeriodMonth != null
+        ? buildChairmanAggregationPeriodLabel(
+            mode,
+            periodState.currentPeriodYear,
+            periodState.currentPeriodMonth,
+            rawItem.monthly_data,
+            periodState.selectedQuarters
+          )
+        : rawItem.plan_fact_period_label != null
+          ? String(rawItem.plan_fact_period_label)
+          : null;
+
+    function thStr(obj, key, flatKey) {
+      if (obj[key] != null) return String(obj[key]);
+      if (flatKey != null && rawItem[flatKey] != null) return String(rawItem[flatKey]);
+      return null;
+    }
+
+    function firstStringValue(keys) {
+      for (var i = 0; i < keys.length; i++) {
+        var key = keys[i];
+        if (rawItem[key] == null) continue;
+        var value = String(rawItem[key]).trim();
+        if (value) return value;
+      }
+      return "";
+    }
+
+    return {
+      kpi_id: rawItem.kpi_id != null ? String(rawItem.kpi_id) : "",
+      title: title,
+      badge: rawItem.kpi_id != null ? String(rawItem.kpi_id) : "KPI",
+      period:
+        rawItem.period != null && String(rawItem.period).trim()
+          ? String(rawItem.period)
+          : chairmanAggregationModeLabel(mode),
+      units: firstStringValue(["units", "unit", "uom", "measure_unit", "measurement_unit"]),
+      frequency: firstStringValue(["frequency", "periodicity", "update_frequency", "frequency_label"]),
+      cache_updated_at: firstStringValue(["cache_updated_at"]),
+      formula: rawItem.formula != null ? String(rawItem.formula) : null,
+      plan_fact_period_label: label,
+      percent: pointPct != null ? pointPct : itemPct,
+      kpi_pst: typeof rawItem.kpi_pst === "number" && !isNaN(rawItem.kpi_pst) ? rawItem.kpi_pst : null,
+      kpi_pct: pointPct != null ? pointPct : itemPct,
+      plan: point ? point.plan : rawItem.plan,
+      fact: point ? point.fact : rawItem.fact,
+      has_data:
+        point && typeof point.has_data === "boolean"
+          ? point.has_data
+          : typeof rawItem.has_data === "boolean"
+            ? rawItem.has_data
+            : undefined,
+      hint:
+        rawItem.description != null
+          ? String(rawItem.description)
+          : rawItem.hint != null
+            ? String(rawItem.hint)
+            : rawItem.comment != null
+              ? String(rawItem.comment)
+              : "",
+      rag: rawItem.color != null ? String(rawItem.color).toLowerCase().trim() : null,
+      green_threshold: thStr(thresholds, "green", "green_threshold"),
+      yellow_threshold: thStr(thresholds, "yellow", "yellow_threshold"),
+      red_threshold: thStr(thresholds, "red", "red_threshold"),
+      blue_threshold: thStr(thresholds, "blue", "blue_threshold"),
+    };
+  }
+
+  function getChairmanAggregatedTilesFromRaw(rawBody) {
+    if (!rawBody || typeof rawBody !== "object") return null;
+    var periodState =
+      typeof DashboardMonthNav !== "undefined" && DashboardMonthNav && typeof DashboardMonthNav.getPeriodState === "function"
+        ? DashboardMonthNav.getPeriodState()
+        : null;
+    var year = periodState && periodState.currentPeriodYear != null ? periodState.currentPeriodYear : null;
+    var month = periodState && periodState.currentPeriodMonth != null ? periodState.currentPeriodMonth : null;
+    var selectedQuarters = periodState && Array.isArray(periodState.selectedQuarters) ? periodState.selectedQuarters : [];
+    if (year == null || month == null) return null;
+
+    var tilesBlock = rawBody["Плитки"];
+    var items = tilesBlock && Array.isArray(tilesBlock.items) ? tilesBlock.items : [];
+    if (!items.length) return null;
+
+    var mode = chairmanAggregationMode || "current";
+    return items
+      .map(function (item) {
+        var point = computeChairmanAggregatedPoint(item, year, month, mode, selectedQuarters);
+        return normalizeKpiTileFromRawItem(item, point, mode);
+      })
+      .filter(Boolean);
+  }
+
+  function rerenderChairmanTilesFromRaw() {
+    if (!lastRawKpiResponse) return false;
+    var tiles = getChairmanAggregatedTilesFromRaw(lastRawKpiResponse);
+    if (!tiles || !tiles.length) return false;
+    renderKpiTiles(tiles);
+    renderDonutCharts();
+    return true;
   }
 
   function shouldUseBoardChairExecutiveTables() {
