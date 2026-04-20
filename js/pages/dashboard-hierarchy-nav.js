@@ -421,11 +421,13 @@
       btn.appendChild(span);
       btn.addEventListener("click", function () {
         if (t.id === getSelectedViewId()) return;
+        rememberMonthNavigatorPeriodState();
         rememberChairmanCatalogId(t.catalogId);
         setSelectedViewId(t.id);
         setViewContextUser(t.user || sessionUser);
         var effDept = sessionUser && sessionUser.department != null ? String(sessionUser.department).trim() : "";
         setHierarchyStack(effDept ? [effDept] : []);
+        restoreMonthNavigatorPeriodState();
         if (getSessionApiMode() === "mock") {
           renderChairmanDashboardTabs();
           renderViewTabs();
@@ -707,11 +709,13 @@
     var hierarchy = buildSidebarSearchHierarchy(item);
     if (!hierarchy.length) return;
     var dept = hierarchy[hierarchy.length - 1];
+    rememberMonthNavigatorPeriodState();
     setSelectedViewId(
       item && item.id != null && String(item.id).trim() ? String(item.id).trim() : "search:" + encodeURIComponent(dept)
     );
     setViewContextUser(item && item.user ? item.user : sessionUser);
     setHierarchyStack(hierarchy.slice());
+    restoreMonthNavigatorPeriodState();
     clearSidebarSearchState();
     renderViewTabs();
     refreshSubordinateTabsFromApi().then(function () {
@@ -769,10 +773,21 @@
     });
   }
 
+  function rememberMonthNavigatorPeriodState() {
+    var fn = getContext().rememberMonthNavigatorPeriodState;
+    if (typeof fn === "function") fn();
+  }
+
+  function restoreMonthNavigatorPeriodState() {
+    var fn = getContext().restoreMonthNavigatorPeriodState;
+    if (typeof fn === "function") fn();
+  }
+
   function navigateToHierarchyLevel(levelIndex) {
     var hierarchyStack = getHierarchyStack();
     var sessionUser = getSessionUser();
     if (levelIndex < 0 || levelIndex >= hierarchyStack.length) return;
+    rememberMonthNavigatorPeriodState();
     setHierarchyStack(hierarchyStack.slice(0, levelIndex + 1));
     if (levelIndex === 0) {
       var activeChairmanTarget = isBoardChairUser(sessionUser)
@@ -785,6 +800,7 @@
       setSelectedViewId("dept:" + encodeURIComponent(parent));
     }
     setViewContextUser(sessionUser);
+    restoreMonthNavigatorPeriodState();
     refreshSubordinateTabsFromApi().then(function () {
       updateTopBarForView();
       navigateAfterViewChange();
@@ -887,6 +903,7 @@
       btn.appendChild(span);
       btn.addEventListener("click", function () {
         if (!isChairmanTarget(t) && getSelectedViewId() === t.id) return;
+        rememberMonthNavigatorPeriodState();
         setSelectedViewId(t.id);
         setViewContextUser(t.user);
         if (t.id === "self") {
@@ -898,6 +915,7 @@
         } else {
           setHierarchyStack(getHierarchyStack().concat([t.department]));
         }
+        restoreMonthNavigatorPeriodState();
         if (getSessionApiMode() === "mock") {
           inner.querySelectorAll(".dash-view-tab").forEach(function (b) {
             b.setAttribute("aria-selected", b.getAttribute("data-target-id") === getSelectedViewId() ? "true" : "false");
@@ -955,9 +973,11 @@
     onSidebarSearchInput: onSidebarSearchInput,
     refreshSubordinateTabsFromApi: refreshSubordinateTabsFromApi,
     rememberChairmanCatalogId: rememberChairmanCatalogId,
+    rememberMonthNavigatorPeriodState: rememberMonthNavigatorPeriodState,
     renderHierarchyBreadcrumb: renderHierarchyBreadcrumb,
     renderViewTabs: renderViewTabs,
     resetSidebarSearch: resetSidebarSearch,
+    restoreMonthNavigatorPeriodState: restoreMonthNavigatorPeriodState,
     updateSidebarBackButton: updateSidebarBackButton,
     updateTopBarForView: updateTopBarForView,
   };

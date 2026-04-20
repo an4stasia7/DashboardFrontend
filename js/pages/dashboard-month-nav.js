@@ -14,6 +14,7 @@
   var latestContext = {};
   var bound = false;
   var currentModePeriodByContext = Object.create(null);
+  var periodStateByContext = Object.create(null);
 
   function mergeContext(nextContext) {
     latestContext = Object.assign({}, latestContext || {}, nextContext || {});
@@ -301,38 +302,152 @@
     return true;
   }
 
-  function setAvailableMonthsFromChartPoints(chartIndicators, options) {
-    options = options || {};
-    var nextContextKey =
-      options.contextKey != null ? String(options.contextKey) : availableMonthsContextKey;
+  function capturePeriodStateSnapshot() {
+    return {
+      currentPeriodMonth: currentPeriodMonth,
+      currentPeriodYear: currentPeriodYear,
+      aggregationMode: aggregationMode || "current",
+      selectedQuarters: normalizeQuarterList(selectedQuarters),
+    };
+  }
+
+  function rememberPeriodStateForContext(contextKey) {
+    var key = contextKey != null ? String(contextKey) : getMonthNavigatorContextKey();
+    if (!key) return;
+    periodStateByContext[key] = capturePeriodStateSnapshot();
+  }
+
+  function restorePeriodStateForContext(contextKey) {
+    var key = contextKey != null ? String(contextKey) : getMonthNavigatorContextKey();
+    if (!key) return false;
+    var snapshot = periodStateByContext[key];
+    if (!snapshot) return false;
+    if (snapshot.currentPeriodMonth != null) {
+      currentPeriodMonth = snapshot.currentPeriodMonth;
+    }
+    if (snapshot.currentPeriodYear != null) {
+      currentPeriodYear = snapshot.currentPeriodYear;
+    }
+    aggregationMode =
+      snapshot.aggregationMode != null && String(snapshot.aggregationMode).trim()
+        ? String(snapshot.aggregationMode).trim()
+        : "current";
+    selectedQuarters = normalizeQuarterList(snapshot.selectedQuarters);
+    return true;
+  }
+
+  function pushAvailableMonthSlot(slots, month, year) {
+    if (!Array.isArray(slots)) return;
+    var key = monthYearKey(year, month);
+    if (key < 0) return;
+    for (var i = 0; i < slots.length; i++) {
+      if (slots[i] && slots[i].key === key) return;
+    }
+    slots.push({
+      month: parseInt(String(month), 10),
+      year: parseInt(String(year), 10),
+      key: key,
+    });
+  }
+
+  function collectAvailableMonthSlotsFromChartIndicators(chartIndicators) {
     var nextMonths = [];
-    if (chartIndicators) {
-      var lines = chartIndicators.line || [];
-      for (var li = 0; li < lines.length; li++) {
-        var pts = lines[li].points;
-        if (!pts) continue;
-        for (var pi = 0; pi < pts.length; pi++) {
-          var pt = pts[pi];
-          if (!navPointHasPeriodValue(pt)) continue;
-          var key = monthYearKey(pt.year, pt.month);
-          if (key < 0) continue;
-          var exists = false;
-          for (var ei = 0; ei < nextMonths.length; ei++) {
-            if (nextMonths[ei] && nextMonths[ei].key === key) {
-              exists = true;
-              break;
-            }
-          }
-          if (!exists) {
-            nextMonths.push({
-              month: parseInt(String(pt.month), 10),
-              year: parseInt(String(pt.year), 10),
-              key: key,
-            });
+    if (!chartIndicators) return nextMonths;
+    var lines = chartIndicators.line || [];
+    for (var li = 0; li < lines.length; li++) {
+      var pts = lines[li] && lines[li].points;
+      if (!pts) continue;
+      for (var pi = 0; pi < pts.length; pi++) {
+        var pt = pts[pi];
+        if (!navPointHasPeriodValue(pt)) continue;
+        pushAvailableMonthSlot(nextMonths, pt.month, pt.year);
+      }
+    }
+    return nextMonths;
+  }
+
+  function collectAvailableMonthSlotsFromKpiBody(body, nextMonths, depth) {
+    nextMonths = Array.isArray(nextMonths) ? nextMonths : [];
+    depth = typeof depth === "number" ? depth : 4;
+    if (!body || depth < 0) return nextMonths;
+
+    if (Array.isArray(body)) {
+      for (var i = 0; i < body.length; i++) {
+        collectAvailableMonthSlotsFromKpiBody(body[i], nextMonths, depth - 1);
+      }
+      return nextMonths;
+    }
+
+    if (typeof body !== "object") return nextMonths;
+
+    pushAvailableMonthSlot(nextMonths, body.month, body.year);
+
+    if (Array.isArray(body.monthly_data)) {
+      for (var mi = 0; mi < body.monthly_data.length; mi++) {
+        var point = body.monthly_data[mi];
+        if (!point || typeof point !== "object") continue;
+        pushAvailableMonthSlot(nextMonths, point.month, point.year);
+      }
+    }
+
+    var tilesBlock = body["Плитки"];
+    if (tilesBlock && Array.isArray(tilesBlock.items)) {
+      for (var ti = 0; ti < tilesBlock.items.length; ti++) {
+        var tile = tilesBlock.items[ti];
+        if (!tile || typeof tile !== "object") continue;
+        pushAvailableMonthSlot(nextMonths, tile.month, tile.year);
+        if (Array.isArray(tile.monthly_data)) {
+          for (var pi = 0; pi < tile.monthly_data.length; pi++) {
+            var tilePoint = tile.monthly_data[pi];
+            if (!tilePoint || typeof tilePoint !== "object") continue;
+            pushAvailableMonthSlot(nextMonths, tilePoint.month, tilePoint.year);
           }
         }
       }
     }
+
+    if (Array.isArray(body.departments)) {
+      for (var di = 0; di < body.departments.length; di++) {
+        collectAvailableMonthSlotsFromKpiBody(body.departments[di], nextMonths, depth - 1);
+      }
+    }
+
+    return nextMonths;
+  }
+
+  function setAvailableMonthsFromChartPoints(chartIndicators, options) {
+    options = options || {};
+    var nextContextKey =
+      options.contextKey != null ? String(options.contextKey) : availableMonthsContextKey;
+    if (nextContextKey && nextContextKey !== availableMonthsContextKey) {
+      restorePeriodStateForContext(nextContextKey);
+    }
+    var nextMonths = collectAvailableMonthSlotsFromChartIndicators(chartIndicators);
+    var cachedMonths =
+      nextContextKey && Array.isArray(availableMonthsByContext[nextContextKey])
+        ? availableMonthsByContext[nextContextKey]
+        : [];
+    var baseMonths = options.preserveExisting
+      ? mergeAvailableMonthSlots(cachedMonths, availableMonths)
+      : cachedMonths;
+    availableMonths = mergeAvailableMonthSlots(baseMonths, nextMonths);
+    availableMonthsContextKey = nextContextKey;
+    if (nextContextKey) {
+      availableMonthsByContext[nextContextKey] = mergeAvailableMonthSlots([], availableMonths);
+    }
+  }
+
+  function setAvailableMonthsFromKpiResult(result, options) {
+    options = options || {};
+    var nextContextKey =
+      options.contextKey != null ? String(options.contextKey) : availableMonthsContextKey;
+    if (nextContextKey && nextContextKey !== availableMonthsContextKey) {
+      restorePeriodStateForContext(nextContextKey);
+    }
+    var nextMonths = collectAvailableMonthSlotsFromChartIndicators(result && result.chartIndicators ? result.chartIndicators : null);
+    var body = result && result.data ? result.data : result && result.raw ? result.raw : null;
+    var bodyMonths = collectAvailableMonthSlotsFromKpiBody(body, [], 4);
+    nextMonths = mergeAvailableMonthSlots(nextMonths, bodyMonths);
     var cachedMonths =
       nextContextKey && Array.isArray(availableMonthsByContext[nextContextKey])
         ? availableMonthsByContext[nextContextKey]
@@ -425,6 +540,7 @@
       rememberCurrentModePeriod();
     }
     updateMonthNavigatorUI();
+    rememberPeriodStateForContext();
     onPeriodChange(month, year);
   }
 
@@ -477,6 +593,7 @@
     if (Object.prototype.hasOwnProperty.call(nextState, "selectedQuarters")) {
       selectedQuarters = normalizeQuarterList(nextState.selectedQuarters);
     }
+    rememberPeriodStateForContext();
     if (availableMonthsContextKey) {
       availableMonthsByContext[availableMonthsContextKey] = mergeAvailableMonthSlots([], availableMonths);
     }
@@ -515,6 +632,7 @@
           restoreCurrentModePeriod();
         }
         aggregationMode = nextMode;
+        rememberPeriodStateForContext();
         updateMonthNavigatorUI();
         onAggregationModeChange(nextMode);
         if (nextMode === "quarter") {
@@ -541,6 +659,7 @@
         var picked = getQuarterSelectionDraftFromDom();
         if (!picked.length) picked = [getDefaultSelectedQuarter()];
         selectedQuarters = picked.slice();
+        rememberPeriodStateForContext();
         renderQuarterOptionsIntoPopover();
         closeQuarterPopover();
         var best = pickBestMonthForSelectedQuarters(selectedQuarters, currentPeriodYear);
@@ -587,7 +706,10 @@
     navigateToMonth: navigateToMonth,
     navigateToQuarter: navigateToQuarter,
     periodKeyInAvailableMonths: periodKeyInAvailableMonths,
+    setAvailableMonthsFromKpiResult: setAvailableMonthsFromKpiResult,
     setAvailableMonthsFromChartPoints: setAvailableMonthsFromChartPoints,
+    rememberPeriodStateForContext: rememberPeriodStateForContext,
+    restorePeriodStateForContext: restorePeriodStateForContext,
     setPeriodState: setPeriodState,
     updateMonthNavigatorUI: updateMonthNavigatorUI,
   };

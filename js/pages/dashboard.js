@@ -129,6 +129,18 @@
     callMonthNav("setAvailableMonthsFromChartPoints", [chartIndicators, options]);
   }
 
+  function setAvailableMonthsFromKpiResult(result, options) {
+    if (typeof DashboardMonthNav === "undefined" || !DashboardMonthNav) {
+      setAvailableMonthsFromChartPoints(result && result.chartIndicators ? result.chartIndicators : null, options);
+      return;
+    }
+    if (typeof DashboardMonthNav.setAvailableMonthsFromKpiResult === "function") {
+      DashboardMonthNav.setAvailableMonthsFromKpiResult(result, options);
+      return;
+    }
+    setAvailableMonthsFromChartPoints(result && result.chartIndicators ? result.chartIndicators : null, options);
+  }
+
   function updateMonthNavigatorUI() {
     callMonthNav("updateMonthNavigatorUI");
   }
@@ -139,6 +151,15 @@
 
   function navigateToQuarter(quarter, year) {
     callMonthNav("navigateToQuarter", [quarter, year]);
+  }
+
+  function rememberMonthNavigatorPeriodState() {
+    callMonthNav("rememberPeriodStateForContext", [getMonthNavigatorContextKey()]);
+  }
+
+  function restoreMonthNavigatorPeriodState() {
+    callMonthNav("restorePeriodStateForContext", [getMonthNavigatorContextKey()]);
+    callMonthNav("updateMonthNavigatorUI");
   }
 
   function setDebugJsonSectionExpanded(expanded) {
@@ -153,9 +174,11 @@
   }
 
   function goToDepartmentDashboard(deptName) {
+    rememberMonthNavigatorPeriodState();
     hierarchyStack = hierarchyStack.concat([deptName]);
     selectedViewId = "dept:" + encodeURIComponent(deptName);
     viewContextUser = sessionUser;
+    restoreMonthNavigatorPeriodState();
     if (session.apiMode === "mock") {
       renderViewTabs();
       updateTopBarForView();
@@ -189,12 +212,22 @@
       loadDrilldownTilesForDept: loadDrilldownTilesForDept,
       mapWithConcurrencyLimit: mapWithConcurrencyLimit,
       onUnauthorized: handleUnauthorized,
+      getChairmanDashboardCatalogId: getChairmanDashboardCatalogId,
       getSessionApiMode: function () {
         return session.apiMode;
       },
       getSessionUserDepartment: getSessionUserDepartment,
       findMatchingTileAmongChildren: findMatchingTileAmongChildren,
     });
+  }
+
+  function getCurrentAggregationMode() {
+    var periodState =
+      typeof DashboardMonthNav !== "undefined" && DashboardMonthNav && typeof DashboardMonthNav.getPeriodState === "function"
+        ? DashboardMonthNav.getPeriodState()
+        : null;
+    var mode = periodState && periodState.aggregationMode != null ? String(periodState.aggregationMode).trim() : "";
+    return mode || chairmanAggregationMode || "current";
   }
 
   function createKpiDrilldownNavigationContext() {
@@ -261,6 +294,8 @@
         setChairmanDashboardTargets: function (value) {
           chairmanDashboardTargets = value;
         },
+        rememberMonthNavigatorPeriodState: rememberMonthNavigatorPeriodState,
+        restoreMonthNavigatorPeriodState: restoreMonthNavigatorPeriodState,
         getSelectedViewId: function () {
           return selectedViewId;
         },
@@ -294,7 +329,7 @@
           }
           var opts = { department: department };
           var chairmanFor = getChairmanDashboardCatalogId();
-          if (chairmanFor && isChairmanRootHierarchy()) {
+          if (chairmanFor) {
             opts.for = chairmanFor;
             if (isChairmanRootHierarchy() && isVirtualChairmanCatalog(chairmanFor)) {
               var sessDept =
@@ -345,6 +380,8 @@
         },
         getChairmanDashboardCatalogId: getChairmanDashboardCatalogId,
         getDepartmentForCurrentKpiContext: getDepartmentForCurrentKpiContext,
+        rememberMonthNavigatorPeriodState: rememberMonthNavigatorPeriodState,
+        restoreMonthNavigatorPeriodState: restoreMonthNavigatorPeriodState,
         getPeriodState: function () {
           if (typeof DashboardMonthNav === "undefined" || !DashboardMonthNav) {
             return {
@@ -372,6 +409,7 @@
         },
         getMonthNavigatorContextKey: getMonthNavigatorContextKey,
         setAvailableMonthsFromChartPoints: setAvailableMonthsFromChartPoints,
+        setAvailableMonthsFromKpiResult: setAvailableMonthsFromKpiResult,
         periodKeyInAvailableMonths: periodKeyInAvailableMonths,
         updateMonthNavigatorUI: updateMonthNavigatorUI,
         closeKpiTileDrilldown: closeKpiTileDrilldown,
@@ -385,7 +423,7 @@
         fetchKpis: function (opts) {
           var nextOpts = Object.assign({}, opts || {});
           var chairmanFor = getChairmanDashboardCatalogId();
-          if (chairmanFor && isChairmanRootHierarchy()) {
+          if (chairmanFor) {
             nextOpts.for = chairmanFor;
           }
           return Api.fetchKpis(nextOpts);
@@ -393,7 +431,7 @@
         fetchKpiAll: function (opts) {
           var nextOpts = Object.assign({}, opts || {});
           var chairmanFor = getChairmanDashboardCatalogId();
-          if (chairmanFor && isChairmanRootHierarchy()) {
+          if (chairmanFor) {
             nextOpts.for = chairmanFor;
           }
           return Api.fetchKpiAll(nextOpts);
@@ -417,7 +455,7 @@
           lastKpiResponseDepartment = value;
         },
         getChairmanAggregationMode: function () {
-          return chairmanAggregationMode;
+          return getCurrentAggregationMode();
         },
         getChairmanAggregatedTilesFromRaw: getChairmanAggregatedTilesFromRaw,
         maybeAugmentCommercialDeptTilesWithPriorMonthFetch: maybeAugmentCommercialDeptTilesWithPriorMonthFetch,
@@ -460,6 +498,7 @@
       },
       onExpand: function (target) {
         if (!target) return;
+        rememberMonthNavigatorPeriodState();
         selectedViewId = target.id || "self";
         viewContextUser = target.user || sessionUser;
         var selfDeptRaw =
@@ -473,11 +512,13 @@
           DashboardHierarchyNav.rememberChairmanCatalogId(target.catalogId);
         }
         if (session.apiMode === "mock") {
+          restoreMonthNavigatorPeriodState();
           renderViewTabs();
           updateTopBarForView();
           loadKpiTilesAndChartsForView();
           return;
         }
+        restoreMonthNavigatorPeriodState();
         refreshSubordinateTabsFromApi().then(function () {
           renderViewTabs();
           updateTopBarForView();
@@ -485,6 +526,7 @@
         });
       },
       onBackToOverview: function () {
+        rememberMonthNavigatorPeriodState();
         selectedViewId = "self";
         viewContextUser = sessionUser;
         var selfDept =
@@ -497,6 +539,7 @@
         ) {
           DashboardHierarchyNav.clearRememberedChairmanCatalogId();
         }
+        restoreMonthNavigatorPeriodState();
         renderViewTabs();
         updateTopBarForView();
       },
@@ -625,6 +668,10 @@
         fetchOpts.month = Number(ps.currentPeriodMonth);
         fetchOpts.year = Number(ps.currentPeriodYear);
       }
+    }
+    var chairmanFor = getChairmanDashboardCatalogId();
+    if (chairmanFor) {
+      fetchOpts.for = chairmanFor;
     }
     return Api.fetchKpis(fetchOpts)
       .then(function (res) {
@@ -1467,7 +1514,7 @@
       year: prevYm.year,
     };
     var chairmanFor = getChairmanDashboardCatalogId();
-    if (chairmanFor && isChairmanRootHierarchy()) {
+    if (chairmanFor) {
       opts.for = chairmanFor;
     }
     Api.fetchKpiAll(opts)
@@ -1715,7 +1762,8 @@
     var items = tilesBlock && Array.isArray(tilesBlock.items) ? tilesBlock.items : [];
     if (!items.length) return null;
 
-    var mode = chairmanAggregationMode || "current";
+    var mode = getCurrentAggregationMode();
+    chairmanAggregationMode = mode;
     return items
       .map(function (item) {
         var point = computeChairmanAggregatedPoint(item, year, month, mode, selectedQuarters);

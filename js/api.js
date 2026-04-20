@@ -459,6 +459,52 @@
   }
 
   /**
+   * Извлекает `?department=` из URL запроса KPI.
+   * @param {string} url
+   * @returns {string}
+   */
+  function parseDepartmentFromKpiUrl(url) {
+    if (url == null || String(url).trim() === "") return "";
+    try {
+      var base =
+        typeof window !== "undefined" && window.location && window.location.href
+          ? window.location.href
+          : "http://local/";
+      var u = new URL(String(url), base);
+      var v = u.searchParams.get("department");
+      return v != null ? String(v).trim() : "";
+    } catch (e) {
+      return "";
+    }
+  }
+
+  /**
+   * Нормализованное имя подразделения в элементе ответа KPI.
+   * @param {any} obj
+   * @returns {string}
+   */
+  function getResponseDepartmentName(obj) {
+    if (!obj || typeof obj !== "object") return "";
+    var keys = [
+      "department",
+      "department_name",
+      "viewDepartment",
+      "name",
+      "title",
+      "label",
+      "display_name",
+      "full_name",
+    ];
+    for (var i = 0; i < keys.length; i++) {
+      var key = keys[i];
+      if (obj[key] == null) continue;
+      var value = String(obj[key]).trim();
+      if (value) return value;
+    }
+    return "";
+  }
+
+  /**
    * true, если у объекта есть хотя бы одно KPI-поле верхнего уровня.
    * @param {any} obj
    * @returns {boolean}
@@ -472,8 +518,8 @@
   }
 
   /**
-   * Разворачивает обёртку `{ departments: [ { for, Плитки, Графики, Таблицы, ... } ] }` в плоский объект.
-   * Выбор элемента: сначала по `?for=` из URL, иначе первый со структурой KPI, иначе первый.
+   * Разворачивает обёртку `{ departments: [ { department, for, Плитки, Графики, Таблицы, ... } ] }` в плоский объект.
+   * Выбор элемента: сначала по `?department=` из URL, затем по `?for=`, затем первый со структурой KPI, иначе первый.
    * @param {object|null} body
    * @param {string} [url]
    * @returns {object|null}
@@ -483,11 +529,22 @@
     if (hasKpiStructureKeys(body)) return body;
     var deps = body.departments;
     if (!Array.isArray(deps) || !deps.length) return body;
+    var departmentParam = parseDepartmentFromKpiUrl(url || "");
     var forParam = parseForFromKpiUrl(url || "");
     var matched = null;
-    if (forParam) {
+    if (departmentParam) {
       for (var i = 0; i < deps.length; i++) {
-        var item = deps[i];
+        var depItem = deps[i];
+        if (!depItem || typeof depItem !== "object") continue;
+        if (getResponseDepartmentName(depItem) === departmentParam) {
+          matched = depItem;
+          break;
+        }
+      }
+    }
+    if (forParam) {
+      for (var j = 0; j < deps.length; j++) {
+        var item = deps[j];
         if (!item || typeof item !== "object") continue;
         var itemFor = item.for != null ? String(item.for).trim() : "";
         if (itemFor && itemFor === forParam) {
@@ -497,9 +554,9 @@
       }
     }
     if (!matched) {
-      for (var j = 0; j < deps.length; j++) {
-        if (hasKpiStructureKeys(deps[j])) {
-          matched = deps[j];
+      for (var k = 0; k < deps.length; k++) {
+        if (hasKpiStructureKeys(deps[k])) {
+          matched = deps[k];
           break;
         }
       }

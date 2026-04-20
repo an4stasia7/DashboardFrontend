@@ -93,6 +93,11 @@
     return typeof fn === "function" ? fn() : "";
   }
 
+  function getChairmanDashboardCatalogId() {
+    var fn = getContext().getChairmanDashboardCatalogId;
+    return typeof fn === "function" ? fn() : "";
+  }
+
   function getPeriodCacheSignature() {
     if (typeof DashboardMonthNav === "undefined" || !DashboardMonthNav || typeof DashboardMonthNav.getPeriodState !== "function") {
       return "";
@@ -310,7 +315,13 @@
       return;
     }
 
-    Api.fetchImmediateSubordinates({ department: parentDept })
+    var fetchOpts = { department: parentDept };
+    var chairmanFor = getChairmanDashboardCatalogId();
+    if (chairmanFor) {
+      fetchOpts.for = chairmanFor;
+    }
+
+    Api.fetchImmediateSubordinates(fetchOpts)
       .then(function (r) {
         if (r.unauthorized) {
           onUnauthorizedSafe();

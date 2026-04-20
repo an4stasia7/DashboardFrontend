@@ -58,6 +58,15 @@
     if (typeof fn === "function") fn(chartIndicators, options);
   }
 
+  function setAvailableMonthsFromKpiResult(result, options) {
+    var fn = getContext().setAvailableMonthsFromKpiResult;
+    if (typeof fn === "function") {
+      fn(result, options);
+      return;
+    }
+    setAvailableMonthsFromChartPoints(result && result.chartIndicators ? result.chartIndicators : null, options);
+  }
+
   function periodKeyInAvailableMonths(year, month, slots) {
     var fn = getContext().periodKeyInAvailableMonths;
     return typeof fn === "function" ? !!fn(year, month, slots) : false;
@@ -215,7 +224,7 @@
       periodState.currentPeriodYear != null &&
       periodState.availableMonthsContextKey === monthContextKey;
 
-    setAvailableMonthsFromChartPoints(result.chartIndicators || null, {
+    setAvailableMonthsFromKpiResult(result, {
       preserveExisting: preserveMonthSlots,
       contextKey: monthContextKey,
     });
