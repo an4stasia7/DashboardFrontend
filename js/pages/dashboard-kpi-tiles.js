@@ -58,6 +58,11 @@
     return key && cfg[key] ? cfg[key] : null;
   }
 
+  function isKpiPctOnlyTile(tile) {
+    var rule = getKpiTileException(tile);
+    return !!(rule && rule.kpiPctOnly);
+  }
+
   function shouldShowKpiTileHelp(tile) {
     var rule = getKpiTileException(tile);
     return !(rule && rule.hideHelp);
@@ -126,13 +131,16 @@
   function buildKpiTileBodyHtml(tile, hasPf, pfPeriod) {
     var rule = getKpiTileException(tile);
     var isFactOnly = !!(rule && rule.factOnly);
+    var isKpiPctOnly = !!(rule && rule.kpiPctOnly);
     var generatedFlag = tile.has_data === false ? buildKpiTileGeneratedFlagHtml() : "";
     var periodExtra =
-      (hasPf || isFactOnly) && pfPeriod
+      (hasPf || isFactOnly || isKpiPctOnly) && pfPeriod
         ? '<span class="kpi-tile-plan-fact-period" title="' +
-          DashUi.escapeHtml(isFactOnly ? "Период факта" : KPI_TILE_TITLE_PLAN_FACT_PERIOD) +
+          DashUi.escapeHtml(
+            isFactOnly ? "Период факта" : isKpiPctOnly ? "Период показателя KPI" : KPI_TILE_TITLE_PLAN_FACT_PERIOD
+          ) +
           '">' +
-          (isFactOnly ? "Факт: " : "План/факт: ") +
+          (isFactOnly ? "Факт: " : isKpiPctOnly ? "KPI: " : "План/факт: ") +
           DashUi.escapeHtml(pfPeriod) +
           "</span>"
         : "";
@@ -175,8 +183,28 @@
     );
   }
 
+  function buildKpiTileKpiPctOnlyHtml(pctShown) {
+    return (
+      '<div class="kpi-tile-pf-stack">' +
+      '<div class="kpi-tile-pf-inline">' +
+      '<div class="kpi-tile-pf-inline-row">' +
+      '<span class="kpi-tile-pf-pill">' +
+      DashUi.escapeHtml(pctShown) +
+      '</span><span class="kpi-tile-pf-inline-label">KPI</span></div></div></div>'
+    );
+  }
+
   function buildKpiTileMetricsSectionHtml(tile, hasPf, planFactShown, factShown) {
     var rule = getKpiTileException(tile);
+    if (rule && rule.kpiPctOnly) {
+      var pres = MockData.getKpiTilePresentation(tile);
+      var pctLabel = MockData.formatKpiPercentLabel(pres.percent) + "%";
+      return (
+        '<div class="kpi-tile-metrics kpi-tile-metrics--pf-only" aria-label="KPI">' +
+        buildKpiTileKpiPctOnlyHtml(pctLabel) +
+        "</div>"
+      );
+    }
     if (rule && rule.factOnly) {
       return (
         '<div class="kpi-tile-metrics kpi-tile-metrics--pf-only" aria-label="Факт">' +
@@ -253,7 +281,7 @@
     var hint = tile && tile.hint != null ? String(tile.hint).trim() : "";
     var period = tile && tile.period != null ? String(tile.period).trim() : "";
     var code = tile && (tile.badge || tile.kpi_id) ? String(tile.badge || tile.kpi_id).trim() : "";
-    var hasPf = DashUi.kpiTileHasPlanAndFact(tile);
+    var hasPf = DashUi.kpiTileHasPlanAndFact(tile) && !isKpiPctOnlyTile(tile);
     var planFactShown =
       typeof DashUi.formatKpiTilePlanFactPair === "function"
         ? DashUi.formatKpiTilePlanFactPair(tile.plan, tile.fact, tile.units)
@@ -294,7 +322,7 @@
           DashUi.escapeHtml(percentLabel) +
           "</strong></div>"
         : "") +
-      (hasPf && shouldRenderKpiTileBack(tile)
+      (hasPf && shouldRenderKpiTileBack(tile) && !isKpiPctOnlyTile(tile)
         ? '<div class="kpi-tile-back-summary-item"><span class="kpi-tile-back-summary-label">План / факт</span><strong>' +
           DashUi.escapeHtml(planFactShown) +
           "</strong></div>"
@@ -427,7 +455,7 @@
       var pres = MockData.getKpiTilePresentation(tile);
       var rule = getKpiTileException(tile);
       var frontAccentColor = rule && rule.frontAccentColor ? String(rule.frontAccentColor).trim() : "";
-      var hasPf = DashUi.kpiTileHasPlanAndFact(tile);
+      var hasPf = DashUi.kpiTileHasPlanAndFact(tile) && !isKpiPctOnlyTile(tile);
       var planFactShown =
         typeof DashUi.formatKpiTilePlanFactPair === "function"
           ? DashUi.formatKpiTilePlanFactPair(tile.plan, tile.fact, tile.units)
