@@ -524,6 +524,17 @@
     return true;
   }
 
+  /**
+   * При уходе ПСД с корня иерархии (дочерние отделы) — скрыть обзорные карточки и панель «К обзору».
+   * Не вызывать show(): при раскрытом дашборде на корне он вернёт бы обзор.
+   */
+  function leaveOverviewIfNotAtRoot() {
+    if (shouldShowOverview()) return;
+    state.expandedCatalogId = null;
+    hide();
+    hideExpandedBar();
+  }
+
   function isVisible() {
     return !!(overviewEl && !overviewEl.hidden);
   }
@@ -547,6 +558,7 @@
     show: show,
     hide: hide,
     showIfNeeded: showIfNeeded,
+    leaveOverviewIfNotAtRoot: leaveOverviewIfNotAtRoot,
     isVisible: isVisible,
     isExpanded: isExpanded,
     getExpandedCatalogId: getExpandedCatalogId,

@@ -391,6 +391,11 @@
       nav.hidden = true;
       return;
     }
+    /* Не на корне иерархии (спуск по подразделениям) — без переключателя «Мой дашборд» / «Коммерческий блок» */
+    if (Array.isArray(hierarchyStack) && hierarchyStack.length > 1) {
+      nav.hidden = true;
+      return;
+    }
     var overviewEl = document.getElementById("dash-chairman-overview");
     if (overviewEl && !overviewEl.hidden) {
       nav.hidden = true;

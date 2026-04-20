@@ -1750,7 +1750,9 @@
    * При ошибке или mock — fallback на `MockData`.
    */
   function loadKpiTilesAndChartsForView() {
-    // Если мы на обзорном экране ПСД (2 карточки), полный дашборд НЕ должен появляться ниже.
+    /* Уход с корня иерархии: скрыть обзор ПСД, иначе isChairmanOverviewVisible остаётся true и данные не грузятся */
+    callChairmanOverview("leaveOverviewIfNotAtRoot", []);
+    // Если мы на обзорном экране ПСД (карточки каталогов), полный дашборд НЕ должен появляться ниже.
     if (isChairmanOverviewVisible()) return;
     callDataLoader("loadKpiTilesAndChartsForView");
   }
