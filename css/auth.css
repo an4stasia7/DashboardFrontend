@@ -105,13 +105,13 @@
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
 }
 
-/* Логин: кастомный список пользователей (ширина поля, перенос, скролл) */
+/* Логин: поиск + выпадающий список пользователей */
 .nickname-combo {
   position: relative;
   width: 100%;
 }
 
-.nickname-combo-trigger {
+.nickname-combo-input {
   width: 100%;
   padding: 10px 36px 10px 12px;
   border: 1px solid #cbd5e1;
@@ -120,32 +120,30 @@
   font-family: inherit;
   background-color: #fff;
   box-sizing: border-box;
-  cursor: pointer;
   text-align: left;
-  appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748b' d='M3 4.5L6 7.5L9 4.5'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 12px center;
 }
 
-.nickname-combo-trigger:disabled {
+.nickname-combo-input:disabled {
   cursor: not-allowed;
   opacity: 0.85;
   background-color: #f8fafc;
 }
 
-.nickname-combo-trigger:focus {
+.nickname-combo-input:focus {
   outline: none;
   border-color: var(--accent-blue);
   box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
 }
 
-.nickname-combo-trigger-text {
-  display: block;
-  white-space: normal;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-  line-height: 1.35;
+.nickname-combo-empty {
+  padding: 12px;
+  font-size: 0.92rem;
+  color: var(--muted);
+  text-align: center;
+  line-height: 1.4;
 }
 
 .nickname-combo-panel {
