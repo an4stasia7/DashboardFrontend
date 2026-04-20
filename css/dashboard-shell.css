@@ -15,14 +15,47 @@
   color: #fff;
   padding: 14px 12px;
   border-right: 1px solid rgba(255, 255, 255, 0.08);
+  box-sizing: border-box;
+  position: sticky;
+  top: 0;
+  align-self: start;
+  width: 100%;
+  /* Вся высота окна: иначе колонка сжимается по контенту и градиент «обрезан» */
+  height: 100vh;
+  height: 100dvh;
+  max-height: 100vh;
+  max-height: 100dvh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.35) rgba(0, 0, 0, 0.12);
+  -webkit-overflow-scrolling: touch;
+}
+
+.dash-sidebar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.dash-sidebar::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.12);
+  border-radius: 4px;
+}
+
+.dash-sidebar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.28);
+  border-radius: 4px;
+}
+
+.dash-sidebar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.4);
 }
 
 .dash-sidebar-panel {
-  position: sticky;
-  top: 18px;
   display: flex;
   flex-direction: column;
   gap: 16px;
+  min-width: 0;
 }
 
 .dash-sidebar-head {
@@ -803,6 +836,9 @@
     padding: 14px;
     border-right: none;
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    position: static;
+    height: auto;
+    max-height: min(60vh, 520px);
   }
 
   .dash-sidebar-panel {
