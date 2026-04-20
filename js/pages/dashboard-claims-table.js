@@ -306,7 +306,7 @@
 
   function isClaimsTableRow(item) {
     var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
-    if (!raw || isOverdueDebtRow(item)) return false;
+    if (!raw || isOverdueDebtRow(item) || isLawsuitsRow(item)) return false;
     return (
       raw.code != null ||
       raw.name != null ||
@@ -367,9 +367,9 @@
           tableTextOrDash(pickLawsuitsField(raw, ["doc_type", "document_type", "documentType"])),
           tableTextOrDash(pickLawsuitsField(raw, ["counterparty", "partner", "contragent"])),
           tableTextOrDash(pickLawsuitsField(raw, ["subject", "dispute_subject", "dispute", "topic"])),
-          tableTextOrDash(pickLawsuitsField(raw, ["gk_role", "role", "company_role"])),
-          tableTextOrDash(pickLawsuitsField(raw, ["legal_entity", "entity", "company", "jur_entity", "ur_entity"])),
-          tableTextOrDash(pickLawsuitsField(raw, ["department", "subdivision", "unit", "division"])),
+          tableTextOrDash(pickLawsuitsField(raw, ["gc_role", "gk_role", "role", "company_role"])),
+          tableTextOrDash(pickLawsuitsField(raw, ["gc_entity", "legal_entity", "entity", "company", "jur_entity", "ur_entity"])),
+          tableTextOrDash(pickLawsuitsField(raw, ["initiator_dept", "department", "subdivision", "unit", "division"])),
           formatClaimsOrderSum(amount),
         ].forEach(function (value, cellIndex) {
           var td = document.createElement("td");
