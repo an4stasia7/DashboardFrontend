@@ -285,6 +285,18 @@
         String(result.data.department).trim()
           ? String(result.data.department).trim()
           : getDepartmentForCurrentKpiContext();
+      var augment = getContext().maybeAugmentCommercialDeptTilesWithPriorMonthFetch;
+      if (typeof augment === "function") {
+        augment(result, tilesToRender, function (finalTiles) {
+          var t = finalTiles && finalTiles.length ? finalTiles : tilesToRender;
+          if (cacheKey) rememberDrilldownKpiTiles(cacheKey, t.slice());
+          renderKpiTiles(t);
+          updateTopBarForView();
+          hideLoading();
+          bootChartsAndTablesDeferred();
+        });
+        return;
+      }
       if (cacheKey) rememberDrilldownKpiTiles(cacheKey, tilesToRender.slice());
       renderKpiTiles(tilesToRender);
     } else {

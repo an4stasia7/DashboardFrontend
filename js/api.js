@@ -664,6 +664,7 @@
             item.plan_fact_period_label != null
               ? String(item.plan_fact_period_label)
               : null,
+          monthly_data: Array.isArray(item.monthly_data) ? item.monthly_data : [],
           percent: pct,
           kpi_pst: typeof item.kpi_pst === "number" && !isNaN(item.kpi_pst) ? item.kpi_pst : null,
           kpi_pct: typeof item.kpi_pct === "number" && !isNaN(item.kpi_pct) ? item.kpi_pct : null,

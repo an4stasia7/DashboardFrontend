@@ -420,6 +420,7 @@
           return chairmanAggregationMode;
         },
         getChairmanAggregatedTilesFromRaw: getChairmanAggregatedTilesFromRaw,
+        maybeAugmentCommercialDeptTilesWithPriorMonthFetch: maybeAugmentCommercialDeptTilesWithPriorMonthFetch,
       });
     }
   })();
@@ -1193,12 +1194,99 @@
     }
   }
 
+  function prevCalendarMonthYear(y, m) {
+    var yi = Number(y);
+    var mi = Number(m);
+    if (isNaN(yi) || isNaN(mi) || mi < 1 || mi > 12) return null;
+    if (mi === 1) return { year: yi - 1, month: 12 };
+    return { year: yi, month: mi - 1 };
+  }
+
+  function findMonthlyDataPoint(monthlyData, y, m) {
+    if (!Array.isArray(monthlyData)) return null;
+    for (var i = 0; i < monthlyData.length; i++) {
+      var p = monthlyData[i];
+      if (p && Number(p.year) === Number(y) && Number(p.month) === Number(m)) return p;
+    }
+    return null;
+  }
+
+  function isSelectedPeriodCurrentCalendarMonth(selectedYear, selectedMonth) {
+    var now = new Date();
+    return Number(selectedYear) === now.getFullYear() && Number(selectedMonth) === now.getMonth() + 1;
+  }
+
+  /** Показатели «ФОТ» и «Текучесть персонала» — по вхождению в название плитки. */
+  function isFotOrPersonnelTurnoverKpiTitle(title) {
+    var t = normalizeKpiTitleForMatch(title);
+    if (!t) return false;
+    if (t.indexOf("фот") !== -1) return true;
+    if (t.indexOf("текучесть") !== -1) return true;
+    return false;
+  }
+
+  function planFactPeriodLabelFromMonthlyPoint(point, year) {
+    if (!point) return "";
+    var y = Number(year);
+    var mn = point.month_name != null ? String(point.month_name).trim() : "";
+    if (mn) {
+      var cap = mn.charAt(0).toUpperCase() + mn.slice(1);
+      return (isNaN(y) ? "" : cap + " " + y);
+    }
+    var m = Number(point.month);
+    if (!isNaN(m) && m >= 1 && m <= 12 && !isNaN(y)) return getMonthShortRu(m) + " " + y;
+    return "";
+  }
+
+  /**
+   * Для выбранного текущего календарного месяца (ещё не закончившегося) на плитках с «ФОТ» / «текучестью» в названии
+   * показываем план/факт за предыдущий месяц (из monthly_data).
+   */
+  function applyPriorMonthFactForFotTurnoverTiles(tiles) {
+    if (!Array.isArray(tiles) || !tiles.length) return tiles;
+
+    if (typeof DashboardMonthNav === "undefined" || !DashboardMonthNav || typeof DashboardMonthNav.getPeriodState !== "function") {
+      return tiles;
+    }
+    var periodState = DashboardMonthNav.getPeriodState();
+    var selY = periodState.currentPeriodYear;
+    var selM = periodState.currentPeriodMonth;
+    if (selY == null || selM == null) return tiles;
+    if (!isSelectedPeriodCurrentCalendarMonth(selY, selM)) return tiles;
+
+    var prevYm = prevCalendarMonthYear(selY, selM);
+    if (!prevYm) return tiles;
+
+    return tiles.map(function (tile) {
+      if (!tile || !isFotOrPersonnelTurnoverKpiTitle(tile.title)) return tile;
+      if (tile.__priorMonthMergedFromKpiAll) return tile;
+      var monthly = tile.monthly_data;
+      if (!Array.isArray(monthly) || !monthly.length) return tile;
+      var prevPoint = findMonthlyDataPoint(monthly, prevYm.year, prevYm.month);
+      if (!prevPoint) return tile;
+
+      var next = Object.assign({}, tile);
+      if (prevPoint.plan !== undefined) next.plan = prevPoint.plan;
+      if (prevPoint.fact !== undefined) next.fact = prevPoint.fact;
+      if (typeof prevPoint.has_data === "boolean") next.has_data = prevPoint.has_data;
+      if (typeof prevPoint.kpi_pct === "number" && !isNaN(prevPoint.kpi_pct)) {
+        next.kpi_pct = prevPoint.kpi_pct;
+        next.kpi_pst = prevPoint.kpi_pct;
+        next.percent = prevPoint.kpi_pct;
+      }
+      var pl = planFactPeriodLabelFromMonthlyPoint(prevPoint, prevYm.year);
+      if (pl) next.plan_fact_period_label = pl;
+      return next;
+    });
+  }
+
   /**
    * Рендерит KPI-плитки единой адаптивной сеткой; оборот карточки строится отдельно при flip.
    * Более 6 плиток — постраничный показ (3×2) и навигатор `#kpi-tiles-pager`.
    * @param {object[]} tiles
    */
   function renderKpiTiles(tiles) {
+    tiles = applyPriorMonthFactForFotTurnoverTiles(tiles && tiles.length ? tiles : []);
     lastKpiTiles = tiles && tiles.length ? tiles : null;
     flippedTileIndices.clear();
     if (typeof DashboardKpiDrilldown !== "undefined" && DashboardKpiDrilldown) {
@@ -1263,6 +1351,121 @@
     var names = ["янв.", "фев.", "март", "апр.", "май", "июнь", "июль", "авг.", "сент.", "окт.", "нояб.", "дек."];
     var index = Number(month) - 1;
     return index >= 0 && index < names.length ? names[index] : "";
+  }
+
+  /** Первый сегмент крошек — коммерческий директор / коммерция (подчинённые отделы с помесячным KPI). */
+  function isCommercialHierarchyRootForPriorMonthRule() {
+    return Array.isArray(hierarchyStack) && hierarchyStack.length > 0 && isCommercialDepartmentContext(hierarchyStack[0]);
+  }
+
+  function mergeFotTurnoverTilesWithPriorKpiAllResponse(currentTiles, priorTiles, prevYear, prevMonth) {
+    if (!Array.isArray(currentTiles) || !Array.isArray(priorTiles)) return currentTiles;
+    var byId = {};
+    var byTitle = {};
+    for (var i = 0; i < priorTiles.length; i++) {
+      var t = priorTiles[i];
+      if (!t) continue;
+      var kid = t.kpi_id != null ? String(t.kpi_id).trim() : "";
+      if (kid) byId[kid] = t;
+      var nk = normalizeKpiTitleForMatch(t.title);
+      if (nk) byTitle[nk] = t;
+    }
+    var fallbackLabel = getMonthShortRu(prevMonth) + " " + prevYear;
+    return currentTiles.map(function (tile) {
+      if (!tile || !isFotOrPersonnelTurnoverKpiTitle(tile.title)) return tile;
+      var id = tile.kpi_id != null ? String(tile.kpi_id).trim() : "";
+      var src = id && byId[id] ? byId[id] : byTitle[normalizeKpiTitleForMatch(tile.title)];
+      if (!src) return tile;
+      var next = Object.assign({}, tile);
+      if (src.plan !== undefined) next.plan = src.plan;
+      if (src.fact !== undefined) next.fact = src.fact;
+      if (typeof src.has_data === "boolean") next.has_data = src.has_data;
+      if (typeof src.kpi_pct === "number" && !isNaN(src.kpi_pct)) {
+        next.kpi_pct = src.kpi_pct;
+        next.kpi_pst = src.kpi_pct;
+        next.percent = src.kpi_pct;
+      }
+      var pl =
+        src.plan_fact_period_label != null && String(src.plan_fact_period_label).trim()
+          ? String(src.plan_fact_period_label).trim()
+          : fallbackLabel;
+      next.plan_fact_period_label = pl;
+      next.__priorMonthMergedFromKpiAll = true;
+      return next;
+    });
+  }
+
+  /**
+   * Для подразделений под коммерческим директором: факт ФОТ/текучести за прошлый месяц — второй запрос
+   * GET /api/kpi/all/?department=…&month=N-1&year=… при просмотре незавершённого месяца N.
+   * @param {function(object[])} done — передать итоговый массив плиток
+   */
+  function maybeAugmentCommercialDeptTilesWithPriorMonthFetch(result, tilesToRender, done) {
+    if (!result || !result.ok || !Array.isArray(tilesToRender) || !tilesToRender.length) {
+      done(tilesToRender);
+      return;
+    }
+    if (!isCommercialHierarchyRootForPriorMonthRule()) {
+      done(tilesToRender);
+      return;
+    }
+    if (typeof DashboardMonthNav === "undefined" || !DashboardMonthNav || typeof DashboardMonthNav.getPeriodState !== "function") {
+      done(tilesToRender);
+      return;
+    }
+    var ps = DashboardMonthNav.getPeriodState();
+    var selY = ps.currentPeriodYear;
+    var selM = ps.currentPeriodMonth;
+    if (selY == null || selM == null || !isSelectedPeriodCurrentCalendarMonth(selY, selM)) {
+      done(tilesToRender);
+      return;
+    }
+    var hasFot = false;
+    for (var f = 0; f < tilesToRender.length; f++) {
+      var tt = tilesToRender[f];
+      if (tt && isFotOrPersonnelTurnoverKpiTitle(tt.title)) {
+        hasFot = true;
+        break;
+      }
+    }
+    if (!hasFot) {
+      done(tilesToRender);
+      return;
+    }
+    var dept = getDepartmentForCurrentKpiContext();
+    if (!dept || !String(dept).trim()) {
+      done(tilesToRender);
+      return;
+    }
+    var prevYm = prevCalendarMonthYear(selY, selM);
+    if (!prevYm) {
+      done(tilesToRender);
+      return;
+    }
+    if (typeof Api === "undefined" || typeof Api.fetchKpiAll !== "function") {
+      done(tilesToRender);
+      return;
+    }
+    var opts = {
+      department: String(dept).trim(),
+      month: prevYm.month,
+      year: prevYm.year,
+    };
+    var chairmanFor = getChairmanDashboardCatalogId();
+    if (chairmanFor && isChairmanRootHierarchy()) {
+      opts.for = chairmanFor;
+    }
+    Api.fetchKpiAll(opts)
+      .then(function (prevResult) {
+        if (!prevResult || !prevResult.ok || !Array.isArray(prevResult.tiles) || !prevResult.tiles.length) {
+          done(tilesToRender);
+          return;
+        }
+        done(mergeFotTurnoverTilesWithPriorKpiAllResponse(tilesToRender, prevResult.tiles, prevYm.year, prevYm.month));
+      })
+      .catch(function () {
+        done(tilesToRender);
+      });
   }
 
   function buildChairmanAggregationPeriodLabel(mode, year, month, points, selectedQuarters) {
@@ -1478,6 +1681,7 @@
       yellow_threshold: thStr(thresholds, "yellow", "yellow_threshold"),
       red_threshold: thStr(thresholds, "red", "red_threshold"),
       blue_threshold: thStr(thresholds, "blue", "blue_threshold"),
+      monthly_data: Array.isArray(rawItem.monthly_data) ? rawItem.monthly_data : [],
     };
   }
 
