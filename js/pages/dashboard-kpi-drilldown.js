@@ -93,10 +93,28 @@
     return typeof fn === "function" ? fn() : "";
   }
 
+  function drilldownTilesCacheKey(deptName) {
+    var d = deptName != null ? String(deptName).trim() : "";
+    if (!d) return "";
+    if (typeof DashboardMonthNav !== "undefined" && DashboardMonthNav.getPeriodState) {
+      var ps = DashboardMonthNav.getPeriodState();
+      if (
+        ps &&
+        ps.currentPeriodMonth != null &&
+        ps.currentPeriodYear != null &&
+        !isNaN(Number(ps.currentPeriodMonth)) &&
+        !isNaN(Number(ps.currentPeriodYear))
+      ) {
+        return d + "\0" + ps.currentPeriodYear + "-" + ps.currentPeriodMonth;
+      }
+    }
+    return d;
+  }
+
   function rememberDrilldownKpiTiles(dept, tiles) {
     var d = dept != null ? String(dept).trim() : "";
     if (!d || !tiles || !tiles.length) return;
-    drilldownKpiTilesCache[d] = tiles;
+    drilldownKpiTilesCache[drilldownTilesCacheKey(d)] = tiles;
     var keys = Object.keys(drilldownKpiTilesCache);
     while (keys.length > DRILLDOWN_KPI_CACHE_MAX) {
       delete drilldownKpiTilesCache[keys[0]];
@@ -107,7 +125,7 @@
   function loadDrilldownTilesForDept(deptName) {
     var cn = deptName != null ? String(deptName).trim() : "";
     if (!cn) return Promise.resolve({ name: cn, tiles: [] });
-    var cached = drilldownKpiTilesCache[cn];
+    var cached = drilldownKpiTilesCache[drilldownTilesCacheKey(cn)];
     if (cached && cached.length) {
       return Promise.resolve({ name: cn, tiles: cached });
     }

@@ -5,6 +5,15 @@
   var sidebarSearchLoading = false;
   var sidebarSearchError = "";
   var sidebarSearchResults = [];
+  var rememberedChairmanCatalogId = "";
+
+  function rememberChairmanCatalogId(value) {
+    rememberedChairmanCatalogId = value != null ? String(value).trim() : "";
+  }
+
+  function clearRememberedChairmanCatalogId() {
+    rememberedChairmanCatalogId = "";
+  }
 
   function mergeContext(nextContext) {
     latestContext = Object.assign({}, latestContext || {}, nextContext || {});
@@ -303,7 +312,12 @@
   function isViewTargetActive(target, selectedViewId, hierarchyStack) {
     if (!target) return false;
     if (target.id === selectedViewId) return true;
-    if (!isChairmanTarget(target) || target.id === "self") return false;
+    if (!isChairmanTarget(target)) return false;
+    var tcid = target.catalogId != null ? String(target.catalogId).trim() : "";
+    if (tcid && rememberedChairmanCatalogId && tcid === rememberedChairmanCatalogId) {
+      return true;
+    }
+    if (target.id === "self") return false;
     if (!hierarchyStack || !hierarchyStack.length) return false;
     var root = hierarchyStack[0] != null ? String(hierarchyStack[0]).trim() : "";
     var dept = target.department != null ? String(target.department).trim() : "";
@@ -335,7 +349,18 @@
     var selectedViewId = getSelectedViewId();
     for (var i = 0; i < chairmanTargets.length; i++) {
       var t = chairmanTargets[i];
-      if (t && t.id === selectedViewId) return t;
+      if (t && t.id === selectedViewId) {
+        if (t.catalogId != null) rememberedChairmanCatalogId = String(t.catalogId).trim();
+        return t;
+      }
+    }
+    if (rememberedChairmanCatalogId) {
+      for (var j = 0; j < chairmanTargets.length; j++) {
+        var mt = chairmanTargets[j];
+        if (!mt) continue;
+        var mcid = mt.catalogId != null ? String(mt.catalogId).trim() : "";
+        if (mcid && mcid === rememberedChairmanCatalogId) return mt;
+      }
     }
     var hierarchy = getHierarchyStack();
     if (Array.isArray(hierarchy) && hierarchy.length) {
@@ -366,6 +391,11 @@
       nav.hidden = true;
       return;
     }
+    var overviewEl = document.getElementById("dash-chairman-overview");
+    if (overviewEl && !overviewEl.hidden) {
+      nav.hidden = true;
+      return;
+    }
     nav.hidden = false;
     var inner = document.createElement("div");
     inner.className = "dash-view-tabs-inner";
@@ -385,15 +415,12 @@
           : t.id;
       btn.appendChild(span);
       btn.addEventListener("click", function () {
-        if (isViewTargetActive(t, getSelectedViewId(), getHierarchyStack())) return;
+        if (t.id === getSelectedViewId()) return;
+        rememberChairmanCatalogId(t.catalogId);
         setSelectedViewId(t.id);
         setViewContextUser(t.user || sessionUser);
-        if (t.id === "self") {
-          var selfDept = sessionUser && sessionUser.department != null ? String(sessionUser.department).trim() : "";
-          setHierarchyStack(selfDept ? [selfDept] : []);
-        } else {
-          setHierarchyStack(t.department ? [String(t.department).trim()] : []);
-        }
+        var effDept = sessionUser && sessionUser.department != null ? String(sessionUser.department).trim() : "";
+        setHierarchyStack(effDept ? [effDept] : []);
         if (getSessionApiMode() === "mock") {
           renderChairmanDashboardTabs();
           renderViewTabs();
@@ -622,11 +649,12 @@
           }
           var currentStack = getHierarchyStack();
           var atRoot = currentStack.length <= 1;
+          var includeSelfFlag = atRoot && !isBoardChairUser(sessionUser);
           if (r && r.ok && r.immediate_children && r.immediate_children.length) {
-            setViewTargets(buildTargetsFromChildren(r.immediate_children, atRoot));
+            setViewTargets(buildTargetsFromChildren(r.immediate_children, includeSelfFlag));
           } else {
             setViewTargets(
-              atRoot
+              includeSelfFlag
                 ? [{ id: "self", label: "Мой дашборд", user: sessionUser }]
                 : []
             );
@@ -637,8 +665,10 @@
         })
         .catch(function () {
           var currentStack = getHierarchyStack();
+          var atRootCatch = currentStack.length <= 1;
+          var includeSelfCatch = atRootCatch && !isBoardChairUser(sessionUser);
           setViewTargets(
-            currentStack.length <= 1
+            includeSelfCatch
               ? [{ id: "self", label: "Мой дашборд", user: sessionUser }]
               : []
           );
@@ -722,7 +752,10 @@
     if (levelIndex < 0 || levelIndex >= hierarchyStack.length) return;
     setHierarchyStack(hierarchyStack.slice(0, levelIndex + 1));
     if (levelIndex === 0) {
-      setSelectedViewId("self");
+      var activeChairmanTarget = isBoardChairUser(sessionUser)
+        ? getActiveChairmanCatalogTarget()
+        : null;
+      setSelectedViewId(activeChairmanTarget && activeChairmanTarget.id ? activeChairmanTarget.id : "self");
     } else {
       var currentStack = getHierarchyStack();
       var parent = currentStack[currentStack.length - 1];
@@ -739,6 +772,7 @@
     return new Promise(function (resolve) {
       var sessionUser = getSessionUser();
       setHierarchyStack([]);
+      clearRememberedChairmanCatalogId();
       resetSidebarSearch();
       if (getSessionApiMode() === "mock") {
         setChairmanDashboardTargets([]);
@@ -886,6 +920,7 @@
 
   global.DashboardHierarchyNav = {
     activateSidebarSearchResult: activateSidebarSearchResult,
+    clearRememberedChairmanCatalogId: clearRememberedChairmanCatalogId,
     clearSidebarSearchState: clearSidebarSearchState,
     filterSidebarViewTabs: filterSidebarViewTabs,
     getActiveChairmanCatalogId: getActiveChairmanCatalogId,
@@ -896,6 +931,7 @@
     navigateToHierarchyLevel: navigateToHierarchyLevel,
     onSidebarSearchInput: onSidebarSearchInput,
     refreshSubordinateTabsFromApi: refreshSubordinateTabsFromApi,
+    rememberChairmanCatalogId: rememberChairmanCatalogId,
     renderHierarchyBreadcrumb: renderHierarchyBreadcrumb,
     renderViewTabs: renderViewTabs,
     resetSidebarSearch: resetSidebarSearch,
