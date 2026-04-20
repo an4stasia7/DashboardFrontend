@@ -110,7 +110,22 @@
     var period = getPeriod();
     var m = period && period.currentPeriodMonth != null ? String(period.currentPeriodMonth) : "";
     var y = period && period.currentPeriodYear != null ? String(period.currentPeriodYear) : "";
-    return String(catalogId || "") + "\0" + y + "-" + m;
+    var mode = period && period.aggregationMode != null ? String(period.aggregationMode).trim() : "";
+    var quarters = period && Array.isArray(period.selectedQuarters)
+      ? period.selectedQuarters
+          .slice()
+          .map(function (v) {
+            return parseInt(String(v), 10);
+          })
+          .filter(function (q) {
+            return !isNaN(q) && q >= 1 && q <= 4;
+          })
+          .sort(function (a, b) {
+            return a - b;
+          })
+          .join(",")
+      : "";
+    return String(catalogId || "") + "\0" + y + "-" + m + "|" + (mode || "current") + "|" + quarters;
   }
 
   function capitalizeTitle(value) {

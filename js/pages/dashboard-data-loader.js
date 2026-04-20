@@ -204,7 +204,7 @@
       var dep = result.data.department;
       setLastKpiResponseDepartment(dep != null && String(dep).trim() ? String(dep).trim() : null);
     }
-    setLastRawKpiResponse(result && result.raw ? result.raw : null);
+    setLastRawKpiResponse(result && result.data ? result.data : result && result.raw ? result.raw : null);
     setLastApiChartIndicators(result.chartIndicators || null);
     setLastApiTableRows(result.tableRows || null);
 
@@ -274,7 +274,7 @@
     if (result.ok && result.tiles && result.tiles.length > 0) {
       var tilesToRender = result.tiles;
       if (getChairmanAggregationMode() !== "current" && typeof getContext().getChairmanAggregatedTilesFromRaw === "function") {
-        var aggregated = getContext().getChairmanAggregatedTilesFromRaw(result.raw || result.data || null);
+        var aggregated = getContext().getChairmanAggregatedTilesFromRaw(result.data || result.raw || null);
         if (aggregated && aggregated.length) {
           tilesToRender = aggregated;
         }

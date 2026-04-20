@@ -560,23 +560,38 @@
 
   /* ---------- Кэш KPI при drilldown (меньше повторных GET) ---------- */
 
-  /** Ключ кэша drilldown: отдел + выбранный в навигаторе месяц (иначе данные «теряют» апрель и т.п.). */
+  /** Ключ кэша drilldown: отдел + период + режим агрегации (иначе кэш отдаёт старые плитки). */
+  function getDrilldownTilesCacheSignature() {
+    if (typeof DashboardMonthNav === "undefined" || !DashboardMonthNav || typeof DashboardMonthNav.getPeriodState !== "function") {
+      return "";
+    }
+    var ps = DashboardMonthNav.getPeriodState();
+    if (!ps || typeof ps !== "object") return "";
+    var year = ps.currentPeriodYear != null && !isNaN(Number(ps.currentPeriodYear)) ? Number(ps.currentPeriodYear) : null;
+    var month = ps.currentPeriodMonth != null && !isNaN(Number(ps.currentPeriodMonth)) ? Number(ps.currentPeriodMonth) : null;
+    var mode = ps.aggregationMode != null ? String(ps.aggregationMode).trim() : "";
+    var quarters = Array.isArray(ps.selectedQuarters)
+      ? ps.selectedQuarters
+          .slice()
+          .map(function (v) {
+            return parseInt(String(v), 10);
+          })
+          .filter(function (q) {
+            return !isNaN(q) && q >= 1 && q <= 4;
+          })
+          .sort(function (a, b) {
+            return a - b;
+          })
+          .join(",")
+      : "";
+    return [year != null && month != null ? year + "-" + month : "no-period", mode || "current", quarters].join("|");
+  }
+
   function drilldownTilesCacheKey(deptName) {
     var d = deptName != null ? String(deptName).trim() : "";
     if (!d) return "";
-    if (typeof DashboardMonthNav !== "undefined" && DashboardMonthNav.getPeriodState) {
-      var ps = DashboardMonthNav.getPeriodState();
-      if (
-        ps &&
-        ps.currentPeriodMonth != null &&
-        ps.currentPeriodYear != null &&
-        !isNaN(Number(ps.currentPeriodMonth)) &&
-        !isNaN(Number(ps.currentPeriodYear))
-      ) {
-        return d + "\0" + ps.currentPeriodYear + "-" + ps.currentPeriodMonth;
-      }
-    }
-    return d;
+    var signature = getDrilldownTilesCacheSignature();
+    return signature ? d + "\0" + signature : d;
   }
 
   /** Сохраняет плитки отдела в LRU-кэш для повторного открытия drilldown. */

@@ -13,6 +13,7 @@
   var selectedQuarters = [1];
   var latestContext = {};
   var bound = false;
+  var currentModePeriodByContext = Object.create(null);
 
   function mergeContext(nextContext) {
     latestContext = Object.assign({}, latestContext || {}, nextContext || {});
@@ -273,6 +274,33 @@
     return [viewId, dept, nick].join("|");
   }
 
+  function rememberCurrentModePeriod() {
+    var key = getMonthNavigatorContextKey();
+    if (!key) return;
+    if (
+      currentPeriodMonth == null ||
+      currentPeriodYear == null ||
+      isNaN(Number(currentPeriodMonth)) ||
+      isNaN(Number(currentPeriodYear))
+    ) {
+      return;
+    }
+    currentModePeriodByContext[key] = {
+      month: Number(currentPeriodMonth),
+      year: Number(currentPeriodYear),
+    };
+  }
+
+  function restoreCurrentModePeriod() {
+    var key = getMonthNavigatorContextKey();
+    if (!key) return false;
+    var snapshot = currentModePeriodByContext[key];
+    if (!snapshot || snapshot.month == null || snapshot.year == null) return false;
+    currentPeriodMonth = snapshot.month;
+    currentPeriodYear = snapshot.year;
+    return true;
+  }
+
   function setAvailableMonthsFromChartPoints(chartIndicators, options) {
     options = options || {};
     var nextContextKey =
@@ -389,9 +417,13 @@
     if (nextBtn) nextBtn.disabled = idx < 0 || idx >= availableMonths.length - 1;
   }
 
-  function navigateToMonth(month, year) {
+  function navigateToMonth(month, year, options) {
+    options = options || {};
     currentPeriodMonth = month;
     currentPeriodYear = year;
+    if ((aggregationMode || "current") === "current" && !options.preserveCurrentModeSnapshot) {
+      rememberCurrentModePeriod();
+    }
     updateMonthNavigatorUI();
     onPeriodChange(month, year);
   }
@@ -419,6 +451,15 @@
     }
     if (Object.prototype.hasOwnProperty.call(nextState, "currentPeriodYear")) {
       currentPeriodYear = nextState.currentPeriodYear;
+    }
+    if (
+      (aggregationMode || "current") === "current" &&
+      currentPeriodMonth != null &&
+      currentPeriodYear != null &&
+      !isNaN(Number(currentPeriodMonth)) &&
+      !isNaN(Number(currentPeriodYear))
+    ) {
+      rememberCurrentModePeriod();
     }
     if (Object.prototype.hasOwnProperty.call(nextState, "availableMonths")) {
       availableMonths = Array.isArray(nextState.availableMonths) ? nextState.availableMonths : [];
@@ -467,8 +508,12 @@
     var aggregationSelect = document.getElementById("month-nav-aggregation");
     if (aggregationSelect) {
       aggregationSelect.addEventListener("change", function () {
+        var prevMode = aggregationMode || "current";
         var nextMode = aggregationSelect.value || "current";
         if (nextMode !== "quarter" && nextMode !== "ytd") nextMode = "current";
+        if (prevMode !== "current" && nextMode === "current") {
+          restoreCurrentModePeriod();
+        }
         aggregationMode = nextMode;
         updateMonthNavigatorUI();
         onAggregationModeChange(nextMode);
@@ -499,7 +544,7 @@
         renderQuarterOptionsIntoPopover();
         closeQuarterPopover();
         var best = pickBestMonthForSelectedQuarters(selectedQuarters, currentPeriodYear);
-        if (best) navigateToMonth(best.month, best.year);
+        if (best) navigateToMonth(best.month, best.year, { preserveCurrentModeSnapshot: true });
         onAggregationModeChange("quarter");
       });
     }
