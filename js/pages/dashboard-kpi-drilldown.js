@@ -93,22 +93,46 @@
     return typeof fn === "function" ? fn() : "";
   }
 
+  function fetchImmediateSubordinatesSafe(department) {
+    var fn = getContext().fetchImmediateSubordinates;
+    if (typeof fn === "function") return fn(department);
+    if (typeof Api === "undefined" || !Api.fetchImmediateSubordinates) {
+      return Promise.resolve({ ok: false, immediate_children: [] });
+    }
+    return Api.fetchImmediateSubordinates({ department: department });
+  }
+
+  function getPeriodCacheSignature() {
+    if (typeof DashboardMonthNav === "undefined" || !DashboardMonthNav || typeof DashboardMonthNav.getPeriodState !== "function") {
+      return "";
+    }
+    var ps = DashboardMonthNav.getPeriodState();
+    if (!ps || typeof ps !== "object") return "";
+    var year = ps.currentPeriodYear != null && !isNaN(Number(ps.currentPeriodYear)) ? Number(ps.currentPeriodYear) : null;
+    var month = ps.currentPeriodMonth != null && !isNaN(Number(ps.currentPeriodMonth)) ? Number(ps.currentPeriodMonth) : null;
+    var mode = ps.aggregationMode != null ? String(ps.aggregationMode).trim() : "";
+    var quarters = Array.isArray(ps.selectedQuarters)
+      ? ps.selectedQuarters
+          .slice()
+          .map(function (v) {
+            return parseInt(String(v), 10);
+          })
+          .filter(function (q) {
+            return !isNaN(q) && q >= 1 && q <= 4;
+          })
+          .sort(function (a, b) {
+            return a - b;
+          })
+          .join(",")
+      : "";
+    return [year != null && month != null ? year + "-" + month : "no-period", mode || "current", quarters].join("|");
+  }
+
   function drilldownTilesCacheKey(deptName) {
     var d = deptName != null ? String(deptName).trim() : "";
     if (!d) return "";
-    if (typeof DashboardMonthNav !== "undefined" && DashboardMonthNav.getPeriodState) {
-      var ps = DashboardMonthNav.getPeriodState();
-      if (
-        ps &&
-        ps.currentPeriodMonth != null &&
-        ps.currentPeriodYear != null &&
-        !isNaN(Number(ps.currentPeriodMonth)) &&
-        !isNaN(Number(ps.currentPeriodYear))
-      ) {
-        return d + "\0" + ps.currentPeriodYear + "-" + ps.currentPeriodMonth;
-      }
-    }
-    return d;
+    var signature = getPeriodCacheSignature();
+    return signature ? d + "\0" + signature : d;
   }
 
   function rememberDrilldownKpiTiles(dept, tiles) {
@@ -278,7 +302,7 @@
     state.hint = "";
     renderKpiTileBackFaceSafe(tileIndex);
 
-    if (getSessionApiMode() === "mock" || typeof Api === "undefined" || !Api.fetchImmediateSubordinates) {
+    if (getSessionApiMode() === "mock") {
       state.loading = false;
       state.loaded = true;
       state.hint =
@@ -295,7 +319,7 @@
       return;
     }
 
-    Api.fetchImmediateSubordinates({ department: parentDept })
+    fetchImmediateSubordinatesSafe(parentDept)
       .then(function (r) {
         if (r.unauthorized) {
           onUnauthorizedSafe();

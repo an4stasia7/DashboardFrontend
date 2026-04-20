@@ -1,4 +1,14 @@
 /* DEBUG: журнал всех JSON-ответов API */
+#debug-kpi-json-section {
+  margin-top: 12px !important;
+}
+
+#debug-kpi-json-section h2 {
+  font-size: 1rem;
+  margin: 0 0 6px;
+  font-weight: 700;
+}
+
 .debug-toggle-row {
   margin-top: 12px;
   text-align: center;
@@ -26,28 +36,30 @@
 .debug-kpi-json-panel {
   background: #1e293b;
   color: #e2e8f0;
-  padding: 16px;
+  padding: 10px 12px;
   border-radius: 8px;
-  font-size: 12px;
-  line-height: 1.5;
-  max-height: 70vh;
+  font-size: 11px;
+  line-height: 1.45;
+  /* Компактно, чтобы не съедать экран под обзором ПСД / карточками */
+  max-height: min(220px, 28vh);
   overflow: auto;
   font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
 }
 
 .debug-json-log-hint {
-  font-size: 0.85rem;
+  font-size: 0.78rem;
   color: #64748b;
-  margin: 0 0 12px;
+  margin: 0 0 8px;
   font-family: inherit;
+  line-height: 1.35;
 }
 
 .debug-json-log-toolbar {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
-  padding-bottom: 10px;
+  gap: 10px;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
   border-bottom: 1px solid #334155;
 }
 
@@ -78,8 +90,8 @@
 }
 
 .debug-json-log-entry {
-  margin-bottom: 18px;
-  padding-bottom: 16px;
+  margin-bottom: 12px;
+  padding-bottom: 10px;
   border-bottom: 1px solid #334155;
 }
 
@@ -111,11 +123,11 @@
 .json-tree-root {
   background: #0f172a;
   color: #e2e8f0;
-  padding: 12px;
+  padding: 8px 10px;
   border-radius: 6px;
-  font-size: 12px;
-  line-height: 1.5;
-  max-height: 480px;
+  font-size: 11px;
+  line-height: 1.45;
+  max-height: min(180px, 24vh);
   overflow: auto;
   font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
 }

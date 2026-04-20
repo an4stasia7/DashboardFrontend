@@ -138,9 +138,19 @@
     if (typeof fn === "function") fn(value);
   }
 
+  function setLastRawKpiResponse(value) {
+    var fn = getContext().setLastRawKpiResponse;
+    if (typeof fn === "function") fn(value);
+  }
+
   function setLastKpiResponseDepartment(value) {
     var fn = getContext().setLastKpiResponseDepartment;
     if (typeof fn === "function") fn(value);
+  }
+
+  function getChairmanAggregationMode() {
+    var fn = getContext().getChairmanAggregationMode;
+    return typeof fn === "function" ? fn() : "current";
   }
 
   function showLoading() {
@@ -194,6 +204,7 @@
       var dep = result.data.department;
       setLastKpiResponseDepartment(dep != null && String(dep).trim() ? String(dep).trim() : null);
     }
+    setLastRawKpiResponse(result && result.data ? result.data : result && result.raw ? result.raw : null);
     setLastApiChartIndicators(result.chartIndicators || null);
     setLastApiTableRows(result.tableRows || null);
 
@@ -261,14 +272,33 @@
 
     var role = getViewContextUser().role;
     if (result.ok && result.tiles && result.tiles.length > 0) {
+      var tilesToRender = result.tiles;
+      if (getChairmanAggregationMode() !== "current" && typeof getContext().getChairmanAggregatedTilesFromRaw === "function") {
+        var aggregated = getContext().getChairmanAggregatedTilesFromRaw(result.data || result.raw || null);
+        if (aggregated && aggregated.length) {
+          tilesToRender = aggregated;
+        }
+      }
       var cacheKey =
         result.data &&
         result.data.department != null &&
         String(result.data.department).trim()
           ? String(result.data.department).trim()
           : getDepartmentForCurrentKpiContext();
-      if (cacheKey) rememberDrilldownKpiTiles(cacheKey, result.tiles.slice());
-      renderKpiTiles(result.tiles);
+      var augment = getContext().maybeAugmentCommercialDeptTilesWithPriorMonthFetch;
+      if (typeof augment === "function") {
+        augment(result, tilesToRender, function (finalTiles) {
+          var t = finalTiles && finalTiles.length ? finalTiles : tilesToRender;
+          if (cacheKey) rememberDrilldownKpiTiles(cacheKey, t.slice());
+          renderKpiTiles(t);
+          updateTopBarForView();
+          hideLoading();
+          bootChartsAndTablesDeferred();
+        });
+        return;
+      }
+      if (cacheKey) rememberDrilldownKpiTiles(cacheKey, tilesToRender.slice());
+      renderKpiTiles(tilesToRender);
     } else {
       renderKpiTiles(getMockKpiTilesForRole(role));
     }

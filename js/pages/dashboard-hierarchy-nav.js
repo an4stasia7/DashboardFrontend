@@ -391,6 +391,11 @@
       nav.hidden = true;
       return;
     }
+    /* Не на корне иерархии (спуск по подразделениям) — без переключателя «Мой дашборд» / «Коммерческий блок» */
+    if (Array.isArray(hierarchyStack) && hierarchyStack.length > 1) {
+      nav.hidden = true;
+      return;
+    }
     var overviewEl = document.getElementById("dash-chairman-overview");
     if (overviewEl && !overviewEl.hidden) {
       nav.hidden = true;
@@ -460,12 +465,30 @@
     var t = getCurrentViewTarget();
     var titleEl = document.getElementById("dash-role-title");
     if (titleEl) {
-      var raw =
+      var lastDep =
         getLastKpiResponseDepartment() && String(getLastKpiResponseDepartment()).trim()
           ? String(getLastKpiResponseDepartment()).trim()
-          : viewContextUser && viewContextUser.role
-            ? viewContextUser.role
+          : "";
+      var raw;
+      if (lastDep) {
+        raw = lastDep;
+      } else if (isBoardChairUser(sessionUser)) {
+        /* У ПСД в role с API часто логин (User5); для шапки — подразделение / должность */
+        var suDept =
+          sessionUser && sessionUser.department != null ? String(sessionUser.department).trim() : "";
+        var vcDept =
+          viewContextUser && viewContextUser.department != null
+            ? String(viewContextUser.department).trim()
+            : "";
+        var vcRole =
+          viewContextUser && viewContextUser.role != null ? String(viewContextUser.role).trim() : "";
+        raw = suDept || vcDept || vcRole || "—";
+      } else {
+        raw =
+          viewContextUser && viewContextUser.role != null
+            ? String(viewContextUser.role).trim()
             : "—";
+      }
       titleEl.textContent = DashUi.capitalizeHeaderTitle(raw);
     }
     var elHint = document.getElementById("dash-user-hint");

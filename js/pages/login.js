@@ -1,5 +1,5 @@
 /**
- * @fileoverview Страница входа: combobox пользователей (GET Api.fetchKpiUsers), форма, «Продолжить как …».
+ * @fileoverview Страница входа: поиск по списку пользователей (GET Api.fetchKpiUsers), форма, «Продолжить как …».
  * Зависимости: `Auth`, `Api`, `AppConfig`.
  */
 (function () {
@@ -14,13 +14,18 @@
   var continueWrap = document.getElementById("login-continue-wrap");
   var btnContinue = document.getElementById("btn-continue-as");
   var nickHidden = document.getElementById("nickname");
-  var nickTrigger = document.getElementById("nickname-trigger");
-  var nickTriggerLabel = document.getElementById("nickname-trigger-label");
+  var nickSearch = document.getElementById("nickname-search");
   var nickPanel = document.getElementById("nickname-list");
   var nickCombo = document.getElementById("nickname-combo");
 
   /** @type {Array<{nickname:string,department:string}>} */
   var usersCache = [];
+
+  /** Подавление обработчика input при программной подстановке текста */
+  var suppressSearchInput = false;
+
+  var PLACEHOLDER_LOADING = "Загрузка списка…";
+  var PLACEHOLDER_READY = "Найти по имени или отделу…";
 
   function showError(msg) {
     errorEl.textContent = msg;
@@ -32,16 +37,22 @@
     errorEl.classList.remove("visible");
   }
 
+  function formatUserLine(u) {
+    if (!u || !u.nickname) return "";
+    var meta = u.department != null && String(u.department).trim() ? String(u.department).trim() : "—";
+    return String(u.nickname).trim() + " — " + meta;
+  }
+
   function closeNicknamePanel() {
-    if (!nickPanel || !nickTrigger) return;
+    if (!nickPanel || !nickSearch) return;
     nickPanel.hidden = true;
-    nickTrigger.setAttribute("aria-expanded", "false");
+    nickSearch.setAttribute("aria-expanded", "false");
   }
 
   function openNicknamePanel() {
-    if (!nickPanel || !nickTrigger || nickTrigger.disabled) return;
+    if (!nickPanel || !nickSearch || nickSearch.disabled) return;
     nickPanel.hidden = false;
-    nickTrigger.setAttribute("aria-expanded", "true");
+    nickSearch.setAttribute("aria-expanded", "true");
   }
 
   function toggleNicknamePanel() {
@@ -49,33 +60,43 @@
     else closeNicknamePanel();
   }
 
-  function setTriggerPlaceholder(text) {
-    if (nickTriggerLabel) nickTriggerLabel.textContent = text;
-    if (nickHidden) nickHidden.value = "";
+  function setSearchPlaceholder(text) {
+    if (nickSearch) nickSearch.placeholder = text;
+  }
+
+  function setSearchValue(text) {
+    suppressSearchInput = true;
+    if (nickSearch) nickSearch.value = text != null ? String(text) : "";
+    suppressSearchInput = false;
+  }
+
+  function getFilterQuery() {
+    if (!nickSearch) return "";
+    return String(nickSearch.value).trim().toLowerCase();
+  }
+
+  function userMatchesQuery(u, q) {
+    if (!q) return true;
+    var nick = (u.nickname || "").toLowerCase();
+    var dep = (u.department || "").toLowerCase();
+    return nick.indexOf(q) !== -1 || dep.indexOf(q) !== -1;
   }
 
   /**
-   * Записывает выбранного пользователя в hidden input и обновляет текст на кнопке-триггере.
+   * Записывает выбранного пользователя в hidden input и строку в поле поиска.
    * @param {string} nickname — значение для отправки формы
-   * @param {string} nickLine — первая строка на кнопке
-   * @param {string} [metaLine] — вторая строка (отдел)
+   * @param {string} nickLine — первая строка (ник)
+   * @param {string} [metaLine] — отдел
    */
   function setSelection(nickname, nickLine, metaLine) {
-    if (!nickHidden || !nickTriggerLabel) return;
+    if (!nickHidden || !nickSearch) return;
     nickHidden.value = nickname || "";
     if (!nickname) {
-      nickTriggerLabel.textContent = "Выберите пользователя…";
+      setSearchValue("");
       return;
     }
-    nickTriggerLabel.textContent = "";
-    var sn = document.createElement("span");
-    sn.className = "nickname-combo-option-nick";
-    sn.textContent = nickLine;
-    nickTriggerLabel.appendChild(sn);
-    var sm = document.createElement("span");
-    sm.className = "nickname-combo-option-meta";
-    sm.textContent = metaLine != null && String(metaLine).trim() ? String(metaLine).trim() : "—";
-    nickTriggerLabel.appendChild(sm);
+    var meta = metaLine != null && String(metaLine).trim() ? String(metaLine).trim() : "—";
+    setSearchValue(String(nickLine).trim() + " — " + meta);
   }
 
   function renderOptionButton(u) {
@@ -95,13 +116,16 @@
     lineMeta.textContent = meta;
     btn.appendChild(lineNick);
     btn.appendChild(lineMeta);
+    btn.addEventListener("mousedown", function (e) {
+      e.preventDefault();
+    });
     btn.addEventListener("click", function (e) {
       e.preventDefault();
       setSelection(nick, nick, meta);
       syncOptionAriaSelected();
       closeNicknamePanel();
       try {
-        nickTrigger.focus();
+        nickSearch.focus();
       } catch (err) {
         /* ignore */
       }
@@ -118,20 +142,31 @@
     }
   }
 
-  function rebuildListFromCache() {
+  function rebuildListFiltered() {
     if (!nickPanel) return;
+    var q = getFilterQuery();
     nickPanel.innerHTML = "";
-    usersCache.forEach(function (u) {
-      if (!u.nickname) return;
-      nickPanel.appendChild(renderOptionButton(u));
+    var list = usersCache.filter(function (u) {
+      if (!u.nickname) return false;
+      return userMatchesQuery(u, q);
     });
+    if (!list.length) {
+      var empty = document.createElement("div");
+      empty.className = "nickname-combo-empty";
+      empty.textContent = usersCache.length ? "Никого не найдено. Измените запрос." : "";
+      nickPanel.appendChild(empty);
+    } else {
+      list.forEach(function (u) {
+        nickPanel.appendChild(renderOptionButton(u));
+      });
+    }
     syncOptionAriaSelected();
   }
 
   function setLoading(loading) {
     submitBtn.disabled = loading;
     submitBtn.textContent = loading ? "Вход…" : "Войти";
-    if (nickTrigger) nickTrigger.disabled = loading;
+    if (nickSearch) nickSearch.disabled = loading;
   }
 
   /**
@@ -150,27 +185,53 @@
       nickname: n,
       department: metaSecondLine != null ? String(metaSecondLine).trim() : "",
     });
-    nickPanel.appendChild(
-      renderOptionButton({
-        nickname: n,
-        department: metaSecondLine != null ? String(metaSecondLine).trim() : "—",
-      })
-    );
-    syncOptionAriaSelected();
+    rebuildListFiltered();
   }
 
   function populateUserSelect(users) {
-    if (!nickHidden || !nickTrigger || !nickPanel) return;
+    if (!nickHidden || !nickSearch || !nickPanel) return;
     usersCache = users.slice();
-    rebuildListFromCache();
-    setTriggerPlaceholder("Выберите пользователя…");
-    nickTrigger.setAttribute("aria-busy", "false");
+    setSearchValue("");
+    nickHidden.value = "";
+    setSearchPlaceholder(PLACEHOLDER_READY);
+    rebuildListFiltered();
+    nickSearch.setAttribute("aria-busy", "false");
   }
 
-  if (nickTrigger && nickPanel) {
-    nickTrigger.addEventListener("click", function () {
-      if (nickTrigger.disabled) return;
-      toggleNicknamePanel();
+  function trySelectSingleFilterMatch() {
+    var q = getFilterQuery();
+    var list = usersCache.filter(function (u) {
+      if (!u.nickname) return false;
+      return userMatchesQuery(u, q);
+    });
+    if (list.length !== 1) return;
+    var u = list[0];
+    setSelection(u.nickname, u.nickname, u.department || "—");
+    closeNicknamePanel();
+  }
+
+  if (nickSearch && nickPanel) {
+    nickSearch.addEventListener("focus", function () {
+      if (nickSearch.disabled) return;
+      rebuildListFiltered();
+      openNicknamePanel();
+    });
+    nickSearch.addEventListener("input", function () {
+      if (suppressSearchInput) return;
+      if (nickHidden) nickHidden.value = "";
+      rebuildListFiltered();
+      openNicknamePanel();
+    });
+    nickSearch.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && nickPanel && !nickPanel.hidden) {
+        e.preventDefault();
+        closeNicknamePanel();
+        return;
+      }
+      if (e.key === "Enter") {
+        e.preventDefault();
+        trySelectSingleFilterMatch();
+      }
     });
     document.addEventListener("click", function (e) {
       if (!nickCombo || !nickPanel || nickPanel.hidden) return;
@@ -182,7 +243,7 @@
       if (e.key === "Escape" && nickPanel && !nickPanel.hidden) {
         closeNicknamePanel();
         try {
-          nickTrigger.focus();
+          nickSearch.focus();
         } catch (err) {
           /* ignore */
         }
@@ -228,13 +289,14 @@
 
   if (typeof Api !== "undefined" && typeof Api.fetchKpiUsers === "function") {
     Api.fetchKpiUsers().then(function (res) {
-      if (!nickHidden || !nickTrigger) return;
+      if (!nickHidden || !nickSearch) return;
       if (!res.ok) {
         usersCache = [];
         if (nickPanel) nickPanel.innerHTML = "";
-        setTriggerPlaceholder("Список недоступен");
-        nickTrigger.disabled = true;
-        nickTrigger.setAttribute("aria-busy", "false");
+        setSearchPlaceholder("Список недоступен");
+        setSearchValue("");
+        nickSearch.disabled = true;
+        nickSearch.setAttribute("aria-busy", "false");
         showError(res.error || "Не удалось загрузить список пользователей");
         return;
       }
@@ -242,9 +304,10 @@
       if (!list.length) {
         usersCache = [];
         if (nickPanel) nickPanel.innerHTML = "";
-        setTriggerPlaceholder("Нет пользователей");
-        nickTrigger.disabled = true;
-        nickTrigger.setAttribute("aria-busy", "false");
+        setSearchPlaceholder("Нет пользователей");
+        setSearchValue("");
+        nickSearch.disabled = true;
+        nickSearch.setAttribute("aria-busy", "false");
         showError("Список пользователей пуст");
         return;
       }
@@ -254,20 +317,20 @@
         return (a.nickname || "").localeCompare(b.nickname || "", "ru");
       });
       populateUserSelect(list);
-      nickTrigger.disabled = false;
+      nickSearch.disabled = false;
       var contInfo = typeof Auth.getContinueAsInfo === "function" ? Auth.getContinueAsInfo() : null;
       if (contInfo && contInfo.nickname) {
         var metaInfo = (contInfo.displayName || contInfo.nickname || "").trim();
         ensureNicknameOption(contInfo.nickname, metaInfo);
-        setSelection(contInfo.nickname, contInfo.nickname, metaInfo);
+        setSelection(contInfo.nickname, contInfo.nickname, metaInfo || "—");
       }
     });
   } else {
-    if (nickTrigger) {
-      nickTrigger.disabled = true;
-      nickTrigger.setAttribute("aria-busy", "false");
+    if (nickSearch) {
+      nickSearch.disabled = true;
+      nickSearch.setAttribute("aria-busy", "false");
+      setSearchPlaceholder("Ошибка загрузки");
     }
-    if (nickTriggerLabel) nickTriggerLabel.textContent = "Ошибка загрузки";
     showError("Модуль Api не загружен");
   }
 
@@ -277,7 +340,7 @@
     var nickname = nickHidden ? String(nickHidden.value).trim() : "";
     var password = document.getElementById("password").value;
     if (!nickname) {
-      showError("Выберите пользователя из списка");
+      showError("Выберите пользователя из списка или уточните поиск и выберите строку");
       return;
     }
     var remember = document.getElementById("remember-me");

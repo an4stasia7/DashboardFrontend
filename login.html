@@ -13,21 +13,24 @@
       <div id="auth-error" class="auth-error" role="alert"></div>
       <form id="login-form" novalidate>
         <div class="auth-field">
-          <label for="nickname-trigger">Пользователь</label>
+          <label for="nickname-search">Пользователь</label>
           <div class="nickname-combo" id="nickname-combo">
             <input type="hidden" id="nickname" name="nickname" value="" autocomplete="username" />
-            <button
-              type="button"
-              id="nickname-trigger"
-              class="nickname-combo-trigger"
-              aria-haspopup="listbox"
+            <input
+              type="text"
+              id="nickname-search"
+              class="nickname-combo-input"
+              autocomplete="off"
+              autocorrect="off"
+              spellcheck="false"
+              placeholder="Загрузка списка…"
+              aria-autocomplete="list"
               aria-expanded="false"
               aria-controls="nickname-list"
+              role="combobox"
               disabled
               aria-busy="true"
-            >
-              <span id="nickname-trigger-label" class="nickname-combo-trigger-text">Загрузка списка…</span>
-            </button>
+            />
             <div id="nickname-list" class="nickname-combo-panel" role="listbox" hidden></div>
           </div>
         </div>

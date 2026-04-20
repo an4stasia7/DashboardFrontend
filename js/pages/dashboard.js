@@ -49,8 +49,12 @@
   var lastApiChartIndicators = null;
   /** Строки таблицы из API */
   var lastApiTableRows = null;
+  /** Последний raw-ответ KPI для локального пересчёта плиток ПСД */
+  var lastRawKpiResponse = null;
   /** Подпись в шапке из поля department последнего успешного ответа KPI (json) */
   var lastKpiResponseDepartment = null;
+  /** Режим агрегации плиток ПСД */
+  var chairmanAggregationMode = "current";
 
   /** Индексы перевёрнутых KPI-карточек (можно держать открытыми несколько) */
   var flippedTileIndices = new Set();
@@ -184,6 +188,28 @@
     return Object.assign(createKpiDrilldownBaseContext(), {
       loadDrilldownTilesForDept: loadDrilldownTilesForDept,
       mapWithConcurrencyLimit: mapWithConcurrencyLimit,
+      fetchImmediateSubordinates: function (department) {
+        if (typeof Api === "undefined" || typeof Api.fetchImmediateSubordinates !== "function") {
+          return Promise.resolve({ ok: false, immediate_children: [] });
+        }
+        var opts = { department: department };
+        var chairmanFor = getChairmanDashboardCatalogId();
+        if (chairmanFor && isChairmanRootHierarchy()) {
+          opts.for = chairmanFor;
+          if (isChairmanRootHierarchy() && isVirtualChairmanCatalog(chairmanFor)) {
+            var sessDept =
+              sessionUser && sessionUser.department != null
+                ? String(sessionUser.department).trim()
+                : "";
+            if (sessDept) {
+              opts.department = sessDept;
+            } else {
+              delete opts.department;
+            }
+          }
+        }
+        return Api.fetchImmediateSubordinates(opts);
+      },
       onUnauthorized: handleUnauthorized,
       getSessionApiMode: function () {
         return session.apiMode;
@@ -292,6 +318,17 @@
           var chairmanFor = getChairmanDashboardCatalogId();
           if (chairmanFor && isChairmanRootHierarchy()) {
             opts.for = chairmanFor;
+            if (isChairmanRootHierarchy() && isVirtualChairmanCatalog(chairmanFor)) {
+              var sessDept =
+                sessionUser && sessionUser.department != null
+                  ? String(sessionUser.department).trim()
+                  : "";
+              if (sessDept) {
+                opts.department = sessDept;
+              } else {
+                delete opts.department;
+              }
+            }
           }
           return Api.fetchImmediateSubordinates(opts);
         },
@@ -395,9 +432,17 @@
         setLastApiTableRows: function (value) {
           lastApiTableRows = value;
         },
+        setLastRawKpiResponse: function (value) {
+          lastRawKpiResponse = value;
+        },
         setLastKpiResponseDepartment: function (value) {
           lastKpiResponseDepartment = value;
         },
+        getChairmanAggregationMode: function () {
+          return chairmanAggregationMode;
+        },
+        getChairmanAggregatedTilesFromRaw: getChairmanAggregatedTilesFromRaw,
+        maybeAugmentCommercialDeptTilesWithPriorMonthFetch: maybeAugmentCommercialDeptTilesWithPriorMonthFetch,
       });
     }
   })();
@@ -487,6 +532,9 @@
         getSelectedViewId: function () {
           return selectedViewId;
         },
+        getSessionUser: function () {
+          return sessionUser;
+        },
         getDepartmentForCurrentKpiContext: getDepartmentForCurrentKpiContext,
         getViewContextUser: function () {
           return viewContextUser;
@@ -497,6 +545,10 @@
             return;
           }
           loadKpiTilesAndChartsForView();
+        },
+        onAggregationModeChange: function (mode) {
+          chairmanAggregationMode = mode || "current";
+          rerenderChairmanTilesFromRaw();
         },
       });
     }
@@ -530,23 +582,38 @@
 
   /* ---------- Кэш KPI при drilldown (меньше повторных GET) ---------- */
 
-  /** Ключ кэша drilldown: отдел + выбранный в навигаторе месяц (иначе данные «теряют» апрель и т.п.). */
+  /** Ключ кэша drilldown: отдел + период + режим агрегации (иначе кэш отдаёт старые плитки). */
+  function getDrilldownTilesCacheSignature() {
+    if (typeof DashboardMonthNav === "undefined" || !DashboardMonthNav || typeof DashboardMonthNav.getPeriodState !== "function") {
+      return "";
+    }
+    var ps = DashboardMonthNav.getPeriodState();
+    if (!ps || typeof ps !== "object") return "";
+    var year = ps.currentPeriodYear != null && !isNaN(Number(ps.currentPeriodYear)) ? Number(ps.currentPeriodYear) : null;
+    var month = ps.currentPeriodMonth != null && !isNaN(Number(ps.currentPeriodMonth)) ? Number(ps.currentPeriodMonth) : null;
+    var mode = ps.aggregationMode != null ? String(ps.aggregationMode).trim() : "";
+    var quarters = Array.isArray(ps.selectedQuarters)
+      ? ps.selectedQuarters
+          .slice()
+          .map(function (v) {
+            return parseInt(String(v), 10);
+          })
+          .filter(function (q) {
+            return !isNaN(q) && q >= 1 && q <= 4;
+          })
+          .sort(function (a, b) {
+            return a - b;
+          })
+          .join(",")
+      : "";
+    return [year != null && month != null ? year + "-" + month : "no-period", mode || "current", quarters].join("|");
+  }
+
   function drilldownTilesCacheKey(deptName) {
     var d = deptName != null ? String(deptName).trim() : "";
     if (!d) return "";
-    if (typeof DashboardMonthNav !== "undefined" && DashboardMonthNav.getPeriodState) {
-      var ps = DashboardMonthNav.getPeriodState();
-      if (
-        ps &&
-        ps.currentPeriodMonth != null &&
-        ps.currentPeriodYear != null &&
-        !isNaN(Number(ps.currentPeriodMonth)) &&
-        !isNaN(Number(ps.currentPeriodYear))
-      ) {
-        return d + "\0" + ps.currentPeriodYear + "-" + ps.currentPeriodMonth;
-      }
-    }
-    return d;
+    var signature = getDrilldownTilesCacheSignature();
+    return signature ? d + "\0" + signature : d;
   }
 
   /** Сохраняет плитки отдела в LRU-кэш для повторного открытия drilldown. */
@@ -1164,12 +1231,99 @@
     }
   }
 
+  function prevCalendarMonthYear(y, m) {
+    var yi = Number(y);
+    var mi = Number(m);
+    if (isNaN(yi) || isNaN(mi) || mi < 1 || mi > 12) return null;
+    if (mi === 1) return { year: yi - 1, month: 12 };
+    return { year: yi, month: mi - 1 };
+  }
+
+  function findMonthlyDataPoint(monthlyData, y, m) {
+    if (!Array.isArray(monthlyData)) return null;
+    for (var i = 0; i < monthlyData.length; i++) {
+      var p = monthlyData[i];
+      if (p && Number(p.year) === Number(y) && Number(p.month) === Number(m)) return p;
+    }
+    return null;
+  }
+
+  function isSelectedPeriodCurrentCalendarMonth(selectedYear, selectedMonth) {
+    var now = new Date();
+    return Number(selectedYear) === now.getFullYear() && Number(selectedMonth) === now.getMonth() + 1;
+  }
+
+  /** Показатели «ФОТ» и «Текучесть персонала» — по вхождению в название плитки. */
+  function isFotOrPersonnelTurnoverKpiTitle(title) {
+    var t = normalizeKpiTitleForMatch(title);
+    if (!t) return false;
+    if (t.indexOf("фот") !== -1) return true;
+    if (t.indexOf("текучесть") !== -1) return true;
+    return false;
+  }
+
+  function planFactPeriodLabelFromMonthlyPoint(point, year) {
+    if (!point) return "";
+    var y = Number(year);
+    var mn = point.month_name != null ? String(point.month_name).trim() : "";
+    if (mn) {
+      var cap = mn.charAt(0).toUpperCase() + mn.slice(1);
+      return (isNaN(y) ? "" : cap + " " + y);
+    }
+    var m = Number(point.month);
+    if (!isNaN(m) && m >= 1 && m <= 12 && !isNaN(y)) return getMonthShortRu(m) + " " + y;
+    return "";
+  }
+
+  /**
+   * Для выбранного текущего календарного месяца (ещё не закончившегося) на плитках с «ФОТ» / «текучестью» в названии
+   * показываем план/факт за предыдущий месяц (из monthly_data).
+   */
+  function applyPriorMonthFactForFotTurnoverTiles(tiles) {
+    if (!Array.isArray(tiles) || !tiles.length) return tiles;
+
+    if (typeof DashboardMonthNav === "undefined" || !DashboardMonthNav || typeof DashboardMonthNav.getPeriodState !== "function") {
+      return tiles;
+    }
+    var periodState = DashboardMonthNav.getPeriodState();
+    var selY = periodState.currentPeriodYear;
+    var selM = periodState.currentPeriodMonth;
+    if (selY == null || selM == null) return tiles;
+    if (!isSelectedPeriodCurrentCalendarMonth(selY, selM)) return tiles;
+
+    var prevYm = prevCalendarMonthYear(selY, selM);
+    if (!prevYm) return tiles;
+
+    return tiles.map(function (tile) {
+      if (!tile || !isFotOrPersonnelTurnoverKpiTitle(tile.title)) return tile;
+      if (tile.__priorMonthMergedFromKpiAll) return tile;
+      var monthly = tile.monthly_data;
+      if (!Array.isArray(monthly) || !monthly.length) return tile;
+      var prevPoint = findMonthlyDataPoint(monthly, prevYm.year, prevYm.month);
+      if (!prevPoint) return tile;
+
+      var next = Object.assign({}, tile);
+      if (prevPoint.plan !== undefined) next.plan = prevPoint.plan;
+      if (prevPoint.fact !== undefined) next.fact = prevPoint.fact;
+      if (typeof prevPoint.has_data === "boolean") next.has_data = prevPoint.has_data;
+      if (typeof prevPoint.kpi_pct === "number" && !isNaN(prevPoint.kpi_pct)) {
+        next.kpi_pct = prevPoint.kpi_pct;
+        next.kpi_pst = prevPoint.kpi_pct;
+        next.percent = prevPoint.kpi_pct;
+      }
+      var pl = planFactPeriodLabelFromMonthlyPoint(prevPoint, prevYm.year);
+      if (pl) next.plan_fact_period_label = pl;
+      return next;
+    });
+  }
+
   /**
    * Рендерит KPI-плитки единой адаптивной сеткой; оборот карточки строится отдельно при flip.
    * Более 6 плиток — постраничный показ (3×2) и навигатор `#kpi-tiles-pager`.
    * @param {object[]} tiles
    */
   function renderKpiTiles(tiles) {
+    tiles = applyPriorMonthFactForFotTurnoverTiles(tiles && tiles.length ? tiles : []);
     lastKpiTiles = tiles && tiles.length ? tiles : null;
     flippedTileIndices.clear();
     if (typeof DashboardKpiDrilldown !== "undefined" && DashboardKpiDrilldown) {
@@ -1215,6 +1369,390 @@
   function isCommercialDepartmentContext(value) {
     var normalized = normalizeDashboardRole(value);
     return normalized === "коммерческий директор" || normalized === "коммерция";
+  }
+
+  function chairmanAggregationModeLabel(mode) {
+    if (mode === "quarter") return "За квартал";
+    if (mode === "ytd") return "С начала года";
+    return "На текущий момент";
+  }
+
+  function parseNumberLoose(value) {
+    if (typeof value === "number" && !isNaN(value)) return value;
+    if (value == null || value === "") return null;
+    var normalized = parseFloat(String(value).replace(/[^\d.,\-]/g, "").replace(",", "."));
+    return isNaN(normalized) ? null : normalized;
+  }
+
+  function getMonthShortRu(month) {
+    var names = ["янв.", "фев.", "март", "апр.", "май", "июнь", "июль", "авг.", "сент.", "окт.", "нояб.", "дек."];
+    var index = Number(month) - 1;
+    return index >= 0 && index < names.length ? names[index] : "";
+  }
+
+  /** Первый сегмент крошек — коммерческий директор / коммерция (подчинённые отделы с помесячным KPI). */
+  function isCommercialHierarchyRootForPriorMonthRule() {
+    return Array.isArray(hierarchyStack) && hierarchyStack.length > 0 && isCommercialDepartmentContext(hierarchyStack[0]);
+  }
+
+  function mergeFotTurnoverTilesWithPriorKpiAllResponse(currentTiles, priorTiles, prevYear, prevMonth) {
+    if (!Array.isArray(currentTiles) || !Array.isArray(priorTiles)) return currentTiles;
+    var byId = {};
+    var byTitle = {};
+    for (var i = 0; i < priorTiles.length; i++) {
+      var t = priorTiles[i];
+      if (!t) continue;
+      var kid = t.kpi_id != null ? String(t.kpi_id).trim() : "";
+      if (kid) byId[kid] = t;
+      var nk = normalizeKpiTitleForMatch(t.title);
+      if (nk) byTitle[nk] = t;
+    }
+    var fallbackLabel = getMonthShortRu(prevMonth) + " " + prevYear;
+    return currentTiles.map(function (tile) {
+      if (!tile || !isFotOrPersonnelTurnoverKpiTitle(tile.title)) return tile;
+      var id = tile.kpi_id != null ? String(tile.kpi_id).trim() : "";
+      var src = id && byId[id] ? byId[id] : byTitle[normalizeKpiTitleForMatch(tile.title)];
+      if (!src) return tile;
+      var next = Object.assign({}, tile);
+      if (src.plan !== undefined) next.plan = src.plan;
+      if (src.fact !== undefined) next.fact = src.fact;
+      if (typeof src.has_data === "boolean") next.has_data = src.has_data;
+      if (typeof src.kpi_pct === "number" && !isNaN(src.kpi_pct)) {
+        next.kpi_pct = src.kpi_pct;
+        next.kpi_pst = src.kpi_pct;
+        next.percent = src.kpi_pct;
+      }
+      var pl =
+        src.plan_fact_period_label != null && String(src.plan_fact_period_label).trim()
+          ? String(src.plan_fact_period_label).trim()
+          : fallbackLabel;
+      next.plan_fact_period_label = pl;
+      next.__priorMonthMergedFromKpiAll = true;
+      return next;
+    });
+  }
+
+  /**
+   * Для подразделений под коммерческим директором: факт ФОТ/текучести за прошлый месяц — второй запрос
+   * GET /api/kpi/all/?department=…&month=N-1&year=… при просмотре незавершённого месяца N.
+   * @param {function(object[])} done — передать итоговый массив плиток
+   */
+  function maybeAugmentCommercialDeptTilesWithPriorMonthFetch(result, tilesToRender, done) {
+    if (!result || !result.ok || !Array.isArray(tilesToRender) || !tilesToRender.length) {
+      done(tilesToRender);
+      return;
+    }
+    if (!isCommercialHierarchyRootForPriorMonthRule()) {
+      done(tilesToRender);
+      return;
+    }
+    if (typeof DashboardMonthNav === "undefined" || !DashboardMonthNav || typeof DashboardMonthNav.getPeriodState !== "function") {
+      done(tilesToRender);
+      return;
+    }
+    var ps = DashboardMonthNav.getPeriodState();
+    var selY = ps.currentPeriodYear;
+    var selM = ps.currentPeriodMonth;
+    if (selY == null || selM == null || !isSelectedPeriodCurrentCalendarMonth(selY, selM)) {
+      done(tilesToRender);
+      return;
+    }
+    var hasFot = false;
+    for (var f = 0; f < tilesToRender.length; f++) {
+      var tt = tilesToRender[f];
+      if (tt && isFotOrPersonnelTurnoverKpiTitle(tt.title)) {
+        hasFot = true;
+        break;
+      }
+    }
+    if (!hasFot) {
+      done(tilesToRender);
+      return;
+    }
+    var dept = getDepartmentForCurrentKpiContext();
+    if (!dept || !String(dept).trim()) {
+      done(tilesToRender);
+      return;
+    }
+    var prevYm = prevCalendarMonthYear(selY, selM);
+    if (!prevYm) {
+      done(tilesToRender);
+      return;
+    }
+    if (typeof Api === "undefined" || typeof Api.fetchKpiAll !== "function") {
+      done(tilesToRender);
+      return;
+    }
+    var opts = {
+      department: String(dept).trim(),
+      month: prevYm.month,
+      year: prevYm.year,
+    };
+    var chairmanFor = getChairmanDashboardCatalogId();
+    if (chairmanFor && isChairmanRootHierarchy()) {
+      opts.for = chairmanFor;
+    }
+    Api.fetchKpiAll(opts)
+      .then(function (prevResult) {
+        if (!prevResult || !prevResult.ok || !Array.isArray(prevResult.tiles) || !prevResult.tiles.length) {
+          done(tilesToRender);
+          return;
+        }
+        done(mergeFotTurnoverTilesWithPriorKpiAllResponse(tilesToRender, prevResult.tiles, prevYm.year, prevYm.month));
+      })
+      .catch(function () {
+        done(tilesToRender);
+      });
+  }
+
+  function buildChairmanAggregationPeriodLabel(mode, year, month, points, selectedQuarters) {
+    var y = Number(year);
+    var m = Number(month);
+    if (isNaN(y) || isNaN(m) || m < 1 || m > 12) return "";
+    if (mode === "quarter") {
+      var qs = Array.isArray(selectedQuarters) ? selectedQuarters.slice() : [];
+      qs = qs
+        .map(function (v) { return parseInt(String(v), 10); })
+        .filter(function (q) { return !isNaN(q) && q >= 1 && q <= 4; })
+        .sort(function (a, b) { return a - b; });
+      if (!qs.length) {
+        qs = [Math.ceil(m / 3)];
+      }
+      var roman = ["I", "II", "III", "IV"];
+      var label = qs.map(function (q) { return (roman[q - 1] || String(q)) + " кв."; }).join(", ");
+      var minQ = qs[0];
+      var maxQ = qs[qs.length - 1];
+      var startMonth = (minQ - 1) * 3 + 1;
+      var endMonth = maxQ * 3;
+      return "Накопительно за " + label + " " + y + " (" + getMonthShortRu(startMonth) + "–" + getMonthShortRu(endMonth) + ")";
+    }
+    if (mode === "ytd") {
+      return "Накопительно с начала " + y + " г. (янв.–" + getMonthShortRu(m) + ")";
+    }
+    if (Array.isArray(points)) {
+      for (var i = 0; i < points.length; i++) {
+        var point = points[i];
+        if (!point) continue;
+        if (Number(point.year) === y && Number(point.month) === m) {
+          var monthName = point.month_name != null ? String(point.month_name).trim() : "";
+          if (monthName) {
+            return monthName.charAt(0).toUpperCase() + monthName.slice(1) + " " + y;
+          }
+        }
+      }
+    }
+    return getMonthShortRu(m) + " " + y;
+  }
+
+  function computeChairmanAggregatedPoint(item, year, month, mode, selectedQuarters) {
+    if (!item || typeof item !== "object") return null;
+    var points = Array.isArray(item.monthly_data) ? item.monthly_data.slice() : [];
+    if (!points.length) return null;
+    var y = Number(year);
+    var m = Number(month);
+    if (isNaN(y) || isNaN(m) || m < 1 || m > 12) return null;
+
+    var filtered = points
+      .filter(function (point) {
+        return point && Number(point.year) === y && Number(point.month) >= 1 && Number(point.month) <= 12;
+      })
+      .sort(function (a, b) {
+        return Number(a.month) - Number(b.month);
+      });
+    if (!filtered.length) return null;
+
+    if (mode !== "quarter" && mode !== "ytd") {
+      for (var ci = 0; ci < filtered.length; ci++) {
+        if (Number(filtered[ci].month) === m) return filtered[ci];
+      }
+      return null;
+    }
+
+    var bucket = [];
+    if (mode === "quarter") {
+      var qs = Array.isArray(selectedQuarters) ? selectedQuarters.slice() : [];
+      qs = qs
+        .map(function (v) { return parseInt(String(v), 10); })
+        .filter(function (q) { return !isNaN(q) && q >= 1 && q <= 4; })
+        .sort(function (a, b) { return a - b; });
+      if (!qs.length) qs = [Math.ceil(m / 3)];
+      var ranges = qs.map(function (q) {
+        return { start: (q - 1) * 3 + 1, end: q * 3 };
+      });
+      bucket = filtered.filter(function (point) {
+        var pointMonth = Number(point.month);
+        for (var i = 0; i < ranges.length; i++) {
+          if (pointMonth >= ranges[i].start && pointMonth <= ranges[i].end) return true;
+        }
+        return false;
+      });
+    } else {
+      var startMonth = 1;
+      bucket = filtered.filter(function (point) {
+        var pointMonth = Number(point.month);
+        return pointMonth >= startMonth && pointMonth <= m;
+      });
+    }
+    if (!bucket.length) return null;
+
+    var plan = 0;
+    var fact = 0;
+    var kpiPct = null;
+    var hasPlan = false;
+    var hasFact = false;
+    var lastPct = null;
+    var hasData = false;
+
+    bucket.forEach(function (point) {
+      var planValue = parseNumberLoose(point.plan);
+      var factValue = parseNumberLoose(point.fact);
+      var pctValue = parseNumberLoose(point.kpi_pct);
+      if (planValue != null) {
+        plan += planValue;
+        hasPlan = true;
+      }
+      if (factValue != null) {
+        fact += factValue;
+        hasFact = true;
+      }
+      if (pctValue != null) lastPct = pctValue;
+      if (point.has_data === true) hasData = true;
+    });
+
+    if (hasPlan && Math.abs(plan) > 0.000001 && hasFact) {
+      kpiPct = (fact / plan) * 100;
+    } else if (lastPct != null) {
+      kpiPct = lastPct;
+    }
+
+    return {
+      year: y,
+      month: m,
+      month_name: null,
+      plan: hasPlan ? plan : null,
+      fact: hasFact ? fact : null,
+      kpi_pct: kpiPct,
+      has_data: hasData || hasPlan || hasFact,
+    };
+  }
+
+  function normalizeKpiTileFromRawItem(rawItem, point, mode) {
+    if (!rawItem || typeof rawItem !== "object") return null;
+    var title = rawItem.name != null ? String(rawItem.name) : "";
+    if (!title && rawItem.kpi_id != null) title = String(rawItem.kpi_id);
+    if (!title) return null;
+    var thresholds = rawItem.thresholds && typeof rawItem.thresholds === "object" ? rawItem.thresholds : {};
+    var pointPct = point && typeof point.kpi_pct === "number" && !isNaN(point.kpi_pct) ? point.kpi_pct : null;
+    var itemPct =
+      typeof rawItem.kpi_pst === "number" && !isNaN(rawItem.kpi_pst)
+        ? rawItem.kpi_pst
+        : typeof rawItem.kpi_pct === "number" && !isNaN(rawItem.kpi_pct)
+          ? rawItem.kpi_pct
+          : null;
+    var periodState = typeof DashboardMonthNav !== "undefined" && DashboardMonthNav && typeof DashboardMonthNav.getPeriodState === "function"
+      ? DashboardMonthNav.getPeriodState()
+      : { currentPeriodMonth: null, currentPeriodYear: null };
+    var label =
+      point && periodState.currentPeriodYear != null && periodState.currentPeriodMonth != null
+        ? buildChairmanAggregationPeriodLabel(
+            mode,
+            periodState.currentPeriodYear,
+            periodState.currentPeriodMonth,
+            rawItem.monthly_data,
+            periodState.selectedQuarters
+          )
+        : rawItem.plan_fact_period_label != null
+          ? String(rawItem.plan_fact_period_label)
+          : null;
+
+    function thStr(obj, key, flatKey) {
+      if (obj[key] != null) return String(obj[key]);
+      if (flatKey != null && rawItem[flatKey] != null) return String(rawItem[flatKey]);
+      return null;
+    }
+
+    function firstStringValue(keys) {
+      for (var i = 0; i < keys.length; i++) {
+        var key = keys[i];
+        if (rawItem[key] == null) continue;
+        var value = String(rawItem[key]).trim();
+        if (value) return value;
+      }
+      return "";
+    }
+
+    return {
+      kpi_id: rawItem.kpi_id != null ? String(rawItem.kpi_id) : "",
+      title: title,
+      badge: rawItem.kpi_id != null ? String(rawItem.kpi_id) : "KPI",
+      period:
+        rawItem.period != null && String(rawItem.period).trim()
+          ? String(rawItem.period)
+          : chairmanAggregationModeLabel(mode),
+      units: firstStringValue(["units", "unit", "uom", "measure_unit", "measurement_unit"]),
+      frequency: firstStringValue(["frequency", "periodicity", "update_frequency", "frequency_label"]),
+      cache_updated_at: firstStringValue(["cache_updated_at"]),
+      formula: rawItem.formula != null ? String(rawItem.formula) : null,
+      plan_fact_period_label: label,
+      percent: pointPct != null ? pointPct : itemPct,
+      kpi_pst: typeof rawItem.kpi_pst === "number" && !isNaN(rawItem.kpi_pst) ? rawItem.kpi_pst : null,
+      kpi_pct: pointPct != null ? pointPct : itemPct,
+      plan: point ? point.plan : rawItem.plan,
+      fact: point ? point.fact : rawItem.fact,
+      has_data:
+        point && typeof point.has_data === "boolean"
+          ? point.has_data
+          : typeof rawItem.has_data === "boolean"
+            ? rawItem.has_data
+            : undefined,
+      hint:
+        rawItem.description != null
+          ? String(rawItem.description)
+          : rawItem.hint != null
+            ? String(rawItem.hint)
+            : rawItem.comment != null
+              ? String(rawItem.comment)
+              : "",
+      rag: rawItem.color != null ? String(rawItem.color).toLowerCase().trim() : null,
+      green_threshold: thStr(thresholds, "green", "green_threshold"),
+      yellow_threshold: thStr(thresholds, "yellow", "yellow_threshold"),
+      red_threshold: thStr(thresholds, "red", "red_threshold"),
+      blue_threshold: thStr(thresholds, "blue", "blue_threshold"),
+      monthly_data: Array.isArray(rawItem.monthly_data) ? rawItem.monthly_data : [],
+    };
+  }
+
+  function getChairmanAggregatedTilesFromRaw(rawBody) {
+    if (!rawBody || typeof rawBody !== "object") return null;
+    var periodState =
+      typeof DashboardMonthNav !== "undefined" && DashboardMonthNav && typeof DashboardMonthNav.getPeriodState === "function"
+        ? DashboardMonthNav.getPeriodState()
+        : null;
+    var year = periodState && periodState.currentPeriodYear != null ? periodState.currentPeriodYear : null;
+    var month = periodState && periodState.currentPeriodMonth != null ? periodState.currentPeriodMonth : null;
+    var selectedQuarters = periodState && Array.isArray(periodState.selectedQuarters) ? periodState.selectedQuarters : [];
+    if (year == null || month == null) return null;
+
+    var tilesBlock = rawBody["Плитки"];
+    var items = tilesBlock && Array.isArray(tilesBlock.items) ? tilesBlock.items : [];
+    if (!items.length) return null;
+
+    var mode = chairmanAggregationMode || "current";
+    return items
+      .map(function (item) {
+        var point = computeChairmanAggregatedPoint(item, year, month, mode, selectedQuarters);
+        return normalizeKpiTileFromRawItem(item, point, mode);
+      })
+      .filter(Boolean);
+  }
+
+  function rerenderChairmanTilesFromRaw() {
+    if (!lastRawKpiResponse) return false;
+    var tiles = getChairmanAggregatedTilesFromRaw(lastRawKpiResponse);
+    if (!tiles || !tiles.length) return false;
+    renderKpiTiles(tiles);
+    renderDonutCharts();
+    return true;
   }
 
   function shouldUseBoardChairExecutiveTables() {
@@ -1453,7 +1991,9 @@
    * При ошибке или mock — fallback на `MockData`.
    */
   function loadKpiTilesAndChartsForView() {
-    // Если мы на обзорном экране ПСД (2 карточки), полный дашборд НЕ должен появляться ниже.
+    /* Уход с корня иерархии: скрыть обзор ПСД, иначе isChairmanOverviewVisible остаётся true и данные не грузятся */
+    callChairmanOverview("leaveOverviewIfNotAtRoot", []);
+    // Если мы на обзорном экране ПСД (карточки каталогов), полный дашборд НЕ должен появляться ниже.
     if (isChairmanOverviewVisible()) return;
     callDataLoader("loadKpiTilesAndChartsForView");
   }
@@ -1470,7 +2010,8 @@
   }
 
   var isBoardChairSession = isBoardChairUser(sessionUser);
-  if (isBoardChairSession && session.apiMode !== "mock") {
+  /* ПСД: до решения об обзоре не грузим полный дашборд (иначе hideLoading откроет #dash-content). */
+  if (isBoardChairSession) {
     showLoading();
   } else {
     loadKpiTilesAndChartsForView();
@@ -1482,9 +2023,8 @@
       renderViewTabs();
       updateTopBarForView();
       var shown = callChairmanOverview("showIfNeeded", [], false);
-      if (shown) {
-        hideLoading();
-      } else if (isBoardChairSession && session.apiMode !== "mock") {
+      /* Если обзор ПСД не показан — догружаем обычный дашборд. После show() нельзя вызывать hideLoading(): он открывает #dash-content. */
+      if (!shown && isBoardChairSession) {
         loadKpiTilesAndChartsForView();
       }
     });

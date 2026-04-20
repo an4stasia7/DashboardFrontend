@@ -49,5 +49,8 @@
       backDepartmentsOnly: true,
       frontAccentColor: "#374e6f",
     },
+    "MRK-04": {
+      kpiPctOnly: true,
+    },
   };
 })(typeof window !== "undefined" ? window : globalThis);

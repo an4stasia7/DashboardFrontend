@@ -346,6 +346,10 @@
   align-items: center;
 }
 
+.table-title-help-wrap[hidden] {
+  display: none !important;
+}
+
 .table-title-help-btn {
   width: 24px;
   height: 24px;
@@ -861,7 +865,12 @@
 .table-panel table.dataTable#table-overdue-debt thead .sorting_asc,
 .table-panel table.dataTable#table-overdue-debt thead .sorting_desc,
 .table-panel table.dataTable#table-overdue-debt thead .sorting_asc_disabled,
-.table-panel table.dataTable#table-overdue-debt thead .sorting_desc_disabled {
+.table-panel table.dataTable#table-overdue-debt thead .sorting_desc_disabled,
+.table-panel table.dataTable#table-lawsuits thead .sorting,
+.table-panel table.dataTable#table-lawsuits thead .sorting_asc,
+.table-panel table.dataTable#table-lawsuits thead .sorting_desc,
+.table-panel table.dataTable#table-lawsuits thead .sorting_asc_disabled,
+.table-panel table.dataTable#table-lawsuits thead .sorting_desc_disabled {
   background-image: none !important;
 }
 
@@ -884,7 +893,17 @@
 .table-panel table.dataTable#table-overdue-debt thead .sorting_asc_disabled::before,
 .table-panel table.dataTable#table-overdue-debt thead .sorting_asc_disabled::after,
 .table-panel table.dataTable#table-overdue-debt thead .sorting_desc_disabled::before,
-.table-panel table.dataTable#table-overdue-debt thead .sorting_desc_disabled::after {
+.table-panel table.dataTable#table-overdue-debt thead .sorting_desc_disabled::after,
+.table-panel table.dataTable#table-lawsuits thead .sorting::before,
+.table-panel table.dataTable#table-lawsuits thead .sorting::after,
+.table-panel table.dataTable#table-lawsuits thead .sorting_asc::before,
+.table-panel table.dataTable#table-lawsuits thead .sorting_asc::after,
+.table-panel table.dataTable#table-lawsuits thead .sorting_desc::before,
+.table-panel table.dataTable#table-lawsuits thead .sorting_desc::after,
+.table-panel table.dataTable#table-lawsuits thead .sorting_asc_disabled::before,
+.table-panel table.dataTable#table-lawsuits thead .sorting_asc_disabled::after,
+.table-panel table.dataTable#table-lawsuits thead .sorting_desc_disabled::before,
+.table-panel table.dataTable#table-lawsuits thead .sorting_desc_disabled::after {
   display: none !important;
   content: none !important;
 }

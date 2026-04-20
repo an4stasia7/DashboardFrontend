@@ -98,23 +98,65 @@
       <div class="dash-content" id="dash-content" hidden>
 
       <nav class="month-navigator" id="month-navigator" hidden>
-        <button type="button" class="month-nav-arrow month-nav-prev" id="month-nav-prev" aria-label="Предыдущий месяц">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8L10 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </button>
-        <span class="month-nav-label" id="month-nav-label">—</span>
-        <button type="button" class="month-nav-arrow month-nav-next" id="month-nav-next" aria-label="Следующий месяц">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 3L11 8L6 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        </button>
-        <button
-          type="button"
-          class="month-nav-warning"
-          id="month-nav-warning"
-          aria-label="Данные представлены не за полный месяц"
-          title="Данные представлены не за полный месяц"
-          hidden
-        >
-          <span class="month-nav-warning-icon" aria-hidden="true">!</span>
-        </button>
+        <div class="month-nav-core" id="month-nav-core">
+          <button type="button" class="month-nav-arrow month-nav-prev" id="month-nav-prev" aria-label="Предыдущий месяц">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 3L5 8L10 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <span class="month-nav-label" id="month-nav-label">—</span>
+          <button type="button" class="month-nav-arrow month-nav-next" id="month-nav-next" aria-label="Следующий месяц">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 3L11 8L6 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+
+        <div class="month-nav-controls" id="month-nav-controls">
+          <div class="month-nav-quarter-wrap" id="month-nav-quarter-wrap" hidden>
+            <button
+              type="button"
+              class="month-nav-quarter-trigger"
+              id="month-nav-quarter-trigger"
+              aria-label="Выбор кварталов"
+              aria-haspopup="dialog"
+              aria-expanded="false"
+              aria-controls="month-nav-quarter-popover"
+            >
+              Кварталы
+            </button>
+            <div
+              class="month-nav-quarter-popover"
+              id="month-nav-quarter-popover"
+              role="dialog"
+              aria-label="Выбор кварталов для агрегации"
+              hidden
+            >
+              <div class="month-nav-quarter-popover-title">Кварталы</div>
+              <div class="month-nav-quarter-options" id="month-nav-quarter-options"></div>
+              <div class="month-nav-quarter-actions">
+                <button type="button" class="month-nav-quarter-action" id="month-nav-quarter-apply">Применить</button>
+                <button type="button" class="month-nav-quarter-action month-nav-quarter-action--ghost" id="month-nav-quarter-cancel">Отмена</button>
+              </div>
+            </div>
+          </div>
+          <select
+            class="month-nav-aggregation"
+            id="month-nav-aggregation"
+            aria-label="Режим агрегации показателей"
+            hidden
+          >
+            <option value="current">На текущий момент</option>
+            <option value="quarter">За квартал</option>
+            <option value="ytd">С начала года</option>
+          </select>
+          <button
+            type="button"
+            class="month-nav-warning"
+            id="month-nav-warning"
+            aria-label="Данные представлены не за полный месяц"
+            title="Данные представлены не за полный месяц"
+            hidden
+          >
+            <span class="month-nav-warning-icon" aria-hidden="true">!</span>
+          </button>
+        </div>
       </nav>
 
       <div class="dash-kpi-tiles-block">
@@ -287,18 +329,17 @@
                   <th>Тип документа</th>
                   <th>Контрагент</th>
                   <th>Предмет спора</th>
-                  <th>Сумма требований, руб.</th>
                   <th>Роль ГК в споре</th>
                   <th>Юр. лицо</th>
                   <th>Подразделение</th>
+                  <th>Сумма требований, руб.</th>
                 </tr>
               </thead>
               <tbody></tbody>
               <tfoot>
                 <tr>
-                  <th colspan="3">Итого</th>
+                  <th colspan="6">Итого</th>
                   <th id="lawsuits-table-total-sum">0,00</th>
-                  <th colspan="3"></th>
                 </tr>
               </tfoot>
             </table>
@@ -332,7 +373,7 @@
 
       </div><!-- /.dash-content -->
 
-          <section class="table-panel" id="debug-kpi-json-section" style="margin-top:24px" hidden>
+          <section class="table-panel" id="debug-kpi-json-section" hidden>
             <h2>DEBUG: все JSON-ответы API</h2>
             <p class="debug-json-log-hint">Журнал запросов: вход (POST login), KPI (GET /api/kpi/, /api/kpi/all/), подчинённые (GET immediate-subordinates). Новые записи сверху.</p>
             <div id="debug-kpi-json" class="debug-kpi-json-panel"></div>
