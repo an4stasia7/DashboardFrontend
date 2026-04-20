@@ -1767,7 +1767,8 @@
   }
 
   var isBoardChairSession = isBoardChairUser(sessionUser);
-  if (isBoardChairSession && session.apiMode !== "mock") {
+  /* ПСД: до решения об обзоре не грузим полный дашборд (иначе hideLoading откроет #dash-content). */
+  if (isBoardChairSession) {
     showLoading();
   } else {
     loadKpiTilesAndChartsForView();
@@ -1779,9 +1780,8 @@
       renderViewTabs();
       updateTopBarForView();
       var shown = callChairmanOverview("showIfNeeded", [], false);
-      if (shown) {
-        hideLoading();
-      } else if (isBoardChairSession && session.apiMode !== "mock") {
+      /* Если обзор ПСД не показан — догружаем обычный дашборд. После show() нельзя вызывать hideLoading(): он открывает #dash-content. */
+      if (!shown && isBoardChairSession) {
         loadKpiTilesAndChartsForView();
       }
     });
