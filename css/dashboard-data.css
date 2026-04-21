@@ -266,7 +266,40 @@
   position: relative;
 }
 
-/* Tables block */
+/* Tables block: чекбокс ПСД «< 1 млн» в шапке первой панели (.table-panel-title) */
+.psd-table-amount-filter-wrap {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.psd-table-amount-filter-wrap[hidden] {
+  display: none !important;
+}
+
+.psd-table-amount-filter-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 4px 0 4px 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #475569;
+  cursor: pointer;
+  user-select: none;
+  border-left: 1px solid #e2e8f0;
+}
+
+.psd-table-amount-filter-label input {
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+  accent-color: var(--accent-blue, #2563eb);
+  cursor: pointer;
+}
+
 .tables-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr);

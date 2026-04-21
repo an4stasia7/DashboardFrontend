@@ -1086,6 +1086,32 @@
     });
   }
 
+  function getPsdIncludeUnder1mCheckboxes() {
+    return {
+      primary: document.getElementById("psd-table-include-under-1m"),
+      overdue: document.getElementById("psd-table-include-under-1m-overdue"),
+    };
+  }
+
+  function syncPsdIncludeUnder1mFrom(source) {
+    var checked = !!(source && source.checked);
+    var p = getPsdIncludeUnder1mCheckboxes();
+    if (p.primary) p.primary.checked = checked;
+    if (p.overdue) p.overdue.checked = checked;
+  }
+
+  function bindPsdIncludeUnder1mCheckbox(el) {
+    if (!el || el.__dashboardPsdFilterBound) return;
+    el.__dashboardPsdFilterBound = true;
+    el.addEventListener("change", function () {
+      syncPsdIncludeUnder1mFrom(el);
+      initTables();
+    });
+  }
+
+  bindPsdIncludeUnder1mCheckbox(document.getElementById("psd-table-include-under-1m"));
+  bindPsdIncludeUnder1mCheckbox(document.getElementById("psd-table-include-under-1m-overdue"));
+
   if (claimsTableHelpBtnEl && claimsTableHelpPopoverEl) {
     claimsTableHelpBtnEl.addEventListener("click", function (e) {
       e.preventDefault();
@@ -1689,6 +1715,32 @@
     }
 
     updateClaimsTableSwitcherUi(showClaimsSwitcher);
+    updatePsdTableAmountFilterBarVisibility();
+  }
+
+  function updatePsdTableAmountFilterBarVisibility() {
+    var wrapClaims = document.getElementById("psd-table-amount-filter-wrap");
+    var wrapOverdue = document.getElementById("psd-table-amount-filter-wrap-overdue");
+    var boxes = getPsdIncludeUnder1mCheckboxes();
+    var wraps = [wrapClaims, wrapOverdue].filter(Boolean);
+    if (!wraps.length) return;
+    var show = isBoardChairUser(sessionUser) && typeof sessionUser === "object";
+    for (var i = 0; i < wraps.length; i++) {
+      var wrap = wraps[i];
+      if (show) {
+        wrap.hidden = false;
+        wrap.removeAttribute("hidden");
+        wrap.setAttribute("aria-hidden", "false");
+      } else {
+        wrap.hidden = true;
+        wrap.setAttribute("hidden", "");
+        wrap.setAttribute("aria-hidden", "true");
+      }
+    }
+    if (!show) {
+      if (boxes.primary) boxes.primary.checked = false;
+      if (boxes.overdue) boxes.overdue.checked = false;
+    }
   }
 
   function updateClaimsTableSwitcherUi(visible) {
@@ -1750,8 +1802,15 @@
     updateDashboardTableTitlesForRole();
     if (typeof DashboardClaimsTable === "undefined" || !DashboardClaimsTable) return;
     if (typeof DashboardClaimsTable.init === "function") {
-      var psdTableMinRub =
-        isBoardChairUser(sessionUser) && typeof sessionUser === "object" ? 1000000 : null;
+      var psdTableMinRub = null;
+      if (isBoardChairUser(sessionUser) && typeof sessionUser === "object") {
+        var p = getPsdIncludeUnder1mCheckboxes();
+        var showAll =
+          (p.primary && p.primary.checked) || (p.overdue && p.overdue.checked);
+        if (!showAll) {
+          psdTableMinRub = 1000000;
+        }
+      }
       DashboardClaimsTable.init({
         rows: lastApiTableRows,
         executiveMode: false,

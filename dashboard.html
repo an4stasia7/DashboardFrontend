@@ -291,6 +291,17 @@
                 <span>На контроле</span>
               </span>
             </span>
+            <span
+              id="psd-table-amount-filter-wrap"
+              class="psd-table-amount-filter-wrap"
+              hidden
+              aria-hidden="true"
+            >
+              <label class="psd-table-amount-filter-label" for="psd-table-include-under-1m">
+                <input type="checkbox" id="psd-table-include-under-1m" />
+                <span>&lt; 1 млн. руб.</span>
+              </label>
+            </span>
           </h2>
           <div class="dashboard-table-wrap dashboard-table-wrap--claims" data-claims-view="claims">
             <table id="table-top-deviations" class="dashboard-table" aria-label="Таблица претензий">
@@ -346,7 +357,20 @@
           </div>
         </section>
         <section class="table-panel">
-          <h2 id="overdue-debt-table-title">Расшифровка просроченной дебиторской задолженности</h2>
+          <h2 class="table-panel-title">
+            <span id="overdue-debt-table-title">Расшифровка просроченной дебиторской задолженности</span>
+            <span
+              id="psd-table-amount-filter-wrap-overdue"
+              class="psd-table-amount-filter-wrap"
+              hidden
+              aria-hidden="true"
+            >
+              <label class="psd-table-amount-filter-label" for="psd-table-include-under-1m-overdue">
+                <input type="checkbox" id="psd-table-include-under-1m-overdue" />
+                <span>&lt; 1 млн. руб.</span>
+              </label>
+            </span>
+          </h2>
           <div class="dashboard-table-wrap dashboard-table-wrap--claims dashboard-table-wrap--overdue-debt">
             <table id="table-overdue-debt" class="dashboard-table" aria-label="Расшифровка просроченной дебиторской задолженности">
               <thead>
