@@ -1733,6 +1733,17 @@
     if (nextView === "lawsuits") {
       hideClaimsTableHelpPopover();
     }
+
+    if (typeof $ !== "undefined" && $.fn && $.fn.DataTable) {
+      window.requestAnimationFrame(function () {
+        if ($.fn.DataTable.isDataTable("#table-top-deviations")) {
+          $("#table-top-deviations").DataTable().columns.adjust();
+        }
+        if ($.fn.DataTable.isDataTable("#table-lawsuits")) {
+          $("#table-lawsuits").DataTable().columns.adjust();
+        }
+      });
+    }
   }
 
   function initTables() {
@@ -1742,8 +1753,6 @@
       DashboardClaimsTable.init({
         rows: lastApiTableRows,
         executiveMode: false,
-        enhanceOverdueDebtTable: shouldUseCommercialDirectorOverdueDebtEnhancements(),
-        enableLawsuitsTable: shouldUseClaimsAndLawsuitsSwitcher(),
       });
     }
   }

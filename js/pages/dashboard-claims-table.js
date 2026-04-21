@@ -1020,8 +1020,6 @@
     options = options || {};
     var rows = Array.isArray(options.rows) ? options.rows : [];
     var executiveMode = !!options.executiveMode;
-    var enhanceOverdueDebtTable = !!options.enhanceOverdueDebtTable;
-    var enableLawsuitsTable = !!options.enableLawsuitsTable;
     destroyClaimsTables();
 
     var topBody = document.querySelector("#table-top-deviations tbody");
@@ -1039,14 +1037,10 @@
     resetDefaultTables();
     renderClaimsTableRows(rows);
     renderOverdueDebtTableRows(rows);
+    renderLawsuitsTableRows(rows);
     initClaimsDataTable();
-    if (enhanceOverdueDebtTable) {
-      initOverdueDebtDataTable();
-    }
-    if (enableLawsuitsTable) {
-      renderLawsuitsTableRows(rows);
-      initLawsuitsDataTable();
-    }
+    initOverdueDebtDataTable();
+    initLawsuitsDataTable();
   }
 
   global.DashboardClaimsTable = {

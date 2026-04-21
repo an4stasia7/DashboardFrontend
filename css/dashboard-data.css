@@ -425,7 +425,7 @@
 
 .dashboard-table-wrap--claims:has(.dashboard-table.dashboard-table--executive) {
   overflow-x: auto;
-  overflow-y: hidden;
+  overflow-y: auto;
 }
 
 /* Тонкие скроллы под светлые карточки (таблицы, фильтры, моб. карточка панели) */
@@ -1051,9 +1051,28 @@
   position: relative;
 }
 
+/* Область таблицы фиксированной высоты: вертикальный скролл справа, горизонтальный снизу при необходимости */
+.table-panel > .dashboard-table-wrap:not(:has(.dataTables_wrapper)) {
+  max-height: clamp(300px, 58vh, 820px);
+  overflow-x: auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 .table-panel .dashboard-table-wrap--claims .claims-table-scroll {
   overflow-x: auto;
-  overflow-y: visible;
+  overflow-y: auto;
+  max-height: clamp(300px, 58vh, 820px);
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.table-panel .dashboard-table-wrap--claims .claims-table-scroll thead th {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  background: #d9e2f3 !important;
+  box-shadow: 0 1px 0 #b8c5dc;
 }
 
 .table-panel .dashboard-table-wrap--claims .claims-table-top,
