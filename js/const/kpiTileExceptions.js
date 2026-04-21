@@ -56,10 +56,5 @@
     "MRK-08": {
       kpiPctOnly: true,
     },
-    "MRK-09": {
-      tenderStatusOverview: true,
-      hideHelp: true,
-      hideKpiPercent: true,
-    },
   };
 })(typeof window !== "undefined" ? window : globalThis);

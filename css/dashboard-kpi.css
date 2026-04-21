@@ -708,7 +708,7 @@ article.kpi-tile[data-no-flip="1"] {
   flex-direction: column;
   justify-content: flex-start;
   gap: 2px;
-  min-height: 6.4rem;
+  min-height: 8.2rem;
 }
 
 .kpi-tile.kpi-tile--pct-only .tile-body {
@@ -966,12 +966,7 @@ article.kpi-tile[data-no-flip="1"] {
   flex: 1 1 auto;
   min-width: 0;
   white-space: normal;
-  min-height: calc(1.22em * 2);
-}
-
-.kpi-tile-face--front h3.is-long-title {
-  font-size: 0.96rem;
-  line-height: 1.2;
+  min-height: calc(1.25em * 2);
 }
 
 .kpi-tile-face--front .period {
