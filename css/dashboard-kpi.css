@@ -899,6 +899,10 @@ article.kpi-tile[data-no-flip="1"] {
   white-space: normal;
 }
 
+.kpi-tile-face--front h3.kpi-tile-title--short {
+  font-size: 1.3rem;
+}
+
 .kpi-tile-face--front .period {
   margin: 0;
   font-size: 1.12rem;

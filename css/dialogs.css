@@ -199,3 +199,7 @@
   text-align: center;
   overflow-wrap: break-word;
 }
+
+.chart-preview-donut-label.chart-preview-donut-label--short {
+  font-size: 0.92rem;
+}

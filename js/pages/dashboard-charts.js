@@ -1033,8 +1033,12 @@
 
         var label = document.createElement("div");
         label.className = "chart-preview-donut-label";
+        var previewLabelText = String(tile.title || tile.badge || "").trim();
         label.textContent = tile.title || tile.badge || "";
         label.title = tile.title || "";
+        if (previewLabelText.length > 0 && previewLabelText.length <= 10) {
+          label.classList.add("chart-preview-donut-label--short");
+        }
 
         cell.appendChild(chartHost);
         cell.appendChild(label);
@@ -1079,8 +1083,12 @@
       chartDiv.id = "donut-chart-" + String(idx);
       var label = document.createElement("div");
       label.className = "donut-label";
+      var labelText = String(tile.title || tile.badge || "").trim();
       label.textContent = tile.title || tile.badge || "";
       label.title = tile.title || "";
+      if (labelText.length > 0 && labelText.length <= 10) {
+        label.classList.add("donut-label--short");
+      }
       cell.appendChild(chartDiv);
       cell.appendChild(label);
       grid.appendChild(cell);

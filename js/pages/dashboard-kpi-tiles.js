@@ -144,10 +144,16 @@
           DashUi.escapeHtml(pfPeriod) +
           "</span>"
         : "";
+    var titleForLen = tile.title != null ? String(tile.title) : "";
+    var titleTrimLen = titleForLen.trim().length;
+    var titleShortClass =
+      titleTrimLen > 0 && titleTrimLen <= 10 ? ' class="kpi-tile-title--short"' : "";
     return (
       '<div class="tile-body">' +
       '<div class="kpi-tile-title-row">' +
-      "<h3>" +
+      "<h3" +
+      titleShortClass +
+      ">" +
       DashUi.escapeHtml(tile.title) +
       "</h3>" +
       generatedFlag +
