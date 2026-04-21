@@ -923,10 +923,6 @@ article.kpi-tile[data-no-flip="1"] {
   line-height: 1.2;
 }
 
-.kpi-tile-face--front h3.kpi-tile-title--short {
-  font-size: 1.3rem;
-}
-
 .kpi-tile-face--front .period {
   margin: 0;
   font-size: 0.86rem;
