@@ -1750,9 +1750,12 @@
     updateDashboardTableTitlesForRole();
     if (typeof DashboardClaimsTable === "undefined" || !DashboardClaimsTable) return;
     if (typeof DashboardClaimsTable.init === "function") {
+      var psdTableMinRub =
+        isBoardChairUser(sessionUser) && typeof sessionUser === "object" ? 1000000 : null;
       DashboardClaimsTable.init({
         rows: lastApiTableRows,
         executiveMode: false,
+        filterRowsMinAmountRub: psdTableMinRub,
       });
     }
   }
