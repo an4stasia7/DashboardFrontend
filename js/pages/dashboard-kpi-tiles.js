@@ -144,17 +144,13 @@
           DashUi.escapeHtml(pfPeriod) +
           "</span>"
         : "";
-    var titleForLen = tile.title != null ? String(tile.title) : "";
-    var titleTrimLen = titleForLen.trim().length;
-    var titleShortClass =
-      titleTrimLen > 0 && titleTrimLen <= 10 ? ' class="kpi-tile-title--short"' : "";
+    var titleText = String(tile.title || "");
+    var longTitleClass = titleText.length > 24 ? " is-long-title" : "";
     return (
       '<div class="tile-body">' +
       '<div class="kpi-tile-title-row">' +
-      "<h3" +
-      titleShortClass +
-      ">" +
-      DashUi.escapeHtml(tile.title) +
+      '<h3 class="kpi-tile-title' + longTitleClass + '">' +
+      DashUi.escapeHtml(titleText) +
       "</h3>" +
       generatedFlag +
       "</div>" +
