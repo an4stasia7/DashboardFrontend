@@ -52,5 +52,15 @@
     "MRK-04": {
       kpiPctOnly: true,
     },
+    "MRK-06": {
+      kpiPctOnly: true,
+      normLabel: "Норма: ≤ 70%",
+    },
+    "MRK-07": {
+      kpiPctOnly: true,
+    },
+    "MRK-08": {
+      kpiPctOnly: true,
+    },
   };
 })(typeof window !== "undefined" ? window : globalThis);
