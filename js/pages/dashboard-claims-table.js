@@ -396,13 +396,19 @@
       .forEach(function (item) {
         var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
         if (!raw) return;
+        var counterparty = raw.counterparty != null && String(raw.counterparty).trim() !== ""
+          ? raw.counterparty
+          : raw.partner_name;
+        var orderNum = raw.order_num != null && String(raw.order_num).trim() !== ""
+          ? raw.order_num
+          : raw.order_number;
         var tr = document.createElement("tr");
         [
-          "—",
-          tableTextOrDash(raw.counterparty),
+          tableTextOrDash(orderNum),
+          tableTextOrDash(counterparty),
           raw.days_overdue != null && raw.days_overdue !== "" ? tableTextOrDash(raw.days_overdue) : "—",
           tableTextOrDash(raw.reason),
-          "—",
+          tableTextOrDash(raw.action),
           formatClaimsOrderSum(raw.amount),
         ].forEach(function (value, cellIndex) {
           var td = document.createElement("td");

@@ -645,8 +645,9 @@
   background: #ffffff;
   vertical-align: top;
   line-height: 1.45;
-  overflow-wrap: break-word;
+  overflow-wrap: normal;
   word-break: normal;
+  hyphens: none;
   white-space: normal;
 }
 
@@ -700,14 +701,14 @@
 
 .dashboard-table#table-top-deviations th:nth-child(9),
 .dashboard-table#table-top-deviations td:nth-child(9) {
-  width: 8%;
-  min-width: 136px;
+  width: 24%;
+  min-width: 320px;
 }
 
 .dashboard-table#table-top-deviations th:nth-child(10),
 .dashboard-table#table-top-deviations td:nth-child(10) {
-  width: 23%;
-  min-width: 260px;
+  width: 7%;
+  min-width: 120px;
 }
 
 .dashboard-table#table-top-deviations th:nth-child(11),
@@ -724,9 +725,9 @@
 .dashboard-table#table-top-deviations thead th,
 .dashboard-table#table-top-deviations tbody td {
   white-space: normal;
-  overflow-wrap: break-word;
+  overflow-wrap: normal;
   word-break: normal;
-  hyphens: manual;
+  hyphens: none;
   line-height: 1.35;
 }
 
@@ -748,8 +749,9 @@
   padding: 12px 16px;
   vertical-align: top;
   white-space: normal;
-  overflow-wrap: break-word;
+  overflow-wrap: normal;
   word-break: normal;
+  hyphens: none;
   line-height: 1.45;
 }
 
@@ -985,7 +987,19 @@
 
 .table-panel .dashboard-table-wrap--claims .claims-table-scroll {
   overflow-x: auto;
-  overflow-y: visible;
+  overflow-y: auto;
+  max-height: 520px;
+}
+
+.table-panel .dashboard-table-wrap--claims .claims-table-scroll table.dataTable {
+  margin: 0;
+}
+
+.table-panel .dashboard-table-wrap--claims .claims-table-scroll thead th {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  background: #f7fafc;
 }
 
 .table-panel .dashboard-table-wrap--claims .claims-table-top,
