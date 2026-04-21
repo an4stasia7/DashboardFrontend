@@ -1363,9 +1363,51 @@
     return "";
   }
 
+  function parseLooseNumber(value) {
+    var mod = getAggregationModule();
+    if (mod && typeof mod.parseNumberLoose === "function") {
+      var parsed = mod.parseNumberLoose(value);
+      return typeof parsed === "number" && !isNaN(parsed) ? parsed : null;
+    }
+    if (typeof value === "number" && !isNaN(value)) return value;
+    if (value == null || value === "") return null;
+    var fallback = parseFloat(String(value).replace(/[^\d.,\-]/g, "").replace(",", "."));
+    return isNaN(fallback) ? null : fallback;
+  }
+
+  function getFotTurnoverPercentFromSource(source) {
+    if (!source || typeof source !== "object") return null;
+    var pct = parseLooseNumber(source.kpi_pct);
+    if (pct == null) pct = parseLooseNumber(source.kpi_pst);
+    if (pct == null) {
+      var plan = parseLooseNumber(source.plan);
+      var fact = parseLooseNumber(source.fact);
+      if (plan != null && fact != null && Math.abs(plan) > 0.000001) {
+        pct = (fact / plan) * 100;
+      }
+    }
+    return pct;
+  }
+
+  function applyFotTurnoverPriorMonthValues(target, source, periodLabel) {
+    if (!target || !source) return target;
+    var next = Object.assign({}, target);
+    if (source.plan !== undefined) next.plan = source.plan;
+    if (source.fact !== undefined) next.fact = source.fact;
+    if (typeof source.has_data === "boolean") next.has_data = source.has_data;
+    var pct = getFotTurnoverPercentFromSource(source);
+    if (pct != null) {
+      next.kpi_pct = pct;
+      next.kpi_pst = pct;
+      next.percent = pct;
+    }
+    if (periodLabel) next.plan_fact_period_label = periodLabel;
+    return next;
+  }
+
   /**
    * Для выбранного текущего календарного месяца (ещё не закончившегося) на плитках с «ФОТ» / «текучестью» в названии
-   * показываем план/факт за предыдущий месяц (из monthly_data).
+   * показываем план, факт и KPI за предыдущий месяц (из monthly_data).
    */
   function applyPriorMonthFactForFotTurnoverTiles(tiles) {
     if (!Array.isArray(tiles) || !tiles.length) return tiles;
@@ -1389,19 +1431,11 @@
       if (!Array.isArray(monthly) || !monthly.length) return tile;
       var prevPoint = findMonthlyDataPoint(monthly, prevYm.year, prevYm.month);
       if (!prevPoint) return tile;
-
-      var next = Object.assign({}, tile);
-      if (prevPoint.plan !== undefined) next.plan = prevPoint.plan;
-      if (prevPoint.fact !== undefined) next.fact = prevPoint.fact;
-      if (typeof prevPoint.has_data === "boolean") next.has_data = prevPoint.has_data;
-      if (typeof prevPoint.kpi_pct === "number" && !isNaN(prevPoint.kpi_pct)) {
-        next.kpi_pct = prevPoint.kpi_pct;
-        next.kpi_pst = prevPoint.kpi_pct;
-        next.percent = prevPoint.kpi_pct;
-      }
-      var pl = planFactPeriodLabelFromMonthlyPoint(prevPoint, prevYm.year);
-      if (pl) next.plan_fact_period_label = pl;
-      return next;
+      return applyFotTurnoverPriorMonthValues(
+        tile,
+        prevPoint,
+        planFactPeriodLabelFromMonthlyPoint(prevPoint, prevYm.year)
+      );
     });
   }
 
@@ -1492,20 +1526,11 @@
       var id = tile.kpi_id != null ? String(tile.kpi_id).trim() : "";
       var src = id && byId[id] ? byId[id] : byTitle[normalizeKpiTitleForMatch(tile.title)];
       if (!src) return tile;
-      var next = Object.assign({}, tile);
-      if (src.plan !== undefined) next.plan = src.plan;
-      if (src.fact !== undefined) next.fact = src.fact;
-      if (typeof src.has_data === "boolean") next.has_data = src.has_data;
-      if (typeof src.kpi_pct === "number" && !isNaN(src.kpi_pct)) {
-        next.kpi_pct = src.kpi_pct;
-        next.kpi_pst = src.kpi_pct;
-        next.percent = src.kpi_pct;
-      }
       var pl =
         src.plan_fact_period_label != null && String(src.plan_fact_period_label).trim()
           ? String(src.plan_fact_period_label).trim()
           : fallbackLabel;
-      next.plan_fact_period_label = pl;
+      var next = applyFotTurnoverPriorMonthValues(tile, src, pl);
       next.__priorMonthMergedFromKpiAll = true;
       return next;
     });
