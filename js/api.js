@@ -1444,6 +1444,8 @@
       (row.code != null && String(row.code).trim() !== "") ||
       (row.number != null && String(row.number).trim() !== "") ||
       (row.counterparty != null && String(row.counterparty).trim() !== "") ||
+      (row.partner_name != null && String(row.partner_name).trim() !== "") ||
+      (row.order_num != null && String(row.order_num).trim() !== "") ||
       row.plan !== undefined ||
       row.fact !== undefined ||
       row.order_sum !== undefined ||

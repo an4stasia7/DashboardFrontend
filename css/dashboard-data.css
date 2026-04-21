@@ -645,8 +645,9 @@
   background: #ffffff;
   vertical-align: top;
   line-height: 1.45;
-  overflow-wrap: break-word;
+  overflow-wrap: normal;
   word-break: normal;
+  hyphens: none;
   white-space: normal;
 }
 
@@ -657,76 +658,187 @@
 .dashboard-table#table-top-deviations th:nth-child(1),
 .dashboard-table#table-top-deviations td:nth-child(1) {
   width: 5%;
-  min-width: 72px;
+  min-width: 90px;
 }
 
 .dashboard-table#table-top-deviations th:nth-child(2),
 .dashboard-table#table-top-deviations td:nth-child(2) {
   width: 9%;
-  min-width: 128px;
+  min-width: 170px;
 }
 
 .dashboard-table#table-top-deviations th:nth-child(3),
 .dashboard-table#table-top-deviations td:nth-child(3) {
-  width: 9%;
-  min-width: 136px;
+  width: 12%;
+  min-width: 240px;
 }
 
 .dashboard-table#table-top-deviations th:nth-child(4),
 .dashboard-table#table-top-deviations td:nth-child(4),
 .dashboard-table#table-top-deviations th:nth-child(5),
 .dashboard-table#table-top-deviations td:nth-child(5) {
-  width: 7%;
-  min-width: 118px;
+  width: 6%;
+  min-width: 120px;
 }
 
 .dashboard-table#table-top-deviations th:nth-child(6),
 .dashboard-table#table-top-deviations td:nth-child(6) {
   width: 7%;
-  min-width: 118px;
+  min-width: 140px;
 }
 
 .dashboard-table#table-top-deviations th:nth-child(7),
 .dashboard-table#table-top-deviations td:nth-child(7) {
-  width: 9%;
-  min-width: 156px;
+  width: 10%;
+  min-width: 210px;
 }
 
 .dashboard-table#table-top-deviations th:nth-child(8),
 .dashboard-table#table-top-deviations td:nth-child(8) {
-  width: 10%;
-  min-width: 176px;
+  width: 11%;
+  min-width: 220px;
 }
 
 .dashboard-table#table-top-deviations th:nth-child(9),
 .dashboard-table#table-top-deviations td:nth-child(9) {
-  width: 8%;
-  min-width: 136px;
+  width: 18%;
+  min-width: 360px;
 }
 
 .dashboard-table#table-top-deviations th:nth-child(10),
 .dashboard-table#table-top-deviations td:nth-child(10) {
-  width: 23%;
-  min-width: 260px;
+  width: 9%;
+  min-width: 180px;
 }
 
 .dashboard-table#table-top-deviations th:nth-child(11),
 .dashboard-table#table-top-deviations td:nth-child(11) {
-  width: 8%;
-  min-width: 120px;
+  width: 7%;
+  min-width: 150px;
 }
 
 .dashboard-table#table-top-deviations {
   table-layout: fixed;
-  min-width: 1720px;
+  min-width: 2000px;
+}
+
+/* ── Таблица просроченной ДЗ (#table-overdue-debt) ── */
+.dashboard-table#table-overdue-debt {
+  table-layout: fixed;
+  min-width: 1280px;
+}
+
+.dashboard-table#table-overdue-debt:not(.dashboard-table--executive) th:nth-child(1),
+.dashboard-table#table-overdue-debt:not(.dashboard-table--executive) td:nth-child(1) {
+  width: 12%;
+  min-width: 150px;
+}
+
+.dashboard-table#table-overdue-debt:not(.dashboard-table--executive) th:nth-child(2),
+.dashboard-table#table-overdue-debt:not(.dashboard-table--executive) td:nth-child(2) {
+  width: 18%;
+  min-width: 240px;
+}
+
+.dashboard-table#table-overdue-debt:not(.dashboard-table--executive) th:nth-child(3),
+.dashboard-table#table-overdue-debt:not(.dashboard-table--executive) td:nth-child(3) {
+  width: 10%;
+  min-width: 120px;
+}
+
+.dashboard-table#table-overdue-debt:not(.dashboard-table--executive) th:nth-child(4),
+.dashboard-table#table-overdue-debt:not(.dashboard-table--executive) td:nth-child(4) {
+  width: 22%;
+  min-width: 260px;
+}
+
+.dashboard-table#table-overdue-debt:not(.dashboard-table--executive) th:nth-child(5),
+.dashboard-table#table-overdue-debt:not(.dashboard-table--executive) td:nth-child(5) {
+  width: 22%;
+  min-width: 240px;
+}
+
+.dashboard-table#table-overdue-debt:not(.dashboard-table--executive) th:nth-child(6),
+.dashboard-table#table-overdue-debt:not(.dashboard-table--executive) td:nth-child(6) {
+  width: 16%;
+  min-width: 170px;
+}
+
+.dashboard-table#table-overdue-debt thead th,
+.dashboard-table#table-overdue-debt tbody td {
+  white-space: normal;
+  overflow: hidden;
+  overflow-wrap: break-word;
+  word-break: normal;
+  hyphens: none;
+  line-height: 1.35;
+}
+
+/* ── Таблица судов (#table-lawsuits) ── */
+.dashboard-table#table-lawsuits {
+  table-layout: fixed;
+  min-width: 1900px;
+}
+
+.dashboard-table#table-lawsuits th:nth-child(1),
+.dashboard-table#table-lawsuits td:nth-child(1) {
+  width: 14%;
+  min-width: 280px;
+}
+
+.dashboard-table#table-lawsuits th:nth-child(2),
+.dashboard-table#table-lawsuits td:nth-child(2) {
+  width: 16%;
+  min-width: 260px;
+}
+
+.dashboard-table#table-lawsuits th:nth-child(3),
+.dashboard-table#table-lawsuits td:nth-child(3) {
+  width: 18%;
+  min-width: 300px;
+}
+
+.dashboard-table#table-lawsuits th:nth-child(4),
+.dashboard-table#table-lawsuits td:nth-child(4) {
+  width: 9%;
+  min-width: 150px;
+}
+
+.dashboard-table#table-lawsuits th:nth-child(5),
+.dashboard-table#table-lawsuits td:nth-child(5) {
+  width: 14%;
+  min-width: 240px;
+}
+
+.dashboard-table#table-lawsuits th:nth-child(6),
+.dashboard-table#table-lawsuits td:nth-child(6) {
+  width: 18%;
+  min-width: 310px;
+}
+
+.dashboard-table#table-lawsuits th:nth-child(7),
+.dashboard-table#table-lawsuits td:nth-child(7) {
+  width: 11%;
+  min-width: 180px;
+}
+
+.dashboard-table#table-lawsuits thead th,
+.dashboard-table#table-lawsuits tbody td {
+  white-space: normal;
+  overflow: hidden;
+  overflow-wrap: break-word;
+  word-break: normal;
+  hyphens: none;
+  line-height: 1.35;
 }
 
 .dashboard-table#table-top-deviations thead th,
 .dashboard-table#table-top-deviations tbody td {
   white-space: normal;
+  overflow: hidden;
   overflow-wrap: break-word;
   word-break: normal;
-  hyphens: manual;
+  hyphens: none;
   line-height: 1.35;
 }
 
@@ -748,8 +860,9 @@
   padding: 12px 16px;
   vertical-align: top;
   white-space: normal;
-  overflow-wrap: break-word;
+  overflow-wrap: normal;
   word-break: normal;
+  hyphens: none;
   line-height: 1.45;
 }
 
@@ -767,9 +880,9 @@
 .dashboard-table#table-top-deviations thead th:nth-child(8),
 .dashboard-table#table-top-deviations tbody td:nth-child(8) {
   white-space: normal;
-  overflow-wrap: break-word;
+  overflow-wrap: normal;
   word-break: normal;
-  hyphens: auto;
+  hyphens: none;
 }
 
 .dashboard-table.dashboard-table--executive {
@@ -989,6 +1102,17 @@
   max-height: clamp(180px, 60vh, 560px);
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
+}
+
+.table-panel .dashboard-table-wrap--claims .claims-table-scroll table.dataTable {
+  margin: 0;
+}
+
+.table-panel .dashboard-table-wrap--claims .claims-table-scroll thead th {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  background: #f7fafc;
 }
 
 .table-panel .dashboard-table-wrap--claims .claims-table-top,
