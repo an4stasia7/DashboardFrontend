@@ -144,11 +144,13 @@
           DashUi.escapeHtml(pfPeriod) +
           "</span>"
         : "";
+    var titleText = String(tile.title || "");
+    var longTitleClass = titleText.length > 24 ? " is-long-title" : "";
     return (
       '<div class="tile-body">' +
       '<div class="kpi-tile-title-row">' +
-      "<h3>" +
-      DashUi.escapeHtml(tile.title) +
+      '<h3 class="kpi-tile-title' + longTitleClass + '">' +
+      DashUi.escapeHtml(titleText) +
       "</h3>" +
       generatedFlag +
       "</div>" +
