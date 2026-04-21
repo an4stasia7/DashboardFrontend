@@ -12,7 +12,7 @@
   var backBtnEl = null;
   var dashContentEl = null;
   var monthNavEl = null;
-  var chairmanTabsEl = null;
+  var dashboardTabsEl = null;
   var dashLoadingEl = null;
 
   /** Сколько карточек дашбордов показывать на одном «экране» (ряд в сетке). */
@@ -41,7 +41,7 @@
   }
 
   function getTargets() {
-    var list = call("getChairmanTargets", [], []);
+    var list = call("getDashboardTargets", [], []);
     return Array.isArray(list) ? list.slice() : [];
   }
 
@@ -85,13 +85,13 @@
     if (!backBtnEl) backBtnEl = document.getElementById("dash-chairman-overview-back");
     if (!dashContentEl) dashContentEl = document.getElementById("dash-content");
     if (!monthNavEl) monthNavEl = document.getElementById("month-navigator");
-    if (!chairmanTabsEl) chairmanTabsEl = document.getElementById("dashboard-chairman-tabs");
+    if (!dashboardTabsEl) dashboardTabsEl = document.getElementById("dashboard-chairman-tabs");
     if (!dashLoadingEl) dashLoadingEl = document.getElementById("dash-loading");
     return !!overviewEl;
   }
 
   /** Убирает «липкий» футер (margin-top: auto), иначе между карточками и «Для разработчика» — пустая полоса на всю высоту экрана. */
-  function setWorkspaceChairmanOverviewMode(on) {
+  function setWorkspaceOverviewMode(on) {
     var ws = document.querySelector(".dash-workspace");
     if (!ws) return;
     if (on) ws.classList.add("dash-workspace--chairman-overview");
@@ -99,8 +99,8 @@
   }
 
   function bindBackButton() {
-    if (!backBtnEl || backBtnEl.__chairmanOverviewBound) return;
-    backBtnEl.__chairmanOverviewBound = true;
+    if (!backBtnEl || backBtnEl.__overviewBound) return;
+    backBtnEl.__overviewBound = true;
     backBtnEl.addEventListener("click", function () {
       backToOverview();
     });
@@ -469,10 +469,10 @@
     overviewEl.hidden = false;
     if (dashContentEl) dashContentEl.hidden = true;
     if (monthNavEl) monthNavEl.hidden = true;
-    if (chairmanTabsEl) chairmanTabsEl.hidden = true;
+    if (dashboardTabsEl) dashboardTabsEl.hidden = true;
     if (overviewBarEl) overviewBarEl.hidden = true;
     if (dashLoadingEl) dashLoadingEl.hidden = true;
-    setWorkspaceChairmanOverviewMode(true);
+    setWorkspaceOverviewMode(true);
     render();
     loadAll();
   }
@@ -480,7 +480,7 @@
   function hide() {
     if (!ensureDom()) return;
     overviewEl.hidden = true;
-    setWorkspaceChairmanOverviewMode(false);
+    setWorkspaceOverviewMode(false);
   }
 
   function setExpandedBar(target) {
@@ -505,7 +505,7 @@
     if (!target) return;
     state.expandedCatalogId = target.catalogId || target.id || "";
     if (overviewEl) overviewEl.hidden = true;
-    setWorkspaceChairmanOverviewMode(false);
+    setWorkspaceOverviewMode(false);
     setExpandedBar(target);
     call("onExpand", [target]);
   }
@@ -568,7 +568,7 @@
     bindBackButton();
   }
 
-  global.DashboardChairmanOverview = {
+  var api = {
     init: init,
     show: show,
     hide: hide,
@@ -581,4 +581,5 @@
     reload: reload,
     invalidate: invalidate,
   };
+  global.DashboardOverview = api;
 })(typeof window !== "undefined" ? window : globalThis);

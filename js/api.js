@@ -1983,6 +1983,7 @@
    * @property {function(): Promise} fetchKpiUsers — GET без токена, список для login
    * @property {function({department?: string}=): Promise} fetchImmediateSubordinates
    * @property {function(): Promise} fetchChairmanDashboardCatalog
+   * @property {function(): Promise} fetchDashboardCatalog
    */
   global.Api = {
     login: login,
@@ -1998,6 +1999,7 @@
     fetchKpiAll: fetchKpiAll,
     fetchImmediateSubordinates: fetchImmediateSubordinates,
     fetchChairmanDashboardCatalog: fetchChairmanDashboardCatalog,
+    fetchDashboardCatalog: fetchChairmanDashboardCatalog,
     searchDepartments: searchDepartments,
     normalizeKpiListFromApiResponse: normalizeKpiListFromApiResponse,
     buildChartIndicatorsFromApiResponse: buildChartIndicatorsFromApiResponse,

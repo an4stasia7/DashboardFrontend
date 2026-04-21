@@ -21,9 +21,40 @@
     return typeof fn === "function" ? fn() : {};
   }
 
-  function getChairmanDashboardCatalogId() {
-    var fn = getContext().getChairmanDashboardCatalogId;
-    return typeof fn === "function" ? fn() : "";
+  function getAggregationModule() {
+    return typeof global.DashboardAggregation === "object" && global.DashboardAggregation ? global.DashboardAggregation : null;
+  }
+
+  function getAggregationMode() {
+    var fn = getContext().getAggregationMode;
+    if (typeof fn === "function") return fn();
+    var mod = getAggregationModule();
+    if (mod && typeof mod.getAggregationMode === "function") {
+      return mod.getAggregationMode({ periodState: getPeriodState() });
+    }
+    return "current";
+  }
+
+  function getAggregatedTilesFromRaw(rawBody) {
+    var fn = getContext().getAggregatedTilesFromRaw;
+    if (typeof fn === "function") return fn(rawBody);
+    var mod = getAggregationModule();
+    if (mod && typeof mod.getAggregatedTilesFromRaw === "function") {
+      return mod.getAggregatedTilesFromRaw(rawBody, {
+        mode: getAggregationMode(),
+        periodState: getPeriodState(),
+      });
+    }
+    return null;
+  }
+
+  function maybeAugmentTilesWithPriorMonthFetch(result, tilesToRender, done) {
+    var fn = getContext().maybeAugmentTilesWithPriorMonthFetch;
+    if (typeof fn === "function") {
+      fn(result, tilesToRender, done);
+      return;
+    }
+    done(tilesToRender);
   }
 
   function getDepartmentForCurrentKpiContext() {
@@ -157,11 +188,6 @@
     if (typeof fn === "function") fn(value);
   }
 
-  function getChairmanAggregationMode() {
-    var fn = getContext().getChairmanAggregationMode;
-    return typeof fn === "function" ? fn() : "current";
-  }
-
   function showLoading() {
     var loader = document.getElementById("dash-loading");
     var content = document.getElementById("dash-content");
@@ -282,8 +308,8 @@
     var role = getViewContextUser().role;
     if (result.ok && result.tiles && result.tiles.length > 0) {
       var tilesToRender = result.tiles;
-      if (getChairmanAggregationMode() !== "current" && typeof getContext().getChairmanAggregatedTilesFromRaw === "function") {
-        var aggregated = getContext().getChairmanAggregatedTilesFromRaw(result.data || result.raw || null);
+      if (getAggregationMode() !== "current") {
+        var aggregated = getAggregatedTilesFromRaw(result.data || result.raw || null);
         if (aggregated && aggregated.length) {
           tilesToRender = aggregated;
         }
@@ -294,20 +320,15 @@
         String(result.data.department).trim()
           ? String(result.data.department).trim()
           : getDepartmentForCurrentKpiContext();
-      var augment = getContext().maybeAugmentCommercialDeptTilesWithPriorMonthFetch;
-      if (typeof augment === "function") {
-        augment(result, tilesToRender, function (finalTiles) {
-          var t = finalTiles && finalTiles.length ? finalTiles : tilesToRender;
-          if (cacheKey) rememberDrilldownKpiTiles(cacheKey, t.slice());
-          renderKpiTiles(t);
-          updateTopBarForView();
-          hideLoading();
-          bootChartsAndTablesDeferred();
-        });
-        return;
-      }
-      if (cacheKey) rememberDrilldownKpiTiles(cacheKey, tilesToRender.slice());
-      renderKpiTiles(tilesToRender);
+      maybeAugmentTilesWithPriorMonthFetch(result, tilesToRender, function (finalTiles) {
+        var t = finalTiles && finalTiles.length ? finalTiles : tilesToRender;
+        if (cacheKey) rememberDrilldownKpiTiles(cacheKey, t.slice());
+        renderKpiTiles(t);
+        updateTopBarForView();
+        hideLoading();
+        bootChartsAndTablesDeferred();
+      });
+      return;
     } else {
       renderKpiTiles(getMockKpiTilesForRole(role));
     }

@@ -93,8 +93,8 @@
     return typeof fn === "function" ? fn() : "";
   }
 
-  function getChairmanDashboardCatalogId() {
-    var fn = getContext().getChairmanDashboardCatalogId;
+  function getDashboardCatalogId() {
+    var fn = getContext().getDashboardCatalogId;
     return typeof fn === "function" ? fn() : "";
   }
 
@@ -105,9 +105,9 @@
       return Promise.resolve({ ok: false, immediate_children: [] });
     }
     var fetchOpts = { department: department };
-    var chairmanFor = getChairmanDashboardCatalogId();
-    if (chairmanFor) {
-      fetchOpts.for = chairmanFor;
+    var catalogFor = getDashboardCatalogId();
+    if (catalogFor) {
+      fetchOpts.for = catalogFor;
     }
     return Api.fetchImmediateSubordinates(fetchOpts);
   }

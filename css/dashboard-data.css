@@ -985,7 +985,10 @@
 
 .table-panel .dashboard-table-wrap--claims .claims-table-scroll {
   overflow-x: auto;
-  overflow-y: visible;
+  overflow-y: auto;
+  max-height: clamp(180px, 60vh, 560px);
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .table-panel .dashboard-table-wrap--claims .claims-table-top,
