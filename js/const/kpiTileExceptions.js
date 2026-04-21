@@ -52,13 +52,9 @@
     "MRK-04": {
       kpiPctOnly: true,
     },
-    "MRK-05": {
-      factOnly: true,
-      hideHelp: true,
-      hideKpiPercent: true,
-    },
     "MRK-06": {
       kpiPctOnly: true,
+      normLabel: "Норма: ≤ 70%",
     },
     "MRK-07": {
       kpiPctOnly: true,

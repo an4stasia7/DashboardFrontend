@@ -189,14 +189,19 @@
     );
   }
 
-  function buildKpiTileKpiPctOnlyHtml(pctShown) {
+  function buildKpiTileKpiPctOnlyHtml(pctShown, normLabel) {
+    var normHtml = normLabel
+      ? '<span class="kpi-tile-pf-norm">' + DashUi.escapeHtml(normLabel) + '</span>'
+      : '';
     return (
       '<div class="kpi-tile-pf-stack">' +
       '<div class="kpi-tile-pf-inline">' +
       '<div class="kpi-tile-pf-inline-row">' +
       '<span class="kpi-tile-pf-pill">' +
       DashUi.escapeHtml(pctShown) +
-      '</span><span class="kpi-tile-pf-inline-label">KPI</span></div></div></div>'
+      '</span><span class="kpi-tile-pf-inline-label">KPI</span>' +
+      normHtml +
+      '</div></div></div>'
     );
   }
 
@@ -205,9 +210,10 @@
     if (rule && rule.kpiPctOnly) {
       var pres = MockData.getKpiTilePresentation(tile);
       var pctLabel = MockData.formatKpiPercentLabel(pres.percent) + "%";
+      var normLabel = rule && rule.normLabel ? String(rule.normLabel) : "";
       return (
         '<div class="kpi-tile-metrics kpi-tile-metrics--pf-only" aria-label="KPI">' +
-        buildKpiTileKpiPctOnlyHtml(pctLabel) +
+        buildKpiTileKpiPctOnlyHtml(pctLabel, normLabel) +
         "</div>"
       );
     }
