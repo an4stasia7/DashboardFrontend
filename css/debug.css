@@ -44,6 +44,11 @@
   max-height: min(220px, 28vh);
   overflow: auto;
   font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+  transition: max-height 0.18s ease;
+}
+
+#debug-kpi-json-section:has(.json-tree-root > .jt-toggle:not(.jt-collapsed)) .debug-kpi-json-panel {
+  max-height: min(420px, 55vh);
 }
 
 .debug-json-log-hint {
@@ -130,6 +135,11 @@
   max-height: min(180px, 24vh);
   overflow: auto;
   font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
+  transition: max-height 0.18s ease;
+}
+
+.json-tree-root:has(> .jt-toggle:not(.jt-collapsed)) {
+  max-height: min(360px, 48vh);
 }
 
 .json-tree-root .jt-source {
