@@ -1709,6 +1709,13 @@
       return "";
     }
 
+    // Когда пересчитываем плитку под режим агрегации (квартал / YTD),
+    // сохранённый на бэкенде цвет соответствует только месячному проценту
+    // и будет давать неверный RAG для агрегированного значения. В этих
+    // режимах отдаём решение по цвету порогам (`green_threshold` и т.д.).
+    var preserveBackendRag =
+      mode !== "quarter" && mode !== "ytd";
+
     return {
       kpi_id: rawItem.kpi_id != null ? String(rawItem.kpi_id) : "",
       title: title,
@@ -1741,7 +1748,9 @@
             : rawItem.comment != null
               ? String(rawItem.comment)
               : "",
-      rag: rawItem.color != null ? String(rawItem.color).toLowerCase().trim() : null,
+      rag: preserveBackendRag && rawItem.color != null
+        ? String(rawItem.color).toLowerCase().trim()
+        : null,
       green_threshold: thStr(thresholds, "green", "green_threshold"),
       yellow_threshold: thStr(thresholds, "yellow", "yellow_threshold"),
       red_threshold: thStr(thresholds, "red", "red_threshold"),

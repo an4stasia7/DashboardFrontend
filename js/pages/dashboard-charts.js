@@ -1069,6 +1069,7 @@
         aggregationMode: ctx.aggregationMode || "current",
         refMonth: ctx.refMonth,
         refYear: ctx.refYear,
+        getVisibleDonutTiles: ctx.getVisibleDonutTiles
       });
       if (renderedKs) {
         updateDonutChartsPagerUISafe(ctx.ksRazvitieChart.charts.length);
