@@ -91,6 +91,21 @@
   overflow: visible;
 }
 
+.donut-cell.donut-cell--ks .donut-label {
+  font-size: 12px;
+  line-height: 1.25;
+}
+
+.donut-cell--ks .donut-sublabel {
+  font-size: 10px;
+  color: #7a8699;
+  text-align: center;
+  line-height: 1.2;
+  max-width: 100%;
+  white-space: normal;
+  word-break: break-word;
+}
+
 .chart-preview-trigger {
   cursor: zoom-in;
 }

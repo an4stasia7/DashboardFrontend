@@ -83,6 +83,11 @@
     return !!(rule && rule.backDepartmentsOnly);
   }
 
+  function shouldShowKpiTileBackPlanFact(tile) {
+    var rule = getKpiTileException(tile);
+    return !!(rule && rule.showBackPlanFact);
+  }
+
   function buildKpiTileHelpButtonHtml() {
     return (
       '<button type="button" class="kpi-tile-help" aria-label="Справка: формула и цветовые пороги показателя" aria-haspopup="dialog" aria-controls="kpi-thresholds-dialog">' +
@@ -289,7 +294,11 @@
     var hint = tile && tile.hint != null ? String(tile.hint).trim() : "";
     var period = tile && tile.period != null ? String(tile.period).trim() : "";
     var code = tile && (tile.badge || tile.kpi_id) ? String(tile.badge || tile.kpi_id).trim() : "";
-    var hasPf = DashUi.kpiTileHasPlanAndFact(tile) && !isKpiPctOnlyTile(tile);
+    // Если плитка kpiPctOnly, но явно помечена showBackPlanFact — показываем План/Факт.
+    var forceBackPlanFact = shouldShowKpiTileBackPlanFact(tile);
+    var hasPf =
+      DashUi.kpiTileHasPlanAndFact(tile) &&
+      (!isKpiPctOnlyTile(tile) || forceBackPlanFact);
     var planFactShown =
       typeof DashUi.formatKpiTilePlanFactPair === "function"
         ? DashUi.formatKpiTilePlanFactPair(tile.plan, tile.fact, tile.units)
@@ -330,7 +339,7 @@
           DashUi.escapeHtml(percentLabel) +
           "</strong></div>"
         : "") +
-      (hasPf && shouldRenderKpiTileBack(tile) && !isKpiPctOnlyTile(tile)
+      (hasPf && shouldRenderKpiTileBack(tile) && (!isKpiPctOnlyTile(tile) || forceBackPlanFact)
         ? '<div class="kpi-tile-back-summary-item"><span class="kpi-tile-back-summary-label">План / факт</span><strong>' +
           DashUi.escapeHtml(planFactShown) +
           "</strong></div>"

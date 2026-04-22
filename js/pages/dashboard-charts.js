@@ -1060,12 +1060,38 @@
     grid.innerHTML = "";
     destroyDonutCharts();
 
+    var ctx = getContext();
+
+    // Если API отдал Графики.KS-RAZVITIE.charts — КС развитие полностью
+    // заменяет обычные donut-плитки KPI в этом блоке.
+    if (ctx.ksRazvitieChart && Array.isArray(ctx.ksRazvitieChart.charts) && ctx.ksRazvitieChart.charts.length) {
+      var renderedKs = renderKsRazvitieIntoDonutsGrid(grid, ctx.ksRazvitieChart, {
+        aggregationMode: ctx.aggregationMode || "current",
+        refMonth: ctx.refMonth,
+        refYear: ctx.refYear,
+      });
+      if (renderedKs) {
+        updateDonutChartsPagerUISafe(ctx.ksRazvitieChart.charts.length);
+        return;
+      }
+    }
+
     var tiles = getCurrentTiles();
     if (!tiles || !tiles.length || typeof Highcharts === "undefined") {
       updateDonutChartsPagerUISafe(0);
       grid.innerHTML =
         '<p style="margin:0;padding:20px;color:#64748b;font-size:14px;">Нет данных для диаграмм.</p>';
       return;
+    }
+
+    // Вернём оригинальный заголовок, если до этого рендерились КС-развитие.
+    try {
+      var titleEl = document.getElementById("donuts-grid-title");
+      if (titleEl && titleEl.textContent.indexOf("КС развитие") === 0) {
+        titleEl.textContent = "Показатели KPI";
+      }
+    } catch (e) {
+      /* ignore */
     }
 
     var visibleTiles = getVisibleDonutTilesSafe(tiles);
@@ -1102,6 +1128,212 @@
       waterfallChartInstance = null;
     }
     destroyDonutCharts();
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  //  КС развитие — круговые диаграммы вместо KPI-донатов
+  //  (тот же #donuts-grid, тот же дизайн, что и у KPI).
+  // ═══════════════════════════════════════════════════════════════
+
+  function formatKsRazvitieValue(value) {
+    if (value == null) return "0";
+    var n = Number(value);
+    if (!isFinite(n)) return "0";
+    if (Math.abs(n - Math.round(n)) < 1e-6) return String(Math.round(n));
+    return String(Math.round(n * 100) / 100).replace(".", ",");
+  }
+
+  /**
+   * План/факт за выбранный период (mode) внутри массива 12 точек {month, plan, fact}.
+   * mode: "current" — только refMonth; "quarter" — сумма за квартал, в котором
+   * находится refMonth; "ytd" — нарастающий итог январь..refMonth.
+   */
+  function aggregateKsMonthsForPeriod(months, mode, refMonth) {
+    var safeMonths = Array.isArray(months) ? months : [];
+    var rm = Number(refMonth) || 1;
+    if (rm < 1) rm = 1;
+    if (rm > 12) rm = 12;
+
+    var keep = [];
+    if (mode === "ytd") {
+      keep = safeMonths.filter(function (m) { return Number(m && m.month) >= 1 && Number(m && m.month) <= rm; });
+    } else if (mode === "quarter") {
+      var quarter = Math.ceil(rm / 3);
+      var qStart = (quarter - 1) * 3 + 1;
+      var qEnd = qStart + 2;
+      keep = safeMonths.filter(function (m) {
+        var mm = Number(m && m.month);
+        return mm >= qStart && mm <= qEnd;
+      });
+    } else {
+      keep = safeMonths.filter(function (m) { return Number(m && m.month) === rm; });
+    }
+
+    var plan = 0;
+    var fact = 0;
+    keep.forEach(function (m) {
+      plan += Number(m && m.plan) || 0;
+      fact += Number(m && m.fact) || 0;
+    });
+    return { plan: plan, fact: fact };
+  }
+
+  function periodLabelForMode(mode, refMonth, refYear) {
+    var MONTHS = [
+      "январь", "февраль", "март", "апрель", "май", "июнь",
+      "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь",
+    ];
+    var rm = Number(refMonth) || 1;
+    var ry = Number(refYear) || new Date().getFullYear();
+    var monthName = MONTHS[Math.max(0, Math.min(11, rm - 1))];
+    if (mode === "ytd") return "Янв–" + (monthName ? monthName.slice(0, 3) : "") + ". " + ry;
+    if (mode === "quarter") {
+      var q = Math.ceil(rm / 3);
+      return q + " кв. " + ry;
+    }
+    return (monthName ? monthName.charAt(0).toUpperCase() + monthName.slice(1) : "") + " " + ry;
+  }
+
+  /**
+   * Donut-ячейка для КС развитие: тот же визуал, что у KPI-донатов,
+   * но в центре — цифра «факт / план», а цветом сегмента — факт vs остаток плана.
+   */
+  function buildKsRazvitieDonutOptions(planValue, factValue, chartSize) {
+    var safePlan = Math.max(0, Number(planValue) || 0);
+    var safeFact = Math.max(0, Number(factValue) || 0);
+    var fillColor = "#2b5ca6";
+    var trackColor = "#e2e8f0";
+
+    var data;
+    if (safePlan <= 0 && safeFact <= 0) {
+      data = [
+        { name: "Нет плана", y: 1, color: trackColor, borderColor: trackColor },
+      ];
+    } else if (safeFact >= safePlan && safePlan > 0) {
+      data = [
+        { name: "Факт", y: safePlan, color: fillColor, borderColor: fillColor },
+      ];
+    } else {
+      data = [
+        { name: "Факт", y: safeFact, color: fillColor, borderColor: fillColor },
+        { name: "Остаток", y: Math.max(safePlan - safeFact, 0), color: trackColor, borderColor: trackColor },
+      ];
+    }
+
+    var label = formatKsRazvitieValue(safeFact) + "/" + formatKsRazvitieValue(safePlan);
+    return {
+      chart: {
+        type: "pie",
+        backgroundColor: "transparent",
+        height: chartSize,
+        margin: [0, 0, 0, 0],
+        animation: false,
+      },
+      title: {
+        text: label,
+        align: "center",
+        verticalAlign: "middle",
+        y: 2,
+        style: {
+          fontSize: chartSize <= 108 ? "11px" : chartSize >= 200 ? "17px" : "13px",
+          fontWeight: "700",
+          color: fillColor,
+        },
+      },
+      credits: { enabled: false },
+      tooltip: {
+        pointFormat: "<b>{point.name}</b>: {point.y}",
+      },
+      plotOptions: {
+        pie: {
+          innerSize: "70%",
+          dataLabels: { enabled: false },
+          states: { hover: { enabled: false } },
+          borderWidth: 0,
+          startAngle: 0,
+          animation: false,
+        },
+      },
+      series: [{ data: data }],
+    };
+  }
+
+  /**
+   * Рендер КС-развития вместо KPI-донатов в #donuts-grid.
+   * @param {HTMLElement} grid        существующий контейнер #donuts-grid
+   * @param {Object}      chart       Графики["KS-RAZVITIE"] из API
+   * @param {Object}      ctx         { aggregationMode, refMonth, refYear }
+   * @returns {boolean}  true, если КС-развития есть и ячейки отрисованы
+   *                     (в этом случае KPI-донаты должны быть пропущены).
+   */
+  function renderKsRazvitieIntoDonutsGrid(grid, chart, ctx) {
+    if (!grid || typeof Highcharts === "undefined") return false;
+    var charts = chart && Array.isArray(chart.charts) ? chart.charts : [];
+    if (!charts.length) return false;
+
+    var mode = (ctx && ctx.aggregationMode) || "current";
+    var period = chart && chart.period ? chart.period : {};
+    var refMonth = Number((ctx && ctx.refMonth) || period.month) || new Date().getMonth() + 1;
+    var refYear = Number((ctx && ctx.refYear) || period.year) || new Date().getFullYear();
+
+    grid.innerHTML = "";
+
+    // Применяем такой же пагинационный срез, как у KPI-донатов.
+    var visibleCharts = typeof (ctx && ctx.getVisibleDonutTiles) === "function"
+      ? ctx.getVisibleDonutTiles(charts)
+      : charts;
+
+    visibleCharts.forEach(function (item, idx) {
+      var cell = document.createElement("div");
+      cell.className = "donut-cell donut-cell--ks";
+
+      var chartDiv = document.createElement("div");
+      chartDiv.className = "donut-chart-container";
+      chartDiv.id = "donut-chart-ks-" + String(idx);
+
+      var indicator = item && item.indicator ? String(item.indicator) : "";
+      var deptName = item && item.dept_name ? String(item.dept_name) : "";
+
+      var label = document.createElement("div");
+      label.className = "donut-label";
+      label.textContent = indicator;
+      label.title = indicator;
+
+      var sublabel = document.createElement("div");
+      sublabel.className = "donut-sublabel";
+      sublabel.textContent = deptName;
+      sublabel.title = deptName;
+
+      cell.appendChild(chartDiv);
+      cell.appendChild(label);
+      if (deptName) cell.appendChild(sublabel);
+      grid.appendChild(cell);
+
+      var containerWidth = chartDiv.clientWidth || cell.clientWidth || 120;
+      var chartSize = Math.max(96, Math.min(140, containerWidth));
+
+      var agg = aggregateKsMonthsForPeriod(
+        Array.isArray(item && item.months) ? item.months : [],
+        mode,
+        refMonth,
+      );
+      var instance = Highcharts.chart(
+        chartDiv,
+        buildKsRazvitieDonutOptions(agg.plan, agg.fact, chartSize),
+      );
+      donutChartInstances.push(instance);
+    });
+
+    // Подменим заголовок секции, чтобы сразу было видно, что сейчас КС развитие.
+    try {
+      var titleEl = document.getElementById("donuts-grid-title");
+      if (titleEl) {
+        titleEl.textContent = "КС развитие — " + periodLabelForMode(mode, refMonth, refYear);
+      }
+    } catch (e) {
+      /* ignore */
+    }
+    return true;
   }
 
   function initCharts(context) {
