@@ -1756,6 +1756,8 @@
     var hasFact = false;
     var lastPct = null;
     var hasData = false;
+    var extraSums = { found: 0, won: 0, not_participating: 0 };
+    var extraHas = { found: false, won: false, not_participating: false };
 
     bucket.forEach(function (point) {
       var planValue = parseNumberLoose(point.plan);
@@ -1771,6 +1773,13 @@
       }
       if (pctValue != null) lastPct = pctValue;
       if (point.has_data === true) hasData = true;
+      Object.keys(extraSums).forEach(function (key) {
+        var v = parseNumberLoose(point[key]);
+        if (v != null) {
+          extraSums[key] += v;
+          extraHas[key] = true;
+        }
+      });
     });
 
     if (hasPlan && Math.abs(plan) > 0.000001 && hasFact) {
@@ -1785,6 +1794,9 @@
       month_name: null,
       plan: hasPlan ? plan : null,
       fact: hasFact ? fact : null,
+      found: extraHas.found ? extraSums.found : null,
+      won: extraHas.won ? extraSums.won : null,
+      not_participating: extraHas.not_participating ? extraSums.not_participating : null,
       kpi_pct: kpiPct,
       has_data: hasData || hasPlan || hasFact,
     };
@@ -1860,6 +1872,24 @@
       kpi_pct: pointPct != null ? pointPct : itemPct,
       plan: point ? point.plan : rawItem.plan,
       fact: point ? point.fact : rawItem.fact,
+      found:
+        point && point.found != null
+          ? point.found
+          : rawItem.found != null
+            ? rawItem.found
+            : null,
+      won:
+        point && point.won != null
+          ? point.won
+          : rawItem.won != null
+            ? rawItem.won
+            : null,
+      not_participating:
+        point && point.not_participating != null
+          ? point.not_participating
+          : rawItem.not_participating != null
+            ? rawItem.not_participating
+            : null,
       has_data:
         point && typeof point.has_data === "boolean"
           ? point.has_data

@@ -39,6 +39,8 @@
       hideKpiPercent: true,
       backDepartmentsOnly: true,
       drilldownRootDept: "Коммерческий директор",
+      drilldownMatchKpiId: "KD-M4",
+      drilldownMatchTitle: "Дебиторская задолженность",
       frontAccentColor: "#374e6f",
     },
     "FND-T8": {
@@ -67,6 +69,11 @@
     },
     "MRK-08": {
       kpiPctOnly: true,
+    },
+    "MRK-09": {
+      tenderStatusOverview: true,
+      hideHelp: true,
+      hideKpiPercent: true,
     },
   };
 })(typeof window !== "undefined" ? window : globalThis);
