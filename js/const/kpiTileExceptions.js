@@ -21,10 +21,9 @@
       frontAccentColor: "#374e6f",
     },
     "FND-T5": {
-      factOnly: true,
+      kpiPctOnly: true,
       hideHelp: true,
-      hideKpiPercent: true,
-      backDepartmentsOnly: true,
+      showBackPlanFact: true,
       frontAccentColor: "#374e6f",
     },
     "FND-T6": {
@@ -32,6 +31,14 @@
       hideHelp: true,
       hideKpiPercent: true,
       backDepartmentsOnly: true,
+      frontAccentColor: "#374e6f",
+    },
+    "FND-T7": {
+      factOnly: true,
+      hideHelp: true,
+      hideKpiPercent: true,
+      backDepartmentsOnly: true,
+      drilldownRootDept: "Коммерческий директор",
       frontAccentColor: "#374e6f",
     },
     "FND-T8": {
