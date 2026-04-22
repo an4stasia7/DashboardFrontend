@@ -578,7 +578,7 @@
     applyPlanFactFromJsonLastPeriodToTiles(body, tiles, qp.year, qp.month);
     return {
       tiles: tiles,
-      chartIndicators: buildChartIndicatorsFromApiResponse(body),
+      chartIndicators: buildChartIndicatorsFromApiResponse(body, qp.year, qp.month),
       tableRows: buildTableRowsFromApiResponse(body),
       unwrappedData: body,
     };
@@ -786,7 +786,437 @@
     return isFinite(n) ? n : null;
   }
 
-  function buildBarIndicatorsFromSeries(chart, series, name) {
+  function normalizePeriodToken(value) {
+    return value == null ? "" : String(value).toLowerCase().replace(/\s+/g, "").replace(/\./g, "");
+  }
+
+  function parseMonthLabel(value) {
+    var text = normalizePeriodToken(value);
+    if (!text) return null;
+    if (/^(0?[1-9]|1[0-2])$/.test(text)) return parseInt(text, 10);
+    var monthTokens = [
+      ["январ", 1],
+      ["янв", 1],
+      ["феврал", 2],
+      ["февр", 2],
+      ["фев", 2],
+      ["март", 3],
+      ["мар", 3],
+      ["апрел", 4],
+      ["апр", 4],
+      ["май", 5],
+      ["июн", 6],
+      ["июл", 7],
+      ["август", 8],
+      ["авг", 8],
+      ["сентябр", 9],
+      ["сент", 9],
+      ["сен", 9],
+      ["октябр", 10],
+      ["окт", 10],
+      ["ноябр", 11],
+      ["ноя", 11],
+      ["декабр", 12],
+      ["дек", 12],
+    ];
+    for (var i = 0; i < monthTokens.length; i++) {
+      if (text.indexOf(monthTokens[i][0]) === 0) return monthTokens[i][1];
+    }
+    return null;
+  }
+
+  function parseQuarterLabel(value, allowPlainNumber) {
+    var text = normalizePeriodToken(value);
+    if (!text) return null;
+    if (text.indexOf("iikv") === 0 || text.indexOf("2kv") === 0 || text.indexOf("2kvartal") === 0 || text.indexOf("q2") === 0 || text.indexOf("quarter2") === 0 || text.indexOf("2quarter") === 0 || text.indexOf("2кв") === 0 || text.indexOf("2квартал") === 0) return 2;
+    if (text.indexOf("iiikv") === 0 || text.indexOf("3kv") === 0 || text.indexOf("3kvartal") === 0 || text.indexOf("q3") === 0 || text.indexOf("quarter3") === 0 || text.indexOf("3quarter") === 0 || text.indexOf("3кв") === 0 || text.indexOf("3квартал") === 0) return 3;
+    if (text.indexOf("ivkv") === 0 || text.indexOf("4kv") === 0 || text.indexOf("4kvartal") === 0 || text.indexOf("q4") === 0 || text.indexOf("quarter4") === 0 || text.indexOf("4quarter") === 0 || text.indexOf("4кв") === 0 || text.indexOf("4квартал") === 0) return 4;
+    if (text.indexOf("ikv") === 0 || text.indexOf("1kv") === 0 || text.indexOf("1kvartal") === 0 || text.indexOf("q1") === 0 || text.indexOf("quarter1") === 0 || text.indexOf("1quarter") === 0 || text.indexOf("1кв") === 0 || text.indexOf("1квартал") === 0) return 1;
+    if (allowPlainNumber && /^[1-4]$/.test(text)) return parseInt(text, 10);
+    return null;
+  }
+
+  function isQuarterlyBarChart(chart) {
+    var chartType = chart && chart.chart_type != null ? String(chart.chart_type).toLowerCase() : "";
+    return chartType.indexOf("quarterly") !== -1 && (chartType.indexOf("column") !== -1 || chartType.indexOf("waterfall") !== -1);
+  }
+
+  function buildQuarterLabel(year, quarter) {
+    var q = parseIntLoose(quarter);
+    var y = parseIntLoose(year);
+    if (isNaN(q) || q < 1 || q > 4) return "";
+    var quarterNames = ["I", "II", "III", "IV"];
+    var label = (quarterNames[q - 1] || String(q)) + " кв.";
+    if (!isNaN(y)) label += " " + y;
+    return label;
+  }
+
+  function resolveQuarterBarPeriod(chart, series, options) {
+    options = options || {};
+    var body = options.body || null;
+    var year = options.year != null ? parseIntLoose(options.year) : NaN;
+    var month = options.month != null ? parseIntLoose(options.month) : NaN;
+    var chartPeriod = chart && chart.period && typeof chart.period === "object" ? chart.period : null;
+
+    if (isNaN(year) && chartPeriod && chartPeriod.year != null) year = parseIntLoose(chartPeriod.year);
+    if (isNaN(month) && chartPeriod && chartPeriod.month != null) month = parseIntLoose(chartPeriod.month);
+
+    if (isNaN(year) && body) {
+      if (body.year != null) year = parseIntLoose(body.year);
+      else if (body.kpi_ref_year != null) year = parseIntLoose(body.kpi_ref_year);
+      else if (body.period && body.period.year != null) year = parseIntLoose(body.period.year);
+    }
+    if (isNaN(month) && body) {
+      if (body.month != null) month = parseIntLoose(body.month);
+      else if (body.kpi_ref_month != null) month = parseIntLoose(body.kpi_ref_month);
+      else if (body.period && body.period.month != null) month = parseIntLoose(body.period.month);
+    }
+
+    if ((isNaN(year) || isNaN(month)) && series && Array.isArray(series.points) && series.points.length) {
+      for (var i = 0; i < series.points.length; i++) {
+        var point = series.points[i];
+        if (!point || typeof point !== "object") continue;
+        if (isNaN(year) && point.year != null) {
+          year = parseIntLoose(point.year);
+        }
+        if (isNaN(month) && point.month != null) {
+          month = parseIntLoose(point.month);
+        }
+        if (!isNaN(year) && !isNaN(month)) break;
+      }
+    }
+
+    if (isNaN(year) || isNaN(month) || month < 1 || month > 12) return null;
+    return {
+      year: year,
+      month: month,
+      quarter: Math.ceil(month / 3),
+    };
+  }
+
+  function normalizeKpiLookupKey(value) {
+    return value == null ? "" : String(value).trim().toLowerCase().replace(/\s+/g, " ");
+  }
+
+  function buildKpiTileLookup(body) {
+    var lookup = Object.create(null);
+    var tilesBlock = body && body[KPI_JSON_KEY_TILES] ? body[KPI_JSON_KEY_TILES] : null;
+    var items = tilesBlock && Array.isArray(tilesBlock.items) ? tilesBlock.items : [];
+    for (var i = 0; i < items.length; i++) {
+      var tile = items[i];
+      if (!tile || typeof tile !== "object") continue;
+      if (tile.kpi_id != null) {
+        lookup[String(tile.kpi_id)] = tile;
+      }
+      var nameKey = normalizeKpiLookupKey(tile.name);
+      if (nameKey) {
+        lookup["name:" + nameKey] = tile;
+      }
+    }
+    return lookup;
+  }
+
+  function findTileForBarIndicator(point, category, series, tileLookup) {
+    if (!tileLookup) return null;
+    var pointId = point && point.kpi_id != null ? String(point.kpi_id) : "";
+    if (pointId && tileLookup[pointId]) return tileLookup[pointId];
+    var seriesId = series && series.kpi_id != null ? String(series.kpi_id) : "";
+    if (seriesId && tileLookup[seriesId]) return tileLookup[seriesId];
+    var pointName = point && point.name != null ? normalizeKpiLookupKey(point.name) : "";
+    if (pointName && tileLookup["name:" + pointName]) return tileLookup["name:" + pointName];
+    var categoryKey = normalizeKpiLookupKey(category);
+    if (categoryKey && tileLookup["name:" + categoryKey]) return tileLookup["name:" + categoryKey];
+    var seriesName = series && series.name != null ? normalizeKpiLookupKey(series.name) : "";
+    if (seriesName && tileLookup["name:" + seriesName]) return tileLookup["name:" + seriesName];
+    return null;
+  }
+
+  function collectQuarterRowsFromMonthlyData(monthlyData, period) {
+    var rows = [];
+    if (!Array.isArray(monthlyData) || !period) return rows;
+    var quarterStartMonth = (period.quarter - 1) * 3 + 1;
+    var quarterEndMonth = period.quarter * 3;
+    for (var i = 0; i < monthlyData.length; i++) {
+      var point = monthlyData[i];
+      if (!point || typeof point !== "object") continue;
+      var pointYear = point.year != null ? parseIntLoose(point.year) : NaN;
+      var pointQuarter = point.quarter != null ? parseIntLoose(point.quarter) : NaN;
+      var pointMonth = point.month != null ? parseIntLoose(point.month) : NaN;
+      if (!isNaN(pointYear) && pointYear !== period.year) continue;
+      if (!isNaN(pointQuarter)) {
+        if (pointQuarter === period.quarter) rows.push(point);
+        continue;
+      }
+      if (!isNaN(pointMonth) && pointMonth >= quarterStartMonth && pointMonth <= quarterEndMonth) {
+        rows.push(point);
+      }
+    }
+    return rows;
+  }
+
+  function pushQuarterBarSourceRow(rows, seen, row, key) {
+    if (!rows || !seen || !row || !key || seen[key]) return;
+    seen[key] = true;
+    rows.push(row);
+  }
+
+  function collectQuarterBarSourceRows(series, period) {
+    var rows = [];
+    var seen = Object.create(null);
+    if (!series || !period) return rows;
+
+    var quarterStartMonth = (period.quarter - 1) * 3 + 1;
+    var quarterEndMonth = period.quarter * 3;
+    var points = getSeriesPointsList(series);
+
+    for (var i = 0; i < points.length; i++) {
+      var point = points[i];
+      if (!point || typeof point !== "object") continue;
+      var pointYear = point.year != null ? parseIntLoose(point.year) : NaN;
+      var pointQuarter = point.quarter != null ? parseIntLoose(point.quarter) : NaN;
+      var pointMonth = point.month != null ? parseIntLoose(point.month) : NaN;
+      if (!isNaN(pointYear) && pointYear !== period.year) continue;
+
+      if (!isNaN(pointQuarter)) {
+        if (pointQuarter === period.quarter) {
+          pushQuarterBarSourceRow(rows, seen, point, "q:" + String(pointYear) + ":" + String(pointQuarter) + ":" + String(i));
+        }
+        continue;
+      }
+
+      if (!isNaN(pointMonth) && pointMonth >= quarterStartMonth && pointMonth <= quarterEndMonth) {
+        pushQuarterBarSourceRow(rows, seen, point, "m:" + String(pointYear) + ":" + String(pointMonth));
+      }
+    }
+
+    var explicitCategories = Array.isArray(series.categories) ? series.categories.slice() : [];
+    var explicitPlan = Array.isArray(series.plan) ? series.plan.slice() : [];
+    var explicitFact = Array.isArray(series.fact) ? series.fact.slice() : [];
+    var maxLen = explicitCategories.length;
+    if (explicitPlan.length > maxLen) maxLen = explicitPlan.length;
+    if (explicitFact.length > maxLen) maxLen = explicitFact.length;
+
+    if (maxLen) {
+      var monthLabelCount = 0;
+      var quarterLabelCount = 0;
+      for (var j = 0; j < explicitCategories.length; j++) {
+        var categoryLabel = explicitCategories[j];
+        if (parseMonthLabel(categoryLabel) != null) monthLabelCount++;
+        if (parseQuarterLabel(categoryLabel, false) != null) quarterLabelCount++;
+      }
+
+      var treatAsMonths = monthLabelCount > 0;
+      var treatAsQuarters = !treatAsMonths && quarterLabelCount > 0;
+
+      if (treatAsMonths) {
+        for (var k = 0; k < maxLen; k++) {
+          var monthLabel = explicitCategories[k];
+          var month = parseMonthLabel(monthLabel);
+          if (month == null) continue;
+          if (month < quarterStartMonth || month > quarterEndMonth) continue;
+          var monthPoint = {
+            year: period.year,
+            month: month,
+            name: monthLabel != null ? String(monthLabel).trim() : "",
+            plan: explicitPlan[k],
+            fact: explicitFact[k],
+          };
+          pushQuarterBarSourceRow(rows, seen, monthPoint, "m:" + String(period.year) + ":" + String(month));
+        }
+      } else if (treatAsQuarters) {
+        for (var qIdx = 0; qIdx < maxLen; qIdx++) {
+          var quarterLabel = explicitCategories[qIdx];
+          var quarter = parseQuarterLabel(quarterLabel, true);
+          if (quarter == null && maxLen <= 4) quarter = qIdx + 1;
+          if (quarter !== period.quarter) continue;
+          var quarterPoint = {
+            year: period.year,
+            quarter: quarter,
+            month: period.month,
+            name: quarterLabel != null ? String(quarterLabel).trim() : "",
+            plan: explicitPlan[qIdx],
+            fact: explicitFact[qIdx],
+          };
+          pushQuarterBarSourceRow(rows, seen, quarterPoint, "q:" + String(period.year) + ":" + String(quarter));
+        }
+      }
+    }
+
+    return rows;
+  }
+
+  function collectQuarterBarSourceRowsFromBody(body, chart, series, period, category, sourcePoint, options) {
+    var rows = [];
+    var seen = Object.create(null);
+    if (!body || !period) return rows;
+
+    var tileLookup = buildKpiTileLookup(body);
+    var tile = findTileForBarIndicator(sourcePoint || null, category, series, tileLookup);
+    var monthlyData = tile && Array.isArray(tile.monthly_data) ? tile.monthly_data : null;
+    var sourceRows = [];
+    if (monthlyData && monthlyData.length) {
+      sourceRows = sourceRows.concat(collectQuarterRowsFromMonthlyData(monthlyData, period));
+    }
+    var seriesRows = collectQuarterBarSourceRows(series, period);
+    if (seriesRows && seriesRows.length) {
+      sourceRows = sourceRows.concat(seriesRows);
+    }
+
+    if (!sourceRows.length && tile && (tile.plan != null || tile.fact != null || tile.kpi_pct != null)) {
+      sourceRows.push({
+        year: period.year,
+        month: period.month,
+        quarter: period.quarter,
+        plan: tile.plan,
+        fact: tile.fact,
+        kpi_pct: tile.kpi_pct != null ? tile.kpi_pct : tile.kpi_pst,
+        has_data: tile.has_data,
+      });
+    }
+
+    for (var i = 0; i < sourceRows.length; i++) {
+      var row = sourceRows[i];
+      if (!row || typeof row !== "object") continue;
+      var rowMonth = row.month != null ? parseIntLoose(row.month) : NaN;
+      var rowYear = row.year != null ? parseIntLoose(row.year) : period.year;
+      var rowQuarter = row.quarter != null ? parseIntLoose(row.quarter) : period.quarter;
+      var dedupeKey =
+        !isNaN(rowMonth) && rowMonth >= 1 && rowMonth <= 12
+          ? String(rowYear) + ":" + String(rowMonth)
+          : String(rowYear) + ":q:" + String(rowQuarter) + ":" + normalizeKpiLookupKey(row.name || "");
+      pushQuarterBarSourceRow(rows, seen, row, dedupeKey);
+    }
+
+    return rows;
+  }
+
+  function aggregateQuarterBarPoint(rows, period) {
+    if (!rows || !rows.length || !period) return null;
+    var plan = 0;
+    var fact = 0;
+    var hasPlan = false;
+    var hasFact = false;
+    var hasData = false;
+    var lastPct = null;
+
+    for (var i = 0; i < rows.length; i++) {
+      var row = rows[i];
+      if (!row || typeof row !== "object") continue;
+      var planValue = numberOrNull(row.plan);
+      var factValue = numberOrNull(row.fact);
+      var pctValue = numberOrNull(row.kpi_pct);
+      if (planValue != null) {
+        plan += planValue;
+        hasPlan = true;
+      }
+      if (factValue != null) {
+        fact += factValue;
+        hasFact = true;
+      }
+      if (pctValue != null) lastPct = pctValue;
+      if (row.has_data === true) hasData = true;
+    }
+
+    if (!hasPlan && !hasFact) return null;
+
+    var kpiPct = null;
+    if (hasPlan && Math.abs(plan) > 0.000001 && hasFact) {
+      kpiPct = (fact / plan) * 100;
+    } else if (lastPct != null) {
+      kpiPct = lastPct;
+    }
+
+    return {
+      year: period.year,
+      month: period.month,
+      quarter: period.quarter,
+      name: buildQuarterLabel(period.year, period.quarter),
+      plan: hasPlan ? plan : null,
+      fact: hasFact ? fact : null,
+      kpi_pct: kpiPct,
+      has_data: hasData || hasPlan || hasFact,
+    };
+  }
+
+  function buildQuarterlyBarIndicatorsFromSeries(chart, series, name, options) {
+    var period = resolveQuarterBarPeriod(chart, series, options);
+    if (!period) return [];
+
+    var body = options && options.body ? options.body : null;
+    var tileLookup = buildKpiTileLookup(body);
+    var explicitCategories = Array.isArray(series.categories) ? series.categories.slice() : [];
+    var explicitPlan = Array.isArray(series.plan) ? series.plan.slice() : [];
+    var explicitFact = Array.isArray(series.fact) ? series.fact.slice() : [];
+    var points = getSeriesPointsList(series);
+    var maxLen = explicitCategories.length;
+    if (explicitPlan.length > maxLen) maxLen = explicitPlan.length;
+    if (explicitFact.length > maxLen) maxLen = explicitFact.length;
+    if (points.length > maxLen) maxLen = points.length;
+    if (!maxLen) return [];
+
+    var indicators = [];
+
+    for (var i = 0; i < maxLen; i++) {
+      var srcPoint = points[i] && typeof points[i] === "object" ? points[i] : null;
+      var category =
+        explicitCategories[i] != null && String(explicitCategories[i]).trim() !== ""
+          ? String(explicitCategories[i]).trim()
+          : srcPoint && srcPoint.name != null && String(srcPoint.name).trim() !== ""
+            ? String(srcPoint.name).trim()
+            : String(i + 1);
+
+      var pointSeries = {
+        kpi_id: srcPoint && srcPoint.kpi_id != null ? String(srcPoint.kpi_id) : series.kpi_id,
+        name: category,
+        categories: [category],
+        points: srcPoint ? [srcPoint] : [],
+        plan: explicitPlan[i] !== undefined ? [explicitPlan[i]] : srcPoint && srcPoint.plan !== undefined ? [srcPoint.plan] : [],
+        fact: explicitFact[i] !== undefined ? [explicitFact[i]] : srcPoint && srcPoint.fact !== undefined ? [srcPoint.fact] : [],
+      };
+
+      var rows = collectQuarterBarSourceRowsFromBody(body, chart, pointSeries, period, category, srcPoint, options);
+      if (!rows.length) {
+        var tile = findTileForBarIndicator(srcPoint, category, pointSeries, tileLookup);
+        if (tile && (tile.plan != null || tile.fact != null || tile.kpi_pct != null)) {
+          rows.push({
+            year: period.year,
+            month: period.month,
+            quarter: period.quarter,
+            plan: tile.plan,
+            fact: tile.fact,
+            kpi_pct: tile.kpi_pct != null ? tile.kpi_pct : tile.kpi_pst,
+            has_data: tile.has_data,
+          });
+        } else if (srcPoint) {
+          rows.push(srcPoint);
+        }
+      }
+
+      var aggregatedPoint = aggregateQuarterBarPoint(rows, period);
+      if (!aggregatedPoint) continue;
+
+      indicators.push({
+        id: (pointSeries.kpi_id || series.kpi_id || name) + ":" + String(i),
+        optionLabel: category,
+        title: category,
+        xAxisTitle: "Показатель",
+        yAxisTitle: "Значение",
+        categories: [category],
+        points: [Object.assign({}, aggregatedPoint, { name: category })],
+        plan: [numberOrNull(aggregatedPoint.plan)],
+        fact: [numberOrNull(aggregatedPoint.fact)],
+      });
+    }
+
+    return indicators;
+  }
+
+  function buildBarIndicatorsFromSeries(chart, series, name, options) {
+    var quarterlyIndicators = buildQuarterlyBarIndicatorsFromSeries(chart, series, name, options);
+    if (quarterlyIndicators && quarterlyIndicators.length) {
+      return quarterlyIndicators;
+    }
+
     var explicitCategories = Array.isArray(series.categories) ? series.categories.slice() : [];
     var explicitPlan = Array.isArray(series.plan) ? series.plan.slice() : [];
     var explicitFact = Array.isArray(series.fact) ? series.fact.slice() : [];
@@ -833,19 +1263,29 @@
     }
 
     if (!points.length) return [];
-    var sortedQ = points.slice().sort(function (a, b) { return (a.quarter || 0) - (b.quarter || 0); });
+    var sortedQ = points.slice().sort(function (a, b) {
+      return (a.quarter || 0) - (b.quarter || 0);
+    });
     var ROMAN_Q = ["I кв.", "II кв.", "III кв.", "IV кв."];
-    return [{
-      id: series.kpi_id || name,
-      optionLabel: name,
-      title: name,
-      xAxisTitle: CHART_AXIS_QUARTER,
-      yAxisTitle: "Значение",
-      categories: sortedQ.map(function (p) { return ROMAN_Q[(p.quarter || 1) - 1] || (p.quarter + " кв."); }),
-      points: sortedQ,
-      plan: sortedQ.map(function (p) { return numberOrNull(p.plan); }),
-      fact: sortedQ.map(function (p) { return numberOrNull(p.fact); }),
-    }];
+    return [
+      {
+        id: series.kpi_id || name,
+        optionLabel: name,
+        title: name,
+        xAxisTitle: CHART_AXIS_QUARTER,
+        yAxisTitle: "Значение",
+        categories: sortedQ.map(function (p) {
+          return ROMAN_Q[(p.quarter || 1) - 1] || p.quarter + " кв.";
+        }),
+        points: sortedQ,
+        plan: sortedQ.map(function (p) {
+          return numberOrNull(p.plan);
+        }),
+        fact: sortedQ.map(function (p) {
+          return numberOrNull(p.fact);
+        }),
+      },
+    ];
   }
 
   function parseIntLoose(v) {
@@ -1253,7 +1693,7 @@
    * chart_type: "multi_line_plan_fact_monthly" → line, "column_plan_fact_waterfall_quarterly" → bar.
    * Каждый series внутри графика = отдельный переключаемый показатель.
    */
-  function buildChartIndicatorsFromApiResponse(body) {
+  function buildChartIndicatorsFromApiResponse(body, filterYear, filterMonth) {
     var out = { line: [], bar: [], donut: [] };
     if (!body) return out;
     var charts = body[KPI_JSON_KEY_CHARTS];
@@ -1296,7 +1736,11 @@
             ],
           });
         } else if (target === "bar") {
-          var barIndicators = buildBarIndicatorsFromSeries(chart, s, name);
+          var barIndicators = buildBarIndicatorsFromSeries(chart, s, name, {
+            body: body,
+            year: filterYear,
+            month: filterMonth,
+          });
           if (barIndicators && barIndicators.length) {
             Array.prototype.push.apply(out.bar, barIndicators);
           }

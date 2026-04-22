@@ -862,7 +862,7 @@
     }
 
     var categories = indicators.map(function (indicator) {
-      return indicator.optionLabel || indicator.title || "KPI";
+      return buildBarIndicatorDisplayLabel(indicator);
     });
 
     waterfallChartInstance = Highcharts.chart(elBar, {
@@ -905,6 +905,22 @@
     });
   }
 
+  function buildBarIndicatorDisplayLabel(indicator) {
+    if (!indicator || typeof indicator !== "object") return "KPI";
+    var categoryLabels = Array.isArray(indicator.categories)
+      ? indicator.categories
+          .map(function (category) {
+            return category == null ? "" : String(category).trim();
+          })
+          .filter(function (category) {
+            return !!category;
+          })
+      : [];
+    if (categoryLabels.length) return categoryLabels.join(", ");
+    var base = indicator.optionLabel || indicator.title || "KPI";
+    return String(base).trim() || "KPI";
+  }
+
   function initBarMetricSelect(elBar) {
     var sel = document.getElementById("waterfall-chart-metric");
     var label = document.querySelector('label[for="waterfall-chart-metric"]');
@@ -932,7 +948,8 @@
     waterfallChartIndicators.forEach(function (ind, idx) {
       var opt = document.createElement("option");
       opt.value = String(idx);
-      opt.textContent = ind.optionLabel || ind.title;
+      opt.textContent = buildBarIndicatorDisplayLabel(ind);
+      opt.title = String(ind.optionLabel || ind.title || opt.textContent || "KPI").trim();
       sel.appendChild(opt);
     });
 
