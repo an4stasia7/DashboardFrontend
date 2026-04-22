@@ -1199,6 +1199,7 @@
         id: (pointSeries.kpi_id || series.kpi_id || name) + ":" + String(i),
         optionLabel: category,
         title: category,
+        periodLabel: buildQuarterLabel(period.year, period.quarter),
         xAxisTitle: "Показатель",
         yAxisTitle: "Значение",
         categories: [category],

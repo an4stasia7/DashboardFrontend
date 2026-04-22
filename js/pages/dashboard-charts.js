@@ -770,7 +770,10 @@
 
   function renderBarChartForIndicator(indicator) {
     var titleEl = document.getElementById("bar-chart-title");
-    if (titleEl) titleEl.textContent = "План / факт: " + indicator.title;
+    var periodLabel = indicator && indicator.periodLabel ? String(indicator.periodLabel).trim() : "";
+    if (titleEl) {
+      titleEl.textContent = periodLabel ? "План / факт: " + periodLabel : "План / факт: " + indicator.title;
+    }
 
     var elBar = document.getElementById("chart-bar");
     if (!elBar || typeof Highcharts === "undefined") return;
@@ -817,7 +820,10 @@
 
     waterfallChartInstance = Highcharts.chart(elBar, {
       chart: { type: "column", backgroundColor: "transparent", height: 300, animation: false, reflow: false },
-      title: { text: null },
+      title: { text: periodLabel ? "План / факт за " + periodLabel : null },
+      subtitle: periodLabel
+        ? { text: indicator.title, style: { color: "#64748b", fontSize: "12px" } }
+        : { text: null },
       credits: { enabled: false },
       xAxis: buildBarChartXAxis(cats.slice(), indicator.xAxisTitle || "Показатель"),
       yAxis: {
