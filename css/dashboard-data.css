@@ -773,8 +773,9 @@
 .dashboard-table#table-top-deviations td:nth-child(4),
 .dashboard-table#table-top-deviations th:nth-child(5),
 .dashboard-table#table-top-deviations td:nth-child(5) {
-  width: 7%;
-  min-width: 118px;
+  width: 6%;
+  min-width: 88px;
+  white-space: nowrap;
 }
 
 .dashboard-table#table-top-deviations th:nth-child(6),

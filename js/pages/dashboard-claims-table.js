@@ -990,7 +990,7 @@
       initialOrder: [[10, "desc"]],
       columnDefs: [
         { targets: "_all", orderable: false },
-        { targets: [3, 4], orderable: true },
+        { targets: [3, 4], orderable: true, width: "88px" },
         { targets: [10], type: "num-fmt", orderable: true },
       ],
       footerCallback: function () {
