@@ -1293,21 +1293,14 @@
       chartDiv.id = "donut-chart-ks-" + String(idx);
 
       var indicator = item && item.indicator ? String(item.indicator) : "";
-      var deptName = item && item.dept_name ? String(item.dept_name) : "";
 
       var label = document.createElement("div");
       label.className = "donut-label";
       label.textContent = indicator;
       label.title = indicator;
 
-      var sublabel = document.createElement("div");
-      sublabel.className = "donut-sublabel";
-      sublabel.textContent = deptName;
-      sublabel.title = deptName;
-
       cell.appendChild(chartDiv);
       cell.appendChild(label);
-      if (deptName) cell.appendChild(sublabel);
       grid.appendChild(cell);
 
       var containerWidth = chartDiv.clientWidth || cell.clientWidth || 120;
