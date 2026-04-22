@@ -228,6 +228,7 @@
 
   function navPointHasPeriodValue(pt) {
     if (!pt) return false;
+    if (pt.has_data === false) return false;
     var key = monthYearKey(pt.year, pt.month);
     if (key < 0) return false;
     return navPlanFactValuePresent(pt.fact) || navPlanFactValuePresent(pt.plan);
@@ -380,12 +381,15 @@
 
     if (typeof body !== "object") return nextMonths;
 
-    pushAvailableMonthSlot(nextMonths, body.month, body.year);
+    if (body.has_data !== false) {
+      pushAvailableMonthSlot(nextMonths, body.month, body.year);
+    }
 
     if (Array.isArray(body.monthly_data)) {
       for (var mi = 0; mi < body.monthly_data.length; mi++) {
         var point = body.monthly_data[mi];
         if (!point || typeof point !== "object") continue;
+        if (point.has_data === false) continue;
         pushAvailableMonthSlot(nextMonths, point.month, point.year);
       }
     }
@@ -395,11 +399,13 @@
       for (var ti = 0; ti < tilesBlock.items.length; ti++) {
         var tile = tilesBlock.items[ti];
         if (!tile || typeof tile !== "object") continue;
+        if (tile.has_data === false) continue;
         pushAvailableMonthSlot(nextMonths, tile.month, tile.year);
         if (Array.isArray(tile.monthly_data)) {
           for (var pi = 0; pi < tile.monthly_data.length; pi++) {
             var tilePoint = tile.monthly_data[pi];
             if (!tilePoint || typeof tilePoint !== "object") continue;
+            if (tilePoint.has_data === false) continue;
             pushAvailableMonthSlot(nextMonths, tilePoint.month, tilePoint.year);
           }
         }
