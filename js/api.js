@@ -670,6 +670,14 @@
           kpi_pct: typeof item.kpi_pct === "number" && !isNaN(item.kpi_pct) ? item.kpi_pct : null,
           plan: item.plan,
           fact: item.fact,
+          found: item.found != null ? item.found : null,
+          won: item.won != null ? item.won : null,
+          not_participating:
+            item.not_participating != null ? item.not_participating : null,
+          status_counts:
+            item.status_counts && typeof item.status_counts === "object"
+              ? item.status_counts
+              : null,
           has_data: hasData,
           hint: hint,
           rag: color,

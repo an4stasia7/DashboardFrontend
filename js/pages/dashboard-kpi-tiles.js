@@ -206,8 +206,44 @@
     );
   }
 
+  function buildKpiTileTenderStatusOverviewHtml(tile) {
+    function readCount(key) {
+      var v = tile && tile[key];
+      if (v == null || v === "") return 0;
+      var n = Number(v);
+      return isNaN(n) ? 0 : Math.round(n);
+    }
+    var foundN = readCount("found");
+    if (!foundN && tile && tile.plan != null) foundN = readCount("plan");
+    var notPartN = readCount("not_participating");
+    var wonN = readCount("won");
+    if (!wonN && tile && tile.fact != null) wonN = readCount("fact");
+    function cell(label, value) {
+      return (
+        '<div class="kpi-tile-tender-cell">' +
+        '<span class="kpi-tile-tender-label">' + DashUi.escapeHtml(label) + '</span>' +
+        '<span class="kpi-tile-tender-value">' + DashUi.escapeHtml(String(value)) + '</span>' +
+        '</div>'
+      );
+    }
+    return (
+      '<div class="kpi-tile-tender-grid" role="group" aria-label="Статусы тендеров">' +
+      cell("Найдено", foundN) +
+      cell("Не участвуем", notPartN) +
+      cell("Выиграно", wonN) +
+      '</div>'
+    );
+  }
+
   function buildKpiTileMetricsSectionHtml(tile, hasPf, planFactShown, factShown) {
     var rule = getKpiTileException(tile);
+    if (rule && rule.tenderStatusOverview) {
+      return (
+        '<div class="kpi-tile-metrics kpi-tile-metrics--tender" aria-label="Сводка тендеров">' +
+        buildKpiTileTenderStatusOverviewHtml(tile) +
+        "</div>"
+      );
+    }
     if (rule && rule.kpiPctOnly) {
       var pres = MockData.getKpiTilePresentation(tile);
       var pctLabel = MockData.formatKpiPercentLabel(pres.percent) + "%";

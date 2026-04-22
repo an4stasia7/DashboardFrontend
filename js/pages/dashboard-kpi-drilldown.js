@@ -226,11 +226,32 @@
     return typeof fn === "function" ? fn(childTiles, clickedTile) : null;
   }
 
+  function getDrilldownMatchTile(clicked) {
+    var cfg = (typeof global !== "undefined" && global && global.KPI_TILE_EXCEPTIONS) || null;
+    if (!cfg || !clicked) return clicked;
+    var key =
+      clicked.kpi_id != null && String(clicked.kpi_id).trim()
+        ? String(clicked.kpi_id).trim()
+        : clicked.badge != null && String(clicked.badge).trim()
+          ? String(clicked.badge).trim()
+          : "";
+    var rule = key && cfg[key] ? cfg[key] : null;
+    if (!rule) return clicked;
+    var overrideId = rule.drilldownMatchKpiId != null ? String(rule.drilldownMatchKpiId).trim() : "";
+    var overrideTitle = rule.drilldownMatchTitle != null ? String(rule.drilldownMatchTitle).trim() : "";
+    if (!overrideId && !overrideTitle) return clicked;
+    return {
+      kpi_id: overrideId || clicked.kpi_id,
+      title: overrideTitle || clicked.title,
+    };
+  }
+
   function buildDrilldownRowsForChildrenOnly(results, clicked) {
+    var matchTarget = getDrilldownMatchTile(clicked);
     var rows = [];
     (results || []).forEach(function (item) {
       if (!item || !item.name) return;
-      var matched = findMatchingTileAmongChildren(item.tiles || [], clicked);
+      var matched = findMatchingTileAmongChildren(item.tiles || [], matchTarget);
       if (!matched) return;
       var childRow = drillRowFromTile(item.name, matched, false);
       if (drillRowHasNoKpiValue(childRow)) return;
@@ -288,6 +309,20 @@
     goToDepartmentDashboardSafe(d);
   }
 
+  function getDrilldownRootOverride(tile) {
+    var cfg = (typeof global !== "undefined" && global && global.KPI_TILE_EXCEPTIONS) || null;
+    if (!cfg || !tile) return "";
+    var key =
+      tile.kpi_id != null && String(tile.kpi_id).trim()
+        ? String(tile.kpi_id).trim()
+        : tile.badge != null && String(tile.badge).trim()
+          ? String(tile.badge).trim()
+          : "";
+    var rule = key && cfg[key] ? cfg[key] : null;
+    var override = rule && rule.drilldownRootDept != null ? String(rule.drilldownRootDept).trim() : "";
+    return override || "";
+  }
+
   function loadKpiTileDrilldownData(tileIndex, options) {
     mergeContext(options);
     var tiles = getTiles();
@@ -295,7 +330,8 @@
     var clicked = tiles[tileIndex];
     var state = getKpiTileDetailsState(tileIndex);
     if (state.loading || state.loaded) return;
-    var parentDept = getDepartmentForCurrentKpiContextSafe();
+    var overrideDept = getDrilldownRootOverride(clicked);
+    var parentDept = overrideDept || getDepartmentForCurrentKpiContextSafe();
     state.loading = true;
     state.loaded = false;
     state.rows = [];
