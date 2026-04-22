@@ -15,10 +15,9 @@
       frontAccentColor: "#374e6f",
     },
     "FND-T4": {
-      factOnly: true,
+      kpiPctOnly: true,
       hideHelp: true,
-      hideKpiPercent: true,
-      backDepartmentsOnly: true,
+      showBackPlanFact: true,
       frontAccentColor: "#374e6f",
     },
     "FND-T5": {

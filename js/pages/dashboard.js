@@ -71,6 +71,9 @@
   var debugJsonSectionEl = document.getElementById("debug-kpi-json-section");
   var DONUT_CHARTS_PER_PAGE = 6;
   var donutChartsPageIndex = 0;
+  /** Фактическое число элементов в блоке «Показатели KPI» / «КС развитие»
+   *  (для корректной пагинации — не завязываясь на lastKpiTiles). */
+  var lastDonutsTotalCount = 0;
 
   function handleUnauthorized() {
     Auth.logout();
@@ -638,7 +641,7 @@
     }
     if (nextBtn) {
       nextBtn.addEventListener("click", function () {
-        var n = lastKpiTiles ? lastKpiTiles.length : 0;
+        var n = lastDonutsTotalCount || (lastKpiTiles ? lastKpiTiles.length : 0);
         var pages = Math.max(1, Math.ceil(n / DONUT_CHARTS_PER_PAGE));
         if (donutChartsPageIndex >= pages - 1) return;
         donutChartsPageIndex++;
@@ -1837,6 +1840,7 @@
     var nextBtn = document.getElementById("donut-charts-page-next");
     var label = document.getElementById("donut-charts-page-label");
     var n = typeof totalCount === "number" ? totalCount : lastKpiTiles ? lastKpiTiles.length : 0;
+    lastDonutsTotalCount = n;
     if (!pager) return;
     if (n <= DONUT_CHARTS_PER_PAGE) {
       donutChartsPageIndex = 0;
@@ -1872,15 +1876,42 @@
     }
   }
 
+  /**
+   * Собирает контекст для донат-сетки: всегда учитывает наличие блока
+   * Графики["KS-RAZVITIE"] (если он есть, именно он подменяет KPI-донаты
+   * в том же #donuts-grid) и режим агрегации.
+   */
+  function buildDonutRenderContext() {
+    var ksChart = null;
+    var refMonth = null;
+    var refYear = null;
+    try {
+      var charts = lastRawKpiResponse && lastRawKpiResponse["Графики"];
+      if (charts && typeof charts === "object") {
+        ksChart = charts["KS-RAZVITIE"] || null;
+      }
+      if (ksChart && ksChart.period) {
+        refMonth = ksChart.period.month || null;
+        refYear = ksChart.period.year || null;
+      }
+    } catch (e) {
+      ksChart = null;
+    }
+    return {
+      currentTiles: lastKpiTiles,
+      getVisibleDonutTiles: getVisibleDonutTiles,
+      updateDonutChartsPagerUI: updateDonutChartsPagerUI,
+      ksRazvitieChart: ksChart,
+      aggregationMode: chairmanAggregationMode || "current",
+      refMonth: refMonth,
+      refYear: refYear,
+    };
+  }
+
   function renderDonutCharts() {
     if (typeof DashboardCharts === "undefined" || !DashboardCharts) return;
-    if (typeof DashboardCharts.renderDonutCharts === "function") {
-      DashboardCharts.renderDonutCharts({
-        currentTiles: lastKpiTiles,
-        getVisibleDonutTiles: getVisibleDonutTiles,
-        updateDonutChartsPagerUI: updateDonutChartsPagerUI,
-      });
-    }
+    if (typeof DashboardCharts.renderDonutCharts !== "function") return;
+    DashboardCharts.renderDonutCharts(buildDonutRenderContext());
   }
 
   function initCharts() {
@@ -1892,6 +1923,7 @@
       showDashboardChartsModuleError();
       return;
     }
+    var donutCtx = buildDonutRenderContext();
     DashboardCharts.initCharts({
       role: viewContextUser.role,
       apiChartIndicators: lastApiChartIndicators,
@@ -1901,6 +1933,10 @@
       updateDonutChartsPagerUI: updateDonutChartsPagerUI,
       onNavigateToMonth: navigateToMonth,
       onNavigateToQuarter: navigateToQuarter,
+      ksRazvitieChart: donutCtx.ksRazvitieChart,
+      aggregationMode: donutCtx.aggregationMode,
+      refMonth: donutCtx.refMonth,
+      refYear: donutCtx.refYear,
     });
   }
 
