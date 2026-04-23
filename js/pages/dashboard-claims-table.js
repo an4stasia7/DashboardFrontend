@@ -1016,9 +1016,59 @@
     });
   }
 
+  function parseTableRublesAmount(value) {
+    if (value == null || value === "") return NaN;
+    if (typeof value === "number") return isFinite(value) ? value : NaN;
+    var s = String(value)
+      .replace(/\u00a0/g, " ")
+      .replace(/\s/g, "")
+      .replace(",", ".");
+    if (!s) return NaN;
+    var n = Number(s);
+    return isNaN(n) ? NaN : n;
+  }
+
+  function getMonetaryRubForPsdRowFilter(item) {
+    if (isOverdueDebtRow(item)) {
+      var r0 = item && item.raw && typeof item.raw === "object" ? item.raw : null;
+      return r0 ? parseTableRublesAmount(r0.amount) : NaN;
+    }
+    if (isLawsuitsRow(item)) {
+      var r1 = item && item.raw && typeof item.raw === "object" ? item.raw : null;
+      if (!r1) return NaN;
+      return parseTableRublesAmount(
+        pickLawsuitsField(r1, ["claim_amount", "amount", "sum", "requirement_sum", "requirements_sum"])
+      );
+    }
+    if (isClaimsTableRow(item)) {
+      var r2 = item && item.raw && typeof item.raw === "object" ? item.raw : null;
+      return r2 ? parseTableRublesAmount(r2.order_sum) : NaN;
+    }
+    return null;
+  }
+
+  function filterRowsByMinAmountRub(rows, minRub) {
+    var out = [];
+    for (var i = 0; i < rows.length; i++) {
+      var item = rows[i];
+      if (!item) continue;
+      var rub = getMonetaryRubForPsdRowFilter(item);
+      if (rub === null) {
+        out.push(item);
+        continue;
+      }
+      if (!isNaN(rub) && rub >= minRub) out.push(item);
+    }
+    return out;
+  }
+
   function init(options) {
     options = options || {};
-    var rows = Array.isArray(options.rows) ? options.rows : [];
+    var rows = Array.isArray(options.rows) ? options.rows.slice() : [];
+    var minRub = options.filterRowsMinAmountRub;
+    if (typeof minRub === "number" && minRub > 0 && !isNaN(minRub)) {
+      rows = filterRowsByMinAmountRub(rows, minRub);
+    }
     var executiveMode = !!options.executiveMode;
     var enhanceOverdueDebtTable = !!options.enhanceOverdueDebtTable;
     var enableLawsuitsTable = !!options.enableLawsuitsTable;
