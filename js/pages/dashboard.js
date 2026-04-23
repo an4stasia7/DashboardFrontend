@@ -1990,10 +1990,7 @@
     }
 
     if (claimsTableHelpWrapEl) {
-      claimsTableHelpWrapEl.hidden = isBoardChairOwnDashboard || activeClaimsTableView === "lawsuits";
-    }
-    if (isBoardChairOwnDashboard) {
-      hideClaimsTableHelpPopover();
+      claimsTableHelpWrapEl.hidden = activeClaimsTableView === "lawsuits";
     }
 
     updateClaimsTableSwitcherUi(showClaimsSwitcher);
@@ -2062,7 +2059,7 @@
     }
 
     if (claimsTableHelpWrapEl) {
-      claimsTableHelpWrapEl.hidden = shouldUseBoardChairExecutiveTables() || nextView === "lawsuits";
+      claimsTableHelpWrapEl.hidden = nextView === "lawsuits";
     }
     if (nextView === "lawsuits") {
       hideClaimsTableHelpPopover();
