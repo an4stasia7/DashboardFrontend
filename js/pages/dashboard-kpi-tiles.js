@@ -206,6 +206,127 @@
     );
   }
 
+  function formatKpiTileMoneyShort(value) {
+    var n = Number(value);
+    if (!isFinite(n) || isNaN(n)) return "—";
+    if (typeof DashUi !== "undefined" && DashUi && typeof DashUi.formatKpiTilePlanFactValue === "function") {
+      return DashUi.formatKpiTilePlanFactValue(n);
+    }
+    if (Math.abs(n) >= 1e9) return (n / 1e9).toFixed(2) + " млрд";
+    if (Math.abs(n) >= 1e6) return (n / 1e6).toFixed(1) + " млн";
+    if (Math.abs(n) >= 1e3) return (n / 1e3).toFixed(0) + " тыс";
+    return String(Math.round(n));
+  }
+
+  function formatKpiTileRatioPercent(value) {
+    if (value == null || value === "") return "—";
+    var n = Number(value);
+    if (!isFinite(n) || isNaN(n)) return "—";
+    var abs = Math.abs(n);
+    var digits = abs >= 100 ? 0 : abs >= 10 ? 1 : 2;
+    return n.toFixed(digits) + "%";
+  }
+
+  function computeKpiTileRatioPercent(numerator, denominator) {
+    var num = Number(numerator);
+    var den = Number(denominator);
+    if (!isFinite(num) || isNaN(num) || !isFinite(den) || isNaN(den) || den <= 0) return null;
+    return (num / den) * 100;
+  }
+
+  function readKpiTileRatioNumber(tile, key) {
+    if (!tile || tile[key] == null || tile[key] === "") return 0;
+    var n = Number(tile[key]);
+    return isFinite(n) && !isNaN(n) ? n : 0;
+  }
+
+  function buildKpiTileDualRatioOverviewHtml(tile) {
+    var dzClient = readKpiTileRatioNumber(tile, "dz_client");
+    var kzClient = readKpiTileRatioNumber(tile, "kz_client");
+    var dzSupplier = readKpiTileRatioNumber(tile, "dz_supplier");
+    var kzSupplier = readKpiTileRatioNumber(tile, "kz_supplier");
+    var dzTotal = readKpiTileRatioNumber(tile, "dz_total");
+    var kzTotal = readKpiTileRatioNumber(tile, "kz_total");
+    if (!dzTotal && !kzTotal) {
+      dzTotal = dzClient + dzSupplier;
+      kzTotal = kzClient + kzSupplier;
+    }
+
+    var pctClient =
+      tile && tile.pct_client != null && !isNaN(Number(tile.pct_client))
+        ? Number(tile.pct_client)
+        : computeKpiTileRatioPercent(dzClient, kzClient);
+    var pctSupplier =
+      tile && tile.pct_supplier != null && !isNaN(Number(tile.pct_supplier))
+        ? Number(tile.pct_supplier)
+        : computeKpiTileRatioPercent(dzSupplier, kzSupplier);
+    var pctTotal =
+      tile && tile.pct_total != null && !isNaN(Number(tile.pct_total))
+        ? Number(tile.pct_total)
+        : computeKpiTileRatioPercent(dzTotal, kzTotal);
+
+    function cell(label, pct) {
+      return (
+        '<div class="kpi-tile-dual-ratio-cell">' +
+        '<span class="kpi-tile-dual-ratio-label">' + DashUi.escapeHtml(label) + "</span>" +
+        '<span class="kpi-tile-dual-ratio-value">' +
+        DashUi.escapeHtml(formatKpiTileRatioPercent(pct)) +
+        "</span></div>"
+      );
+    }
+
+    return (
+      '<div class="kpi-tile-dual-ratio" role="group" aria-label="Соотношение ДЗ и КЗ">' +
+      cell("Общее", pctTotal) +
+      cell("Клиенты", pctClient) +
+      cell("Поставщики", pctSupplier) +
+      "</div>"
+    );
+  }
+
+  function buildKpiTileDualRatioAmountsHtml(tile) {
+    var dzClient = readKpiTileRatioNumber(tile, "dz_client");
+    var kzClient = readKpiTileRatioNumber(tile, "kz_client");
+    var dzSupplier = readKpiTileRatioNumber(tile, "dz_supplier");
+    var kzSupplier = readKpiTileRatioNumber(tile, "kz_supplier");
+    var dzTotal = readKpiTileRatioNumber(tile, "dz_total");
+    var kzTotal = readKpiTileRatioNumber(tile, "kz_total");
+    if (!dzTotal && !kzTotal) {
+      dzTotal = dzClient + dzSupplier;
+      kzTotal = kzClient + kzSupplier;
+    }
+
+    function cell(label, value) {
+      return (
+        '<div class="kpi-tile-dual-amounts-cell">' +
+        '<span class="kpi-tile-dual-amounts-label">' + DashUi.escapeHtml(label) + "</span>" +
+        '<span class="kpi-tile-dual-amounts-value">' +
+        DashUi.escapeHtml(formatKpiTileMoneyShort(value)) +
+        "</span></div>"
+      );
+    }
+
+    return (
+      '<div class="kpi-tile-dual-amounts" role="group" aria-label="ДЗ и КЗ: суммы">' +
+      '<div class="kpi-tile-dual-amounts-group">' +
+      '<div class="kpi-tile-dual-amounts-group-title">Клиенты</div>' +
+      cell("ДЗ", dzClient) +
+      cell("КЗ", kzClient) +
+      "</div>" +
+      '<div class="kpi-tile-dual-amounts-group">' +
+      '<div class="kpi-tile-dual-amounts-group-title">Поставщики</div>' +
+      cell("ДЗ", dzSupplier) +
+      cell("КЗ", kzSupplier) +
+      "</div>" +
+      '<div class="kpi-tile-dual-amounts-group">' +
+      '<div class="kpi-tile-dual-amounts-group-title">Общее</div>' +
+      cell("ДЗ", dzTotal) +
+      cell("КЗ", kzTotal) +
+      "</div>" +
+      "</div>"
+    );
+  }
+
   function buildKpiTileTenderStatusOverviewHtml(tile) {
     function readCount(key) {
       var v = tile && tile[key];
@@ -237,6 +358,13 @@
 
   function buildKpiTileMetricsSectionHtml(tile, hasPf, planFactShown, factShown) {
     var rule = getKpiTileException(tile);
+    if (rule && rule.dualRatioOverview) {
+      return (
+        '<div class="kpi-tile-metrics kpi-tile-metrics--dual-ratio" aria-label="Соотношение ДЗ и КЗ">' +
+        buildKpiTileDualRatioOverviewHtml(tile) +
+        "</div>"
+      );
+    }
     if (rule && rule.tenderStatusOverview) {
       return (
         '<div class="kpi-tile-metrics kpi-tile-metrics--tender" aria-label="Сводка тендеров">' +
@@ -330,6 +458,7 @@
     var hint = tile && tile.hint != null ? String(tile.hint).trim() : "";
     var period = tile && tile.period != null ? String(tile.period).trim() : "";
     var code = tile && (tile.badge || tile.kpi_id) ? String(tile.badge || tile.kpi_id).trim() : "";
+    var rule = getKpiTileException(tile);
     // Если плитка kpiPctOnly, но явно помечена showBackPlanFact — показываем План/Факт.
     var forceBackPlanFact = shouldShowKpiTileBackPlanFact(tile);
     var hasPf =
@@ -341,6 +470,26 @@
         : DashUi.formatKpiTilePlanFactValue(tile.plan) + "/" + DashUi.formatKpiTilePlanFactValue(tile.fact);
     var showHelp = shouldShowKpiTileHelp(tile);
     var showPercent = shouldShowKpiTilePercent(tile);
+    if (rule && rule.backDualRatioAmounts) {
+      return (
+        '<div class="kpi-tile-back-head">' +
+        '<div class="kpi-tile-back-head-copy">' +
+        (code ? '<span class="kpi-tile-back-badge">' + DashUi.escapeHtml(code) + "</span>" : "") +
+        '<h3 class="kpi-tile-back-title">' +
+        DashUi.escapeHtml(tile && tile.title ? tile.title : "Показатель") +
+        "</h3>" +
+        (period ? '<p class="kpi-tile-back-period">' + DashUi.escapeHtml(period) + "</p>" : "") +
+        "</div>" +
+        '<div class="kpi-tile-back-head-actions">' +
+        '<button type="button" class="kpi-tile-flip-action" aria-label="Вернуться к карточке">Назад</button>' +
+        "</div></div>" +
+        '<div class="kpi-tile-back-section kpi-tile-back-section--dual">' +
+        '<div class="kpi-tile-back-section-title">ДЗ и КЗ за период</div>' +
+        buildKpiTileDualRatioAmountsHtml(tile) +
+        "</div>" +
+        (hint ? '<p class="kpi-tile-back-hint">' + DashUi.escapeHtml(hint) + "</p>" : "")
+      );
+    }
     if (shouldRenderKpiTileBackDepartmentsOnly(tile)) {
       return (
         '<div class="kpi-tile-back-section kpi-tile-back-section--only">' +
