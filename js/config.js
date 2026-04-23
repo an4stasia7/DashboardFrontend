@@ -4,8 +4,14 @@
  */
 (function (global) {
   var AppConfig = {
-    //API_BASE_URL: "http://192.168.5.219:8000",
+    // API_BASE_URL: "http://192.168.5.219:8000",
     API_BASE_URL: "http://192.168.1.157:8000",
+    APP_VERSION_PATH: "/package.json",
+    APP_UPDATE_ENABLED: true,
+    APP_UPDATE_REMOTE_PACKAGE_URL:
+      "https://raw.githubusercontent.com/an4stasia7/DashboardFrontend/master/package.json",
+    APP_UPDATE_OPEN_URL: "https://github.com/an4stasia7/DashboardFrontend",
+    APP_UPDATE_CHECK_INTERVAL_MS: 300000,
 
     API_LOGIN_PATH: "/api/user/login/",
     API_KPI_PATH: "/api/kpi/",

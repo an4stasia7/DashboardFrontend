@@ -40,15 +40,10 @@
   border-radius: 8px;
   font-size: 11px;
   line-height: 1.45;
-  /* Свернуто: компактно; при раскрытии дерева — см. :has ниже */
-  max-height: min(260px, 32vh);
+  /* Компактно, чтобы не съедать экран под обзором ПСД / карточками */
+  max-height: min(220px, 28vh);
   overflow: auto;
   font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
-  transition: max-height 0.18s ease;
-}
-
-#debug-kpi-json-section:has(.json-tree-root > .jt-toggle:not(.jt-collapsed)) .debug-kpi-json-panel {
-  max-height: min(900px, 88vh);
 }
 
 .debug-json-log-hint {
@@ -132,14 +127,9 @@
   border-radius: 6px;
   font-size: 11px;
   line-height: 1.45;
-  max-height: min(220px, 28vh);
+  max-height: min(180px, 24vh);
   overflow: auto;
   font-family: "Cascadia Code", "Fira Code", Consolas, monospace;
-  transition: max-height 0.18s ease;
-}
-
-.json-tree-root:has(> .jt-toggle:not(.jt-collapsed)) {
-  max-height: min(760px, 82vh);
 }
 
 .json-tree-root .jt-source {

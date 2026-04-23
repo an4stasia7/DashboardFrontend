@@ -93,23 +93,13 @@
     return typeof fn === "function" ? fn() : "";
   }
 
-  function getDashboardCatalogId() {
-    var fn = getContext().getDashboardCatalogId;
-    return typeof fn === "function" ? fn() : "";
-  }
-
   function fetchImmediateSubordinatesSafe(department) {
     var fn = getContext().fetchImmediateSubordinates;
     if (typeof fn === "function") return fn(department);
     if (typeof Api === "undefined" || !Api.fetchImmediateSubordinates) {
       return Promise.resolve({ ok: false, immediate_children: [] });
     }
-    var fetchOpts = { department: department };
-    var catalogFor = getDashboardCatalogId();
-    if (catalogFor) {
-      fetchOpts.for = catalogFor;
-    }
-    return Api.fetchImmediateSubordinates(fetchOpts);
+    return Api.fetchImmediateSubordinates({ department: department });
   }
 
   function getPeriodCacheSignature() {

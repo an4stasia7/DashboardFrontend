@@ -770,10 +770,7 @@
 
   function renderBarChartForIndicator(indicator) {
     var titleEl = document.getElementById("bar-chart-title");
-    var periodLabel = indicator && indicator.periodLabel ? String(indicator.periodLabel).trim() : "";
-    if (titleEl) {
-      titleEl.textContent = periodLabel ? "План / факт: " + periodLabel : "План / факт: " + indicator.title;
-    }
+    if (titleEl) titleEl.textContent = "План / факт: " + indicator.title;
 
     var elBar = document.getElementById("chart-bar");
     if (!elBar || typeof Highcharts === "undefined") return;
@@ -820,10 +817,7 @@
 
     waterfallChartInstance = Highcharts.chart(elBar, {
       chart: { type: "column", backgroundColor: "transparent", height: 300, animation: false, reflow: false },
-      title: { text: periodLabel ? "План / факт за " + periodLabel : null },
-      subtitle: periodLabel
-        ? { text: indicator.title, style: { color: "#64748b", fontSize: "12px" } }
-        : { text: null },
+      title: { text: null },
       credits: { enabled: false },
       xAxis: buildBarChartXAxis(cats.slice(), indicator.xAxisTitle || "Показатель"),
       yAxis: {
@@ -868,7 +862,7 @@
     }
 
     var categories = indicators.map(function (indicator) {
-      return buildBarIndicatorDisplayLabel(indicator);
+      return indicator.optionLabel || indicator.title || "KPI";
     });
 
     waterfallChartInstance = Highcharts.chart(elBar, {
@@ -911,22 +905,6 @@
     });
   }
 
-  function buildBarIndicatorDisplayLabel(indicator) {
-    if (!indicator || typeof indicator !== "object") return "KPI";
-    var categoryLabels = Array.isArray(indicator.categories)
-      ? indicator.categories
-          .map(function (category) {
-            return category == null ? "" : String(category).trim();
-          })
-          .filter(function (category) {
-            return !!category;
-          })
-      : [];
-    if (categoryLabels.length) return categoryLabels.join(", ");
-    var base = indicator.optionLabel || indicator.title || "KPI";
-    return String(base).trim() || "KPI";
-  }
-
   function initBarMetricSelect(elBar) {
     var sel = document.getElementById("waterfall-chart-metric");
     var label = document.querySelector('label[for="waterfall-chart-metric"]');
@@ -954,8 +932,7 @@
     waterfallChartIndicators.forEach(function (ind, idx) {
       var opt = document.createElement("option");
       opt.value = String(idx);
-      opt.textContent = buildBarIndicatorDisplayLabel(ind);
-      opt.title = String(ind.optionLabel || ind.title || opt.textContent || "KPI").trim();
+      opt.textContent = ind.optionLabel || ind.title;
       sel.appendChild(opt);
     });
 
@@ -1056,12 +1033,8 @@
 
         var label = document.createElement("div");
         label.className = "chart-preview-donut-label";
-        var previewLabelText = String(tile.title || tile.badge || "").trim();
         label.textContent = tile.title || tile.badge || "";
         label.title = tile.title || "";
-        if (previewLabelText.length > 0 && previewLabelText.length <= 10) {
-          label.classList.add("chart-preview-donut-label--short");
-        }
 
         cell.appendChild(chartHost);
         cell.appendChild(label);
@@ -1133,12 +1106,8 @@
       chartDiv.id = "donut-chart-" + String(idx);
       var label = document.createElement("div");
       label.className = "donut-label";
-      var labelText = String(tile.title || tile.badge || "").trim();
       label.textContent = tile.title || tile.badge || "";
       label.title = tile.title || "";
-      if (labelText.length > 0 && labelText.length <= 10) {
-        label.classList.add("donut-label--short");
-      }
       cell.appendChild(chartDiv);
       cell.appendChild(label);
       grid.appendChild(cell);
@@ -1324,21 +1293,14 @@
       chartDiv.id = "donut-chart-ks-" + String(idx);
 
       var indicator = item && item.indicator ? String(item.indicator) : "";
-      var deptName = item && item.dept_name ? String(item.dept_name) : "";
 
       var label = document.createElement("div");
       label.className = "donut-label";
       label.textContent = indicator;
       label.title = indicator;
 
-      var sublabel = document.createElement("div");
-      sublabel.className = "donut-sublabel";
-      sublabel.textContent = deptName;
-      sublabel.title = deptName;
-
       cell.appendChild(chartDiv);
       cell.appendChild(label);
-      if (deptName) cell.appendChild(sublabel);
       grid.appendChild(cell);
 
       var containerWidth = chartDiv.clientWidth || cell.clientWidth || 120;

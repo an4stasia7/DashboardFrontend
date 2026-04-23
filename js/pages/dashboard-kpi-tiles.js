@@ -245,6 +245,12 @@
     var kzClient = readKpiTileRatioNumber(tile, "kz_client");
     var dzSupplier = readKpiTileRatioNumber(tile, "dz_supplier");
     var kzSupplier = readKpiTileRatioNumber(tile, "kz_supplier");
+    var dzTotal = readKpiTileRatioNumber(tile, "dz_total");
+    var kzTotal = readKpiTileRatioNumber(tile, "kz_total");
+    if (!dzTotal && !kzTotal) {
+      dzTotal = dzClient + dzSupplier;
+      kzTotal = kzClient + kzSupplier;
+    }
 
     var pctClient =
       tile && tile.pct_client != null && !isNaN(Number(tile.pct_client))
@@ -254,6 +260,10 @@
       tile && tile.pct_supplier != null && !isNaN(Number(tile.pct_supplier))
         ? Number(tile.pct_supplier)
         : computeKpiTileRatioPercent(dzSupplier, kzSupplier);
+    var pctTotal =
+      tile && tile.pct_total != null && !isNaN(Number(tile.pct_total))
+        ? Number(tile.pct_total)
+        : computeKpiTileRatioPercent(dzTotal, kzTotal);
 
     function cell(label, pct) {
       return (
@@ -267,6 +277,7 @@
 
     return (
       '<div class="kpi-tile-dual-ratio" role="group" aria-label="Соотношение ДЗ и КЗ">' +
+      cell("Общее", pctTotal) +
       cell("Клиенты", pctClient) +
       cell("Поставщики", pctSupplier) +
       "</div>"
@@ -278,6 +289,12 @@
     var kzClient = readKpiTileRatioNumber(tile, "kz_client");
     var dzSupplier = readKpiTileRatioNumber(tile, "dz_supplier");
     var kzSupplier = readKpiTileRatioNumber(tile, "kz_supplier");
+    var dzTotal = readKpiTileRatioNumber(tile, "dz_total");
+    var kzTotal = readKpiTileRatioNumber(tile, "kz_total");
+    if (!dzTotal && !kzTotal) {
+      dzTotal = dzClient + dzSupplier;
+      kzTotal = kzClient + kzSupplier;
+    }
 
     function cell(label, value) {
       return (
@@ -300,6 +317,11 @@
       '<div class="kpi-tile-dual-amounts-group-title">Поставщики</div>' +
       cell("ДЗ", dzSupplier) +
       cell("КЗ", kzSupplier) +
+      "</div>" +
+      '<div class="kpi-tile-dual-amounts-group">' +
+      '<div class="kpi-tile-dual-amounts-group-title">Общее</div>' +
+      cell("ДЗ", dzTotal) +
+      cell("КЗ", kzTotal) +
       "</div>" +
       "</div>"
     );
@@ -462,7 +484,7 @@
         '<button type="button" class="kpi-tile-flip-action" aria-label="Вернуться к карточке">Назад</button>' +
         "</div></div>" +
         '<div class="kpi-tile-back-section kpi-tile-back-section--dual">' +
-        '<div class="kpi-tile-back-section-title">Задолженности на конец периода</div>' +
+        '<div class="kpi-tile-back-section-title">ДЗ и КЗ за период</div>' +
         buildKpiTileDualRatioAmountsHtml(tile) +
         "</div>" +
         (hint ? '<p class="kpi-tile-back-hint">' + DashUi.escapeHtml(hint) + "</p>" : "")

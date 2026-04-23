@@ -5,14 +5,14 @@
   var sidebarSearchLoading = false;
   var sidebarSearchError = "";
   var sidebarSearchResults = [];
-  var rememberedCatalogId = "";
+  var rememberedChairmanCatalogId = "";
 
-  function rememberCatalogId(value) {
-    rememberedCatalogId = value != null ? String(value).trim() : "";
+  function rememberChairmanCatalogId(value) {
+    rememberedChairmanCatalogId = value != null ? String(value).trim() : "";
   }
 
-  function clearRememberedCatalogId() {
-    rememberedCatalogId = "";
+  function clearRememberedChairmanCatalogId() {
+    rememberedChairmanCatalogId = "";
   }
 
   function mergeContext(nextContext) {
@@ -34,13 +34,13 @@
     if (typeof fn === "function") fn(value);
   }
 
-  function getDashboardTargets() {
-    var fn = getContext().getDashboardTargets;
+  function getChairmanDashboardTargets() {
+    var fn = getContext().getChairmanDashboardTargets;
     return typeof fn === "function" ? fn() : [];
   }
 
-  function setDashboardTargets(value) {
-    var fn = getContext().setDashboardTargets;
+  function setChairmanDashboardTargets(value) {
+    var fn = getContext().setChairmanDashboardTargets;
     if (typeof fn === "function") fn(value);
   }
 
@@ -106,8 +106,8 @@
       : Promise.resolve({ ok: false, immediate_children: [] });
   }
 
-  function fetchDashboardCatalog() {
-    var fn = getContext().fetchDashboardCatalog;
+  function fetchChairmanDashboardCatalog() {
+    var fn = getContext().fetchChairmanDashboardCatalog;
     return typeof fn === "function"
       ? fn()
       : Promise.resolve({ ok: false, items: [], error: "Каталог ПСД недоступен" });
@@ -136,8 +136,8 @@
     return role === "председатель совета директоров" || department === "председатель совета директоров";
   }
 
-  function isDashboardTarget(target) {
-    return !!(target && target.catalogKind === "catalog");
+  function isChairmanTarget(target) {
+    return !!(target && target.catalogKind === "chairman");
   }
 
   function normalizeSidebarSearchText(value) {
@@ -232,22 +232,22 @@
         if (viewTargets[i].id === selectedViewId) return viewTargets[i];
       }
     }
-    var dashboardTargets = getDashboardTargets();
-    for (var ci = 0; ci < dashboardTargets.length; ci++) {
-      if (dashboardTargets[ci] && dashboardTargets[ci].id === selectedViewId) return dashboardTargets[ci];
+    var chairmanTargets = getChairmanDashboardTargets();
+    for (var ci = 0; ci < chairmanTargets.length; ci++) {
+      if (chairmanTargets[ci] && chairmanTargets[ci].id === selectedViewId) return chairmanTargets[ci];
     }
     var hierarchy = getHierarchyStack();
     if (Array.isArray(hierarchy) && hierarchy.length) {
       var root = hierarchy[0] != null ? String(hierarchy[0]).trim() : "";
       if (root) {
-        var byRoot = findTargetByRootDepartment(root);
+        var byRoot = findChairmanTargetByRootDepartment(root);
         if (byRoot) return byRoot;
       }
     }
-    return viewTargets[0] || dashboardTargets[0] || null;
+    return viewTargets[0] || chairmanTargets[0] || null;
   }
 
-  function buildTargetsFromCatalog(items) {
+  function buildTargetsFromChairmanCatalog(items) {
     var sessionUser = getSessionUser();
     var out = [];
     var hasSelf = false;
@@ -271,7 +271,7 @@
           label: "Мой дашборд",
           user: sessionUser,
           aliases: aliases,
-          catalogKind: "catalog",
+          catalogKind: "chairman",
           catalogId: rawId,
           catalogIndex: index,
           department: selfDeptRaw,
@@ -281,13 +281,13 @@
       }
       var department = rawLabel || rawId;
       out.push({
-        id: "catalog:" + encodeURIComponent(rawId),
+        id: "chairman:" + encodeURIComponent(rawId),
         label: department,
         department: department,
         viewDepartment: department,
         user: sessionUser,
         aliases: aliases,
-        catalogKind: "catalog",
+        catalogKind: "chairman",
         catalogId: rawId,
         catalogIndex: index,
       });
@@ -300,7 +300,7 @@
         label: "Мой дашборд",
         user: sessionUser,
         aliases: ["my_dashboard"],
-        catalogKind: "catalog",
+        catalogKind: "chairman",
         catalogId: "my_dashboard",
         catalogIndex: -1,
         department: fallbackSelfDept,
@@ -312,9 +312,9 @@
   function isViewTargetActive(target, selectedViewId, hierarchyStack) {
     if (!target) return false;
     if (target.id === selectedViewId) return true;
-    if (!isDashboardTarget(target)) return false;
+    if (!isChairmanTarget(target)) return false;
     var tcid = target.catalogId != null ? String(target.catalogId).trim() : "";
-    if (tcid && rememberedCatalogId && tcid === rememberedCatalogId) {
+    if (tcid && rememberedChairmanCatalogId && tcid === rememberedChairmanCatalogId) {
       return true;
     }
     if (target.id === "self") return false;
@@ -324,70 +324,70 @@
     return !!root && !!dept && root === dept;
   }
 
-  function findTargetByRootDepartment(rootDepartment) {
+  function findChairmanTargetByRootDepartment(rootDepartment) {
     var root = rootDepartment != null ? String(rootDepartment).trim() : "";
     if (!root) return null;
-    var dashboardTargets = getDashboardTargets();
-    for (var i = 0; i < dashboardTargets.length; i++) {
-      var target = dashboardTargets[i];
+    var chairmanTargets = getChairmanDashboardTargets();
+    for (var i = 0; i < chairmanTargets.length; i++) {
+      var target = chairmanTargets[i];
       var dept = target && target.department != null ? String(target.department).trim() : "";
       if (dept && dept === root) return target;
     }
     return null;
   }
 
-  function resolveSelectedViewIdFromHierarchy(hierarchy) {
+  function resolveChairmanSelectedViewIdFromHierarchy(hierarchy) {
     var path = Array.isArray(hierarchy) ? hierarchy : [];
     if (!path.length) return "self";
-    var target = findTargetByRootDepartment(path[0]);
+    var target = findChairmanTargetByRootDepartment(path[0]);
     return target && target.id ? target.id : "self";
   }
 
-  function getActiveCatalogTarget() {
-    var dashboardTargets = getDashboardTargets();
-    if (!Array.isArray(dashboardTargets) || !dashboardTargets.length) return null;
+  function getActiveChairmanCatalogTarget() {
+    var chairmanTargets = getChairmanDashboardTargets();
+    if (!Array.isArray(chairmanTargets) || !chairmanTargets.length) return null;
     var selectedViewId = getSelectedViewId();
-    for (var i = 0; i < dashboardTargets.length; i++) {
-      var t = dashboardTargets[i];
+    for (var i = 0; i < chairmanTargets.length; i++) {
+      var t = chairmanTargets[i];
       if (t && t.id === selectedViewId) {
-        if (t.catalogId != null) rememberedCatalogId = String(t.catalogId).trim();
+        if (t.catalogId != null) rememberedChairmanCatalogId = String(t.catalogId).trim();
         return t;
       }
     }
-    if (rememberedCatalogId) {
-      for (var j = 0; j < dashboardTargets.length; j++) {
-        var mt = dashboardTargets[j];
+    if (rememberedChairmanCatalogId) {
+      for (var j = 0; j < chairmanTargets.length; j++) {
+        var mt = chairmanTargets[j];
         if (!mt) continue;
         var mcid = mt.catalogId != null ? String(mt.catalogId).trim() : "";
-        if (mcid && mcid === rememberedCatalogId) return mt;
+        if (mcid && mcid === rememberedChairmanCatalogId) return mt;
       }
     }
     var hierarchy = getHierarchyStack();
     if (Array.isArray(hierarchy) && hierarchy.length) {
       var root = hierarchy[0] != null ? String(hierarchy[0]).trim() : "";
       if (root) {
-        var byRoot = findTargetByRootDepartment(root);
+        var byRoot = findChairmanTargetByRootDepartment(root);
         if (byRoot) return byRoot;
       }
     }
     return null;
   }
 
-  function getActiveCatalogId() {
-    var target = getActiveCatalogTarget();
+  function getActiveChairmanCatalogId() {
+    var target = getActiveChairmanCatalogTarget();
     if (!target || target.catalogId == null) return "";
     return String(target.catalogId).trim();
   }
 
-  function renderDashboardTabs() {
+  function renderChairmanDashboardTabs() {
     var nav = document.getElementById("dashboard-chairman-tabs");
-    var dashboardTargets = getDashboardTargets();
+    var chairmanTargets = getChairmanDashboardTargets();
     var selectedViewId = getSelectedViewId();
     var hierarchyStack = getHierarchyStack();
     var sessionUser = getSessionUser();
     if (!nav) return;
     nav.innerHTML = "";
-    if (!isBoardChairUser(sessionUser) || !dashboardTargets || dashboardTargets.length <= 1) {
+    if (!isBoardChairUser(sessionUser) || !chairmanTargets || chairmanTargets.length <= 1) {
       nav.hidden = true;
       return;
     }
@@ -404,7 +404,7 @@
     nav.hidden = false;
     var inner = document.createElement("div");
     inner.className = "dash-view-tabs-inner";
-    dashboardTargets.forEach(function (t) {
+    chairmanTargets.forEach(function (t) {
       if (!t) return;
       var btn = document.createElement("button");
       btn.type = "button";
@@ -421,22 +421,20 @@
       btn.appendChild(span);
       btn.addEventListener("click", function () {
         if (t.id === getSelectedViewId()) return;
-        rememberMonthNavigatorPeriodState();
-        rememberCatalogId(t.catalogId);
+        rememberChairmanCatalogId(t.catalogId);
         setSelectedViewId(t.id);
         setViewContextUser(t.user || sessionUser);
         var effDept = sessionUser && sessionUser.department != null ? String(sessionUser.department).trim() : "";
         setHierarchyStack(effDept ? [effDept] : []);
-        restoreMonthNavigatorPeriodState();
         if (getSessionApiMode() === "mock") {
-          renderDashboardTabs();
+          renderChairmanDashboardTabs();
           renderViewTabs();
           updateTopBarForView();
           navigateAfterViewChange();
           return;
         }
         refreshSubordinateTabsFromApi().then(function () {
-          renderDashboardTabs();
+          renderChairmanDashboardTabs();
           updateTopBarForView();
           navigateAfterViewChange();
         });
@@ -709,13 +707,11 @@
     var hierarchy = buildSidebarSearchHierarchy(item);
     if (!hierarchy.length) return;
     var dept = hierarchy[hierarchy.length - 1];
-    rememberMonthNavigatorPeriodState();
     setSelectedViewId(
       item && item.id != null && String(item.id).trim() ? String(item.id).trim() : "search:" + encodeURIComponent(dept)
     );
     setViewContextUser(item && item.user ? item.user : sessionUser);
     setHierarchyStack(hierarchy.slice());
-    restoreMonthNavigatorPeriodState();
     clearSidebarSearchState();
     renderViewTabs();
     refreshSubordinateTabsFromApi().then(function () {
@@ -773,34 +769,22 @@
     });
   }
 
-  function rememberMonthNavigatorPeriodState() {
-    var fn = getContext().rememberMonthNavigatorPeriodState;
-    if (typeof fn === "function") fn();
-  }
-
-  function restoreMonthNavigatorPeriodState() {
-    var fn = getContext().restoreMonthNavigatorPeriodState;
-    if (typeof fn === "function") fn();
-  }
-
   function navigateToHierarchyLevel(levelIndex) {
     var hierarchyStack = getHierarchyStack();
     var sessionUser = getSessionUser();
     if (levelIndex < 0 || levelIndex >= hierarchyStack.length) return;
-    rememberMonthNavigatorPeriodState();
     setHierarchyStack(hierarchyStack.slice(0, levelIndex + 1));
     if (levelIndex === 0) {
-      var activeCatalogTarget = isBoardChairUser(sessionUser)
-        ? getActiveCatalogTarget()
+      var activeChairmanTarget = isBoardChairUser(sessionUser)
+        ? getActiveChairmanCatalogTarget()
         : null;
-      setSelectedViewId(activeCatalogTarget && activeCatalogTarget.id ? activeCatalogTarget.id : "self");
+      setSelectedViewId(activeChairmanTarget && activeChairmanTarget.id ? activeChairmanTarget.id : "self");
     } else {
       var currentStack = getHierarchyStack();
       var parent = currentStack[currentStack.length - 1];
       setSelectedViewId("dept:" + encodeURIComponent(parent));
     }
     setViewContextUser(sessionUser);
-    restoreMonthNavigatorPeriodState();
     refreshSubordinateTabsFromApi().then(function () {
       updateTopBarForView();
       navigateAfterViewChange();
@@ -811,39 +795,39 @@
     return new Promise(function (resolve) {
       var sessionUser = getSessionUser();
       setHierarchyStack([]);
-      clearRememberedCatalogId();
+      clearRememberedChairmanCatalogId();
       resetSidebarSearch();
       if (getSessionApiMode() === "mock") {
-        setDashboardTargets([]);
+        setChairmanDashboardTargets([]);
         resolve(getMockViewableDashboardTargets());
         return;
       }
       if (isBoardChairUser(sessionUser)) {
-        fetchDashboardCatalog()
+        fetchChairmanDashboardCatalog()
           .then(function (result) {
             if (result && result.unauthorized) {
               onUnauthorized();
               return;
             }
             if (result && result.ok && Array.isArray(result.items) && result.items.length) {
-              var targets = buildTargetsFromCatalog(result.items);
-              setDashboardTargets(targets);
+              var targets = buildTargetsFromChairmanCatalog(result.items);
+              setChairmanDashboardTargets(targets);
               var selfDept = sessionUser && sessionUser.department != null ? String(sessionUser.department).trim() : "";
               setHierarchyStack(selfDept ? [selfDept] : []);
-              setSelectedViewId(resolveSelectedViewIdFromHierarchy(getHierarchyStack()));
+              setSelectedViewId(resolveChairmanSelectedViewIdFromHierarchy(getHierarchyStack()));
               resolve([]);
               return;
             }
-            setDashboardTargets([]);
+            setChairmanDashboardTargets([]);
             resolve([{ id: "self", label: "Мой дашборд", user: sessionUser }]);
           })
           .catch(function () {
-            setDashboardTargets([]);
+            setChairmanDashboardTargets([]);
             resolve([{ id: "self", label: "Мой дашборд", user: sessionUser }]);
           });
         return;
       }
-      setDashboardTargets([]);
+      setChairmanDashboardTargets([]);
       var rootDept = sessionUser && sessionUser.department != null ? String(sessionUser.department).trim() : "";
       if (!rootDept) {
         resolve([{ id: "self", label: "Мой дашборд", user: sessionUser }]);
@@ -875,7 +859,7 @@
     var selectedViewId = getSelectedViewId();
     if (!nav) return;
     nav.innerHTML = "";
-    renderDashboardTabs();
+    renderChairmanDashboardTabs();
     var onlySelf = viewTargets && viewTargets.length === 1 && viewTargets[0].id === "self";
     if (!viewTargets || viewTargets.length === 0 || onlySelf) {
       nav.hidden = true;
@@ -902,8 +886,7 @@
           : t.label || t.id;
       btn.appendChild(span);
       btn.addEventListener("click", function () {
-        if (!isDashboardTarget(t) && getSelectedViewId() === t.id) return;
-        rememberMonthNavigatorPeriodState();
+        if (!isChairmanTarget(t) && getSelectedViewId() === t.id) return;
         setSelectedViewId(t.id);
         setViewContextUser(t.user);
         if (t.id === "self") {
@@ -915,7 +898,6 @@
         } else {
           setHierarchyStack(getHierarchyStack().concat([t.department]));
         }
-        restoreMonthNavigatorPeriodState();
         if (getSessionApiMode() === "mock") {
           inner.querySelectorAll(".dash-view-tab").forEach(function (b) {
             b.setAttribute("aria-selected", b.getAttribute("data-target-id") === getSelectedViewId() ? "true" : "false");
@@ -961,11 +943,10 @@
 
   global.DashboardHierarchyNav = {
     activateSidebarSearchResult: activateSidebarSearchResult,
-    clearRememberedCatalogId: clearRememberedCatalogId,
+    clearRememberedChairmanCatalogId: clearRememberedChairmanCatalogId,
     clearSidebarSearchState: clearSidebarSearchState,
     filterSidebarViewTabs: filterSidebarViewTabs,
-    getActiveCatalogId: getActiveCatalogId,
-    getDashboardTargets: getDashboardTargets,
+    getActiveChairmanCatalogId: getActiveChairmanCatalogId,
     getCurrentViewTarget: getCurrentViewTarget,
     getDepartmentForCurrentKpiContext: getDepartmentForCurrentKpiContext,
     init: init,
@@ -973,13 +954,10 @@
     navigateToHierarchyLevel: navigateToHierarchyLevel,
     onSidebarSearchInput: onSidebarSearchInput,
     refreshSubordinateTabsFromApi: refreshSubordinateTabsFromApi,
-    rememberCatalogId: rememberCatalogId,
-    rememberMonthNavigatorPeriodState: rememberMonthNavigatorPeriodState,
+    rememberChairmanCatalogId: rememberChairmanCatalogId,
     renderHierarchyBreadcrumb: renderHierarchyBreadcrumb,
     renderViewTabs: renderViewTabs,
     resetSidebarSearch: resetSidebarSearch,
-    restoreMonthNavigatorPeriodState: restoreMonthNavigatorPeriodState,
-    setDashboardTargets: setDashboardTargets,
     updateSidebarBackButton: updateSidebarBackButton,
     updateTopBarForView: updateTopBarForView,
   };
