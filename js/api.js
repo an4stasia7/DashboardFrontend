@@ -678,6 +678,13 @@
             item.status_counts && typeof item.status_counts === "object"
               ? item.status_counts
               : null,
+          // FND-T3 «Соотношение ДЗ и КЗ» — клиенты/поставщики.
+          dz_client: item.dz_client != null ? item.dz_client : null,
+          kz_client: item.kz_client != null ? item.kz_client : null,
+          dz_supplier: item.dz_supplier != null ? item.dz_supplier : null,
+          kz_supplier: item.kz_supplier != null ? item.kz_supplier : null,
+          pct_client: item.pct_client != null ? item.pct_client : null,
+          pct_supplier: item.pct_supplier != null ? item.pct_supplier : null,
           has_data: hasData,
           hint: hint,
           rag: color,

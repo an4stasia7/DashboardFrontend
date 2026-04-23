@@ -8,10 +8,12 @@
       frontAccentColor: "#374e6f",
     },
     "FND-T3": {
-      factOnly: true,
+      // Две процентные пилюли: клиент (ДЗ/КЗ) и поставщик (ДЗ/КЗ).
+      dualRatioOverview: true,
       hideHelp: true,
       hideKpiPercent: true,
-      backDepartmentsOnly: true,
+      // На обратной стороне показываем 4 числа (ДЗ/КЗ по клиентам и поставщикам).
+      backDualRatioAmounts: true,
       frontAccentColor: "#374e6f",
     },
     "FND-T4": {

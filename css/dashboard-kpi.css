@@ -881,6 +881,118 @@ article.kpi-tile[data-no-flip="1"] {
   overflow-wrap: anywhere;
 }
 
+/* FND-T3 «Соотношение ДЗ и КЗ»: два процента на лицевой стороне. */
+.kpi-tile-dual-ratio {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.kpi-tile-dual-ratio-cell {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: color-mix(
+    in srgb,
+    var(--tile-front-accent-color, var(--tile-rag-color, var(--accent-blue))) 7%,
+    white
+  );
+  border: 1px solid
+    color-mix(
+      in srgb,
+      var(--tile-front-accent-color, var(--tile-rag-color, var(--accent-blue))) 25%,
+      transparent
+    );
+  min-width: 0;
+}
+
+.kpi-tile-dual-ratio-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-strong, #0f172a);
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.kpi-tile-dual-ratio-value {
+  font-size: 1.15rem;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--tile-front-accent-color, var(--tile-rag-color, var(--accent-blue)));
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
+}
+
+/* FND-T3: обратная сторона — 4 числа ДЗ/КЗ клиентов и поставщиков. */
+.kpi-tile-back-section--dual {
+  display: block;
+}
+
+.kpi-tile-dual-amounts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  width: 100%;
+}
+
+.kpi-tile-dual-amounts-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.04);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  min-width: 0;
+}
+
+.kpi-tile-dual-amounts-group-title {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--muted, #64748b);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  line-height: 1.1;
+}
+
+.kpi-tile-dual-amounts-cell {
+  display: flex;
+  flex-direction: row;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.kpi-tile-dual-amounts-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-strong, #0f172a);
+  flex: 0 0 auto;
+}
+
+.kpi-tile-dual-amounts-value {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-strong, #0f172a);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
 .kpi-tile-badge-row {
   position: absolute;
   top: 12px;

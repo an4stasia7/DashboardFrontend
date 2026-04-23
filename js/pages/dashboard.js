@@ -1630,8 +1630,16 @@
     var hasFact = false;
     var lastPct = null;
     var hasData = false;
-    var extraSums = { found: 0, won: 0, not_participating: 0 };
-    var extraHas = { found: false, won: false, not_participating: false };
+    var extraSums = {
+      found: 0, won: 0, not_participating: 0,
+      dz_client: 0, kz_client: 0,
+      dz_supplier: 0, kz_supplier: 0,
+    };
+    var extraHas = {
+      found: false, won: false, not_participating: false,
+      dz_client: false, kz_client: false,
+      dz_supplier: false, kz_supplier: false,
+    };
 
     bucket.forEach(function (point) {
       var planValue = parseNumberLoose(point.plan);
@@ -1662,6 +1670,26 @@
       kpiPct = lastPct;
     }
 
+    // FND-T3 «Соотношение ДЗ и КЗ»: пересчитываем оба процента из
+    // просуммированных ДЗ/КЗ (при агрегации quarter/ytd пользовательское
+    // требование — складывать ДЗ с ДЗ, КЗ с КЗ и заново считать процент).
+    var pctClient = null;
+    if (extraHas.dz_client && extraHas.kz_client && Math.abs(extraSums.kz_client) > 0.000001) {
+      pctClient = (extraSums.dz_client / extraSums.kz_client) * 100;
+    }
+    var pctSupplier = null;
+    if (extraHas.dz_supplier && extraHas.kz_supplier && Math.abs(extraSums.kz_supplier) > 0.000001) {
+      pctSupplier = (extraSums.dz_supplier / extraSums.kz_supplier) * 100;
+    }
+    // Для плиток с двойным коэффициентом сводный kpi_pct = min(pct_client, pct_supplier)
+    // (худший из двух — higher_is_better).
+    if (pctClient != null || pctSupplier != null) {
+      var arr = [];
+      if (pctClient != null) arr.push(pctClient);
+      if (pctSupplier != null) arr.push(pctSupplier);
+      if (arr.length) kpiPct = Math.min.apply(null, arr);
+    }
+
     return {
       year: y,
       month: m,
@@ -1671,6 +1699,12 @@
       found: extraHas.found ? extraSums.found : null,
       won: extraHas.won ? extraSums.won : null,
       not_participating: extraHas.not_participating ? extraSums.not_participating : null,
+      dz_client: extraHas.dz_client ? extraSums.dz_client : null,
+      kz_client: extraHas.kz_client ? extraSums.kz_client : null,
+      dz_supplier: extraHas.dz_supplier ? extraSums.dz_supplier : null,
+      kz_supplier: extraHas.kz_supplier ? extraSums.kz_supplier : null,
+      pct_client: pctClient,
+      pct_supplier: pctSupplier,
       kpi_pct: kpiPct,
       has_data: hasData || hasPlan || hasFact,
     };
@@ -1763,6 +1797,42 @@
           ? point.not_participating
           : rawItem.not_participating != null
             ? rawItem.not_participating
+            : null,
+      dz_client:
+        point && point.dz_client != null
+          ? point.dz_client
+          : rawItem.dz_client != null
+            ? rawItem.dz_client
+            : null,
+      kz_client:
+        point && point.kz_client != null
+          ? point.kz_client
+          : rawItem.kz_client != null
+            ? rawItem.kz_client
+            : null,
+      dz_supplier:
+        point && point.dz_supplier != null
+          ? point.dz_supplier
+          : rawItem.dz_supplier != null
+            ? rawItem.dz_supplier
+            : null,
+      kz_supplier:
+        point && point.kz_supplier != null
+          ? point.kz_supplier
+          : rawItem.kz_supplier != null
+            ? rawItem.kz_supplier
+            : null,
+      pct_client:
+        point && point.pct_client != null
+          ? point.pct_client
+          : rawItem.pct_client != null
+            ? rawItem.pct_client
+            : null,
+      pct_supplier:
+        point && point.pct_supplier != null
+          ? point.pct_supplier
+          : rawItem.pct_supplier != null
+            ? rawItem.pct_supplier
             : null,
       has_data:
         point && typeof point.has_data === "boolean"
