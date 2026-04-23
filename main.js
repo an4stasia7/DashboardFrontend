@@ -1,13 +1,15 @@
 "use strict";
 
-const { app, BrowserWindow, screen } = require("electron");
+const { app, BrowserWindow, screen, ipcMain, shell } = require("electron");
 const path = require("path");
 const http = require("http");
 const fs = require("fs");
 const url = require("url");
+const { spawn } = require("child_process");
 
 /** Корень приложения: HTML, css/, js/ */
 const STATIC_ROOT = __dirname;
+const APP_ROOT = __dirname;
 
 const MIME = {
   ".html": "text/html; charset=utf-8",
@@ -71,6 +73,7 @@ function createStaticServer(root) {
 
 let staticServer = null;
 let staticPort = null;
+let updatePromise = null;
 
 /**
  * Стабильный порт нужен, чтобы origin (http://127.0.0.1:PORT) не менялся между запусками —
@@ -114,6 +117,130 @@ function getLoadUrl() {
   return "http://127.0.0.1:" + staticPort + "/index.html";
 }
 
+function getCliCommand(baseName) {
+  return process.platform === "win32" ? baseName + ".cmd" : baseName;
+}
+
+function runCommand(command, args, options) {
+  const opts = Object.assign(
+    {
+      cwd: APP_ROOT,
+      windowsHide: true,
+      shell: false,
+    },
+    options || {}
+  );
+
+  return new Promise(function (resolve, reject) {
+    const child = spawn(command, args, opts);
+    let stdout = "";
+    let stderr = "";
+
+    if (child.stdout) {
+      child.stdout.on("data", function (chunk) {
+        stdout += String(chunk);
+      });
+    }
+    if (child.stderr) {
+      child.stderr.on("data", function (chunk) {
+        stderr += String(chunk);
+      });
+    }
+
+    child.once("error", function (err) {
+      reject(err);
+    });
+
+    child.once("close", function (code) {
+      if (code === 0) {
+        resolve({ stdout: stdout, stderr: stderr });
+        return;
+      }
+      reject(
+        new Error(
+          stderr.trim() ||
+            stdout.trim() ||
+            (command + " exited with code " + String(code))
+        )
+      );
+    });
+  });
+}
+
+async function getRemoteDefaultBranch() {
+  try {
+    const result = await runCommand("git", [
+      "symbolic-ref",
+      "--short",
+      "refs/remotes/origin/HEAD",
+    ]);
+    const ref = String(result.stdout || "").trim();
+    const match = ref.match(/^origin\/(.+)$/);
+    return match ? match[1] : "master";
+  } catch (err) {
+    return "master";
+  }
+}
+
+async function ensureGitRepoReady() {
+  const gitDir = path.join(APP_ROOT, ".git");
+  if (!fs.existsSync(gitDir)) {
+    throw new Error(
+      "Автообновление доступно только для приложения, запущенного из git-репозитория."
+    );
+  }
+
+  const status = await runCommand("git", ["status", "--porcelain"]);
+  if (String(status.stdout || "").trim()) {
+    throw new Error(
+      "Автообновление остановлено: в проекте есть локальные изменения. Сначала закоммитьте или уберите их."
+    );
+  }
+}
+
+async function ensureBranchCheckedOut(branchName) {
+  const current = await runCommand("git", ["rev-parse", "--abbrev-ref", "HEAD"]);
+  const currentBranch = String(current.stdout || "").trim();
+  if (currentBranch === branchName) return;
+
+  try {
+    await runCommand("git", ["checkout", branchName]);
+  } catch (err) {
+    await runCommand("git", ["checkout", "-t", "origin/" + branchName]);
+  }
+}
+
+async function performSelfUpdate() {
+  if (updatePromise) return updatePromise;
+
+  updatePromise = (async function () {
+    await ensureGitRepoReady();
+
+    const defaultBranch = await getRemoteDefaultBranch();
+    await runCommand("git", ["fetch", "origin", defaultBranch]);
+    await ensureBranchCheckedOut(defaultBranch);
+    await runCommand("git", ["pull", "--ff-only", "origin", defaultBranch]);
+    await runCommand(getCliCommand("npm"), ["install"]);
+
+    const result = {
+      ok: true,
+      branch: defaultBranch,
+      restarting: true,
+    };
+
+    setTimeout(function () {
+      app.relaunch();
+      app.exit(0);
+    }, 800);
+
+    return result;
+  })().finally(function () {
+    updatePromise = null;
+  });
+
+  return updatePromise;
+}
+
 function createWindow() {
   const defaultWidth = 1280;
   const defaultHeight = 800;
@@ -155,6 +282,27 @@ app.whenReady().then(function () {
   bindStaticServer(parsePreferredPort(), function () {
     createWindow();
   });
+});
+
+ipcMain.handle("app:get-version", function () {
+  return app.getVersion();
+});
+
+ipcMain.handle("app:open-external", async function (_event, targetUrl) {
+  if (!targetUrl) return false;
+  await shell.openExternal(String(targetUrl));
+  return true;
+});
+
+ipcMain.handle("app:run-self-update", async function () {
+  try {
+    return await performSelfUpdate();
+  } catch (err) {
+    return {
+      ok: false,
+      error: err && err.message ? err.message : String(err),
+    };
+  }
 });
 
 app.on("window-all-closed", function () {
