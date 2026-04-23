@@ -8,10 +8,12 @@
       frontAccentColor: "#374e6f",
     },
     "FND-T3": {
-      factOnly: true,
+      // Две процентные пилюли: клиент (ДЗ/КЗ) и поставщик (ДЗ/КЗ).
+      dualRatioOverview: true,
       hideHelp: true,
       hideKpiPercent: true,
-      backDepartmentsOnly: true,
+      // На обратной стороне показываем 4 числа (ДЗ/КЗ по клиентам и поставщикам).
+      backDualRatioAmounts: true,
       frontAccentColor: "#374e6f",
     },
     "FND-T4": {
@@ -39,6 +41,8 @@
       hideKpiPercent: true,
       backDepartmentsOnly: true,
       drilldownRootDept: "Коммерческий директор",
+      drilldownMatchKpiId: "KD-M4",
+      drilldownMatchTitle: "Дебиторская задолженность",
       frontAccentColor: "#374e6f",
     },
     "MRK-04": {
@@ -53,6 +57,11 @@
     },
     "MRK-08": {
       kpiPctOnly: true,
+    },
+    "MRK-09": {
+      tenderStatusOverview: true,
+      hideHelp: true,
+      hideKpiPercent: true,
     },
   };
 })(typeof window !== "undefined" ? window : globalThis);
