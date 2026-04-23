@@ -218,6 +218,7 @@
     setAvailableMonthsFromChartPoints(result.chartIndicators || null, {
       preserveExisting: preserveMonthSlots,
       contextKey: monthContextKey,
+      fallbackTiles: Array.isArray(result.tiles) ? result.tiles : [],
     });
 
     periodState = getPeriodState();
