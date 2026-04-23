@@ -88,6 +88,11 @@
     return !!(rule && rule.showBackPlanFact);
   }
 
+  function shouldShowKpiTileBackPlanOnly(tile) {
+    var rule = getKpiTileException(tile);
+    return !!(rule && rule.backPlanOnly);
+  }
+
   function buildKpiTileHelpButtonHtml() {
     return (
       '<button type="button" class="kpi-tile-help" aria-label="Справка: формула и цветовые пороги показателя" aria-haspopup="dialog" aria-controls="kpi-thresholds-dialog">' +
@@ -327,6 +332,37 @@
     );
   }
 
+  function buildKpiTilePortfolioAmountsHtml(tile) {
+    var plan =
+      tile && tile.portfolio_count != null
+        ? readKpiTileRatioNumber(tile, "portfolio_count")
+        : readKpiTileRatioNumber(tile, "plan");
+    var deviation =
+      tile && tile.deviation_count != null
+        ? readKpiTileRatioNumber(tile, "deviation_count")
+        : readKpiTileRatioNumber(tile, "fact");
+
+    function cell(label, value) {
+      return (
+        '<div class="kpi-tile-dual-amounts-cell">' +
+        '<span class="kpi-tile-dual-amounts-label">' + DashUi.escapeHtml(label) + "</span>" +
+        '<span class="kpi-tile-dual-amounts-value">' +
+        DashUi.escapeHtml(DashUi.formatKpiTilePlanFactValue(value)) +
+        "</span></div>"
+      );
+    }
+
+    return (
+      '<div class="kpi-tile-dual-amounts" role="group" aria-label="Портфель проектов: план и отклонения">' +
+      '<div class="kpi-tile-dual-amounts-group">' +
+      '<div class="kpi-tile-dual-amounts-group-title">Портфель за период</div>' +
+      cell("План", plan) +
+      cell("Отклонения по вехам", deviation) +
+      "</div>" +
+      "</div>"
+    );
+  }
+
   function buildKpiTileTenderStatusOverviewHtml(tile) {
     function readCount(key) {
       var v = tile && tile[key];
@@ -461,13 +497,18 @@
     var rule = getKpiTileException(tile);
     // Если плитка kpiPctOnly, но явно помечена showBackPlanFact — показываем План/Факт.
     var forceBackPlanFact = shouldShowKpiTileBackPlanFact(tile);
+    var forceBackPlanOnly = shouldShowKpiTileBackPlanOnly(tile);
     var hasPf =
       DashUi.kpiTileHasPlanAndFact(tile) &&
-      (!isKpiPctOnlyTile(tile) || forceBackPlanFact);
+      (!isKpiPctOnlyTile(tile) || forceBackPlanFact || forceBackPlanOnly);
     var planFactShown =
       typeof DashUi.formatKpiTilePlanFactPair === "function"
         ? DashUi.formatKpiTilePlanFactPair(tile.plan, tile.fact, tile.units)
         : DashUi.formatKpiTilePlanFactValue(tile.plan) + "/" + DashUi.formatKpiTilePlanFactValue(tile.fact);
+    var planShown =
+      typeof DashUi.formatKpiTileFactValueWithUnits === "function"
+        ? DashUi.formatKpiTileFactValueWithUnits(tile.plan, tile.units)
+        : DashUi.formatKpiTilePlanFactValue(tile.plan);
     var showHelp = shouldShowKpiTileHelp(tile);
     var showPercent = shouldShowKpiTilePercent(tile);
     if (rule && rule.backDualRatioAmounts) {
@@ -486,6 +527,26 @@
         '<div class="kpi-tile-back-section kpi-tile-back-section--dual">' +
         '<div class="kpi-tile-back-section-title">ДЗ и КЗ за период</div>' +
         buildKpiTileDualRatioAmountsHtml(tile) +
+        "</div>" +
+        (hint ? '<p class="kpi-tile-back-hint">' + DashUi.escapeHtml(hint) + "</p>" : "")
+      );
+    }
+    if (rule && rule.backPortfolioAmounts) {
+      return (
+        '<div class="kpi-tile-back-head">' +
+        '<div class="kpi-tile-back-head-copy">' +
+        (code ? '<span class="kpi-tile-back-badge">' + DashUi.escapeHtml(code) + "</span>" : "") +
+        '<h3 class="kpi-tile-back-title">' +
+        DashUi.escapeHtml(tile && tile.title ? tile.title : "Показатель") +
+        "</h3>" +
+        (period ? '<p class="kpi-tile-back-period">' + DashUi.escapeHtml(period) + "</p>" : "") +
+        "</div>" +
+        '<div class="kpi-tile-back-head-actions">' +
+        '<button type="button" class="kpi-tile-flip-action" aria-label="Вернуться к карточке">Назад</button>' +
+        "</div></div>" +
+        '<div class="kpi-tile-back-section kpi-tile-back-section--dual">' +
+        '<div class="kpi-tile-back-section-title">Портфель проектов за период</div>' +
+        buildKpiTilePortfolioAmountsHtml(tile) +
         "</div>" +
         (hint ? '<p class="kpi-tile-back-hint">' + DashUi.escapeHtml(hint) + "</p>" : "")
       );
@@ -524,7 +585,12 @@
           DashUi.escapeHtml(percentLabel) +
           "</strong></div>"
         : "") +
-      (hasPf && shouldRenderKpiTileBack(tile) && (!isKpiPctOnlyTile(tile) || forceBackPlanFact)
+      (hasPf && shouldRenderKpiTileBack(tile) && forceBackPlanOnly
+        ? '<div class="kpi-tile-back-summary-item"><span class="kpi-tile-back-summary-label">План</span><strong>' +
+          DashUi.escapeHtml(planShown) +
+          "</strong></div>"
+        : "") +
+      (hasPf && shouldRenderKpiTileBack(tile) && !forceBackPlanOnly && (!isKpiPctOnlyTile(tile) || forceBackPlanFact)
         ? '<div class="kpi-tile-back-summary-item"><span class="kpi-tile-back-summary-label">План / факт</span><strong>' +
           DashUi.escapeHtml(planFactShown) +
           "</strong></div>"

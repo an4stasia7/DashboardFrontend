@@ -977,7 +977,9 @@ article.kpi-tile[data-no-flip="1"] {
   font-size: 0.8rem;
   font-weight: 600;
   color: var(--text-strong, #0f172a);
-  flex: 0 0 auto;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .kpi-tile-dual-amounts-value {
@@ -989,8 +991,8 @@ article.kpi-tile[data-no-flip="1"] {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  flex: 1 1 auto;
-  min-width: 0;
+  flex: 0 0 auto;
+  min-width: max-content;
 }
 
 .kpi-tile-badge-row {
