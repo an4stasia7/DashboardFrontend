@@ -29,10 +29,10 @@
       frontAccentColor: "#374e6f",
     },
     "FND-T6": {
-      factOnly: true,
+      kpiPctOnly: true,
       hideHelp: true,
       hideKpiPercent: true,
-      backDepartmentsOnly: true,
+      backPortfolioAmounts: true,
       frontAccentColor: "#374e6f",
     },
     "FND-T7": {
@@ -43,6 +43,12 @@
       drilldownRootDept: "Коммерческий директор",
       drilldownMatchKpiId: "KD-M4",
       drilldownMatchTitle: "Дебиторская задолженность",
+      frontAccentColor: "#374e6f",
+    },
+    "FND-T9": {
+      kpiPctOnly: true,
+      hideHelp: true,
+      backPlanOnly: true,
       frontAccentColor: "#374e6f",
     },
     "MRK-04": {

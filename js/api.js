@@ -685,6 +685,8 @@
           kz_supplier: item.kz_supplier != null ? item.kz_supplier : null,
           dz_total: item.dz_total != null ? item.dz_total : null,
           kz_total: item.kz_total != null ? item.kz_total : null,
+          portfolio_count: item.portfolio_count != null ? item.portfolio_count : null,
+          deviation_count: item.deviation_count != null ? item.deviation_count : null,
           pct_client: item.pct_client != null ? item.pct_client : null,
           pct_supplier: item.pct_supplier != null ? item.pct_supplier : null,
           pct_total: item.pct_total != null ? item.pct_total : null,
