@@ -21,6 +21,21 @@
     return typeof fn === "function" ? fn() : {};
   }
 
+  function normalizeRole(value) {
+    return value == null ? "" : String(value).trim().toLocaleLowerCase("ru-RU");
+  }
+
+  function isChairmanViewContext() {
+    var user = getViewContextUser();
+    if (!user || typeof user !== "object") return false;
+    var role = normalizeRole(user.role);
+    var dept = normalizeRole(user.department);
+    return (
+      role === "председатель совета директоров" ||
+      dept === "председатель совета директоров"
+    );
+  }
+
   function getChairmanDashboardCatalogId() {
     var fn = getContext().getChairmanDashboardCatalogId;
     return typeof fn === "function" ? fn() : "";
@@ -274,7 +289,10 @@
     var role = getViewContextUser().role;
     if (result.ok && result.tiles && result.tiles.length > 0) {
       var tilesToRender = result.tiles;
-      if (getChairmanAggregationMode() !== "current" && typeof getContext().getChairmanAggregatedTilesFromRaw === "function") {
+      if (
+        isChairmanViewContext() &&
+        typeof getContext().getChairmanAggregatedTilesFromRaw === "function"
+      ) {
         var aggregated = getContext().getChairmanAggregatedTilesFromRaw(result.data || result.raw || null);
         if (aggregated && aggregated.length) {
           tilesToRender = aggregated;
