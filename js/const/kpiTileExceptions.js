@@ -1,5 +1,11 @@
 (function (global) {
   global.KPI_TILE_EXCEPTIONS = {
+    "OD-M1": {
+      backDeptAmounts: true,
+    },
+    "OD-M3.2": {
+      allowPartialPlanFact: true,
+    },
     "KD-M4": {
       factOnly: true,
       hideHelp: true,
@@ -53,6 +59,7 @@
     },
     "MRK-04": {
       kpiPctOnly: true,
+      backYearCompareAmounts: true,
     },
     "MRK-06": {
       kpiPctOnly: true,

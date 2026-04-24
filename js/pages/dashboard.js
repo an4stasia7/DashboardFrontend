@@ -785,11 +785,17 @@
         e.stopPropagation();
         var childDept = childBtn.getAttribute("data-department");
         if (childDept) {
+          var focusKpiId = childBtn.getAttribute("data-focus-kpi-id") || "";
+          var focusTitle = childBtn.getAttribute("data-focus-title") || "";
+          var explicitFocus =
+            focusKpiId || focusTitle
+              ? { kpi_id: focusKpiId, title: focusTitle }
+              : null;
           var artFromChild = childBtn.closest("article.kpi-tile");
           var ixChild = artFromChild && artFromChild.getAttribute("data-kpi-tile-index");
           var tileFromChild =
             ixChild != null && lastKpiTiles ? lastKpiTiles[+ixChild] : null;
-          navigateDashboardToDepartmentFromDrill(childDept, tileFromChild);
+          navigateDashboardToDepartmentFromDrill(childDept, tileFromChild, explicitFocus);
         }
         return;
       }
@@ -1608,6 +1614,19 @@
     return getMonthShortRu(m) + " " + y;
   }
 
+  function mergeNumericMapInto(target, source) {
+    if (!target || !source || typeof source !== "object") return;
+    Object.keys(source).forEach(function (key) {
+      if (!Object.prototype.hasOwnProperty.call(source, key)) return;
+      var value = parseNumberLoose(source[key]);
+      if (value == null) return;
+      if (!Object.prototype.hasOwnProperty.call(target, key)) {
+        target[key] = 0;
+      }
+      target[key] += value;
+    });
+  }
+
   function computeChairmanAggregatedPoint(item, year, month, mode, selectedQuarters) {
     if (!item || typeof item !== "object") return null;
     var points = Array.isArray(item.monthly_data) ? item.monthly_data.slice() : [];
@@ -1666,6 +1685,7 @@
     var hasFact = false;
     var lastPct = null;
     var hasData = false;
+    var hasExplicitHasDataFlag = false;
     var extraSums = {
       found: 0, won: 0, not_participating: 0,
       dz_client: 0, kz_client: 0,
@@ -1680,6 +1700,8 @@
       dz_total: false, kz_total: false,
       portfolio_count: false, deviation_count: false,
     };
+    var planByDept = {};
+    var factByDept = {};
 
     bucket.forEach(function (point) {
       var planValue = parseNumberLoose(point.plan);
@@ -1694,7 +1716,10 @@
         hasFact = true;
       }
       if (pctValue != null) lastPct = pctValue;
-      if (point.has_data === true) hasData = true;
+      if (typeof point.has_data === "boolean") {
+        hasExplicitHasDataFlag = true;
+        if (point.has_data === true) hasData = true;
+      }
       Object.keys(extraSums).forEach(function (key) {
         var v = parseNumberLoose(point[key]);
         if (v != null) {
@@ -1702,6 +1727,8 @@
           extraHas[key] = true;
         }
       });
+      mergeNumericMapInto(planByDept, point.plan_by_dept);
+      mergeNumericMapInto(factByDept, point.fact_by_dept);
     });
 
     if (hasPlan && Math.abs(plan) > 0.000001 && hasFact) {
@@ -1757,8 +1784,10 @@
       pct_client: pctClient,
       pct_supplier: pctSupplier,
       pct_total: pctTotal,
+      plan_by_dept: Object.keys(planByDept).length ? planByDept : null,
+      fact_by_dept: Object.keys(factByDept).length ? factByDept : null,
       kpi_pct: kpiPct,
-      has_data: hasData || hasPlan || hasFact,
+      has_data: hasExplicitHasDataFlag ? hasData : (hasPlan || hasFact),
     };
   }
 
@@ -1806,6 +1835,11 @@
       }
       return "";
     }
+    function normalizeUnits(kpiId, value) {
+      var kid = kpiId != null ? String(kpiId).trim() : "";
+      if (kid === "OD-M1" || kid === "OD-M3.1" || kid === "OD-M3.2") return "руб.";
+      return value;
+    }
 
     // Когда пересчитываем плитку под режим агрегации (квартал / YTD),
     // сохранённый на бэкенде цвет соответствует только месячному проценту
@@ -1822,7 +1856,10 @@
         rawItem.period != null && String(rawItem.period).trim()
           ? String(rawItem.period)
           : chairmanAggregationModeLabel(mode),
-      units: firstStringValue(["units", "unit", "uom", "measure_unit", "measurement_unit"]),
+      units: normalizeUnits(
+        rawItem.kpi_id,
+        firstStringValue(["units", "unit", "uom", "measure_unit", "measurement_unit"])
+      ),
       frequency: firstStringValue(["frequency", "periodicity", "update_frequency", "frequency_label"]),
       cache_updated_at: firstStringValue(["cache_updated_at"]),
       formula: rawItem.formula != null ? String(rawItem.formula) : null,
@@ -1897,6 +1934,18 @@
           ? point.deviation_count
           : rawItem.deviation_count != null
             ? rawItem.deviation_count
+            : null,
+      plan_by_dept:
+        point && point.plan_by_dept && typeof point.plan_by_dept === "object"
+          ? point.plan_by_dept
+          : rawItem.plan_by_dept && typeof rawItem.plan_by_dept === "object"
+            ? rawItem.plan_by_dept
+            : null,
+      fact_by_dept:
+        point && point.fact_by_dept && typeof point.fact_by_dept === "object"
+          ? point.fact_by_dept
+          : rawItem.fact_by_dept && typeof rawItem.fact_by_dept === "object"
+            ? rawItem.fact_by_dept
             : null,
       pct_client:
         point && point.pct_client != null
