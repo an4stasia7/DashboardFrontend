@@ -687,6 +687,14 @@
           kz_total: item.kz_total != null ? item.kz_total : null,
           portfolio_count: item.portfolio_count != null ? item.portfolio_count : null,
           deviation_count: item.deviation_count != null ? item.deviation_count : null,
+          plan_by_dept:
+            item.plan_by_dept && typeof item.plan_by_dept === "object"
+              ? item.plan_by_dept
+              : null,
+          fact_by_dept:
+            item.fact_by_dept && typeof item.fact_by_dept === "object"
+              ? item.fact_by_dept
+              : null,
           pct_client: item.pct_client != null ? item.pct_client : null,
           pct_supplier: item.pct_supplier != null ? item.pct_supplier : null,
           pct_total: item.pct_total != null ? item.pct_total : null,

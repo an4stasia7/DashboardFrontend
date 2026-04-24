@@ -1,5 +1,8 @@
 (function (global) {
   global.KPI_TILE_EXCEPTIONS = {
+    "OD-M1": {
+      backDeptAmounts: true,
+    },
     "KD-M4": {
       factOnly: true,
       hideHelp: true,
@@ -53,6 +56,7 @@
     },
     "MRK-04": {
       kpiPctOnly: true,
+      backYearCompareAmounts: true,
     },
     "MRK-06": {
       kpiPctOnly: true,
