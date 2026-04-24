@@ -5,6 +5,7 @@
 (function (global) {
   var AppConfig = {
     // API_BASE_URL: "http://192.168.5.219:8000",
+    //API_BASE_URL: "http://127.0.0.1:8000/",
     API_BASE_URL: "http://192.168.1.157:8000",
     APP_VERSION_PATH: "/package.json",
     APP_UPDATE_ENABLED: true,

@@ -572,6 +572,9 @@
             callChairmanOverview("reload", []);
             return;
           }
+          if (applyCurrentPeriodFromLastRawResponse()) {
+            return;
+          }
           loadKpiTilesAndChartsForView();
         },
         onAggregationModeChange: function (mode) {
@@ -1426,6 +1429,13 @@
     return role === "коммерческий директор" || department === "коммерческий директор" || department === "коммерция";
   }
 
+  function isTechnicalDirectorUser(user) {
+    if (!user || typeof user !== "object") return false;
+    var role = normalizeDashboardRole(user.role);
+    var department = normalizeDashboardRole(user.department);
+    return role === "технический директор" || department === "технический директор";
+  }
+
   function isCommercialDepartmentContext(value) {
     var normalized = normalizeDashboardRole(value);
     return normalized === "коммерческий директор" || normalized === "коммерция";
@@ -2024,9 +2034,14 @@
   }
 
   function shouldUseClaimsAndLawsuitsSwitcher() {
+    if (shouldUseTechnicalTables()) return true;
     if (shouldUseCommercialDirectorOverdueDebtEnhancements()) return true;
     if (isBoardChairCommercialBlockContext()) return true;
     return isBoardChairUser(sessionUser) && selectedViewId === "self";
+  }
+
+  function shouldUseTechnicalTables() {
+    return isTechnicalDirectorUser(sessionUser) && selectedViewId === "self";
   }
 
   function shouldUseCommercialDirectorOverdueDebtEnhancements() {
@@ -2042,20 +2057,43 @@
   function updateDashboardTableTitlesForRole() {
     var isBoardChairOwnDashboard = shouldUseBoardChairExecutiveTables();
     var showClaimsSwitcher = shouldUseClaimsAndLawsuitsSwitcher();
+    var useTechnicalTables = shouldUseTechnicalTables();
+    if (useTechnicalTables) {
+      activeClaimsTableView = "claims";
+    }
 
     if (claimsTableTitleTextEl) {
-      claimsTableTitleTextEl.textContent = isBoardChairOwnDashboard ? "ТОП-10 отклонений" : "Претензии";
+      claimsTableTitleTextEl.textContent = useTechnicalTables
+        ? "Отклонения по вехам"
+        : isBoardChairOwnDashboard
+          ? "ТОП-10 отклонений"
+          : "Претензии";
       claimsTableTitleTextEl.hidden = showClaimsSwitcher;
     }
 
     if (overdueDebtTableTitleEl) {
-      overdueDebtTableTitleEl.textContent = isBoardChairOwnDashboard
-        ? "ТОП-10 решений / эскалаций"
-        : "Расшифровка просроченной дебиторской задолженности";
+      overdueDebtTableTitleEl.textContent = useTechnicalTables
+        ? "Улучшение и развитие"
+        : isBoardChairOwnDashboard
+          ? "ТОП-10 решений / эскалаций"
+          : "Расшифровка просроченной дебиторской задолженности";
     }
 
     if (claimsTableHelpWrapEl) {
-      claimsTableHelpWrapEl.hidden = activeClaimsTableView === "lawsuits";
+      claimsTableHelpWrapEl.hidden = useTechnicalTables || activeClaimsTableView === "lawsuits";
+    }
+
+    if (claimsTableSwitcherEl) {
+      var switchButtons = claimsTableSwitcherEl.querySelectorAll(".claims-table-switcher-btn");
+      if (switchButtons && switchButtons.length >= 2) {
+        switchButtons[0].textContent = useTechnicalTables ? "Внешний заказ" : "Претензии";
+        switchButtons[1].textContent = useTechnicalTables ? "Улучшение и развитие" : "Суды";
+      }
+    }
+
+    if (overdueDebtTableTitleEl && overdueDebtTableTitleEl.closest) {
+      var overduePanel = overdueDebtTableTitleEl.closest(".table-panel");
+      if (overduePanel) overduePanel.hidden = useTechnicalTables;
     }
 
     updateClaimsTableSwitcherUi(showClaimsSwitcher);
@@ -2124,7 +2162,7 @@
     }
 
     if (claimsTableHelpWrapEl) {
-      claimsTableHelpWrapEl.hidden = nextView === "lawsuits";
+      claimsTableHelpWrapEl.hidden = shouldUseTechnicalTables() || nextView === "lawsuits";
     }
     if (nextView === "lawsuits") {
       hideClaimsTableHelpPopover();
@@ -2150,6 +2188,7 @@
         enhanceOverdueDebtTable: shouldUseCommercialDirectorOverdueDebtEnhancements(),
         enableLawsuitsTable: shouldUseClaimsAndLawsuitsSwitcher(),
         filterRowsMinAmountRub: psdTableMinRub,
+        technicalTablesMode: shouldUseTechnicalTables(),
       });
     }
   }
@@ -2320,6 +2359,31 @@
    */
   function applyApiResult(result, _source) {
     callDataLoader("applyApiResult", [result, _source]);
+  }
+
+  /**
+   * Пытается перестроить экран из уже полученного raw JSON без нового запроса.
+   * Возвращает false, если для текущего периода не хватает данных.
+   */
+  function applyCurrentPeriodFromLastRawResponse() {
+    if (!lastRawKpiResponse || typeof Api === "undefined" || !Api) return false;
+    if (typeof Api.processKpiResponseBodyAtPeriod !== "function") return false;
+    if (typeof DashboardMonthNav === "undefined" || !DashboardMonthNav || typeof DashboardMonthNav.getPeriodState !== "function") {
+      return false;
+    }
+    var ps = DashboardMonthNav.getPeriodState();
+    var month = ps && ps.currentPeriodMonth != null ? Number(ps.currentPeriodMonth) : null;
+    var year = ps && ps.currentPeriodYear != null ? Number(ps.currentPeriodYear) : null;
+    if (month == null || year == null || isNaN(month) || isNaN(year)) return false;
+
+    var result = Api.processKpiResponseBodyAtPeriod(lastRawKpiResponse, year, month);
+    if (!result || !Array.isArray(result.tiles)) return false;
+    result.ok = true;
+    result.data = result.unwrappedData || lastRawKpiResponse;
+    result.raw = lastRawKpiResponse;
+    delete result.unwrappedData;
+    callDataLoader("applyApiResult", [result, "client-period"]);
+    return true;
   }
 
   /**

@@ -528,6 +528,22 @@
   }
 
   /**
+   * То же, что `processKpiResponseBody`, но с явным выбором периода.
+   * Используется на клиенте для локального переключения месяца без нового запроса.
+   */
+  function processKpiResponseBodyAtPeriod(data, year, month) {
+    var body = unwrapKpiResponseBody(data, "");
+    var tiles = normalizeKpiListFromApiResponse(body);
+    applyPlanFactFromJsonLastPeriodToTiles(body, tiles, year, month);
+    return {
+      tiles: tiles,
+      chartIndicators: buildChartIndicatorsFromApiResponse(body),
+      tableRows: buildTableRowsFromApiResponse(body),
+      unwrappedData: body,
+    };
+  }
+
+  /**
    * Авторизованный GET по полному URL KPI; при успехе добавляет поля из processKpiResponseBody().
    * @param {string} url
    * @returns {Promise<object>}
@@ -1406,6 +1422,13 @@
   function tableRowIdentity(row, tabKey, index) {
     var kpiKey = tableRowKpiKey(row);
     if (kpiKey) return kpiKey;
+    if (row && row.project_name != null && String(row.project_name).trim() !== "") {
+      var projectName = String(row.project_name).trim();
+      if (row.milestone_name != null && String(row.milestone_name).trim() !== "") {
+        return "project:" + projectName + "|milestone:" + String(row.milestone_name).trim();
+      }
+      return "project:" + projectName;
+    }
     if (row && row.code != null && String(row.code).trim() !== "") return "code:" + String(row.code).trim();
     if (row && row.name != null && String(row.name).trim() !== "") return "name:" + String(row.name).trim();
     if (row && row.partner != null && String(row.partner).trim() !== "") return "partner:" + String(row.partner).trim();
@@ -1419,12 +1442,19 @@
     return (
       tableRowKpiKey(row) !== "" ||
       (row.name != null && String(row.name).trim() !== "") ||
+      (row.project_name != null && String(row.project_name).trim() !== "") ||
+      (row.project_manager != null && String(row.project_manager).trim() !== "") ||
+      (row.milestone_name != null && String(row.milestone_name).trim() !== "") ||
       (row.partner != null && String(row.partner).trim() !== "") ||
       (row.code != null && String(row.code).trim() !== "") ||
       (row.number != null && String(row.number).trim() !== "") ||
       (row.counterparty != null && String(row.counterparty).trim() !== "") ||
       (row.partner_name != null && String(row.partner_name).trim() !== "") ||
       (row.order_num != null && String(row.order_num).trim() !== "") ||
+      (row.milestone_planned_finish_date != null && String(row.milestone_planned_finish_date).trim() !== "") ||
+      (row.deviation_date != null && String(row.deviation_date).trim() !== "") ||
+      row.delay_days !== undefined ||
+      row.percent_complete !== undefined ||
       row.plan !== undefined ||
       row.fact !== undefined ||
       row.order_sum !== undefined ||
@@ -1982,5 +2012,6 @@
     searchDepartments: searchDepartments,
     normalizeKpiListFromApiResponse: normalizeKpiListFromApiResponse,
     buildChartIndicatorsFromApiResponse: buildChartIndicatorsFromApiResponse,
+    processKpiResponseBodyAtPeriod: processKpiResponseBodyAtPeriod,
   };
 })(typeof window !== "undefined" ? window : globalThis);

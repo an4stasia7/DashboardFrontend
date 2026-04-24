@@ -232,6 +232,48 @@
     return navPlanFactValuePresent(pt.fact) || navPlanFactValuePresent(pt.plan);
   }
 
+  function tileMonthlyPointHasPeriodValue(pt) {
+    if (!pt) return false;
+    var key = monthYearKey(pt.year, pt.month);
+    if (key < 0) return false;
+    return (
+      pt.has_data === true ||
+      navPlanFactValuePresent(pt.fact) ||
+      navPlanFactValuePresent(pt.plan) ||
+      navPlanFactValuePresent(pt.kpi_pct)
+    );
+  }
+
+  function collectMonthsFromTiles(tiles) {
+    var nextMonths = [];
+    if (!Array.isArray(tiles)) return nextMonths;
+    for (var ti = 0; ti < tiles.length; ti++) {
+      var tile = tiles[ti];
+      var monthlyData = tile && Array.isArray(tile.monthly_data) ? tile.monthly_data : [];
+      for (var mi = 0; mi < monthlyData.length; mi++) {
+        var pt = monthlyData[mi];
+        if (!tileMonthlyPointHasPeriodValue(pt)) continue;
+        var key = monthYearKey(pt.year, pt.month);
+        if (key < 0) continue;
+        var exists = false;
+        for (var ei = 0; ei < nextMonths.length; ei++) {
+          if (nextMonths[ei] && nextMonths[ei].key === key) {
+            exists = true;
+            break;
+          }
+        }
+        if (!exists) {
+          nextMonths.push({
+            month: parseInt(String(pt.month), 10),
+            year: parseInt(String(pt.year), 10),
+            key: key,
+          });
+        }
+      }
+    }
+    return nextMonths;
+  }
+
   function periodKeyInAvailableMonths(y, m, slots) {
     var k = monthYearKey(y, m);
     if (k < 0) return false;
@@ -332,6 +374,9 @@
           }
         }
       }
+    }
+    if (!nextMonths.length && Array.isArray(options.fallbackTiles)) {
+      nextMonths = collectMonthsFromTiles(options.fallbackTiles);
     }
     var cachedMonths =
       nextContextKey && Array.isArray(availableMonthsByContext[nextContextKey])
