@@ -399,9 +399,9 @@
     var previousYearValue = readKpiTileRatioNumber(tile, "plan");
     var currentYearValue = readKpiTileRatioNumber(tile, "fact");
     var unitsText =
-      typeof DashUi.formatKpiTileFactValueWithUnits === "function"
-        ? function (value) { return DashUi.formatKpiTileFactValueWithUnits(value, tile && tile.units); }
-        : function (value) { return DashUi.formatKpiTilePlanFactValue(value); };
+      typeof formatKpiTileMoneyShortWithUnits === "function"
+        ? function (value) { return formatKpiTileMoneyShortWithUnits(value, "руб."); }
+        : function (value) { return DashUi.formatKpiTilePlanFactValue(value) + " руб."; };
 
     function cell(label, value) {
       return (
@@ -414,9 +414,8 @@
     }
 
     return (
-      '<div class="kpi-tile-dual-amounts" role="group" aria-label="Рост отгрузок: текущий и прошлый год">' +
+      '<div class="kpi-tile-dual-amounts kpi-tile-dual-amounts--single kpi-tile-dual-amounts--year-compare" role="group" aria-label="Рост отгрузок: текущий и прошлый год">' +
       '<div class="kpi-tile-dual-amounts-group">' +
-      '<div class="kpi-tile-dual-amounts-group-title">Отгрузки за период</div>' +
       cell("Текущий год", currentYearValue) +
       cell("Прошлый год", previousYearValue) +
       "</div>" +

@@ -242,6 +242,17 @@
     if (updateInProgress) return;
 
     if (isReleaseMode()) {
+      if (
+        compareVersions(latestVersion, currentVersion) > 0 &&
+        (!releaseState || (!releaseState.available && !releaseState.downloaded))
+      ) {
+        setBannerStatus(
+          "На GitHub есть новая версия кода, но опубликованный Release для автообновления пока недоступен. Открываю страницу релизов.",
+          false
+        );
+        openUpdateUrl();
+        return;
+      }
       if (!global.electronApp || typeof global.electronApp.installReleaseUpdate !== "function") {
         openUpdateUrl();
         return;
@@ -420,10 +431,9 @@
           return global.electronApp.checkReleaseUpdates().then(function (result) {
             if (result && result.state) {
               applyReleaseUpdateState(result.state);
-              return;
             }
-            if (result && result.error) {
-              throw new Error(result.error);
+            if (!result || result.ok !== true) {
+              return checkPackageJsonUpdates();
             }
           });
         }
