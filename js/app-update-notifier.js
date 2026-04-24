@@ -48,6 +48,11 @@
     return 0;
   }
 
+  function getLatestVersionFromReleaseInfo(releaseInfo) {
+    if (!releaseInfo || typeof releaseInfo !== "object") return "";
+    return normalizeVersion(releaseInfo.tag_name || releaseInfo.name || releaseInfo.version || "");
+  }
+
   function getDismissedVersion() {
     try {
       return localStorage.getItem(DISMISSED_KEY) || "";
@@ -159,18 +164,26 @@
             "?t=" +
             Date.now()
         );
+    var releaseUrl = String(cfg.APP_UPDATE_REMOTE_RELEASES_URL || "").replace(/\?+$/, "");
     var remoteUrl =
       String(cfg.APP_UPDATE_REMOTE_PACKAGE_URL || "").replace(/\?+$/, "") +
       "?t=" +
       Date.now();
-    if (!remoteUrl) return Promise.resolve();
+    var releasePromise = releaseUrl
+      ? fetchJson(releaseUrl + "?t=" + Date.now()).catch(function () {
+          return null;
+        })
+      : Promise.resolve(null);
+    var packagePromise = remoteUrl ? fetchJson(remoteUrl) : Promise.resolve(null);
+    if (!remoteUrl && !releaseUrl) return Promise.resolve();
 
-    return Promise.all([localPromise, fetchJson(remoteUrl)])
+    return Promise.all([localPromise, releasePromise, packagePromise])
       .then(function (results) {
         var localPkg = results[0] || {};
-        var remotePkg = results[1] || {};
+        var releaseInfo = results[1] || null;
+        var remotePkg = results[2] || {};
         currentVersion = normalizeVersion(localPkg.version || currentVersion);
-        latestVersion = normalizeVersion(remotePkg.version);
+        latestVersion = getLatestVersionFromReleaseInfo(releaseInfo) || normalizeVersion(remotePkg.version);
         if (!currentVersion || !latestVersion) return;
         showUpdateReadyBanner();
       })

@@ -11,6 +11,8 @@
     APP_UPDATE_ENABLED: true,
     APP_UPDATE_REMOTE_PACKAGE_URL:
       "https://raw.githubusercontent.com/an4stasia7/DashboardFrontend/master/package.json",
+    APP_UPDATE_REMOTE_RELEASES_URL:
+      "https://api.github.com/repos/an4stasia7/DashboardFrontend/releases/latest",
     APP_UPDATE_OPEN_URL: "https://github.com/an4stasia7/DashboardFrontend/releases/latest",
     APP_UPDATE_CHECK_INTERVAL_MS: 300000,
 
