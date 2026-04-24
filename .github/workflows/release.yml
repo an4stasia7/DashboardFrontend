@@ -29,4 +29,4 @@ jobs:
       - name: Build and publish release artifacts
         run: npm run dist:publish
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
