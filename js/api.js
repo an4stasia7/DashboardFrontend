@@ -765,9 +765,12 @@
 
   function getTableRowsList(tab) {
     if (!tab) return [];
+    if (Array.isArray(tab.items)) return tab.items.slice();
     if (Array.isArray(tab && tab.rows)) return tab.rows.slice();
     if (tab && tab.rows && typeof tab.rows === "object") return [tab.rows];
+    if (tab && tab.items && typeof tab.items === "object") return [tab.items];
     if (Array.isArray(tab)) return tab.slice();
+    if (tab && typeof tab === "object" && Array.isArray(tab.data)) return tab.data.slice();
     if (tab && typeof tab === "object" && !Object.prototype.hasOwnProperty.call(tab, "rows")) {
       return [tab];
     }
@@ -1125,7 +1128,7 @@
       var rows = getTableRowsList(tab);
       if (!rows || !rows.length) return;
       for (var i = 0; i < rows.length; i++) {
-        fn(tk, rows[i]);
+        fn(tk, rows[i], tab);
       }
     });
   }
@@ -1445,6 +1448,8 @@
       (row.project_name != null && String(row.project_name).trim() !== "") ||
       (row.project_manager != null && String(row.project_manager).trim() !== "") ||
       (row.milestone_name != null && String(row.milestone_name).trim() !== "") ||
+      (row.rp != null && String(row.rp).trim() !== "") ||
+      (row.sroki != null && String(row.sroki).trim() !== "") ||
       (row.partner != null && String(row.partner).trim() !== "") ||
       (row.code != null && String(row.code).trim() !== "") ||
       (row.number != null && String(row.number).trim() !== "") ||
@@ -1455,6 +1460,7 @@
       (row.deviation_date != null && String(row.deviation_date).trim() !== "") ||
       row.delay_days !== undefined ||
       row.percent_complete !== undefined ||
+      (row.progress != null && String(row.progress).trim() !== "") ||
       row.plan !== undefined ||
       row.fact !== undefined ||
       row.order_sum !== undefined ||
@@ -1484,10 +1490,18 @@
     if (!tables || typeof tables !== "object") return [];
 
     var collected = [];
-    forEachTablesRow(tables, function (tk, row, _unused) {
+    forEachTablesRow(tables, function (tk, row, tab) {
       if (!row || typeof row !== "object") return;
       if (!tableRowHasDisplayableData(row)) return;
-      collected.push({ tk: tk, row: row, index: collected.length });
+      collected.push({
+        tk: tk,
+        row: row,
+        index: collected.length,
+        tableName: tab && tab.name != null ? String(tab.name) : "",
+        tableColumns: tab && Array.isArray(tab.columns) ? tab.columns.slice() : [],
+        tablePeriod: tab && tab.period && typeof tab.period === "object" ? tab.period : null,
+        tableDescription: tab && tab.description != null ? String(tab.description) : "",
+      });
     });
     if (!collected.length) return [];
 

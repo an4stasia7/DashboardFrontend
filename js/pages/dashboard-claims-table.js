@@ -148,13 +148,13 @@
   var EXECUTIVE_DEVIATIONS_HEADERS = ["Показатель", "Факт", "План", "RAG", "Комментарий"];
   var EXECUTIVE_DECISIONS_HEADERS = ["Вопрос", "Факт", "План", "RAG", "Решение"];
   var TECHNICAL_TABLE_HEADERS = [
-    "Название проекта",
-    "Руководитель проекта",
-    "Название вехи",
-    "Плановая дата вехи",
-    "Дата отклонения",
-    "Дней отклонения",
-    "Процент выполнения",
+    "№",
+    "Название",
+    "РП",
+    "Сроки",
+    "Отклонение",
+    "Статус",
+    "Прогресс",
   ];
   var TECHNICAL_EXTERNAL_TABLE_KEY = "TD-T-M1-DEVIATIONS";
   var TECHNICAL_DEVELOPMENT_TABLE_KEY = "TD-T-Q1-DEVIATIONS";
@@ -214,6 +214,20 @@
     }
   }
 
+  function getTechnicalTableHeadersFromRows(rows, tableKey) {
+    if (!Array.isArray(rows) || !rows.length) return TECHNICAL_TABLE_HEADERS.slice();
+    for (var i = 0; i < rows.length; i++) {
+      var item = rows[i];
+      if (!item || String(item.tableKey || "").trim() !== String(tableKey || "").trim()) continue;
+      if (Array.isArray(item.tableColumns) && item.tableColumns.length) {
+        return item.tableColumns.map(function (header) {
+          return tableTextOrDash(header);
+        });
+      }
+    }
+    return TECHNICAL_TABLE_HEADERS.slice();
+  }
+
   function formatTechnicalDate(value) {
     if (value == null || value === "") return "—";
     var s = String(value).trim();
@@ -237,6 +251,31 @@
     }) + "%";
   }
 
+  function formatTechnicalDeviation(value) {
+    if (value == null || value === "") return "—";
+    return tableTextOrDash(value);
+  }
+
+  function getTechnicalDeviationSortValue(value) {
+    if (value == null || value === "") return "";
+    if (typeof value === "number" && isFinite(value)) return String(value);
+    var s = String(value).trim();
+    if (!s) return "";
+    var match = s.match(/[+-]?\d+(?:[.,]\d+)?/);
+    if (!match) return "";
+    var n = Number(match[0].replace(",", "."));
+    return isNaN(n) ? "" : String(n);
+  }
+
+  function pickTechnicalField(raw, fields) {
+    if (!raw || typeof raw !== "object") return null;
+    for (var i = 0; i < fields.length; i++) {
+      var key = fields[i];
+      if (key in raw && raw[key] != null && String(raw[key]).trim() !== "") return raw[key];
+    }
+    return null;
+  }
+
   function isTechnicalExternalOrderRow(item) {
     return item && String(item.tableKey || "").trim() === TECHNICAL_EXTERNAL_TABLE_KEY;
   }
@@ -247,31 +286,32 @@
 
   function appendTechnicalTableRow(tbody, raw) {
     var tr = document.createElement("tr");
-    var plannedDate = formatTechnicalDate(raw.milestone_planned_finish_date);
-    var deviationDate = formatTechnicalDate(raw.deviation_date);
-    var delayDays = raw.delay_days != null ? raw.delay_days : "—";
-    var percentComplete = formatTechnicalPercentComplete(raw.percent_complete);
+    var orderNumber = pickTechnicalField(raw, ["number", "order_number", "code"]);
+    var title = pickTechnicalField(raw, ["name", "project_name", "title"]);
+    var owner = pickTechnicalField(raw, ["rp", "project_manager", "manager"]);
+    var dates = pickTechnicalField(raw, ["sroki", "period", "date_range"]);
+    var deviation = pickTechnicalField(raw, ["deviation", "delay_days", "deviation_text"]);
+    var status = pickTechnicalField(raw, ["status", "state"]);
+    var progress = pickTechnicalField(raw, ["progress", "percent_complete"]);
     var values = [
-      tableTextOrDash(raw.project_name),
-      tableTextOrDash(raw.project_manager),
-      tableTextOrDash(raw.milestone_name),
-      plannedDate,
-      deviationDate,
-      tableTextOrDash(delayDays),
-      percentComplete,
+      tableTextOrDash(orderNumber),
+      tableTextOrDash(title),
+      tableTextOrDash(owner),
+      tableTextOrDash(dates),
+      formatTechnicalDeviation(deviation),
+      tableTextOrDash(status),
+      tableTextOrDash(progress),
     ];
     values.forEach(function (value, cellIndex) {
       var td = document.createElement("td");
       td.textContent = value;
       if (cellIndex === 3) {
-        td.setAttribute("data-order", normalizeClaimsSearchDate(raw.milestone_planned_finish_date));
+        td.setAttribute("data-order", normalizeClaimsSearchText(dates));
       } else if (cellIndex === 4) {
-        td.setAttribute("data-order", normalizeClaimsSearchDate(raw.deviation_date));
-      } else if (cellIndex === 5) {
-        td.setAttribute("data-order", String(raw.delay_days != null ? raw.delay_days : ""));
+        td.setAttribute("data-order", getTechnicalDeviationSortValue(deviation));
       } else if (cellIndex === 6) {
-        var pct = Number(raw.percent_complete);
-        td.setAttribute("data-order", isNaN(pct) ? "" : String(Math.abs(pct) <= 1 ? pct * 100 : pct));
+        var pct = Number(progress);
+        td.setAttribute("data-order", isNaN(pct) ? normalizeClaimsSearchText(progress) : String(Math.abs(pct) <= 1 ? pct * 100 : pct));
       }
       tr.appendChild(td);
     });
@@ -362,10 +402,10 @@
     });
   }
 
-  function resetDefaultTables() {
+  function resetDefaultTables(rows) {
     if (technicalTablesMode) {
-      setTableHeaders("table-top-deviations", TECHNICAL_TABLE_HEADERS);
-      setTableHeaders("table-lawsuits", TECHNICAL_TABLE_HEADERS);
+      setTableHeaders("table-top-deviations", getTechnicalTableHeadersFromRows(rows, TECHNICAL_EXTERNAL_TABLE_KEY));
+      setTableHeaders("table-lawsuits", getTechnicalTableHeadersFromRows(rows, TECHNICAL_DEVELOPMENT_TABLE_KEY));
     } else {
       setTableHeaders("table-top-deviations", DEFAULT_TOP_DEVIATIONS_HEADERS);
       setTableHeaders("table-lawsuits", ["Тип документа", "Контрагент", "Предмет спора", "Роль ГК в споре", "Юр. лицо", "Подразделение", "Сумма требований, руб."]);
@@ -1111,18 +1151,18 @@
       wrapperSelector: ".dashboard-table-wrap--claims",
       advancedSearchKey: "technical-external-order-table-advanced",
       columnConfigs: [
-        { index: 0, label: "Название проекта", type: "filter", searchType: "text" },
-        { index: 1, label: "Руководитель проекта", type: "filter", searchType: "text" },
-        { index: 2, label: "Название вехи", type: "filter", searchType: "text" },
-        { index: 3, label: "Плановая дата вехи", type: "filter", searchType: "date" },
-        { index: 4, label: "Дата отклонения", type: "filter", searchType: "date" },
-        { index: 5, label: "Дней отклонения", type: "filter", searchType: "text" },
-        { index: 6, label: "Процент выполнения", type: "filter", searchType: "text" },
+        { index: 0, label: "№", type: "filter", searchType: "text" },
+        { index: 1, label: "Название", type: "filter", searchType: "text" },
+        { index: 2, label: "РП", type: "filter", searchType: "text" },
+        { index: 3, label: "Сроки", type: "filter", searchType: "text" },
+        { index: 4, label: "Отклонение", type: "filter", searchType: "text" },
+        { index: 5, label: "Статус", type: "filter", searchType: "text" },
+        { index: 6, label: "Прогресс", type: "filter", searchType: "text" },
       ],
-      initialOrder: [[5, "desc"]],
+      initialOrder: [[4, "desc"]],
       columnDefs: [
         { targets: "_all", orderable: false },
-        { targets: [5], type: "num", orderable: true },
+        { targets: [4], type: "num", orderable: true },
         { targets: [6], type: "num-fmt", orderable: true },
       ],
     });
@@ -1134,18 +1174,18 @@
       wrapperSelector: ".dashboard-table-wrap--lawsuits",
       advancedSearchKey: "technical-development-table-advanced",
       columnConfigs: [
-        { index: 0, label: "Название проекта", type: "filter", searchType: "text" },
-        { index: 1, label: "Руководитель проекта", type: "filter", searchType: "text" },
-        { index: 2, label: "Название вехи", type: "filter", searchType: "text" },
-        { index: 3, label: "Плановая дата вехи", type: "filter", searchType: "date" },
-        { index: 4, label: "Дата отклонения", type: "filter", searchType: "date" },
-        { index: 5, label: "Дней отклонения", type: "filter", searchType: "text" },
-        { index: 6, label: "Процент выполнения", type: "filter", searchType: "text" },
+        { index: 0, label: "№", type: "filter", searchType: "text" },
+        { index: 1, label: "Название", type: "filter", searchType: "text" },
+        { index: 2, label: "РП", type: "filter", searchType: "text" },
+        { index: 3, label: "Сроки", type: "filter", searchType: "text" },
+        { index: 4, label: "Отклонение", type: "filter", searchType: "text" },
+        { index: 5, label: "Статус", type: "filter", searchType: "text" },
+        { index: 6, label: "Прогресс", type: "filter", searchType: "text" },
       ],
-      initialOrder: [[5, "desc"]],
+      initialOrder: [[4, "desc"]],
       columnDefs: [
         { targets: "_all", orderable: false },
-        { targets: [5], type: "num", orderable: true },
+        { targets: [4], type: "num", orderable: true },
         { targets: [6], type: "num-fmt", orderable: true },
       ],
     });
@@ -1258,7 +1298,7 @@
       return;
     }
 
-    resetDefaultTables();
+    resetDefaultTables(rows);
     setTechnicalTableMode(technicalTablesMode);
     if (technicalTablesMode) {
       renderClaimsTableRows(rows);
