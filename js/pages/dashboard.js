@@ -1671,12 +1671,14 @@
       dz_client: 0, kz_client: 0,
       dz_supplier: 0, kz_supplier: 0,
       dz_total: 0, kz_total: 0,
+      portfolio_count: 0, deviation_count: 0,
     };
     var extraHas = {
       found: false, won: false, not_participating: false,
       dz_client: false, kz_client: false,
       dz_supplier: false, kz_supplier: false,
       dz_total: false, kz_total: false,
+      portfolio_count: false, deviation_count: false,
     };
 
     bucket.forEach(function (point) {
@@ -1750,6 +1752,8 @@
       kz_supplier: extraHas.kz_supplier ? extraSums.kz_supplier : null,
       dz_total: dzTotal,
       kz_total: kzTotal,
+      portfolio_count: extraHas.portfolio_count ? extraSums.portfolio_count : null,
+      deviation_count: extraHas.deviation_count ? extraSums.deviation_count : null,
       pct_client: pctClient,
       pct_supplier: pctSupplier,
       pct_total: pctTotal,
@@ -1881,6 +1885,18 @@
           ? point.kz_total
           : rawItem.kz_total != null
             ? rawItem.kz_total
+            : null,
+      portfolio_count:
+        point && point.portfolio_count != null
+          ? point.portfolio_count
+          : rawItem.portfolio_count != null
+            ? rawItem.portfolio_count
+            : null,
+      deviation_count:
+        point && point.deviation_count != null
+          ? point.deviation_count
+          : rawItem.deviation_count != null
+            ? rawItem.deviation_count
             : null,
       pct_client:
         point && point.pct_client != null
