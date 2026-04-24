@@ -944,6 +944,10 @@ article.kpi-tile[data-no-flip="1"] {
   width: 100%;
 }
 
+.kpi-tile-dual-amounts--single {
+  grid-template-columns: 1fr;
+}
+
 .kpi-tile-dual-amounts-group {
   display: flex;
   flex-direction: column;
@@ -993,6 +997,16 @@ article.kpi-tile[data-no-flip="1"] {
   text-overflow: ellipsis;
   flex: 0 0 auto;
   min-width: max-content;
+}
+
+.kpi-tile-dual-amounts--year-compare .kpi-tile-dual-amounts-cell {
+  align-items: center;
+}
+
+.kpi-tile-dual-amounts--year-compare .kpi-tile-dual-amounts-label {
+  overflow-wrap: break-word;
+  word-break: normal;
+  hyphens: manual;
 }
 
 .kpi-tile-badge-row {
