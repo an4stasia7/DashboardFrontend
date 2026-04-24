@@ -93,6 +93,16 @@
     return !!(rule && rule.backPlanOnly);
   }
 
+  function shouldAllowPartialPlanFact(tile) {
+    var rule = getKpiTileException(tile);
+    return !!(rule && rule.allowPartialPlanFact);
+  }
+
+  function shouldRenderKpiTileBackDeptAmounts(tile) {
+    var rule = getKpiTileException(tile);
+    return !!(rule && rule.backDeptAmounts);
+  }
+
   function buildKpiTileHelpButtonHtml() {
     return (
       '<button type="button" class="kpi-tile-help" aria-label="Справка: формула и цветовые пороги показателя" aria-haspopup="dialog" aria-controls="kpi-thresholds-dialog">' +
@@ -221,6 +231,28 @@
     if (Math.abs(n) >= 1e6) return (n / 1e6).toFixed(1) + " млн";
     if (Math.abs(n) >= 1e3) return (n / 1e3).toFixed(0) + " тыс";
     return String(Math.round(n));
+  }
+
+  function formatKpiTileMoneyShortWithUnits(value, units) {
+    var text = formatKpiTileMoneyShort(value);
+    var unitsText = units != null ? String(units).trim() : "";
+    if (!unitsText || text === "—") return text;
+    return text + " " + unitsText;
+  }
+
+  function formatKpiTileMillionsNumber(value) {
+    var n = Number(value);
+    if (!isFinite(n) || isNaN(n)) return "—";
+    return (Math.round((n / 1e6) * 10) / 10).toString().replace(".", ",");
+  }
+
+  function formatKpiTileMillionsPlanFactPair(plan, fact) {
+    return (
+      formatKpiTileMillionsNumber(plan) +
+      " / " +
+      formatKpiTileMillionsNumber(fact) +
+      " млн. руб."
+    );
   }
 
   function formatKpiTileRatioPercent(value) {
@@ -363,6 +395,35 @@
     );
   }
 
+  function buildKpiTileYearCompareAmountsHtml(tile) {
+    var previousYearValue = readKpiTileRatioNumber(tile, "plan");
+    var currentYearValue = readKpiTileRatioNumber(tile, "fact");
+    var unitsText =
+      typeof DashUi.formatKpiTileFactValueWithUnits === "function"
+        ? function (value) { return DashUi.formatKpiTileFactValueWithUnits(value, tile && tile.units); }
+        : function (value) { return DashUi.formatKpiTilePlanFactValue(value); };
+
+    function cell(label, value) {
+      return (
+        '<div class="kpi-tile-dual-amounts-cell">' +
+        '<span class="kpi-tile-dual-amounts-label">' + DashUi.escapeHtml(label) + "</span>" +
+        '<span class="kpi-tile-dual-amounts-value">' +
+        DashUi.escapeHtml(unitsText(value)) +
+        "</span></div>"
+      );
+    }
+
+    return (
+      '<div class="kpi-tile-dual-amounts" role="group" aria-label="Рост отгрузок: текущий и прошлый год">' +
+      '<div class="kpi-tile-dual-amounts-group">' +
+      '<div class="kpi-tile-dual-amounts-group-title">Отгрузки за период</div>' +
+      cell("Текущий год", currentYearValue) +
+      cell("Прошлый год", previousYearValue) +
+      "</div>" +
+      "</div>"
+    );
+  }
+
   function buildKpiTileTenderStatusOverviewHtml(tile) {
     function readCount(key) {
       var v = tile && tile[key];
@@ -394,6 +455,16 @@
 
   function buildKpiTileMetricsSectionHtml(tile, hasPf, planFactShown, factShown) {
     var rule = getKpiTileException(tile);
+    var hasPartialPf =
+      !!(rule && rule.allowPartialPlanFact) &&
+      (
+        (typeof DashUi !== "undefined" && DashUi && typeof DashUi.kpiTilePlanFactValuePresent === "function"
+          ? DashUi.kpiTilePlanFactValuePresent(tile && tile.plan)
+          : tile && tile.plan != null) ||
+        (typeof DashUi !== "undefined" && DashUi && typeof DashUi.kpiTilePlanFactValuePresent === "function"
+          ? DashUi.kpiTilePlanFactValuePresent(tile && tile.fact)
+          : tile && tile.fact != null)
+      );
     if (rule && rule.dualRatioOverview) {
       return (
         '<div class="kpi-tile-metrics kpi-tile-metrics--dual-ratio" aria-label="Соотношение ДЗ и КЗ">' +
@@ -425,7 +496,7 @@
         "</div>"
       );
     }
-    if (!hasPf) return "";
+    if (!hasPf && !hasPartialPf) return "";
     return (
       '<div class="kpi-tile-metrics kpi-tile-metrics--pf-only" aria-label="' +
       DashUi.escapeHtml(KPI_TILE_ARIA_METRICS_PF) +
@@ -487,6 +558,81 @@
     );
   }
 
+  function buildKpiTileDepartmentAmountsHtml(tile) {
+    var planByDept = tile && tile.plan_by_dept && typeof tile.plan_by_dept === "object" ? tile.plan_by_dept : null;
+    var factByDept = tile && tile.fact_by_dept && typeof tile.fact_by_dept === "object" ? tile.fact_by_dept : null;
+    var names = Object.create(null);
+    if (planByDept) {
+      Object.keys(planByDept).forEach(function (name) {
+        names[name] = true;
+      });
+    }
+    if (factByDept) {
+      Object.keys(factByDept).forEach(function (name) {
+        names[name] = true;
+      });
+    }
+    var rows = Object.keys(names)
+      .map(function (name) {
+        var planValue = planByDept && Object.prototype.hasOwnProperty.call(planByDept, name) ? Number(planByDept[name]) : null;
+        var factValue = factByDept && Object.prototype.hasOwnProperty.call(factByDept, name) ? Number(factByDept[name]) : null;
+        return {
+          name: name,
+          plan: isFinite(planValue) && !isNaN(planValue) ? planValue : null,
+          fact: isFinite(factValue) && !isNaN(factValue) ? factValue : null,
+        };
+      })
+      .filter(function (row) {
+        return row.plan != null || row.fact != null;
+      })
+      .sort(function (a, b) {
+        var aMax = Math.max(Math.abs(a.plan || 0), Math.abs(a.fact || 0));
+        var bMax = Math.max(Math.abs(b.plan || 0), Math.abs(b.fact || 0));
+        if (bMax !== aMax) return bMax - aMax;
+        return String(a.name || "").localeCompare(String(b.name || ""), "ru");
+      });
+    if (!rows.length) {
+      return '<div class="kpi-tile-back-message">Нет данных по подразделениям.</div>';
+    }
+    return (
+      '<div class="kpi-tile-children-list">' +
+      rows
+        .map(function (row) {
+          var pair = formatKpiTileMillionsPlanFactPair(row.plan, row.fact);
+          var canNavigate = String(row.name || "").trim() !== "Прочие подразделения";
+          var tagName = canNavigate ? "a" : "div";
+          var extraClass = canNavigate ? " kpi-tile-child-link" : " kpi-tile-child-item--static";
+          var attrs = canNavigate
+            ? ' tabindex="0" data-department="' + DashUi.escapeHtml(row.name) + '"'
+            : "";
+          var chevron = canNavigate
+            ? '<svg class="kpi-tile-child-chevron" width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4.5 2.5L8 6L4.5 9.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+            : "";
+          return (
+            "<" +
+            tagName +
+            ' class="kpi-tile-child-item' +
+            extraClass +
+            '"' +
+            attrs +
+            ">" +
+            '<span class="kpi-tile-child-name">' +
+            DashUi.escapeHtml(row.name) +
+            "</span>" +
+            '<span class="kpi-tile-child-value">' +
+            DashUi.escapeHtml(pair) +
+            "</span>" +
+            chevron +
+            "</" +
+            tagName +
+            ">"
+          );
+        })
+        .join("") +
+      "</div>"
+    );
+  }
+
   function buildKpiTileBackFaceHtml(tile, tileIndex) {
     var state = getTileDetailsState(tileIndex);
     var pres = MockData.getKpiTilePresentation(tile);
@@ -498,8 +644,16 @@
     // Если плитка kpiPctOnly, но явно помечена showBackPlanFact — показываем План/Факт.
     var forceBackPlanFact = shouldShowKpiTileBackPlanFact(tile);
     var forceBackPlanOnly = shouldShowKpiTileBackPlanOnly(tile);
+    var allowPartialPlanFact = shouldAllowPartialPlanFact(tile);
+    var hasAnyPlanFactValue =
+      (typeof DashUi !== "undefined" && DashUi && typeof DashUi.kpiTilePlanFactValuePresent === "function"
+        ? DashUi.kpiTilePlanFactValuePresent(tile && tile.plan)
+        : tile && tile.plan != null) ||
+      (typeof DashUi !== "undefined" && DashUi && typeof DashUi.kpiTilePlanFactValuePresent === "function"
+        ? DashUi.kpiTilePlanFactValuePresent(tile && tile.fact)
+        : tile && tile.fact != null);
     var hasPf =
-      DashUi.kpiTileHasPlanAndFact(tile) &&
+      (DashUi.kpiTileHasPlanAndFact(tile) || (allowPartialPlanFact && hasAnyPlanFactValue)) &&
       (!isKpiPctOnlyTile(tile) || forceBackPlanFact || forceBackPlanOnly);
     var planFactShown =
       typeof DashUi.formatKpiTilePlanFactPair === "function"
@@ -547,6 +701,46 @@
         '<div class="kpi-tile-back-section kpi-tile-back-section--dual">' +
         '<div class="kpi-tile-back-section-title">Портфель проектов за период</div>' +
         buildKpiTilePortfolioAmountsHtml(tile) +
+        "</div>" +
+        (hint ? '<p class="kpi-tile-back-hint">' + DashUi.escapeHtml(hint) + "</p>" : "")
+      );
+    }
+    if (rule && rule.backYearCompareAmounts) {
+      return (
+        '<div class="kpi-tile-back-head">' +
+        '<div class="kpi-tile-back-head-copy">' +
+        (code ? '<span class="kpi-tile-back-badge">' + DashUi.escapeHtml(code) + "</span>" : "") +
+        '<h3 class="kpi-tile-back-title">' +
+        DashUi.escapeHtml(tile && tile.title ? tile.title : "Показатель") +
+        "</h3>" +
+        (period ? '<p class="kpi-tile-back-period">' + DashUi.escapeHtml(period) + "</p>" : "") +
+        "</div>" +
+        '<div class="kpi-tile-back-head-actions">' +
+        '<button type="button" class="kpi-tile-flip-action" aria-label="Вернуться к карточке">Назад</button>' +
+        "</div></div>" +
+        '<div class="kpi-tile-back-section kpi-tile-back-section--dual">' +
+        '<div class="kpi-tile-back-section-title">Отгрузки за период</div>' +
+        buildKpiTileYearCompareAmountsHtml(tile) +
+        "</div>" +
+        (hint ? '<p class="kpi-tile-back-hint">' + DashUi.escapeHtml(hint) + "</p>" : "")
+      );
+    }
+    if (shouldRenderKpiTileBackDeptAmounts(tile)) {
+      return (
+        '<div class="kpi-tile-back-head">' +
+        '<div class="kpi-tile-back-head-copy">' +
+        (code ? '<span class="kpi-tile-back-badge">' + DashUi.escapeHtml(code) + "</span>" : "") +
+        '<h3 class="kpi-tile-back-title">' +
+        DashUi.escapeHtml(tile && tile.title ? tile.title : "Показатель") +
+        "</h3>" +
+        (period ? '<p class="kpi-tile-back-period">' + DashUi.escapeHtml(period) + "</p>" : "") +
+        "</div>" +
+        '<div class="kpi-tile-back-head-actions">' +
+        '<button type="button" class="kpi-tile-flip-action" aria-label="Вернуться к карточке">Назад</button>' +
+        "</div></div>" +
+        '<div class="kpi-tile-back-section kpi-tile-back-section--dual">' +
+        '<div class="kpi-tile-back-section-title">Подразделения за период</div>' +
+        buildKpiTileDepartmentAmountsHtml(tile) +
         "</div>" +
         (hint ? '<p class="kpi-tile-back-hint">' + DashUi.escapeHtml(hint) + "</p>" : "")
       );
@@ -723,7 +917,16 @@
       var pres = MockData.getKpiTilePresentation(tile);
       var rule = getKpiTileException(tile);
       var frontAccentColor = rule && rule.frontAccentColor ? String(rule.frontAccentColor).trim() : "";
-      var hasPf = DashUi.kpiTileHasPlanAndFact(tile) && !isKpiPctOnlyTile(tile);
+      var hasAnyPlanFactValue =
+        (typeof DashUi !== "undefined" && DashUi && typeof DashUi.kpiTilePlanFactValuePresent === "function"
+          ? DashUi.kpiTilePlanFactValuePresent(tile && tile.plan)
+          : tile && tile.plan != null) ||
+        (typeof DashUi !== "undefined" && DashUi && typeof DashUi.kpiTilePlanFactValuePresent === "function"
+          ? DashUi.kpiTilePlanFactValuePresent(tile && tile.fact)
+          : tile && tile.fact != null);
+      var hasPf =
+        (DashUi.kpiTileHasPlanAndFact(tile) || (rule && rule.allowPartialPlanFact && hasAnyPlanFactValue)) &&
+        !isKpiPctOnlyTile(tile);
       var planFactShown =
         typeof DashUi.formatKpiTilePlanFactPair === "function"
           ? DashUi.formatKpiTilePlanFactPair(tile.plan, tile.fact, tile.units)

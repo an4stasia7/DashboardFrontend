@@ -10,6 +10,9 @@
   var currentVersion = null;
   var latestVersion = null;
   var updateInProgress = false;
+  var updateMode = global.electronApp ? "git" : "web";
+  var releaseState = null;
+  var releaseListenerCleanup = null;
 
   function safeParseJson(text) {
     try {
@@ -120,8 +123,163 @@
     }
   }
 
+  function showUpdateReadyBanner() {
+    if (!currentVersion || !latestVersion) return;
+    if (compareVersions(latestVersion, currentVersion) <= 0) {
+      removeBanner();
+      return;
+    }
+    if (normalizeVersion(getDismissedVersion()) === latestVersion) return;
+    ensureBanner(currentVersion, latestVersion);
+  }
+
+  function resetUpdateUi() {
+    updateInProgress = false;
+    setButtonsDisabled(false);
+    setPrimaryButtonText("Обновить");
+  }
+
+  function getModeLabel() {
+    return String(updateMode || "").trim().toLowerCase();
+  }
+
+  function isReleaseMode() {
+    return getModeLabel() === "release";
+  }
+
+  function isPortableMode() {
+    return getModeLabel() === "portable";
+  }
+
+  function checkPackageJsonUpdates() {
+    var localPromise = currentVersion
+      ? Promise.resolve({ version: currentVersion })
+      : fetchJson(
+          String(cfg.APP_VERSION_PATH || "/package.json").replace(/\?+$/, "") +
+            "?t=" +
+            Date.now()
+        );
+    var remoteUrl =
+      String(cfg.APP_UPDATE_REMOTE_PACKAGE_URL || "").replace(/\?+$/, "") +
+      "?t=" +
+      Date.now();
+    if (!remoteUrl) return Promise.resolve();
+
+    return Promise.all([localPromise, fetchJson(remoteUrl)])
+      .then(function (results) {
+        var localPkg = results[0] || {};
+        var remotePkg = results[1] || {};
+        currentVersion = normalizeVersion(localPkg.version || currentVersion);
+        latestVersion = normalizeVersion(remotePkg.version);
+        if (!currentVersion || !latestVersion) return;
+        showUpdateReadyBanner();
+      })
+      .catch(function () {
+        /* ignore update check failures */
+      });
+  }
+
+  function applyReleaseUpdateState(nextState) {
+    if (!nextState || typeof nextState !== "object") return;
+    releaseState = nextState;
+    if (nextState.mode) updateMode = String(nextState.mode);
+    if (nextState.currentVersion) {
+      currentVersion = normalizeVersion(nextState.currentVersion);
+    }
+    if (nextState.latestVersion) {
+      latestVersion = normalizeVersion(nextState.latestVersion);
+    }
+
+    if (nextState.downloaded) {
+      updateInProgress = true;
+      setButtonsDisabled(true);
+      setPrimaryButtonText("Перезапуск…");
+      setBannerStatus("Обновление загружено. Приложение перезапускается…", false);
+      showUpdateReadyBanner();
+      return;
+    }
+
+    if (nextState.downloading) {
+      updateInProgress = true;
+      setButtonsDisabled(true);
+      setPrimaryButtonText(
+        nextState.progress != null ? "Загрузка " + String(nextState.progress) + "%" : "Загрузка…"
+      );
+      setBannerStatus(
+        nextState.progress != null
+          ? "Загрузка обновления… " + String(nextState.progress) + "%"
+          : "Загрузка обновления…",
+        false
+      );
+      showUpdateReadyBanner();
+      return;
+    }
+
+    if (nextState.available) {
+      resetUpdateUi();
+      setBannerStatus("", false);
+      showUpdateReadyBanner();
+      return;
+    }
+
+    if (nextState.error) {
+      if (updateInProgress) {
+        resetUpdateUi();
+        setBannerStatus(String(nextState.error), true);
+      }
+      return;
+    }
+
+    if (!nextState.checking) {
+      resetUpdateUi();
+      if (isReleaseMode()) {
+        removeBanner();
+      }
+    }
+  }
+
   function runAutoUpdate() {
     if (updateInProgress) return;
+
+    if (isReleaseMode()) {
+      if (!global.electronApp || typeof global.electronApp.installReleaseUpdate !== "function") {
+        openUpdateUrl();
+        return;
+      }
+      updateInProgress = true;
+      setButtonsDisabled(true);
+      setPrimaryButtonText("Загрузка…");
+      setBannerStatus("Загружаю обновление из GitHub Releases…", false);
+      global.electronApp
+        .installReleaseUpdate()
+        .then(function (result) {
+          if (!result || result.ok !== true) {
+            throw new Error(
+              result && result.error ? result.error : "Не удалось установить обновление приложения."
+            );
+          }
+          if (result.state) applyReleaseUpdateState(result.state);
+          setBannerStatus("Обновление загружено. Приложение перезапускается…", false);
+        })
+        .catch(function (err) {
+          resetUpdateUi();
+          setBannerStatus(
+            err && err.message ? err.message : "Не удалось установить обновление приложения.",
+            true
+          );
+        });
+      return;
+    }
+
+    if (isPortableMode()) {
+      setBannerStatus(
+        "Для portable-сборки автоматическая установка недоступна. Открываю страницу последнего релиза.",
+        false
+      );
+      openUpdateUrl();
+      return;
+    }
+
     if (!global.electronApp || typeof global.electronApp.runSelfUpdate !== "function") {
       openUpdateUrl();
       return;
@@ -145,9 +303,7 @@
         setBannerStatus("Обновление установлено. Приложение перезапускается…", false);
       })
       .catch(function (err) {
-        updateInProgress = false;
-        setButtonsDisabled(false);
-        setPrimaryButtonText("Обновить");
+        resetUpdateUi();
         setBannerStatus(
           err && err.message ? err.message : "Не удалось выполнить автообновление.",
           true
@@ -218,6 +374,10 @@
     banner.appendChild(status);
     banner.appendChild(actions);
     document.body.appendChild(banner);
+
+    if (updateInProgress) {
+      setButtonsDisabled(true);
+    }
   }
 
   function fetchJson(url) {
@@ -245,48 +405,57 @@
     if (shouldSkipCheck()) return Promise.resolve();
     if (updateInProgress) return Promise.resolve();
 
-    var localUrl =
-      String(cfg.APP_VERSION_PATH || "/package.json").replace(/\?+$/, "") +
-      "?t=" +
-      Date.now();
-    var remoteUrl =
-      String(cfg.APP_UPDATE_REMOTE_PACKAGE_URL || "").replace(/\?+$/, "") +
-      "?t=" +
-      Date.now();
-    if (!remoteUrl) return Promise.resolve();
+    if (!global.electronApp || typeof global.electronApp.getUpdateMode !== "function") {
+      return checkPackageJsonUpdates();
+    }
 
-    return Promise.all([fetchJson(localUrl), fetchJson(remoteUrl)])
-      .then(function (results) {
-        var localPkg = results[0] || {};
-        var remotePkg = results[1] || {};
-        currentVersion = normalizeVersion(localPkg.version);
-        latestVersion = normalizeVersion(remotePkg.version);
-        if (!currentVersion || !latestVersion) return;
-
-        if (compareVersions(latestVersion, currentVersion) <= 0) {
-          removeBanner();
-          return;
+    return global.electronApp
+      .getUpdateMode()
+      .then(function (info) {
+        if (info && info.mode) updateMode = String(info.mode);
+        if (info && info.currentVersion) {
+          currentVersion = normalizeVersion(info.currentVersion);
         }
-
-        if (normalizeVersion(getDismissedVersion()) === latestVersion) {
-          return;
+        if (isReleaseMode() && typeof global.electronApp.checkReleaseUpdates === "function") {
+          return global.electronApp.checkReleaseUpdates().then(function (result) {
+            if (result && result.state) {
+              applyReleaseUpdateState(result.state);
+              return;
+            }
+            if (result && result.error) {
+              throw new Error(result.error);
+            }
+          });
         }
-
-        ensureBanner(currentVersion, latestVersion);
+        return checkPackageJsonUpdates();
       })
       .catch(function () {
-        /* ignore update check failures */
+        return checkPackageJsonUpdates();
       });
   }
 
   function init() {
     if (global.electronApp && typeof global.electronApp.getAppVersion === "function") {
-      global.electronApp.getAppVersion().then(function (version) {
-        if (version) currentVersion = normalizeVersion(version);
-      }).catch(function () {
+      global.electronApp
+        .getAppVersion()
+        .then(function (version) {
+          if (version) currentVersion = normalizeVersion(version);
+        })
+        .catch(function () {
+          /* ignore */
+        });
+    }
+
+    if (global.electronApp && typeof global.electronApp.onReleaseUpdateState === "function") {
+      releaseListenerCleanup = global.electronApp.onReleaseUpdateState(applyReleaseUpdateState);
+    }
+
+    if (global.electronApp && typeof global.electronApp.getReleaseUpdateState === "function") {
+      global.electronApp.getReleaseUpdateState().then(applyReleaseUpdateState).catch(function () {
         /* ignore */
       });
     }
+
     checkForUpdates();
     if (!checkTimer) {
       checkTimer = global.setInterval(
@@ -297,6 +466,12 @@
     document.addEventListener("visibilitychange", function () {
       if (document.visibilityState === "visible") {
         checkForUpdates();
+      }
+    });
+    global.addEventListener("beforeunload", function () {
+      if (typeof releaseListenerCleanup === "function") {
+        releaseListenerCleanup();
+        releaseListenerCleanup = null;
       }
     });
   }

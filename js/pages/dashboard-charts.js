@@ -199,6 +199,12 @@
     return host;
   }
 
+  function getDonutsGridPreviewTitle() {
+    var titleEl = document.getElementById("donuts-grid-title");
+    var title = titleEl && titleEl.textContent != null ? String(titleEl.textContent).trim() : "";
+    return title || "Показатели KPI";
+  }
+
   function openLineChartPreview() {
     if (!lineChartInstance || typeof Highcharts === "undefined") return;
     openChartPreviewDialog(
@@ -1017,9 +1023,59 @@
   }
 
   function openDonutChartsPreview() {
-    var tiles = getCurrentTiles();
-    if (!tiles || !tiles.length || typeof Highcharts === "undefined") return;
-    openChartPreviewDialog("Показатели KPI", function (body) {
+    if (typeof Highcharts === "undefined") return;
+    var ctx = getContext();
+    var previewTitle = getDonutsGridPreviewTitle();
+
+    if (ctx.ksRazvitieChart && Array.isArray(ctx.ksRazvitieChart.charts) && ctx.ksRazvitieChart.charts.length) {
+      var ksCharts = getVisibleDonutTilesSafe(ctx.ksRazvitieChart.charts);
+      if (!ksCharts || !ksCharts.length) return;
+      openChartPreviewDialog(previewTitle, function (body) {
+        var grid = document.createElement("div");
+        grid.className = "chart-preview-donuts-grid";
+        body.appendChild(grid);
+
+        ksCharts.forEach(function (item) {
+          var cell = document.createElement("div");
+          cell.className = "chart-preview-donut-cell";
+
+          var chartHost = document.createElement("div");
+          chartHost.className = "chart-preview-donut-chart";
+
+          var label = document.createElement("div");
+          label.className = "chart-preview-donut-label";
+          var indicator = item && item.indicator ? String(item.indicator) : "";
+          label.textContent = indicator;
+          label.title = indicator;
+
+          cell.appendChild(chartHost);
+          cell.appendChild(label);
+          grid.appendChild(cell);
+
+          var agg = aggregateKsMonthsForPeriod(
+            Array.isArray(item && item.months) ? item.months : [],
+            ctx.aggregationMode || "current",
+            ctx.refMonth
+          );
+          var preview = Highcharts.chart(
+            chartHost,
+            buildKsRazvitieDonutOptions(agg.plan, agg.fact, 220)
+          );
+          chartPreviewInstances.push(preview);
+        });
+
+        setTimeout(function () {
+          chartPreviewInstances.forEach(function (chart) {
+            if (chart && typeof chart.reflow === "function") chart.reflow();
+          });
+        }, 0);
+      });
+      return;
+    }
+
+    var tiles = getVisibleDonutTilesSafe(getCurrentTiles());
+    if (!tiles || !tiles.length) return;
+    openChartPreviewDialog(previewTitle, function (body) {
       var grid = document.createElement("div");
       grid.className = "chart-preview-donuts-grid";
       body.appendChild(grid);

@@ -646,9 +646,17 @@
           }
           return "";
         }
+        function normalizeUnits(kpiId, value) {
+          var kid = kpiId != null ? String(kpiId).trim() : "";
+          if (kid === "OD-M1" || kid === "OD-M3.1" || kid === "OD-M3.2") return "руб.";
+          return value;
+        }
         var formulaSrc = item.formula != null ? item.formula : th.formula;
         var hasData = typeof item.has_data === "boolean" ? item.has_data : undefined;
-        var units = firstStringValue(["units", "unit", "uom", "measure_unit", "measurement_unit"]);
+        var units = normalizeUnits(
+          item.kpi_id,
+          firstStringValue(["units", "unit", "uom", "measure_unit", "measurement_unit"])
+        );
         var frequency = firstStringValue(["frequency", "periodicity", "update_frequency", "frequency_label"]);
         var cacheUpdatedAt = firstStringValue(["cache_updated_at"]);
         return {
@@ -687,6 +695,14 @@
           kz_total: item.kz_total != null ? item.kz_total : null,
           portfolio_count: item.portfolio_count != null ? item.portfolio_count : null,
           deviation_count: item.deviation_count != null ? item.deviation_count : null,
+          plan_by_dept:
+            item.plan_by_dept && typeof item.plan_by_dept === "object"
+              ? item.plan_by_dept
+              : null,
+          fact_by_dept:
+            item.fact_by_dept && typeof item.fact_by_dept === "object"
+              ? item.fact_by_dept
+              : null,
           pct_client: item.pct_client != null ? item.pct_client : null,
           pct_supplier: item.pct_supplier != null ? item.pct_supplier : null,
           pct_total: item.pct_total != null ? item.pct_total : null,
