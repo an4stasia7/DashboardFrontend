@@ -147,6 +147,18 @@
   var DEFAULT_OVERDUE_DEBT_HEADERS = ["№ Заказа клиента", "Контрагент", "Просрочка, дн.", "Причина", "Действие", "Сумма, руб"];
   var EXECUTIVE_DEVIATIONS_HEADERS = ["Показатель", "Факт", "План", "RAG", "Комментарий"];
   var EXECUTIVE_DECISIONS_HEADERS = ["Вопрос", "Факт", "План", "RAG", "Решение"];
+  var TECHNICAL_TABLE_HEADERS = [
+    "Название проекта",
+    "Руководитель проекта",
+    "Название вехи",
+    "Плановая дата вехи",
+    "Дата отклонения",
+    "Дней отклонения",
+    "Процент выполнения",
+  ];
+  var TECHNICAL_EXTERNAL_TABLE_KEY = "TD-T-M1-DEVIATIONS";
+  var TECHNICAL_DEVELOPMENT_TABLE_KEY = "TD-T-Q1-DEVIATIONS";
+  var technicalTablesMode = false;
 
   function setTableHeaders(tableId, headers) {
     var table = document.getElementById(tableId);
@@ -175,6 +187,95 @@
     if (table.tFoot) {
       table.tFoot.hidden = !!executiveMode;
     }
+  }
+
+  function setTechnicalTableMode(technicalMode) {
+    var topTable = document.getElementById("table-top-deviations");
+    var secondTable = document.getElementById("table-lawsuits");
+    if (topTable && topTable.tFoot) {
+      topTable.tFoot.hidden = !!technicalMode;
+      if (technicalMode) {
+        topTable.tFoot.innerHTML =
+          '<tr><th colspan="6">Итого</th><th id="claims-table-total-sum">—</th></tr>';
+      } else {
+        topTable.tFoot.innerHTML =
+          '<tr><th colspan="10">Итого</th><th id="claims-table-total-sum">0,00</th></tr>';
+      }
+    }
+    if (secondTable && secondTable.tFoot) {
+      secondTable.tFoot.hidden = !!technicalMode;
+      if (technicalMode) {
+        secondTable.tFoot.innerHTML =
+          '<tr><th colspan="6">Итого</th><th id="lawsuits-table-total-sum">—</th></tr>';
+      } else {
+        secondTable.tFoot.innerHTML =
+          '<tr><th colspan="6">Итого</th><th id="lawsuits-table-total-sum">0,00</th></tr>';
+      }
+    }
+  }
+
+  function formatTechnicalDate(value) {
+    if (value == null || value === "") return "—";
+    var s = String(value).trim();
+    if (!s) return "—";
+    var match = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (match) return match[3] + "." + match[2] + "." + match[1];
+    var parsed = new Date(s);
+    if (isNaN(parsed.getTime())) return tableTextOrDash(s);
+    var day = String(parsed.getDate()).padStart(2, "0");
+    var month = String(parsed.getMonth() + 1).padStart(2, "0");
+    return day + "." + month + "." + parsed.getFullYear();
+  }
+
+  function formatTechnicalPercentComplete(value) {
+    if (value == null || value === "") return "—";
+    var n = Number(value);
+    if (isNaN(n)) return tableTextOrDash(value);
+    var pct = Math.abs(n) <= 1 ? n * 100 : n;
+    return pct.toLocaleString("ru-RU", {
+      maximumFractionDigits: 1,
+    }) + "%";
+  }
+
+  function isTechnicalExternalOrderRow(item) {
+    return item && String(item.tableKey || "").trim() === TECHNICAL_EXTERNAL_TABLE_KEY;
+  }
+
+  function isTechnicalImprovementRow(item) {
+    return item && String(item.tableKey || "").trim() === TECHNICAL_DEVELOPMENT_TABLE_KEY;
+  }
+
+  function appendTechnicalTableRow(tbody, raw) {
+    var tr = document.createElement("tr");
+    var plannedDate = formatTechnicalDate(raw.milestone_planned_finish_date);
+    var deviationDate = formatTechnicalDate(raw.deviation_date);
+    var delayDays = raw.delay_days != null ? raw.delay_days : "—";
+    var percentComplete = formatTechnicalPercentComplete(raw.percent_complete);
+    var values = [
+      tableTextOrDash(raw.project_name),
+      tableTextOrDash(raw.project_manager),
+      tableTextOrDash(raw.milestone_name),
+      plannedDate,
+      deviationDate,
+      tableTextOrDash(delayDays),
+      percentComplete,
+    ];
+    values.forEach(function (value, cellIndex) {
+      var td = document.createElement("td");
+      td.textContent = value;
+      if (cellIndex === 3) {
+        td.setAttribute("data-order", normalizeClaimsSearchDate(raw.milestone_planned_finish_date));
+      } else if (cellIndex === 4) {
+        td.setAttribute("data-order", normalizeClaimsSearchDate(raw.deviation_date));
+      } else if (cellIndex === 5) {
+        td.setAttribute("data-order", String(raw.delay_days != null ? raw.delay_days : ""));
+      } else if (cellIndex === 6) {
+        var pct = Number(raw.percent_complete);
+        td.setAttribute("data-order", isNaN(pct) ? "" : String(Math.abs(pct) <= 1 ? pct * 100 : pct));
+      }
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
   }
 
   function formatExecutiveTableValue(value) {
@@ -262,7 +363,13 @@
   }
 
   function resetDefaultTables() {
-    setTableHeaders("table-top-deviations", DEFAULT_TOP_DEVIATIONS_HEADERS);
+    if (technicalTablesMode) {
+      setTableHeaders("table-top-deviations", TECHNICAL_TABLE_HEADERS);
+      setTableHeaders("table-lawsuits", TECHNICAL_TABLE_HEADERS);
+    } else {
+      setTableHeaders("table-top-deviations", DEFAULT_TOP_DEVIATIONS_HEADERS);
+      setTableHeaders("table-lawsuits", ["Тип документа", "Контрагент", "Предмет спора", "Роль ГК в споре", "Юр. лицо", "Подразделение", "Сумма требований, руб."]);
+    }
     setTableHeaders("table-overdue-debt", DEFAULT_OVERDUE_DEBT_HEADERS);
     setTopDeviationsTableMode(false);
     setOverdueDebtTableMode(false);
@@ -275,6 +382,15 @@
     tbody.innerHTML = "";
 
     if (!Array.isArray(rows) || !rows.length) return;
+
+    if (technicalTablesMode) {
+      rows.filter(isTechnicalExternalOrderRow).forEach(function (item) {
+        var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
+        if (!raw) return;
+        appendTechnicalTableRow(tbody, raw);
+      });
+      return;
+    }
 
     rows.filter(isClaimsTableRow).forEach(function (item) {
       var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
@@ -355,6 +471,15 @@
     tbody.innerHTML = "";
 
     if (!Array.isArray(rows) || !rows.length) return;
+
+    if (technicalTablesMode) {
+      rows.filter(isTechnicalImprovementRow).forEach(function (item) {
+        var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
+        if (!raw) return;
+        appendTechnicalTableRow(tbody, raw);
+      });
+      return;
+    }
 
     rows
       .filter(isLawsuitsRow)
@@ -980,6 +1105,52 @@
     });
   }
 
+  function initTechnicalClaimsDataTable() {
+    return initInteractiveDashboardTable({
+      tableSelector: "#table-top-deviations",
+      wrapperSelector: ".dashboard-table-wrap--claims",
+      advancedSearchKey: "technical-external-order-table-advanced",
+      columnConfigs: [
+        { index: 0, label: "Название проекта", type: "filter", searchType: "text" },
+        { index: 1, label: "Руководитель проекта", type: "filter", searchType: "text" },
+        { index: 2, label: "Название вехи", type: "filter", searchType: "text" },
+        { index: 3, label: "Плановая дата вехи", type: "filter", searchType: "date" },
+        { index: 4, label: "Дата отклонения", type: "filter", searchType: "date" },
+        { index: 5, label: "Дней отклонения", type: "filter", searchType: "text" },
+        { index: 6, label: "Процент выполнения", type: "filter", searchType: "text" },
+      ],
+      initialOrder: [[5, "desc"]],
+      columnDefs: [
+        { targets: "_all", orderable: false },
+        { targets: [5], type: "num", orderable: true },
+        { targets: [6], type: "num-fmt", orderable: true },
+      ],
+    });
+  }
+
+  function initTechnicalLawsuitsDataTable() {
+    return initInteractiveDashboardTable({
+      tableSelector: "#table-lawsuits",
+      wrapperSelector: ".dashboard-table-wrap--lawsuits",
+      advancedSearchKey: "technical-development-table-advanced",
+      columnConfigs: [
+        { index: 0, label: "Название проекта", type: "filter", searchType: "text" },
+        { index: 1, label: "Руководитель проекта", type: "filter", searchType: "text" },
+        { index: 2, label: "Название вехи", type: "filter", searchType: "text" },
+        { index: 3, label: "Плановая дата вехи", type: "filter", searchType: "date" },
+        { index: 4, label: "Дата отклонения", type: "filter", searchType: "date" },
+        { index: 5, label: "Дней отклонения", type: "filter", searchType: "text" },
+        { index: 6, label: "Процент выполнения", type: "filter", searchType: "text" },
+      ],
+      initialOrder: [[5, "desc"]],
+      columnDefs: [
+        { targets: "_all", orderable: false },
+        { targets: [5], type: "num", orderable: true },
+        { targets: [6], type: "num-fmt", orderable: true },
+      ],
+    });
+  }
+
   function initOverdueDebtDataTable() {
     return initInteractiveDashboardTable({
       tableSelector: "#table-overdue-debt",
@@ -1072,6 +1243,7 @@
     var executiveMode = !!options.executiveMode;
     var enhanceOverdueDebtTable = !!options.enhanceOverdueDebtTable;
     var enableLawsuitsTable = !!options.enableLawsuitsTable;
+    technicalTablesMode = !!options.technicalTablesMode;
     destroyClaimsTables();
 
     var topBody = document.querySelector("#table-top-deviations tbody");
@@ -1087,6 +1259,14 @@
     }
 
     resetDefaultTables();
+    setTechnicalTableMode(technicalTablesMode);
+    if (technicalTablesMode) {
+      renderClaimsTableRows(rows);
+      renderLawsuitsTableRows(rows);
+      initTechnicalClaimsDataTable();
+      initTechnicalLawsuitsDataTable();
+      return;
+    }
     renderClaimsTableRows(rows);
     renderOverdueDebtTableRows(rows);
     initClaimsDataTable();
