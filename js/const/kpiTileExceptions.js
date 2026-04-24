@@ -3,6 +3,9 @@
     "OD-M1": {
       backDeptAmounts: true,
     },
+    "OD-M3.2": {
+      allowPartialPlanFact: true,
+    },
     "KD-M4": {
       factOnly: true,
       hideHelp: true,

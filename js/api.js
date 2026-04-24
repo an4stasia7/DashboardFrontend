@@ -646,9 +646,17 @@
           }
           return "";
         }
+        function normalizeUnits(kpiId, value) {
+          var kid = kpiId != null ? String(kpiId).trim() : "";
+          if (kid === "OD-M1" || kid === "OD-M3.1" || kid === "OD-M3.2") return "руб.";
+          return value;
+        }
         var formulaSrc = item.formula != null ? item.formula : th.formula;
         var hasData = typeof item.has_data === "boolean" ? item.has_data : undefined;
-        var units = firstStringValue(["units", "unit", "uom", "measure_unit", "measurement_unit"]);
+        var units = normalizeUnits(
+          item.kpi_id,
+          firstStringValue(["units", "unit", "uom", "measure_unit", "measurement_unit"])
+        );
         var frequency = firstStringValue(["frequency", "periodicity", "update_frequency", "frequency_label"]);
         var cacheUpdatedAt = firstStringValue(["cache_updated_at"]);
         return {

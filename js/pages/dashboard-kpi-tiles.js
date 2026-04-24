@@ -93,6 +93,11 @@
     return !!(rule && rule.backPlanOnly);
   }
 
+  function shouldAllowPartialPlanFact(tile) {
+    var rule = getKpiTileException(tile);
+    return !!(rule && rule.allowPartialPlanFact);
+  }
+
   function shouldRenderKpiTileBackDeptAmounts(tile) {
     var rule = getKpiTileException(tile);
     return !!(rule && rule.backDeptAmounts);
@@ -450,6 +455,16 @@
 
   function buildKpiTileMetricsSectionHtml(tile, hasPf, planFactShown, factShown) {
     var rule = getKpiTileException(tile);
+    var hasPartialPf =
+      !!(rule && rule.allowPartialPlanFact) &&
+      (
+        (typeof DashUi !== "undefined" && DashUi && typeof DashUi.kpiTilePlanFactValuePresent === "function"
+          ? DashUi.kpiTilePlanFactValuePresent(tile && tile.plan)
+          : tile && tile.plan != null) ||
+        (typeof DashUi !== "undefined" && DashUi && typeof DashUi.kpiTilePlanFactValuePresent === "function"
+          ? DashUi.kpiTilePlanFactValuePresent(tile && tile.fact)
+          : tile && tile.fact != null)
+      );
     if (rule && rule.dualRatioOverview) {
       return (
         '<div class="kpi-tile-metrics kpi-tile-metrics--dual-ratio" aria-label="Соотношение ДЗ и КЗ">' +
@@ -481,7 +496,7 @@
         "</div>"
       );
     }
-    if (!hasPf) return "";
+    if (!hasPf && !hasPartialPf) return "";
     return (
       '<div class="kpi-tile-metrics kpi-tile-metrics--pf-only" aria-label="' +
       DashUi.escapeHtml(KPI_TILE_ARIA_METRICS_PF) +
@@ -629,8 +644,16 @@
     // Если плитка kpiPctOnly, но явно помечена showBackPlanFact — показываем План/Факт.
     var forceBackPlanFact = shouldShowKpiTileBackPlanFact(tile);
     var forceBackPlanOnly = shouldShowKpiTileBackPlanOnly(tile);
+    var allowPartialPlanFact = shouldAllowPartialPlanFact(tile);
+    var hasAnyPlanFactValue =
+      (typeof DashUi !== "undefined" && DashUi && typeof DashUi.kpiTilePlanFactValuePresent === "function"
+        ? DashUi.kpiTilePlanFactValuePresent(tile && tile.plan)
+        : tile && tile.plan != null) ||
+      (typeof DashUi !== "undefined" && DashUi && typeof DashUi.kpiTilePlanFactValuePresent === "function"
+        ? DashUi.kpiTilePlanFactValuePresent(tile && tile.fact)
+        : tile && tile.fact != null);
     var hasPf =
-      DashUi.kpiTileHasPlanAndFact(tile) &&
+      (DashUi.kpiTileHasPlanAndFact(tile) || (allowPartialPlanFact && hasAnyPlanFactValue)) &&
       (!isKpiPctOnlyTile(tile) || forceBackPlanFact || forceBackPlanOnly);
     var planFactShown =
       typeof DashUi.formatKpiTilePlanFactPair === "function"
@@ -894,7 +917,16 @@
       var pres = MockData.getKpiTilePresentation(tile);
       var rule = getKpiTileException(tile);
       var frontAccentColor = rule && rule.frontAccentColor ? String(rule.frontAccentColor).trim() : "";
-      var hasPf = DashUi.kpiTileHasPlanAndFact(tile) && !isKpiPctOnlyTile(tile);
+      var hasAnyPlanFactValue =
+        (typeof DashUi !== "undefined" && DashUi && typeof DashUi.kpiTilePlanFactValuePresent === "function"
+          ? DashUi.kpiTilePlanFactValuePresent(tile && tile.plan)
+          : tile && tile.plan != null) ||
+        (typeof DashUi !== "undefined" && DashUi && typeof DashUi.kpiTilePlanFactValuePresent === "function"
+          ? DashUi.kpiTilePlanFactValuePresent(tile && tile.fact)
+          : tile && tile.fact != null);
+      var hasPf =
+        (DashUi.kpiTileHasPlanAndFact(tile) || (rule && rule.allowPartialPlanFact && hasAnyPlanFactValue)) &&
+        !isKpiPctOnlyTile(tile);
       var planFactShown =
         typeof DashUi.formatKpiTilePlanFactPair === "function"
           ? DashUi.formatKpiTilePlanFactPair(tile.plan, tile.fact, tile.units)

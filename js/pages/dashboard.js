@@ -1799,6 +1799,11 @@
       }
       return "";
     }
+    function normalizeUnits(kpiId, value) {
+      var kid = kpiId != null ? String(kpiId).trim() : "";
+      if (kid === "OD-M1" || kid === "OD-M3.1" || kid === "OD-M3.2") return "руб.";
+      return value;
+    }
 
     // Когда пересчитываем плитку под режим агрегации (квартал / YTD),
     // сохранённый на бэкенде цвет соответствует только месячному проценту
@@ -1815,7 +1820,10 @@
         rawItem.period != null && String(rawItem.period).trim()
           ? String(rawItem.period)
           : chairmanAggregationModeLabel(mode),
-      units: firstStringValue(["units", "unit", "uom", "measure_unit", "measurement_unit"]),
+      units: normalizeUnits(
+        rawItem.kpi_id,
+        firstStringValue(["units", "unit", "uom", "measure_unit", "measurement_unit"])
+      ),
       frequency: firstStringValue(["frequency", "periodicity", "update_frequency", "frequency_label"]),
       cache_updated_at: firstStringValue(["cache_updated_at"]),
       formula: rawItem.formula != null ? String(rawItem.formula) : null,

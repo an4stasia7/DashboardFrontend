@@ -6,6 +6,7 @@ const http = require("http");
 const fs = require("fs");
 const url = require("url");
 const { spawn } = require("child_process");
+const { autoUpdater } = require("electron-updater");
 
 /** Корень приложения: HTML, css/, js/ */
 const STATIC_ROOT = __dirname;
@@ -74,6 +75,222 @@ function createStaticServer(root) {
 let staticServer = null;
 let staticPort = null;
 let updatePromise = null;
+let releaseCheckPromise = null;
+let releaseInstallPromise = null;
+let releaseUpdateState = {
+  mode: "git",
+  supported: false,
+  packaged: false,
+  portable: false,
+  currentVersion: app.getVersion(),
+  latestVersion: "",
+  checking: false,
+  available: false,
+  downloading: false,
+  downloaded: false,
+  progress: 0,
+  error: "",
+};
+
+function isPortableBuild() {
+  return !!(process.env.PORTABLE_EXECUTABLE_FILE || process.env.PORTABLE_EXECUTABLE_DIR);
+}
+
+function getUpdateMode() {
+  if (!app.isPackaged) return "git";
+  return isPortableBuild() ? "portable" : "release";
+}
+
+function isReleaseUpdateSupported() {
+  return getUpdateMode() === "release";
+}
+
+function getPortableUpdateError() {
+  return "Автообновление недоступно для portable-сборки. Используйте установленную версию или скачайте новый релиз с GitHub.";
+}
+
+function getReleaseUpdateStateSnapshot() {
+  return Object.assign({}, releaseUpdateState);
+}
+
+function broadcastReleaseUpdateState() {
+  const snapshot = getReleaseUpdateStateSnapshot();
+  BrowserWindow.getAllWindows().forEach(function (win) {
+    if (!win || win.isDestroyed()) return;
+    win.webContents.send("app:release-update-state", snapshot);
+  });
+}
+
+function setReleaseUpdateState(patch) {
+  releaseUpdateState = Object.assign({}, releaseUpdateState, {
+    mode: getUpdateMode(),
+    supported: isReleaseUpdateSupported(),
+    packaged: app.isPackaged,
+    portable: isPortableBuild(),
+    currentVersion: app.getVersion(),
+  }, patch || {});
+  broadcastReleaseUpdateState();
+  return getReleaseUpdateStateSnapshot();
+}
+
+function initializeReleaseUpdater() {
+  setReleaseUpdateState({
+    latestVersion: "",
+    checking: false,
+    available: false,
+    downloading: false,
+    downloaded: false,
+    progress: 0,
+    error: "",
+  });
+
+  if (!isReleaseUpdateSupported()) {
+    return;
+  }
+
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  autoUpdater.on("checking-for-update", function () {
+    setReleaseUpdateState({
+      checking: true,
+      available: false,
+      downloaded: false,
+      downloading: false,
+      progress: 0,
+      error: "",
+    });
+  });
+
+  autoUpdater.on("update-available", function (info) {
+    setReleaseUpdateState({
+      checking: false,
+      available: true,
+      downloading: false,
+      downloaded: false,
+      latestVersion: info && info.version ? String(info.version) : "",
+      progress: 0,
+      error: "",
+    });
+  });
+
+  autoUpdater.on("update-not-available", function (info) {
+    setReleaseUpdateState({
+      checking: false,
+      available: false,
+      downloading: false,
+      downloaded: false,
+      latestVersion: info && info.version ? String(info.version) : releaseUpdateState.latestVersion,
+      progress: 0,
+      error: "",
+    });
+  });
+
+  autoUpdater.on("download-progress", function (progress) {
+    const percent = progress && progress.percent != null ? Number(progress.percent) : 0;
+    setReleaseUpdateState({
+      checking: false,
+      available: true,
+      downloading: true,
+      downloaded: false,
+      progress: Math.max(0, Math.min(100, Math.round(isNaN(percent) ? 0 : percent))),
+      error: "",
+    });
+  });
+
+  autoUpdater.on("update-downloaded", function (info) {
+    setReleaseUpdateState({
+      checking: false,
+      available: true,
+      downloading: false,
+      downloaded: true,
+      latestVersion: info && info.version ? String(info.version) : releaseUpdateState.latestVersion,
+      progress: 100,
+      error: "",
+    });
+  });
+
+  autoUpdater.on("error", function (err) {
+    setReleaseUpdateState({
+      checking: false,
+      downloading: false,
+      error: err && err.message ? err.message : String(err),
+    });
+  });
+}
+
+async function checkReleaseUpdates() {
+  if (!isReleaseUpdateSupported()) {
+    return setReleaseUpdateState({
+      checking: false,
+      available: false,
+      downloading: false,
+      downloaded: false,
+      progress: 0,
+      error: getUpdateMode() === "portable" ? getPortableUpdateError() : "",
+    });
+  }
+
+  if (releaseCheckPromise) return releaseCheckPromise;
+
+  releaseCheckPromise = (async function () {
+    const result = await autoUpdater.checkForUpdates();
+    const info = result && result.updateInfo ? result.updateInfo : null;
+    if (info && info.version) {
+      setReleaseUpdateState({ latestVersion: String(info.version) });
+    }
+    return getReleaseUpdateStateSnapshot();
+  })().finally(function () {
+    releaseCheckPromise = null;
+  });
+
+  return releaseCheckPromise;
+}
+
+async function installReleaseUpdate() {
+  if (!isReleaseUpdateSupported()) {
+    throw new Error(
+      getUpdateMode() === "portable"
+        ? getPortableUpdateError()
+        : "Release-обновление доступно только для собранного desktop-приложения."
+    );
+  }
+
+  if (releaseInstallPromise) return releaseInstallPromise;
+
+  releaseInstallPromise = (async function () {
+    if (!releaseUpdateState.available && !releaseUpdateState.downloaded) {
+      await checkReleaseUpdates();
+    }
+
+    if (!releaseUpdateState.available && !releaseUpdateState.downloaded) {
+      throw new Error("Новая версия не найдена.");
+    }
+
+    if (!releaseUpdateState.downloaded) {
+      setReleaseUpdateState({
+        downloading: true,
+        progress: 0,
+        error: "",
+      });
+      await autoUpdater.downloadUpdate();
+    }
+
+    setTimeout(function () {
+      autoUpdater.quitAndInstall(false, true);
+    }, 1000);
+
+    return {
+      ok: true,
+      restarting: true,
+      state: getReleaseUpdateStateSnapshot(),
+    };
+  })().finally(function () {
+    releaseInstallPromise = null;
+  });
+
+  return releaseInstallPromise;
+}
 
 /**
  * Стабильный порт нужен, чтобы origin (http://127.0.0.1:PORT) не менялся между запусками —
@@ -275,10 +492,15 @@ function createWindow() {
     win.center();
   });
 
+  win.webContents.on("did-finish-load", function () {
+    win.webContents.send("app:release-update-state", getReleaseUpdateStateSnapshot());
+  });
+
   win.loadURL(getLoadUrl());
 }
 
 app.whenReady().then(function () {
+  initializeReleaseUpdater();
   bindStaticServer(parsePreferredPort(), function () {
     createWindow();
   });
@@ -292,6 +514,47 @@ ipcMain.handle("app:open-external", async function (_event, targetUrl) {
   if (!targetUrl) return false;
   await shell.openExternal(String(targetUrl));
   return true;
+});
+
+ipcMain.handle("app:get-update-mode", function () {
+  return {
+    mode: getUpdateMode(),
+    supported: isReleaseUpdateSupported(),
+    packaged: app.isPackaged,
+    portable: isPortableBuild(),
+    currentVersion: app.getVersion(),
+  };
+});
+
+ipcMain.handle("app:get-release-update-state", function () {
+  return getReleaseUpdateStateSnapshot();
+});
+
+ipcMain.handle("app:check-release-updates", async function () {
+  try {
+    return {
+      ok: true,
+      state: await checkReleaseUpdates(),
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err && err.message ? err.message : String(err),
+      state: getReleaseUpdateStateSnapshot(),
+    };
+  }
+});
+
+ipcMain.handle("app:install-release-update", async function () {
+  try {
+    return await installReleaseUpdate();
+  } catch (err) {
+    return {
+      ok: false,
+      error: err && err.message ? err.message : String(err),
+      state: getReleaseUpdateStateSnapshot(),
+    };
+  }
 });
 
 ipcMain.handle("app:run-self-update", async function () {

@@ -7,7 +7,8 @@
   "scripts": {
     "start": "electron .",
     "dist": "electron-builder --win",
-    "dist:dir": "electron-builder --win --dir"
+    "dist:dir": "electron-builder --win --dir",
+    "dist:publish": "electron-builder --win --publish always"
   },
   "build": {
     "appId": "ru.dashboard.desktop",
@@ -25,6 +26,14 @@
       "package.json"
     ],
     "asar": true,
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "an4stasia7",
+        "repo": "DashboardFrontend",
+        "releaseType": "release"
+      }
+    ],
     "win": {
       "signAndEditExecutable": false,
       "target": [
@@ -53,6 +62,7 @@
     "electron-builder": "^25.1.8"
   },
   "dependencies": {
+    "electron-updater": "^6.8.3",
     "katex": "^0.16.21"
   }
 }
