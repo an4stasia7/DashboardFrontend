@@ -1,6 +1,6 @@
 {
   "name": "dashboard-desktop",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "Управленческий дашборд — desktop (Electron)",
   "main": "main.js",
   "author": "Dashboard",
@@ -8,7 +8,8 @@
     "start": "electron .",
     "dist": "electron-builder --win",
     "dist:dir": "electron-builder --win --dir",
-    "dist:publish": "electron-builder --win --publish always"
+    "dist:publish": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run-dist-publish.ps1",
+    "dist:publish:raw": "electron-builder --win --publish always"
   },
   "build": {
     "appId": "ru.dashboard.desktop",
