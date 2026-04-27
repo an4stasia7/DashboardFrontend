@@ -156,9 +156,12 @@
     "Дней отклонения",
     "Процент выполнения",
   ];
+  var OPDIR_PROJECT_TABLE_HEADERS = ["№ 1С", "Название", "РП", "Сроки", "Отклонение", "Статус", "Прогресс"];
   var TECHNICAL_EXTERNAL_TABLE_KEY = "TD-T-M1-DEVIATIONS";
   var TECHNICAL_DEVELOPMENT_TABLE_KEY = "TD-T-Q1-DEVIATIONS";
+  var OPDIR_PROJECT_TABLE_KEY = "OD-T-Q1-DEVIATIONS";
   var technicalTablesMode = false;
+  var opdirProjectTableMode = false;
 
   function setTableHeaders(tableId, headers) {
     var table = document.getElementById(tableId);
@@ -214,6 +217,25 @@
     }
   }
 
+  function setOpdirProjectTableMode(enabled) {
+    var topTable = document.getElementById("table-top-deviations");
+    var secondTable = document.getElementById("table-lawsuits");
+    if (topTable && topTable.tFoot) {
+      topTable.tFoot.hidden = !!enabled;
+      if (enabled) {
+        topTable.tFoot.innerHTML =
+          '<tr><th colspan="6">Итого</th><th id="claims-table-total-sum">—</th></tr>';
+      }
+    }
+    if (secondTable && secondTable.tFoot) {
+      secondTable.tFoot.hidden = !!enabled;
+      if (enabled) {
+        secondTable.tFoot.innerHTML =
+          '<tr><th colspan="6">Итого</th><th id="lawsuits-table-total-sum">—</th></tr>';
+      }
+    }
+  }
+
   function formatTechnicalDate(value) {
     if (value == null || value === "") return "—";
     var s = String(value).trim();
@@ -245,6 +267,10 @@
     return item && String(item.tableKey || "").trim() === TECHNICAL_DEVELOPMENT_TABLE_KEY;
   }
 
+  function isOpdirProjectRow(item) {
+    return item && String(item.tableKey || "").trim() === OPDIR_PROJECT_TABLE_KEY;
+  }
+
   function appendTechnicalTableRow(tbody, raw) {
     var tr = document.createElement("tr");
     var plannedDate = formatTechnicalDate(raw.milestone_planned_finish_date);
@@ -272,6 +298,174 @@
       } else if (cellIndex === 6) {
         var pct = Number(raw.percent_complete);
         td.setAttribute("data-order", isNaN(pct) ? "" : String(Math.abs(pct) <= 1 ? pct * 100 : pct));
+      }
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  }
+
+  function formatOpdirProjectPercent(value) {
+    if (value == null || value === "") return "—";
+    var n = Number(value);
+    if (isNaN(n)) return tableTextOrDash(value);
+    return n.toLocaleString("ru-RU", { maximumFractionDigits: 1 }) + "%";
+  }
+
+  function escapeHtml(value) {
+    return String(value == null ? "" : value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function formatOpdirMilestoneDetails(raw) {
+    var milestones = Array.isArray(raw && raw.milestone_deviations) ? raw.milestone_deviations : [];
+    if (!milestones.length) return "";
+    return milestones
+      .map(function (item, index) {
+        var title = escapeHtml(tableTextOrDash(item.name));
+        var finishDate = escapeHtml(formatTechnicalDate(item.finish_date));
+        var delayDays = escapeHtml(item.delay_days != null ? String(item.delay_days) : "0");
+        var progress = escapeHtml(formatTechnicalPercentComplete(item.percent_complete));
+        return (
+          '<li><strong>' +
+          (index + 1) +
+          ".</strong> " +
+          title +
+          '<br><span>Плановая дата: ' +
+          finishDate +
+          "; отклонение: " +
+          delayDays +
+          " дн.; выполнение: " +
+          progress +
+          "</span></li>"
+        );
+      })
+      .join("");
+  }
+
+  function ensureOpdirMilestonesDialog() {
+    var existing = document.getElementById("opdir-milestones-dialog");
+    if (existing) return existing;
+    var dlg = document.createElement("dialog");
+    dlg.id = "opdir-milestones-dialog";
+    dlg.className = "opdir-milestones-dialog";
+    dlg.innerHTML =
+      '<div class="opdir-milestones-dialog-panel">' +
+      '<div class="opdir-milestones-dialog-head">' +
+      '<div>' +
+      '<h2 id="opdir-milestones-dialog-title" class="opdir-milestones-dialog-title">Отклонения по вехам</h2>' +
+      '<p id="opdir-milestones-dialog-subtitle" class="opdir-milestones-dialog-subtitle"></p>' +
+      "</div>" +
+      '<form method="dialog"><button type="submit" class="btn-dialog-close">Закрыть</button></form>' +
+      "</div>" +
+      '<div id="opdir-milestones-dialog-body" class="opdir-milestones-dialog-body"></div>' +
+      "</div>";
+    dlg.addEventListener("click", function (event) {
+      if (event.target === dlg && typeof dlg.close === "function") dlg.close();
+    });
+    document.body.appendChild(dlg);
+    return dlg;
+  }
+
+  function openOpdirMilestonesDialog(raw) {
+    var milestones = Array.isArray(raw && raw.milestone_deviations) ? raw.milestone_deviations : [];
+    if (!milestones.length) return;
+    var dlg = ensureOpdirMilestonesDialog();
+    var title = dlg.querySelector("#opdir-milestones-dialog-title");
+    var subtitle = dlg.querySelector("#opdir-milestones-dialog-subtitle");
+    var body = dlg.querySelector("#opdir-milestones-dialog-body");
+    if (title) title.textContent = "Отклонения по вехам: " + tableTextOrDash(raw.project_code || raw.number);
+    if (subtitle) {
+      subtitle.textContent =
+        tableTextOrDash(raw.project_name) +
+        " | РП: " +
+        tableTextOrDash(raw.project_manager) +
+        " | Прогресс проекта: " +
+        formatOpdirProjectPercent(raw.progress_pct);
+    }
+    if (body) {
+      body.innerHTML =
+        '<table class="opdir-milestones-dialog-table">' +
+        "<thead><tr><th>№</th><th>Веха</th><th>Плановая дата</th><th>Отклонение, дн.</th><th>Выполнение</th></tr></thead>" +
+        "<tbody>" +
+        milestones
+          .map(function (item, index) {
+            return (
+              "<tr><td>" +
+              (index + 1) +
+              "</td><td>" +
+              escapeHtml(tableTextOrDash(item.name)) +
+              "</td><td>" +
+              escapeHtml(formatTechnicalDate(item.finish_date)) +
+              "</td><td>" +
+              escapeHtml(item.delay_days != null ? String(item.delay_days) : "0") +
+              "</td><td>" +
+              escapeHtml(formatTechnicalPercentComplete(item.percent_complete)) +
+              "</td></tr>"
+            );
+          })
+          .join("") +
+        "</tbody></table>";
+    }
+    if (typeof dlg.showModal === "function") {
+      if (!dlg.open) dlg.showModal();
+    } else {
+      dlg.setAttribute("open", "open");
+    }
+  }
+
+  function buildOpdirDeviationCell(td, raw) {
+    var milestones = Array.isArray(raw && raw.milestone_deviations) ? raw.milestone_deviations : [];
+    td.setAttribute("data-order", String(raw && raw.delay_days != null ? raw.delay_days : ""));
+    if (!milestones.length) {
+      td.textContent = tableTextOrDash(raw && raw.deviation);
+      return;
+    }
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "opdir-milestones-toggle";
+    btn.textContent = tableTextOrDash(raw.deviation);
+    btn.setAttribute("aria-haspopup", "dialog");
+
+    function openDetails(event) {
+      event.preventDefault();
+      event.stopPropagation();
+      openOpdirMilestonesDialog(raw);
+    }
+
+    td.className = "opdir-milestones-cell";
+    td.addEventListener("click", openDetails);
+    btn.addEventListener("click", openDetails);
+
+    td.appendChild(btn);
+  }
+
+  function appendOpdirProjectTableRow(tbody, raw) {
+    var tr = document.createElement("tr");
+    var values = [
+      tableTextOrDash(raw.project_code || raw.number),
+      tableTextOrDash(raw.project_name),
+      tableTextOrDash(raw.project_manager),
+      tableTextOrDash(raw.timeline),
+      null,
+      tableTextOrDash(raw.status),
+      formatOpdirProjectPercent(raw.progress_pct),
+    ];
+    values.forEach(function (value, cellIndex) {
+      var td = document.createElement("td");
+      if (cellIndex === 4) {
+        buildOpdirDeviationCell(td, raw);
+      } else {
+        td.textContent = value;
+      }
+      if (cellIndex === 0) {
+        td.setAttribute("data-order", String(raw.project_code || raw.number || ""));
+      } else if (cellIndex === 6) {
+        var pct = Number(raw.progress_pct);
+        td.setAttribute("data-order", isNaN(pct) ? "" : String(pct));
       }
       tr.appendChild(td);
     });
@@ -363,7 +557,10 @@
   }
 
   function resetDefaultTables() {
-    if (technicalTablesMode) {
+    if (opdirProjectTableMode) {
+      setTableHeaders("table-top-deviations", OPDIR_PROJECT_TABLE_HEADERS);
+      setTableHeaders("table-lawsuits", OPDIR_PROJECT_TABLE_HEADERS);
+    } else if (technicalTablesMode) {
       setTableHeaders("table-top-deviations", TECHNICAL_TABLE_HEADERS);
       setTableHeaders("table-lawsuits", TECHNICAL_TABLE_HEADERS);
     } else {
@@ -382,6 +579,15 @@
     tbody.innerHTML = "";
 
     if (!Array.isArray(rows) || !rows.length) return;
+
+    if (opdirProjectTableMode) {
+      rows.filter(isOpdirProjectRow).forEach(function (item) {
+        var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
+        if (!raw) return;
+        appendOpdirProjectTableRow(tbody, raw);
+      });
+      return;
+    }
 
     if (technicalTablesMode) {
       rows.filter(isTechnicalExternalOrderRow).forEach(function (item) {
@@ -471,6 +677,15 @@
     tbody.innerHTML = "";
 
     if (!Array.isArray(rows) || !rows.length) return;
+
+    if (opdirProjectTableMode) {
+      rows.filter(isOpdirProjectRow).forEach(function (item) {
+        var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
+        if (!raw) return;
+        appendOpdirProjectTableRow(tbody, raw);
+      });
+      return;
+    }
 
     if (technicalTablesMode) {
       rows.filter(isTechnicalImprovementRow).forEach(function (item) {
@@ -1151,6 +1366,28 @@
     });
   }
 
+  function initOpdirProjectDataTable(tableSelector, wrapperSelector, advancedSearchKey) {
+    return initInteractiveDashboardTable({
+      tableSelector: tableSelector,
+      wrapperSelector: wrapperSelector,
+      advancedSearchKey: advancedSearchKey,
+      columnConfigs: [
+        { index: 0, label: "№", type: "sort", searchType: "text" },
+        { index: 1, label: "Название", type: "filter", searchType: "text" },
+        { index: 2, label: "РП", type: "filter", searchType: "text" },
+        { index: 3, label: "Сроки", type: "filter", searchType: "text" },
+        { index: 4, label: "Отклонение", type: "filter", searchType: "text" },
+        { index: 5, label: "Статус", type: "filter", searchType: "text" },
+        { index: 6, label: "Прогресс", type: "sort", searchType: "text" },
+      ],
+      initialOrder: [[0, "asc"]],
+      columnDefs: [
+        { targets: "_all", orderable: false },
+        { targets: [0, 6], type: "num-fmt", orderable: true },
+      ],
+    });
+  }
+
   function initOverdueDebtDataTable() {
     return initInteractiveDashboardTable({
       tableSelector: "#table-overdue-debt",
@@ -1244,6 +1481,7 @@
     var enhanceOverdueDebtTable = !!options.enhanceOverdueDebtTable;
     var enableLawsuitsTable = !!options.enableLawsuitsTable;
     technicalTablesMode = !!options.technicalTablesMode;
+    opdirProjectTableMode = !!options.opdirProjectTableMode;
     destroyClaimsTables();
 
     var topBody = document.querySelector("#table-top-deviations tbody");
@@ -1260,6 +1498,22 @@
 
     resetDefaultTables();
     setTechnicalTableMode(technicalTablesMode);
+    setOpdirProjectTableMode(opdirProjectTableMode);
+    if (opdirProjectTableMode) {
+      renderClaimsTableRows(rows);
+      renderLawsuitsTableRows(rows);
+      initOpdirProjectDataTable(
+        "#table-top-deviations",
+        ".dashboard-table-wrap--claims",
+        "opdir-project-top-table-advanced"
+      );
+      initOpdirProjectDataTable(
+        "#table-lawsuits",
+        ".dashboard-table-wrap--lawsuits",
+        "opdir-project-second-table-advanced"
+      );
+      return;
+    }
     if (technicalTablesMode) {
       renderClaimsTableRows(rows);
       renderLawsuitsTableRows(rows);
