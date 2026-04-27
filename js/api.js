@@ -1435,6 +1435,7 @@
     if (row && row.code != null && String(row.code).trim() !== "") return "code:" + String(row.code).trim();
     if (row && row.name != null && String(row.name).trim() !== "") return "name:" + String(row.name).trim();
     if (row && row.partner != null && String(row.partner).trim() !== "") return "partner:" + String(row.partner).trim();
+    if (row && row.nomer_proekta != null && String(row.nomer_proekta).trim() !== "") return "project-number:" + String(row.nomer_proekta).trim();
     if (row && row.number != null && String(row.number).trim() !== "") return "number:" + String(row.number).trim();
     if (row && row.counterparty != null && String(row.counterparty).trim() !== "") return "counterparty:" + String(row.counterparty).trim();
     return String(tabKey || "table") + ":" + String(index);
@@ -1452,12 +1453,14 @@
       (row.sroki != null && String(row.sroki).trim() !== "") ||
       (row.partner != null && String(row.partner).trim() !== "") ||
       (row.code != null && String(row.code).trim() !== "") ||
+      (row.nomer_proekta != null && String(row.nomer_proekta).trim() !== "") ||
       (row.number != null && String(row.number).trim() !== "") ||
       (row.counterparty != null && String(row.counterparty).trim() !== "") ||
       (row.partner_name != null && String(row.partner_name).trim() !== "") ||
       (row.order_num != null && String(row.order_num).trim() !== "") ||
       (row.milestone_planned_finish_date != null && String(row.milestone_planned_finish_date).trim() !== "") ||
       (row.deviation_date != null && String(row.deviation_date).trim() !== "") ||
+      row.otklonenie_summarnoe !== undefined ||
       row.delay_days !== undefined ||
       row.percent_complete !== undefined ||
       (row.progress != null && String(row.progress).trim() !== "") ||

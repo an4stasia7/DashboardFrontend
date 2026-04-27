@@ -286,11 +286,11 @@
 
   function appendTechnicalTableRow(tbody, raw) {
     var tr = document.createElement("tr");
-    var orderNumber = pickTechnicalField(raw, ["number", "order_number", "code"]);
+    var orderNumber = pickTechnicalField(raw, ["nomer_proekta", "number", "order_number", "code"]);
     var title = pickTechnicalField(raw, ["name", "project_name", "title"]);
     var owner = pickTechnicalField(raw, ["rp", "project_manager", "manager"]);
     var dates = pickTechnicalField(raw, ["sroki", "period", "date_range"]);
-    var deviation = pickTechnicalField(raw, ["deviation", "delay_days", "deviation_text"]);
+    var deviation = pickTechnicalField(raw, ["otklonenie_summarnoe", "deviation", "delay_days", "deviation_text"]);
     var status = pickTechnicalField(raw, ["status", "state"]);
     var progress = pickTechnicalField(raw, ["progress", "percent_complete"]);
     var values = [
