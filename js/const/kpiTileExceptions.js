@@ -9,6 +9,9 @@
     "TD-M3": {
       allowPartialPlanFact: true,
     },
+    "OD-Q1": {
+      showBackPlanFact: true,
+    },
     "KD-M4": {
       factOnly: true,
       hideHelp: true,

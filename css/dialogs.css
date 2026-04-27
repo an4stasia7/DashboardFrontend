@@ -168,6 +168,75 @@
   min-height: 420px;
 }
 
+.opdir-milestones-dialog {
+  padding: 0;
+  border: none;
+  border-radius: 16px;
+  width: min(920px, calc(100vw - 40px));
+  max-height: min(720px, calc(100vh - 40px));
+  box-shadow: 0 28px 60px rgba(15, 23, 42, 0.35);
+}
+
+.opdir-milestones-dialog::backdrop {
+  background: rgba(15, 23, 42, 0.48);
+}
+
+.opdir-milestones-dialog-panel {
+  padding: 20px;
+  background: var(--card, #fff);
+}
+
+.opdir-milestones-dialog-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.opdir-milestones-dialog-title {
+  margin: 0 0 6px;
+  color: var(--text);
+  font-size: 1.08rem;
+  font-weight: 700;
+}
+
+.opdir-milestones-dialog-subtitle {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.4;
+}
+
+.opdir-milestones-dialog-body {
+  max-height: min(560px, calc(100vh - 180px));
+  overflow: auto;
+}
+
+.opdir-milestones-dialog-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.opdir-milestones-dialog-table th,
+.opdir-milestones-dialog-table td {
+  border: 1px solid #d7e0ec;
+  padding: 10px 12px;
+  vertical-align: top;
+}
+
+.opdir-milestones-dialog-table th {
+  background: #d9e2f3;
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.opdir-milestones-dialog-table tbody tr.opdir-milestones-row--overdue td {
+  color: #b91c1c;
+  font-weight: 600;
+}
+
 .chart-preview-chart-host {
   width: 100%;
   min-height: 520px;

@@ -4,6 +4,7 @@
  * Зависимости: `global.AppConfig`, для KPI — `global.Auth.getAuthHeaders()`.
  * Публикует объект `global.Api`.
  */
+
 (function (global) {
   /** Ключи верхнего уровня в JSON ответа KPI (как в API). */
   var KPI_JSON_KEY_TILES = "\u041f\u043b\u0438\u0442\u043a\u0438";
@@ -666,6 +667,7 @@
         function normalizeUnits(kpiId, value) {
           var kid = kpiId != null ? String(kpiId).trim() : "";
           if (kid === "OD-M1" || kid === "OD-M3.1" || kid === "OD-M3.2") return "руб.";
+          if (kid === "KD-M11") return "чел.";
           return value;
         }
         var formulaSrc = item.formula != null ? item.formula : th.formula;
@@ -1202,6 +1204,33 @@
     return planFactLookup;
   }
 
+  function buildPlanFactLookupFromTileMonthlyData(tiles, filterYear, filterMonth) {
+    var out = {};
+    if (!Array.isArray(tiles) || !tiles.length) return out;
+    var useMonthFilter =
+      filterYear != null &&
+      filterMonth != null &&
+      !isNaN(filterYear) &&
+      !isNaN(filterMonth) &&
+      filterMonth >= 1 &&
+      filterMonth <= 12;
+    tiles.forEach(function (tile) {
+      if (!tile || !tile.kpi_id || !Array.isArray(tile.monthly_data) || !tile.monthly_data.length) return;
+      var point = useMonthFilter
+        ? pickMonthlyPointWithPlanAndFactForYearMonth(tile.monthly_data, filterYear, filterMonth)
+        : pickLatestMonthlyPointWithPlanAndFact(tile.monthly_data);
+      if (!point) return;
+      out[String(tile.kpi_id)] = {
+        plan: point.plan,
+        fact: point.fact,
+        kpi_pct: typeof point.kpi_pct === "number" && !isNaN(point.kpi_pct) ? point.kpi_pct : null,
+        plan_fact_period_label: formatPlanFactPeriodFromMonthlyPoint(point),
+        has_data: typeof point.has_data === "boolean" ? point.has_data : undefined,
+      };
+    });
+    return out;
+  }
+
   /**
    * Переносит `has_data` с источника план/факт на плитку; `false` на плитке не перезаписывается в `true`.
    * @param {object} tile
@@ -1219,7 +1248,8 @@
   }
 
   /**
-   * Дополняет плитки полями `plan`, `fact`, подписью периода и `has_data` из «Графики» / «Таблицы» (приоритет — график).
+   * Дополняет плитки полями `plan`, `fact`, подписью периода и `has_data`.
+   * При явном месяце сначала берём точку из `monthly_data` самой плитки.
    * @param {object|null} body — сырой JSON KPI
    * @param {object[]} tiles — уже нормализованные плитки (мутируются на месте)
    */
@@ -1235,13 +1265,26 @@
     var requestedPeriodLabel = useMonthFilter
       ? formatPlanFactPeriodFromYearMonth(filterYear, filterMonth)
       : "";
+    var fromTileMonthly = buildPlanFactLookupFromTileMonthlyData(tiles, filterYear, filterMonth);
     var fromCharts = buildPlanFactFromChartsLastAvailable(body, filterYear, filterMonth);
     var fromTables = buildPlanFactLookupFromTablesOnly(body, filterYear, filterMonth);
     tiles.forEach(function (tile) {
       var id = tile.kpi_id;
       if (!id) return;
+      var ownMonthly = fromTileMonthly[id];
       var ch = fromCharts[id];
       var tb = fromTables[id];
+      if (ownMonthly) {
+        tile.plan = ownMonthly.plan;
+        tile.fact = ownMonthly.fact;
+        if (ownMonthly.kpi_pct != null) {
+          tile.percent = ownMonthly.kpi_pct;
+          tile.kpi_pct = ownMonthly.kpi_pct;
+        }
+        if (ownMonthly.plan_fact_period_label) tile.plan_fact_period_label = String(ownMonthly.plan_fact_period_label);
+        applyHasDataFromSource(tile, ownMonthly);
+        return;
+      }
       var chartBoth =
         ch && planFactValuePresent(ch.plan) && planFactValuePresent(ch.fact);
       var tableBoth =
@@ -1496,6 +1539,10 @@
       row.delay_days !== undefined ||
       row.percent_complete !== undefined ||
       (row.progress != null && String(row.progress).trim() !== "") ||
+      row.timeline !== undefined ||
+      row.deviation !== undefined ||
+      row.status !== undefined ||
+      row.progress_pct !== undefined ||
       row.plan !== undefined ||
       row.fact !== undefined ||
       row.order_sum !== undefined ||

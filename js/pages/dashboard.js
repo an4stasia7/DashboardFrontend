@@ -572,6 +572,14 @@
             callChairmanOverview("reload", []);
             return;
           }
+          if (
+            isBoardChairUser(viewContextUser) ||
+            isOperationalDirectorUser(viewContextUser) ||
+            isProductionDeputyUser(viewContextUser)
+          ) {
+            loadKpiTilesAndChartsForView();
+            return;
+          }
           if (applyCurrentPeriodFromLastRawResponse()) {
             return;
           }
@@ -1436,6 +1444,23 @@
     return role === "технический директор" || department === "технический директор";
   }
 
+  function isOperationalDirectorUser(user) {
+    if (!user || typeof user !== "object") return false;
+    var role = normalizeDashboardRole(user.role);
+    var department = normalizeDashboardRole(user.department);
+    return role === "операционный директор" || department === "операционный директор";
+  }
+
+  function isProductionDeputyUser(user) {
+    if (!user || typeof user !== "object") return false;
+    var role = normalizeDashboardRole(user.role);
+    var department = normalizeDashboardRole(user.department);
+    return (
+      role === "заместитель операционного директора-директор по производству" ||
+      department === "заместитель операционного директора-директор по производству"
+    );
+  }
+
   function isCommercialDepartmentContext(value) {
     var normalized = normalizeDashboardRole(value);
     return normalized === "коммерческий директор" || normalized === "коммерция";
@@ -1838,6 +1863,7 @@
     function normalizeUnits(kpiId, value) {
       var kid = kpiId != null ? String(kpiId).trim() : "";
       if (kid === "OD-M1" || kid === "OD-M3.1" || kid === "OD-M3.2") return "руб.";
+      if (kid === "KD-M11") return "чел.";
       return value;
     }
 
@@ -2044,6 +2070,10 @@
     return isTechnicalDirectorUser(sessionUser) && selectedViewId === "self";
   }
 
+  function shouldUseOpdirProjectTables() {
+    return isOperationalDirectorUser(sessionUser) && selectedViewId === "self";
+  }
+
   function shouldUseCommercialDirectorOverdueDebtEnhancements() {
     var currentDepartment = getDepartmentForCurrentKpiContext();
     return (
@@ -2058,42 +2088,59 @@
     var isBoardChairOwnDashboard = shouldUseBoardChairExecutiveTables();
     var showClaimsSwitcher = shouldUseClaimsAndLawsuitsSwitcher();
     var useTechnicalTables = shouldUseTechnicalTables();
+    var useOpdirProjectTables = shouldUseOpdirProjectTables();
     if (useTechnicalTables) {
+      activeClaimsTableView = "claims";
+    }
+    if (useOpdirProjectTables) {
       activeClaimsTableView = "claims";
     }
 
     if (claimsTableTitleTextEl) {
-      claimsTableTitleTextEl.textContent = useTechnicalTables
-        ? "Отклонения по вехам"
-        : isBoardChairOwnDashboard
+      claimsTableTitleTextEl.textContent = useOpdirProjectTables
+        ? "Проекты с отклонениями по вехам"
+        : useTechnicalTables
+          ? "Отклонения по вехам"
+          : isBoardChairOwnDashboard
           ? "ТОП-10 отклонений"
           : "Претензии";
       claimsTableTitleTextEl.hidden = showClaimsSwitcher;
     }
 
     if (overdueDebtTableTitleEl) {
-      overdueDebtTableTitleEl.textContent = useTechnicalTables
-        ? "Улучшение и развитие"
-        : isBoardChairOwnDashboard
+      overdueDebtTableTitleEl.textContent = useOpdirProjectTables
+        ? "Проекты с отклонениями по вехам"
+        : useTechnicalTables
+          ? "Улучшение и развитие"
+          : isBoardChairOwnDashboard
           ? "ТОП-10 решений / эскалаций"
           : "Расшифровка просроченной дебиторской задолженности";
     }
 
     if (claimsTableHelpWrapEl) {
-      claimsTableHelpWrapEl.hidden = useTechnicalTables || activeClaimsTableView === "lawsuits";
+      claimsTableHelpWrapEl.hidden =
+        useTechnicalTables || useOpdirProjectTables || activeClaimsTableView === "lawsuits";
     }
 
     if (claimsTableSwitcherEl) {
       var switchButtons = claimsTableSwitcherEl.querySelectorAll(".claims-table-switcher-btn");
       if (switchButtons && switchButtons.length >= 2) {
-        switchButtons[0].textContent = useTechnicalTables ? "Внешний заказ" : "Претензии";
-        switchButtons[1].textContent = useTechnicalTables ? "Улучшение и развитие" : "Суды";
+        switchButtons[0].textContent = useOpdirProjectTables
+          ? "Проекты"
+          : useTechnicalTables
+            ? "Внешний заказ"
+            : "Претензии";
+        switchButtons[1].textContent = useOpdirProjectTables
+          ? "Проекты"
+          : useTechnicalTables
+            ? "Улучшение и развитие"
+            : "Суды";
       }
     }
 
     if (overdueDebtTableTitleEl && overdueDebtTableTitleEl.closest) {
       var overduePanel = overdueDebtTableTitleEl.closest(".table-panel");
-      if (overduePanel) overduePanel.hidden = useTechnicalTables;
+      if (overduePanel) overduePanel.hidden = useTechnicalTables || useOpdirProjectTables;
     }
 
     updateClaimsTableSwitcherUi(showClaimsSwitcher);
@@ -2162,7 +2209,8 @@
     }
 
     if (claimsTableHelpWrapEl) {
-      claimsTableHelpWrapEl.hidden = shouldUseTechnicalTables() || nextView === "lawsuits";
+      claimsTableHelpWrapEl.hidden =
+        shouldUseTechnicalTables() || shouldUseOpdirProjectTables() || nextView === "lawsuits";
     }
     if (nextView === "lawsuits") {
       hideClaimsTableHelpPopover();
@@ -2189,6 +2237,7 @@
         enableLawsuitsTable: shouldUseClaimsAndLawsuitsSwitcher(),
         filterRowsMinAmountRub: psdTableMinRub,
         technicalTablesMode: shouldUseTechnicalTables(),
+        opdirProjectTableMode: shouldUseOpdirProjectTables(),
       });
     }
   }

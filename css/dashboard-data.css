@@ -953,6 +953,44 @@
   vertical-align: middle !important;
 }
 
+.opdir-milestones-toggle {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: #2563eb;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 700;
+  padding: 0;
+  text-align: left;
+}
+
+.opdir-milestones-cell {
+  cursor: pointer;
+}
+
+.opdir-milestones-toggle:hover,
+.opdir-milestones-toggle:focus-visible {
+  text-decoration: underline;
+  outline: none;
+}
+
+.opdir-milestones-details {
+  margin-top: 8px;
+  color: #334155;
+  font-size: 0.82rem;
+  line-height: 1.35;
+}
+
+.opdir-milestones-details ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.opdir-milestones-details li + li {
+  margin-top: 6px;
+}
+
 /* DataTables overrides */
 .table-panel table.dataTable {
   border-collapse: collapse !important;
