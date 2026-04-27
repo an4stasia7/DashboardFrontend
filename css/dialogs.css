@@ -232,6 +232,11 @@
   font-weight: 700;
 }
 
+.opdir-milestones-dialog-table tbody tr.opdir-milestones-row--overdue td {
+  color: #b91c1c;
+  font-weight: 600;
+}
+
 .chart-preview-chart-host {
   width: 100%;
   min-height: 520px;

@@ -326,6 +326,7 @@
     return milestones
       .map(function (item, index) {
         var title = escapeHtml(tableTextOrDash(item.name));
+        var startDate = escapeHtml(formatTechnicalDate(item.start_date));
         var finishDate = escapeHtml(formatTechnicalDate(item.finish_date));
         var delayDays = escapeHtml(item.delay_days != null ? String(item.delay_days) : "0");
         var progress = escapeHtml(formatTechnicalPercentComplete(item.percent_complete));
@@ -334,7 +335,9 @@
           (index + 1) +
           ".</strong> " +
           title +
-          '<br><span>Плановая дата: ' +
+          '<br><span>Начало: ' +
+          startDate +
+          "; окончание: " +
           finishDate +
           "; отклонение: " +
           delayDays +
@@ -389,15 +392,17 @@
     if (body) {
       body.innerHTML =
         '<table class="opdir-milestones-dialog-table">' +
-        "<thead><tr><th>№</th><th>Веха</th><th>Плановая дата</th><th>Отклонение, дн.</th><th>Выполнение</th></tr></thead>" +
+        "<thead><tr><th>№</th><th>Веха</th><th>Начало</th><th>Окончание</th><th>Отклонение, дн.</th><th>Выполнение, %</th></tr></thead>" +
         "<tbody>" +
         milestones
           .map(function (item, index) {
             return (
-              "<tr><td>" +
+              '<tr class="opdir-milestones-row--overdue"><td>' +
               (index + 1) +
               "</td><td>" +
               escapeHtml(tableTextOrDash(item.name)) +
+              "</td><td>" +
+              escapeHtml(formatTechnicalDate(item.start_date)) +
               "</td><td>" +
               escapeHtml(formatTechnicalDate(item.finish_date)) +
               "</td><td>" +
