@@ -1028,7 +1028,7 @@
     var previewTitle = getDonutsGridPreviewTitle();
 
     if (ctx.ksRazvitieChart && Array.isArray(ctx.ksRazvitieChart.charts) && ctx.ksRazvitieChart.charts.length) {
-      var ksCharts = getVisibleDonutTilesSafe(ctx.ksRazvitieChart.charts);
+      var ksCharts = getVisibleDonutTilesSafe(sortKsRazvitieCharts(ctx.ksRazvitieChart.charts));
       if (!ksCharts || !ksCharts.length) return;
       openChartPreviewDialog(previewTitle, function (body) {
         var grid = document.createElement("div");
@@ -1044,9 +1044,9 @@
 
           var label = document.createElement("div");
           label.className = "chart-preview-donut-label";
-          var indicator = item && item.indicator ? String(item.indicator) : "";
-          label.textContent = indicator;
-          label.title = indicator;
+          var itemLabel = ksRazvitieChartLabel(item);
+          label.textContent = itemLabel;
+          label.title = itemLabel;
 
           cell.appendChild(chartHost);
           cell.appendChild(label);
@@ -1057,9 +1057,10 @@
             ctx.aggregationMode || "current",
             ctx.refMonth
           );
+          var unit = item && item.unit ? String(item.unit) : "";
           var preview = Highcharts.chart(
             chartHost,
-            buildKsRazvitieDonutOptions(agg.plan, agg.fact, 220)
+            buildKsRazvitieDonutOptions(agg.plan, agg.fact, 220, unit)
           );
           chartPreviewInstances.push(preview);
         });
@@ -1200,6 +1201,42 @@
     return String(Math.round(n * 100) / 100).replace(".", ",");
   }
 
+  function formatKsRazvitieValueWithUnit(value, unit) {
+    var text = formatKsRazvitieValue(value);
+    var unitText = unit != null ? String(unit).trim() : "";
+    if (!unitText) return text;
+    if (unitText === "%") return text + "%";
+    return text + " " + unitText;
+  }
+
+  function ksChartSortKey(item, key) {
+    var value = item && item[key] != null ? String(item[key]) : "";
+    return value.toLowerCase().replace(/\s+/g, " ").trim();
+  }
+
+  function sortKsRazvitieCharts(charts) {
+    return (Array.isArray(charts) ? charts.slice() : []).sort(function (a, b) {
+      var deptA = ksChartSortKey(a, "dept_name");
+      var deptB = ksChartSortKey(b, "dept_name");
+      if (deptA < deptB) return -1;
+      if (deptA > deptB) return 1;
+      var indA = ksChartSortKey(a, "indicator");
+      var indB = ksChartSortKey(b, "indicator");
+      if (indA < indB) return -1;
+      if (indA > indB) return 1;
+      return 0;
+    });
+  }
+
+  function ksRazvitieChartLabel(item) {
+    var dept = item && item.dept_name ? String(item.dept_name).trim() : "";
+    var indicator = item && item.indicator ? String(item.indicator).trim() : "";
+    var unit = item && item.unit ? String(item.unit).trim() : "";
+    var text = dept && indicator ? dept + " — " + indicator : (indicator || dept);
+    if (unit) text += " (" + unit + ")";
+    return text;
+  }
+
   /**
    * План/факт за выбранный период (mode) внутри массива 12 точек {month, plan, fact}.
    * mode: "current" — только refMonth; "quarter" — сумма за квартал, в котором
@@ -1255,11 +1292,12 @@
    * Donut-ячейка для КС развитие: тот же визуал, что у KPI-донатов,
    * но в центре — цифра «факт / план», а цветом сегмента — факт vs остаток плана.
    */
-  function buildKsRazvitieDonutOptions(planValue, factValue, chartSize) {
+  function buildKsRazvitieDonutOptions(planValue, factValue, chartSize, unit) {
     var safePlan = Math.max(0, Number(planValue) || 0);
     var safeFact = Math.max(0, Number(factValue) || 0);
     var fillColor = "#2b5ca6";
     var trackColor = "#e2e8f0";
+    var unitText = unit != null ? String(unit).trim() : "";
 
     var data;
     if (safePlan <= 0 && safeFact <= 0) {
@@ -1277,7 +1315,10 @@
       ];
     }
 
-    var label = formatKsRazvitieValue(safeFact) + "/" + formatKsRazvitieValue(safePlan);
+    var label =
+      formatKsRazvitieValue(safeFact) +
+      "/" +
+      formatKsRazvitieValueWithUnit(safePlan, unitText);
     return {
       chart: {
         type: "pie",
@@ -1299,7 +1340,9 @@
       },
       credits: { enabled: false },
       tooltip: {
-        pointFormat: "<b>{point.name}</b>: {point.y}",
+        pointFormatter: function () {
+          return "<b>" + this.name + "</b>: " + formatKsRazvitieValueWithUnit(this.y, unitText);
+        },
       },
       plotOptions: {
         pie: {
@@ -1325,7 +1368,7 @@
    */
   function renderKsRazvitieIntoDonutsGrid(grid, chart, ctx) {
     if (!grid || typeof Highcharts === "undefined") return false;
-    var charts = chart && Array.isArray(chart.charts) ? chart.charts : [];
+    var charts = sortKsRazvitieCharts(chart && Array.isArray(chart.charts) ? chart.charts : []);
     if (!charts.length) return false;
 
     var mode = (ctx && ctx.aggregationMode) || "current";
@@ -1348,12 +1391,11 @@
       chartDiv.className = "donut-chart-container";
       chartDiv.id = "donut-chart-ks-" + String(idx);
 
-      var indicator = item && item.indicator ? String(item.indicator) : "";
-
       var label = document.createElement("div");
       label.className = "donut-label";
-      label.textContent = indicator;
-      label.title = indicator;
+      var itemLabel = ksRazvitieChartLabel(item);
+      label.textContent = itemLabel;
+      label.title = itemLabel;
 
       cell.appendChild(chartDiv);
       cell.appendChild(label);
@@ -1367,9 +1409,10 @@
         mode,
         refMonth,
       );
+      var unit = item && item.unit ? String(item.unit) : "";
       var instance = Highcharts.chart(
         chartDiv,
-        buildKsRazvitieDonutOptions(agg.plan, agg.fact, chartSize),
+        buildKsRazvitieDonutOptions(agg.plan, agg.fact, chartSize, unit),
       );
       donutChartInstances.push(instance);
     });
