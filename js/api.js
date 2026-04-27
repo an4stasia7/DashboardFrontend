@@ -535,6 +535,7 @@
     var body = unwrapKpiResponseBody(data, "");
     var tiles = normalizeKpiListFromApiResponse(body);
     applyPlanFactFromJsonLastPeriodToTiles(body, tiles, year, month);
+    applyMonthlyDataToTilesAtPeriod(tiles, year, month);
     return {
       tiles: tiles,
       chartIndicators: buildChartIndicatorsFromApiResponse(body),
@@ -732,6 +733,37 @@
         };
       })
       .filter(Boolean);
+  }
+
+  function findTileMonthlyDataPoint(monthlyData, year, month) {
+    if (!Array.isArray(monthlyData) || year == null || month == null) return null;
+    var y = Number(year);
+    var m = Number(month);
+    if (isNaN(y) || isNaN(m)) return null;
+    for (var i = 0; i < monthlyData.length; i++) {
+      var point = monthlyData[i];
+      if (!point || typeof point !== "object") continue;
+      if (Number(point.year) === y && Number(point.month) === m) return point;
+    }
+    return null;
+  }
+
+  function applyMonthlyDataToTilesAtPeriod(tiles, year, month) {
+    if (!Array.isArray(tiles) || !tiles.length) return;
+    tiles.forEach(function (tile) {
+      if (!tile || !Array.isArray(tile.monthly_data)) return;
+      var point = findTileMonthlyDataPoint(tile.monthly_data, year, month);
+      if (!point) return;
+      if (point.plan !== undefined) tile.plan = point.plan;
+      if (point.fact !== undefined) tile.fact = point.fact;
+      if (typeof point.kpi_pct === "number" && !isNaN(point.kpi_pct)) {
+        tile.percent = point.kpi_pct;
+        tile.kpi_pct = point.kpi_pct;
+      }
+      if (typeof point.has_data === "boolean") tile.has_data = point.has_data;
+      var label = formatPlanFactPeriodFromMonthlyPoint(point);
+      if (label) tile.plan_fact_period_label = label;
+    });
   }
 
   /* ── Построение индикаторов для графиков из raw API ── */

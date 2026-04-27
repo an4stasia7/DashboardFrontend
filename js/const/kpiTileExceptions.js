@@ -6,6 +6,9 @@
     "OD-M3.2": {
       allowPartialPlanFact: true,
     },
+    "TD-M3": {
+      allowPartialPlanFact: true,
+    },
     "KD-M4": {
       factOnly: true,
       hideHelp: true,
