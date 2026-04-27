@@ -155,6 +155,96 @@
     return u === "%" || u.indexOf("%") !== -1 || u === "процент" || u === "проценты";
   }
 
+  function getKpiTileException(tile) {
+    var cfg = global.KPI_TILE_EXCEPTIONS || null;
+    if (!cfg || !tile) return null;
+    var key = tile.kpi_id != null && String(tile.kpi_id).trim()
+      ? String(tile.kpi_id).trim()
+      : tile.badge != null && String(tile.badge).trim()
+        ? String(tile.badge).trim()
+        : "";
+    return key && cfg[key] ? cfg[key] : null;
+  }
+
+  function planFactValuePresent(value) {
+    if (global.DashUi && typeof global.DashUi.kpiTilePlanFactValuePresent === "function") {
+      return global.DashUi.kpiTilePlanFactValuePresent(value);
+    }
+    if (value === undefined || value === null) return false;
+    if (typeof value === "number") return !isNaN(value);
+    if (typeof value === "string") return String(value).trim() !== "";
+    return true;
+  }
+
+  function formatPlanFactPair(plan, fact, units) {
+    if (global.DashUi && typeof global.DashUi.formatKpiTilePlanFactPair === "function") {
+      return global.DashUi.formatKpiTilePlanFactPair(plan, fact, units);
+    }
+    return formatNumberRu(plan, 1) + "/" + formatNumberRu(fact, 1) + (units ? " " + units : "");
+  }
+
+  function formatFactWithUnits(fact, units) {
+    if (global.DashUi && typeof global.DashUi.formatKpiTileFactValueWithUnits === "function") {
+      return global.DashUi.formatKpiTileFactValueWithUnits(fact, units);
+    }
+    return formatNumberRu(fact, 1) + (units ? " " + units : "");
+  }
+
+  function formatPercentLabel(value) {
+    if (global.MockData && typeof global.MockData.formatKpiPercentLabel === "function") {
+      return global.MockData.formatKpiPercentLabel(value) + "%";
+    }
+    return formatNumberRu(value, 1) + "%";
+  }
+
+  function readNumber(tile, key) {
+    if (!tile || tile[key] == null || tile[key] === "") return 0;
+    var n = Number(tile[key]);
+    return isFinite(n) && !isNaN(n) ? n : 0;
+  }
+
+  function ratioPercent(numerator, denominator) {
+    var num = Number(numerator);
+    var den = Number(denominator);
+    if (!isFinite(num) || isNaN(num) || !isFinite(den) || isNaN(den) || den <= 0) return null;
+    return (num / den) * 100;
+  }
+
+  function formatDualRatioOverviewValue(tile) {
+    var dzClient = readNumber(tile, "dz_client");
+    var kzClient = readNumber(tile, "kz_client");
+    var dzSupplier = readNumber(tile, "dz_supplier");
+    var kzSupplier = readNumber(tile, "kz_supplier");
+    var dzTotal = readNumber(tile, "dz_total");
+    var kzTotal = readNumber(tile, "kz_total");
+    if (!dzTotal && !kzTotal) {
+      dzTotal = dzClient + dzSupplier;
+      kzTotal = kzClient + kzSupplier;
+    }
+    var pctTotal =
+      tile && tile.pct_total != null && !isNaN(Number(tile.pct_total))
+        ? Number(tile.pct_total)
+        : ratioPercent(dzTotal, kzTotal);
+    var pctClient =
+      tile && tile.pct_client != null && !isNaN(Number(tile.pct_client))
+        ? Number(tile.pct_client)
+        : ratioPercent(dzClient, kzClient);
+    var pctSupplier =
+      tile && tile.pct_supplier != null && !isNaN(Number(tile.pct_supplier))
+        ? Number(tile.pct_supplier)
+        : ratioPercent(dzSupplier, kzSupplier);
+    return [pctTotal, pctClient, pctSupplier]
+      .map(formatPercentLabel)
+      .join(" / ");
+  }
+
+  function formatTenderStatusOverviewValue(tile) {
+    var found = Math.round(readNumber(tile, "found") || readNumber(tile, "plan"));
+    var notParticipating = Math.round(readNumber(tile, "not_participating"));
+    var won = Math.round(readNumber(tile, "won") || readNumber(tile, "fact"));
+    return found + " / " + notParticipating + " / " + won + " шт.";
+  }
+
   function titleEqualsKpiId(text, kpiId) {
     if (text == null || text === "" || kpiId == null || kpiId === "") return false;
     return String(text).trim().toLowerCase() === String(kpiId).trim().toLowerCase();
@@ -175,20 +265,28 @@
 
   function formatTileValue(tile) {
     if (!tile) return "—";
+    var rule = getKpiTileException(tile);
     var unit = tile.units != null ? String(tile.units).trim() : "";
-    var fact = tile.fact;
-    if (fact != null && String(fact).trim() !== "" && !isNaN(Number(fact))) {
-      var numeric = Number(fact);
-      if (looksLikePercentUnit(unit)) {
-        return formatNumberRu(numeric, 1) + "%";
-      }
-      // Для ПСД суммы показываем без сокращений (не "млн/млрд"), т.к. backend возвращает int в рублях.
-      var suffix = unit ? " " + unit : "";
-      return formatNumberRu(numeric, 0) + suffix;
+    if (rule && rule.dualRatioOverview) return formatDualRatioOverviewValue(tile);
+    if (rule && rule.tenderStatusOverview) return formatTenderStatusOverviewValue(tile);
+
+    var hasPlan = planFactValuePresent(tile.plan);
+    var hasFact = planFactValuePresent(tile.fact);
+    if (hasPlan && hasFact && !(rule && rule.kpiPctOnly)) {
+      return formatPlanFactPair(tile.plan, tile.fact, unit);
     }
+    if (rule && rule.allowPartialPlanFact && (hasPlan || hasFact) && !(rule && rule.kpiPctOnly)) {
+      return formatPlanFactPair(tile.plan, tile.fact, unit);
+    }
+    if ((rule && rule.factOnly) && hasFact) return formatFactWithUnits(tile.fact, unit);
+
     var pct = tile.kpi_pct != null ? tile.kpi_pct : tile.kpi_pst != null ? tile.kpi_pst : tile.percent;
     if (pct != null && !isNaN(Number(pct))) {
-      return formatNumberRu(Number(pct), 1) + "%";
+      return formatPercentLabel(Number(pct));
+    }
+    if (hasFact) {
+      if (looksLikePercentUnit(unit)) return formatPercentLabel(tile.fact);
+      return formatFactWithUnits(tile.fact, unit);
     }
     return "—";
   }
@@ -198,8 +296,17 @@
     li.className = "dash-chairman-overview-tile";
 
     var dot = document.createElement("span");
-    var rag = tile && tile.rag ? String(tile.rag).toLowerCase() : "";
+    var pres =
+      global.MockData && typeof global.MockData.getKpiTilePresentation === "function"
+        ? global.MockData.getKpiTilePresentation(tile)
+        : null;
+    var rag = pres && pres.rag ? String(pres.rag).toLowerCase() : tile && tile.rag ? String(tile.rag).toLowerCase() : "";
+    var fillColor = pres && pres.fillColor ? String(pres.fillColor).trim() : "";
     dot.className = "dash-chairman-overview-tile-dot" + (rag ? " rag-" + rag : "");
+    if (fillColor) {
+      dot.style.backgroundColor = fillColor;
+      dot.style.boxShadow = "0 0 0 2px " + fillColor + "33";
+    }
     li.appendChild(dot);
 
     var text = document.createElement("span");

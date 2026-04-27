@@ -1420,7 +1420,13 @@
   /* ---------- Таблицы дашборда ---------- */
 
   function normalizeDashboardRole(value) {
-    return value == null ? "" : String(value).trim().toLocaleLowerCase("ru-RU");
+    return value == null
+      ? ""
+      : String(value)
+          .trim()
+          .toLocaleLowerCase("ru-RU")
+          .replace(/\s+/g, " ")
+          .replace(/\s*-\s*/g, "-");
   }
 
   function isBoardChairUser(user) {
@@ -2071,7 +2077,10 @@
   }
 
   function shouldUseOpdirProjectTables() {
-    return isOperationalDirectorUser(sessionUser) && selectedViewId === "self";
+    return (
+      (isOperationalDirectorUser(sessionUser) || isProductionDeputyUser(sessionUser)) &&
+      selectedViewId === "self"
+    );
   }
 
   function shouldUseCommercialDirectorOverdueDebtEnhancements() {
@@ -2089,6 +2098,7 @@
     var showClaimsSwitcher = shouldUseClaimsAndLawsuitsSwitcher();
     var useTechnicalTables = shouldUseTechnicalTables();
     var useOpdirProjectTables = shouldUseOpdirProjectTables();
+    var useProductionDeputyProjectTables = isProductionDeputyUser(sessionUser) && selectedViewId === "self";
     if (useTechnicalTables) {
       activeClaimsTableView = "claims";
     }
@@ -2098,7 +2108,9 @@
 
     if (claimsTableTitleTextEl) {
       claimsTableTitleTextEl.textContent = useOpdirProjectTables
-        ? "Проекты с отклонениями по вехам"
+        ? useProductionDeputyProjectTables
+          ? "Проекты улучшений / сокращения потерь"
+          : "Проекты с отклонениями по вехам"
         : useTechnicalTables
           ? "Отклонения по вехам"
           : isBoardChairOwnDashboard
@@ -2109,7 +2121,9 @@
 
     if (overdueDebtTableTitleEl) {
       overdueDebtTableTitleEl.textContent = useOpdirProjectTables
-        ? "Проекты с отклонениями по вехам"
+        ? useProductionDeputyProjectTables
+          ? "Проекты улучшений / сокращения потерь"
+          : "Проекты с отклонениями по вехам"
         : useTechnicalTables
           ? "Улучшение и развитие"
           : isBoardChairOwnDashboard

@@ -9,6 +9,9 @@
     "OD-Q1": {
       showBackPlanFact: true,
     },
+    "PD-Q1": {
+      showBackPlanFact: true,
+    },
     "KD-M4": {
       factOnly: true,
       hideHelp: true,

@@ -721,6 +721,13 @@
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.22);
 }
 
+.dash-chairman-overview-tile-dot.rag-gray,
+.dash-chairman-overview-tile-dot.rag-grey,
+.dash-chairman-overview-tile-dot.rag-unknown {
+  background: #94a3b8;
+  box-shadow: 0 0 0 2px rgba(148, 163, 184, 0.22);
+}
+
 .dash-chairman-overview-tile-badge {
   flex-shrink: 0;
   font-size: 0.68rem;

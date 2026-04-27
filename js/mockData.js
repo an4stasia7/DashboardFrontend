@@ -539,6 +539,9 @@
     green: "#6cb65a",
     yellow: "#f1c239",
     red: "#db5252",
+    gray: "#94a3b8",
+    grey: "#94a3b8",
+    unknown: "#94a3b8",
   };
 
   /**
@@ -546,7 +549,9 @@
    * зелёный от 80 %, жёлтый от 50 % до 79 %, красный ниже 50 %.
    */
   function kpiRagFromPercentStub(percent) {
-    var p = Math.min(100, Math.max(0, Number(percent) || 0));
+    var raw = Number(percent);
+    if (!isFinite(raw) || isNaN(raw)) return { rag: "gray", fillColor: KPI_RAG_FILL.gray };
+    var p = Math.min(100, Math.max(0, raw));
     if (p >= 80) return { rag: "green", fillColor: KPI_RAG_FILL.green };
     if (p >= 50) return { rag: "yellow", fillColor: KPI_RAG_FILL.yellow };
     return { rag: "red", fillColor: KPI_RAG_FILL.red };
@@ -559,6 +564,15 @@
     if (s === "yellow" || s === "amber" || s === "y" || s.indexOf("жёл") === 0 || s.indexOf("жел") === 0)
       return "yellow";
     if (s === "red" || s === "r" || s.indexOf("красн") === 0) return "red";
+    if (
+      s === "gray" ||
+      s === "grey" ||
+      s === "unknown" ||
+      s === "undefined" ||
+      s.indexOf("сер") === 0 ||
+      s.indexOf("нет данных") !== -1
+    )
+      return "gray";
     return null;
   }
 
