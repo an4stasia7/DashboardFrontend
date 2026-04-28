@@ -312,25 +312,29 @@
 
   function appendTechnicalTableRow(tbody, raw) {
     var tr = document.createElement("tr");
-    var orderNumber = pickTechnicalField(raw, ["nomer_proekta", "number", "order_number", "code"]);
+    var projectCode = pickTechnicalField(raw, ["project_code"]);
     var title = pickTechnicalField(raw, ["name", "project_name", "title"]);
     var owner = pickTechnicalField(raw, ["rp", "project_manager", "manager"]);
-    var dates = pickTechnicalField(raw, ["sroki", "period", "date_range"]);
+    var dates = pickTechnicalField(raw, ["timeline", "sroki", "period", "date_range"]);
     var deviation = pickTechnicalField(raw, ["otklonenie_summarnoe", "deviation", "delay_days", "deviation_text"]);
     var status = pickTechnicalField(raw, ["status", "state"]);
-    var progress = pickTechnicalField(raw, ["progress", "percent_complete"]);
+    var progress = pickTechnicalField(raw, ["progress_pct", "progress", "percent_complete"]);
     var values = [
-      tableTextOrDash(orderNumber),
+      tableTextOrDash(projectCode),
       tableTextOrDash(title),
       tableTextOrDash(owner),
       tableTextOrDash(dates),
-      formatTechnicalDeviation(deviation),
+      null,
       tableTextOrDash(status),
-      tableTextOrDash(progress),
+      formatTechnicalPercentComplete(progress),
     ];
     values.forEach(function (value, cellIndex) {
       var td = document.createElement("td");
-      td.textContent = value;
+      if (cellIndex === 4) {
+        buildTechnicalDeviationCell(td, raw);
+      } else {
+        td.textContent = value;
+      }
       if (cellIndex === 3) {
         td.setAttribute("data-order", normalizeClaimsSearchText(dates));
       } else if (cellIndex === 4) {
@@ -460,6 +464,105 @@
     } else {
       dlg.setAttribute("open", "open");
     }
+  }
+
+  function ensureTechnicalMilestonesDialog() {
+    var existing = document.getElementById("technical-milestones-dialog");
+    if (existing) return existing;
+    var dlg = document.createElement("dialog");
+    dlg.id = "technical-milestones-dialog";
+    dlg.className = "opdir-milestones-dialog";
+    dlg.innerHTML =
+      '<div class="opdir-milestones-dialog-panel">' +
+      '<div class="opdir-milestones-dialog-head">' +
+      '<div>' +
+      '<h2 id="technical-milestones-dialog-title" class="opdir-milestones-dialog-title">Отклонения по вехам</h2>' +
+      '<p id="technical-milestones-dialog-subtitle" class="opdir-milestones-dialog-subtitle"></p>' +
+      "</div>" +
+      '<form method="dialog"><button type="submit" class="btn-dialog-close">Закрыть</button></form>' +
+      "</div>" +
+      '<div id="technical-milestones-dialog-body" class="opdir-milestones-dialog-body"></div>' +
+      "</div>";
+    dlg.addEventListener("click", function (event) {
+      if (event.target === dlg && typeof dlg.close === "function") dlg.close();
+    });
+    document.body.appendChild(dlg);
+    return dlg;
+  }
+
+  function openTechnicalMilestonesDialog(raw) {
+    var milestones = Array.isArray(raw && raw.milestone_deviations) ? raw.milestone_deviations : [];
+    if (!milestones.length) return;
+    var dlg = ensureTechnicalMilestonesDialog();
+    var title = dlg.querySelector("#technical-milestones-dialog-title");
+    var subtitle = dlg.querySelector("#technical-milestones-dialog-subtitle");
+    var body = dlg.querySelector("#technical-milestones-dialog-body");
+    if (title) title.textContent = "Отклонения по вехам: " + tableTextOrDash(raw.project_code || raw.number);
+    if (subtitle) {
+      subtitle.textContent =
+        tableTextOrDash(raw.project_name) +
+        " | РП: " +
+        tableTextOrDash(raw.project_manager) +
+        " | Прогресс проекта: " +
+        formatOpdirProjectPercent(raw.progress_pct);
+    }
+    if (body) {
+      body.innerHTML =
+        '<table class="opdir-milestones-dialog-table">' +
+        "<thead><tr><th>№</th><th>Веха</th><th>Начало</th><th>Окончание</th><th>Отклонение, дн.</th><th>Выполнение, %</th></tr></thead>" +
+        "<tbody>" +
+        milestones
+          .map(function (item, index) {
+            return (
+              '<tr class="opdir-milestones-row--overdue"><td>' +
+              (index + 1) +
+              "</td><td>" +
+              escapeHtml(tableTextOrDash(item.name)) +
+              "</td><td>" +
+              escapeHtml(formatTechnicalDate(item.start_date)) +
+              "</td><td>" +
+              escapeHtml(formatTechnicalDate(item.finish_date)) +
+              "</td><td>" +
+              escapeHtml(item.delay_days != null ? String(item.delay_days) : "0") +
+              "</td><td>" +
+              escapeHtml(formatTechnicalPercentComplete(item.percent_complete)) +
+              "</td></tr>"
+            );
+          })
+          .join("") +
+        "</tbody></table>";
+    }
+    if (typeof dlg.showModal === "function") {
+      if (!dlg.open) dlg.showModal();
+    } else {
+      dlg.setAttribute("open", "open");
+    }
+  }
+
+  function buildTechnicalDeviationCell(td, raw) {
+    var milestones = Array.isArray(raw && raw.milestone_deviations) ? raw.milestone_deviations : [];
+    td.setAttribute("data-order", String(raw && raw.delay_days != null ? raw.delay_days : ""));
+    if (!milestones.length) {
+      td.textContent = tableTextOrDash(raw && raw.deviation);
+      return;
+    }
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "opdir-milestones-toggle";
+    btn.textContent = tableTextOrDash(raw.deviation);
+    btn.setAttribute("aria-haspopup", "dialog");
+
+    function openDetails(event) {
+      event.preventDefault();
+      event.stopPropagation();
+      openTechnicalMilestonesDialog(raw);
+    }
+
+    td.className = "opdir-milestones-cell";
+    td.addEventListener("click", openDetails);
+    btn.addEventListener("click", openDetails);
+
+    td.appendChild(btn);
   }
 
   function buildOpdirDeviationCell(td, raw) {
