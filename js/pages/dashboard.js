@@ -574,6 +574,7 @@
           }
           if (
             isBoardChairUser(viewContextUser) ||
+            isTechnicalDirectorUser(viewContextUser) ||
             isOperationalDirectorUser(viewContextUser) ||
             isProductionDeputyUser(viewContextUser)
           ) {
