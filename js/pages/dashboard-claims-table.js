@@ -195,6 +195,8 @@
   function setTechnicalTableMode(technicalMode) {
     var topTable = document.getElementById("table-top-deviations");
     var secondTable = document.getElementById("table-lawsuits");
+    if (topTable) topTable.classList.remove("dashboard-table--compact-by-content");
+    if (secondTable) secondTable.classList.toggle("dashboard-table--compact-by-content", !!technicalMode);
     if (topTable && topTable.tFoot) {
       topTable.tFoot.hidden = !!technicalMode;
       if (technicalMode) {
@@ -234,6 +236,8 @@
   function setOpdirProjectTableMode(enabled) {
     var topTable = document.getElementById("table-top-deviations");
     var secondTable = document.getElementById("table-lawsuits");
+    if (topTable) topTable.classList.toggle("dashboard-table--compact-by-content", !!enabled);
+    if (secondTable) secondTable.classList.toggle("dashboard-table--compact-by-content", !!enabled);
     if (topTable && topTable.tFoot) {
       topTable.tFoot.hidden = !!enabled;
       if (enabled) {
@@ -311,6 +315,8 @@
   }
 
   function appendTechnicalTableRow(tbody, raw) {
+    var compactLayout = false;
+    if (arguments.length > 2) compactLayout = !!arguments[2];
     var tr = document.createElement("tr");
     var projectCode = pickTechnicalField(raw, ["project_code"]);
     var title = pickTechnicalField(raw, ["name", "project_name", "title"]);
@@ -330,6 +336,11 @@
     ];
     values.forEach(function (value, cellIndex) {
       var td = document.createElement("td");
+      if (compactLayout) {
+        if (cellIndex === 2) td.className = "technical-table-col-rp";
+        if (cellIndex === 5) td.className = "technical-table-col-status";
+        if (cellIndex === 6) td.className = "technical-table-col-progress";
+      }
       if (cellIndex === 4) {
         buildTechnicalDeviationCell(td, raw);
       } else {
@@ -604,6 +615,9 @@
     ];
     values.forEach(function (value, cellIndex) {
       var td = document.createElement("td");
+      if (cellIndex === 2) td.className = "technical-table-col-rp";
+      if (cellIndex === 5) td.className = "technical-table-col-status";
+      if (cellIndex === 6) td.className = "technical-table-col-progress";
       if (cellIndex === 4) {
         buildOpdirDeviationCell(td, raw);
       } else {
@@ -741,7 +755,7 @@
       rows.filter(isTechnicalExternalOrderRow).forEach(function (item) {
         var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
         if (!raw) return;
-        appendTechnicalTableRow(tbody, raw);
+        appendTechnicalTableRow(tbody, raw, false);
       });
       return;
     }
@@ -839,7 +853,7 @@
       rows.filter(isTechnicalImprovementRow).forEach(function (item) {
         var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
         if (!raw) return;
-        appendTechnicalTableRow(tbody, raw);
+        appendTechnicalTableRow(tbody, raw, true);
       });
       return;
     }
@@ -1508,6 +1522,9 @@
       initialOrder: [[4, "desc"]],
       columnDefs: [
         { targets: "_all", orderable: false },
+        { targets: [2], className: "technical-table-col-rp", width: "96px" },
+        { targets: [5], className: "technical-table-col-status", width: "72px" },
+        { targets: [6], className: "technical-table-col-progress", width: "72px" },
         { targets: [4], type: "num", orderable: true },
         { targets: [6], type: "num-fmt", orderable: true },
       ],
@@ -1531,6 +1548,9 @@
       initialOrder: [[0, "asc"]],
       columnDefs: [
         { targets: "_all", orderable: false },
+        { targets: [2], className: "technical-table-col-rp", width: "96px" },
+        { targets: [5], className: "technical-table-col-status", width: "72px" },
+        { targets: [6], className: "technical-table-col-progress", width: "72px" },
         { targets: [0, 6], type: "num-fmt", orderable: true },
       ],
     });

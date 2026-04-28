@@ -1442,7 +1442,16 @@
     if (!user || typeof user !== "object") return false;
     var role = normalizeDashboardRole(user.role);
     var department = normalizeDashboardRole(user.department);
-    return role === "технический директор" || department === "технический директор";
+    return (
+      role === "технический директор" ||
+      role === "техдир" ||
+      role === "тд" ||
+      role === "технический дир" ||
+      department === "технический директор" ||
+      department === "техдир" ||
+      department === "тд" ||
+      department === "технический дир"
+    );
   }
 
   function isOperationalDirectorUser(user) {
