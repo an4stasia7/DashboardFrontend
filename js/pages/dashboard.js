@@ -1721,6 +1721,7 @@
     var hasExplicitHasDataFlag = false;
     var extraSums = {
       found: 0, won: 0, not_participating: 0,
+      expected_plan: 0,
       dz_client: 0, kz_client: 0,
       dz_supplier: 0, kz_supplier: 0,
       dz_total: 0, kz_total: 0,
@@ -1728,6 +1729,7 @@
     };
     var extraHas = {
       found: false, won: false, not_participating: false,
+      expected_plan: false,
       dz_client: false, kz_client: false,
       dz_supplier: false, kz_supplier: false,
       dz_total: false, kz_total: false,
@@ -1803,6 +1805,7 @@
       month_name: null,
       plan: hasPlan ? plan : null,
       fact: hasFact ? fact : null,
+      expected_plan: extraHas.expected_plan ? extraSums.expected_plan : null,
       found: extraHas.found ? extraSums.found : null,
       won: extraHas.won ? extraSums.won : null,
       not_participating: extraHas.not_participating ? extraSums.not_participating : null,
@@ -1903,6 +1906,12 @@
       kpi_pct: pointPct != null ? pointPct : itemPct,
       plan: point ? point.plan : rawItem.plan,
       fact: point ? point.fact : rawItem.fact,
+      expected_plan:
+        point && point.expected_plan != null
+          ? point.expected_plan
+          : rawItem.expected_plan != null
+            ? rawItem.expected_plan
+            : null,
       found:
         point && point.found != null
           ? point.found

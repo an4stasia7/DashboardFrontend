@@ -104,6 +104,32 @@
     return pairText + " " + unitsText;
   }
 
+  function formatKpiTilePlanFactExpectedTriple(plan, fact, expected, units) {
+    var planText = formatKpiTilePlanFactValue(plan);
+    var factText = formatKpiTilePlanFactValue(fact);
+    var expectedText = formatKpiTilePlanFactValue(expected);
+    var unitsText = formatKpiTileUnits(units);
+    var planParts = splitCompactScaleSuffix(planText);
+    var factParts = splitCompactScaleSuffix(factText);
+    var expectedParts = splitCompactScaleSuffix(expectedText);
+    var sharedScale =
+      planParts.scale &&
+      factParts.scale &&
+      expectedParts.scale &&
+      planParts.scale.toLowerCase() === factParts.scale.toLowerCase() &&
+      planParts.scale.toLowerCase() === expectedParts.scale.toLowerCase()
+        ? planParts.scale
+        : "";
+    if (sharedScale) {
+      var scaledTripleText = planParts.value + "/" + factParts.value + "/" + expectedParts.value + " " + sharedScale;
+      if (!unitsText) return scaledTripleText;
+      return scaledTripleText + " " + unitsText;
+    }
+    var tripleText = planText + "/" + factText + "/" + expectedText;
+    if (!unitsText) return tripleText;
+    return tripleText + " " + unitsText;
+  }
+
   function formatKpiTileUpdatedAt(value) {
     if (value == null) return "";
     var text = String(value).trim();
@@ -160,6 +186,7 @@
     formatKpiTileUnits: formatKpiTileUnits,
     formatKpiTileFactValueWithUnits: formatKpiTileFactValueWithUnits,
     formatKpiTilePlanFactPair: formatKpiTilePlanFactPair,
+    formatKpiTilePlanFactExpectedTriple: formatKpiTilePlanFactExpectedTriple,
     formatKpiTileUpdatedAt: formatKpiTileUpdatedAt,
     kpiTilePlanFactValuePresent: kpiTilePlanFactValuePresent,
     kpiTileHasPlanAndFact: kpiTileHasPlanAndFact,
