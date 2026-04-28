@@ -1367,6 +1367,7 @@
 
     return tiles.map(function (tile) {
       if (!tile || !isFotOrPersonnelTurnoverKpiTitle(tile.title)) return tile;
+      if (tile.kpi_id != null && String(tile.kpi_id).trim() === "OD-M3.2") return tile;
       if (tile.__priorMonthMergedFromKpiAll) return tile;
       var monthly = tile.monthly_data;
       if (!Array.isArray(monthly) || !monthly.length) return tile;
