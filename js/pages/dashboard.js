@@ -575,6 +575,7 @@
           if (
             isBoardChairUser(viewContextUser) ||
             isOperationalDirectorUser(viewContextUser) ||
+            isTechnicalDirectorUser(viewContextUser) ||
             isProductionDeputyUser(viewContextUser)
           ) {
             loadKpiTilesAndChartsForView();
