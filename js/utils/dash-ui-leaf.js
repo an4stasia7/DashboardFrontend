@@ -76,10 +76,29 @@
     return factText + " " + unitsText;
   }
 
+  function splitCompactScaleSuffix(text) {
+    var match = String(text || "").trim().match(/^(.+?)\s+(млн|млрд)$/i);
+    if (!match) return { value: String(text || ""), scale: "" };
+    return { value: match[1], scale: match[2] };
+  }
+
   function formatKpiTilePlanFactPair(plan, fact, units) {
     var planText = formatKpiTilePlanFactValue(plan);
     var factText = formatKpiTilePlanFactValue(fact);
     var unitsText = formatKpiTileUnits(units);
+    var planParts = splitCompactScaleSuffix(planText);
+    var factParts = splitCompactScaleSuffix(factText);
+    var sharedScale =
+      planParts.scale &&
+      factParts.scale &&
+      planParts.scale.toLowerCase() === factParts.scale.toLowerCase()
+        ? planParts.scale
+        : "";
+    if (sharedScale) {
+      var scaledPairText = planParts.value + "/" + factParts.value + " " + sharedScale;
+      if (!unitsText) return scaledPairText;
+      return scaledPairText + " " + unitsText;
+    }
     var pairText = planText + "/" + factText;
     if (!unitsText) return pairText;
     return pairText + " " + unitsText;

@@ -7,12 +7,19 @@
   margin-bottom: 20px;
   padding: 10px 16px;
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.86), rgba(255, 255, 255, 0.64)),
-    radial-gradient(circle at top left, rgba(255, 255, 255, 0.82), transparent 34%);
+    linear-gradient(145deg, rgba(255, 255, 255, 0.54), rgba(245, 248, 252, 0.28) 52%, rgba(255, 255, 255, 0.42)),
+    radial-gradient(circle at 16% 8%, rgba(255, 255, 255, 0.64), transparent 34%);
   border-radius: 16px;
-  box-shadow: 0 16px 42px rgba(15, 23, 42, 0.1);
-  border: 1px solid var(--glass-border, rgba(255, 255, 255, 0.58));
-  backdrop-filter: blur(18px) saturate(1.2);
+  box-shadow:
+    0 16px 34px rgba(15, 23, 42, 0.13),
+    inset 1px 1px 1px rgba(255, 255, 255, 0.86),
+    inset -1px -1px 1px rgba(15, 23, 42, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-top-color: rgba(255, 255, 255, 0.72);
+  border-left-color: rgba(255, 255, 255, 0.62);
+  border-right-color: rgba(100, 116, 139, 0.16);
+  border-bottom-color: rgba(100, 116, 139, 0.2);
+  backdrop-filter: blur(18px) saturate(1.18);
 }
 
 .month-nav-core {
@@ -43,18 +50,27 @@
   width: 32px;
   height: 32px;
   border-radius: 8px;
-  border: 1px solid #e2e8f0;
-  background: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.66), rgba(244, 248, 252, 0.36));
   color: var(--text);
   cursor: pointer;
-  transition: border-color 0.15s, color 0.15s, background 0.15s;
+  box-shadow:
+    0 6px 14px rgba(15, 23, 42, 0.08),
+    inset 1px 1px 1px rgba(255, 255, 255, 0.9),
+    inset -1px -1px 1px rgba(15, 23, 42, 0.06);
+  backdrop-filter: blur(12px) saturate(1.12);
+  transition: border-color 0.15s, color 0.15s, background 0.15s, box-shadow 0.15s;
   padding: 0;
 }
 
 .month-nav-arrow:hover:not(:disabled) {
-  border-color: var(--accent-blue);
+  border-color: rgba(37, 99, 235, 0.42);
   color: var(--accent-blue);
-  background: rgba(37, 99, 235, 0.04);
+  background: rgba(255, 255, 255, 0.62);
+  box-shadow:
+    0 8px 18px rgba(15, 23, 42, 0.1),
+    inset 0 0 16px rgba(37, 99, 235, 0.08);
 }
 
 .month-nav-arrow:disabled {
@@ -70,19 +86,26 @@
   text-align: center;
   text-transform: capitalize;
   user-select: none;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.66);
 }
 
 .month-nav-aggregation {
   min-width: 180px;
   height: 34px;
   padding: 0 34px 0 12px;
-  border: 1px solid #d7e0ec;
+  border: 1px solid rgba(255, 255, 255, 0.72);
   border-radius: 10px;
-  background: #fff;
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.66), rgba(244, 248, 252, 0.38));
   color: var(--text);
   font-size: 0.9rem;
   font-weight: 600;
   line-height: 1.2;
+  box-shadow:
+    0 6px 14px rgba(15, 23, 42, 0.08),
+    inset 1px 1px 1px rgba(255, 255, 255, 0.88),
+    inset -1px -1px 1px rgba(15, 23, 42, 0.06);
+  backdrop-filter: blur(12px) saturate(1.12);
 }
 
 .month-nav-aggregation[hidden] {
@@ -251,13 +274,18 @@
   justify-content: center;
   width: 20px;
   height: 20px;
-  border: 1px solid #facc15;
+  border: 1px solid rgba(250, 204, 21, 0.62);
   border-radius: 999px;
-  background: #fef3c7;
+  background:
+    linear-gradient(145deg, rgba(254, 243, 199, 0.72), rgba(255, 255, 255, 0.34));
   color: #a16207;
   padding: 0;
   cursor: help;
-  box-shadow: 0 1px 2px rgba(161, 98, 7, 0.14);
+  box-shadow:
+    0 6px 14px rgba(161, 98, 7, 0.12),
+    inset 1px 1px 1px rgba(255, 255, 255, 0.88),
+    inset -1px -1px 1px rgba(161, 98, 7, 0.08);
+  backdrop-filter: blur(10px);
 }
 
 .month-nav-warning[hidden] {
@@ -556,8 +584,8 @@ article.kpi-tile.kpi-tile--page-hidden {
   background: transparent;
   border-radius: 12px;
   box-shadow:
-    0 16px 30px rgba(15, 23, 42, 0.15),
-    0 4px 9px rgba(15, 23, 42, 0.08);
+    0 18px 34px rgba(15, 23, 42, 0.17),
+    0 5px 10px rgba(15, 23, 42, 0.09);
   position: relative;
   border: none;
   min-width: 0;
@@ -570,8 +598,8 @@ article.kpi-tile.kpi-tile--page-hidden {
 .kpi-tile:hover {
   transform: translateY(-3px);
   box-shadow:
-    0 24px 48px rgba(15, 23, 42, 0.17),
-    0 7px 15px rgba(15, 23, 42, 0.1);
+    0 28px 56px rgba(15, 23, 42, 0.19),
+    0 8px 17px rgba(15, 23, 42, 0.11);
 }
 
 .kpi-tile:focus-visible {
@@ -617,17 +645,21 @@ article.kpi-tile.kpi-tile--page-hidden {
   padding: 12px 14px 14px;
   border-radius: 12px;
   background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.72), rgba(244, 248, 252, 0.42) 48%, rgba(255, 255, 255, 0.6)),
-    radial-gradient(circle at 18% 8%, rgba(255, 255, 255, 0.62), transparent 34%);
-  border: 1px solid rgba(255, 255, 255, 0.6);
+    linear-gradient(145deg, rgba(255, 255, 255, 0.5), rgba(244, 248, 252, 0.24) 48%, rgba(255, 255, 255, 0.38)),
+    radial-gradient(circle at 18% 8%, rgba(255, 255, 255, 0.5), transparent 34%);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-top-color: rgba(255, 255, 255, 0.78);
+  border-left-color: rgba(255, 255, 255, 0.68);
+  border-right-color: rgba(100, 116, 139, 0.18);
+  border-bottom-color: rgba(100, 116, 139, 0.22);
   box-shadow:
-    inset 1px 1px 1px rgba(255, 255, 255, 0.86),
-    inset -1px -1px 1px rgba(15, 23, 42, 0.07),
-    inset 0 -14px 24px rgba(15, 23, 42, 0.04),
-    inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+    inset 1px 1px 1px rgba(255, 255, 255, 0.94),
+    inset -1px -1px 1px rgba(15, 23, 42, 0.09),
+    inset 0 -16px 28px rgba(15, 23, 42, 0.055),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.16);
   backface-visibility: hidden;
   overflow: hidden;
-  backdrop-filter: blur(20px) saturate(1.18);
+  backdrop-filter: blur(18px) saturate(1.16);
 }
 
 .kpi-tile-face::before {
@@ -640,7 +672,7 @@ article.kpi-tile.kpi-tile--page-hidden {
   background:
     linear-gradient(
       135deg,
-      rgba(255, 255, 255, 0.86),
+      rgba(255, 255, 255, 0.9),
       color-mix(in srgb, var(--tile-front-accent-color, var(--tile-rag-color, var(--accent-blue))) 30%, rgba(255, 255, 255, 0.2)) 32%,
       rgba(255, 255, 255, 0.5) 52%,
       color-mix(in srgb, var(--tile-front-accent-color, var(--tile-rag-color, var(--accent-blue))) 22%, rgba(255, 255, 255, 0.16)) 76%,
@@ -649,7 +681,7 @@ article.kpi-tile.kpi-tile--page-hidden {
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
-  opacity: 0.56;
+  opacity: 0.7;
   pointer-events: none;
 }
 
@@ -660,12 +692,12 @@ article.kpi-tile.kpi-tile--page-hidden {
   z-index: 0;
   border-radius: calc(12px - 1px);
   background:
-    linear-gradient(160deg, rgba(255, 255, 255, 0.42), transparent 24%),
-    linear-gradient(340deg, rgba(255, 255, 255, 0.2), transparent 18%),
-    linear-gradient(180deg, transparent 58%, rgba(15, 23, 42, 0.035));
+    linear-gradient(160deg, rgba(255, 255, 255, 0.5), transparent 24%),
+    linear-gradient(340deg, rgba(255, 255, 255, 0.24), transparent 18%),
+    linear-gradient(180deg, transparent 54%, rgba(15, 23, 42, 0.052));
   box-shadow:
-    inset 0 0 14px color-mix(in srgb, var(--tile-front-accent-color, var(--tile-rag-color, var(--accent-blue))) 5%, transparent),
-    inset 0 0 24px rgba(255, 255, 255, 0.14);
+    inset 0 0 16px color-mix(in srgb, var(--tile-front-accent-color, var(--tile-rag-color, var(--accent-blue))) 7%, transparent),
+    inset 0 0 30px rgba(255, 255, 255, 0.18);
   pointer-events: none;
 }
 
@@ -687,8 +719,8 @@ article.kpi-tile[data-no-flip="1"] {
 .kpi-tile-face--back {
   transform: rotateY(180deg);
   background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.76), rgba(244, 248, 252, 0.5) 48%, rgba(255, 255, 255, 0.62)),
-    radial-gradient(circle at 18% 8%, rgba(255, 255, 255, 0.6), transparent 34%);
+    linear-gradient(145deg, rgba(255, 255, 255, 0.62), rgba(244, 248, 252, 0.34) 48%, rgba(255, 255, 255, 0.5)),
+    radial-gradient(circle at 18% 8%, rgba(255, 255, 255, 0.48), transparent 34%);
   overflow: hidden auto;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
@@ -769,6 +801,7 @@ article.kpi-tile[data-no-flip="1"] {
 
 .kpi-tile-metrics {
   margin-top: auto;
+  margin-right: calc(-1 * (max(8rem, min(36%, 10rem)) - 16px));
   padding-top: 12px;
   border-top: 1px solid rgba(148, 163, 184, 0.2);
   display: flex;
@@ -819,14 +852,16 @@ article.kpi-tile[data-no-flip="1"] {
   flex-direction: column;
   align-items: flex-start;
   gap: 6px;
+  width: 100%;
   min-width: 0;
 }
 
 .kpi-tile-pf-inline-row {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 8px;
+  width: 100%;
   min-width: 0;
 }
 
@@ -923,14 +958,14 @@ article.kpi-tile[data-no-flip="1"] {
 }
 
 .kpi-tile-pf-inline-label {
-  flex: 1 1 auto;
-  min-width: 0;
+  flex: 0 0 auto;
+  min-width: max-content;
   color: var(--muted);
   font-size: 0.8rem;
   font-weight: 500;
   line-height: 1.3;
-  white-space: normal;
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  overflow-wrap: normal;
 }
 
 /* FND-T3 «Соотношение ДЗ и КЗ»: два процента на лицевой стороне. */
