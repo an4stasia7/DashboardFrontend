@@ -169,7 +169,10 @@
     if (!headRow) return;
     headRow.innerHTML = headers
       .map(function (header) {
-        return "<th>" + header + "</th>";
+        var normalizedHeader = tableTextOrDash(header);
+        if (normalizedHeader === "№ 1С") normalizedHeader = "№";
+        if (normalizedHeader === "№ в 1С") normalizedHeader = "№";
+        return "<th>" + normalizedHeader + "</th>";
       })
       .join("");
   }
@@ -195,8 +198,10 @@
   function setTechnicalTableMode(technicalMode) {
     var topTable = document.getElementById("table-top-deviations");
     var secondTable = document.getElementById("table-lawsuits");
-    if (topTable) topTable.classList.remove("dashboard-table--compact-by-content");
+    if (topTable) topTable.classList.toggle("dashboard-table--compact-by-content", !!technicalMode);
     if (secondTable) secondTable.classList.toggle("dashboard-table--compact-by-content", !!technicalMode);
+    applyTechnicalCompactSizing(topTable, !!technicalMode);
+    applyTechnicalCompactSizing(secondTable, !!technicalMode);
     if (topTable && topTable.tFoot) {
       topTable.tFoot.hidden = !!technicalMode;
       if (technicalMode) {
@@ -219,6 +224,91 @@
     }
   }
 
+  function applyTechnicalCompactSizing(table, enabled) {
+    if (!table) return;
+    var headerCells = table.querySelectorAll("thead th");
+    var bodyCells = table.querySelectorAll("tbody td");
+    var i;
+    if (enabled) {
+      table.style.tableLayout = "fixed";
+      table.style.width = "100%";
+      table.style.minWidth = "0";
+    } else {
+      table.style.tableLayout = "";
+      table.style.width = "";
+      table.style.minWidth = "";
+    }
+    var widths = enabled
+      ? [
+          { width: "124px", minWidth: "112px", maxWidth: "156px", whiteSpace: "normal", overflowWrap: "anywhere", wordBreak: "break-word" },
+          { width: "260px", minWidth: "220px", maxWidth: "340px", whiteSpace: "normal", overflowWrap: "break-word", wordBreak: "break-word" },
+          {
+            width: "84px",
+            minWidth: "80px",
+            maxWidth: "116px",
+            whiteSpace: "normal",
+            overflowWrap: "break-word",
+            wordBreak: "break-word",
+            hyphens: "auto",
+          },
+          {
+            width: "92px",
+            minWidth: "84px",
+            maxWidth: "112px",
+            whiteSpace: "normal",
+            overflowWrap: "anywhere",
+            wordBreak: "break-word",
+          },
+          { width: "72px", minWidth: "70px", maxWidth: "92px", whiteSpace: "normal", overflowWrap: "anywhere", wordBreak: "break-word" },
+          { width: "60px", minWidth: "60px", maxWidth: "76px", whiteSpace: "nowrap" },
+          { width: "60px", minWidth: "60px", maxWidth: "76px", whiteSpace: "nowrap" },
+        ]
+      : [];
+    for (i = 0; i < headerCells.length; i++) {
+      var th = headerCells[i];
+      if (!th) continue;
+      if (enabled && widths[i]) {
+        th.style.width = widths[i].width;
+        th.style.minWidth = widths[i].minWidth;
+        th.style.maxWidth = widths[i].maxWidth;
+        th.style.whiteSpace = widths[i].whiteSpace;
+        th.style.overflowWrap = widths[i].overflowWrap || "";
+        th.style.wordBreak = widths[i].wordBreak || "";
+        th.style.hyphens = widths[i].hyphens || "";
+      } else {
+        th.style.width = "";
+        th.style.minWidth = "";
+        th.style.maxWidth = "";
+        th.style.whiteSpace = "";
+        th.style.overflowWrap = "";
+        th.style.wordBreak = "";
+        th.style.hyphens = "";
+      }
+    }
+    for (i = 0; i < bodyCells.length; i++) {
+      var td = bodyCells[i];
+      if (!td) continue;
+      var cellIndex = i % 7;
+      if (enabled && widths[cellIndex]) {
+        td.style.width = widths[cellIndex].width;
+        td.style.minWidth = widths[cellIndex].minWidth;
+        td.style.maxWidth = widths[cellIndex].maxWidth;
+        td.style.whiteSpace = widths[cellIndex].whiteSpace;
+        td.style.overflowWrap = widths[cellIndex].overflowWrap || "";
+        td.style.wordBreak = widths[cellIndex].wordBreak || "";
+        td.style.hyphens = widths[cellIndex].hyphens || "";
+      } else {
+        td.style.width = "";
+        td.style.minWidth = "";
+        td.style.maxWidth = "";
+        td.style.whiteSpace = "";
+        td.style.overflowWrap = "";
+        td.style.wordBreak = "";
+        td.style.hyphens = "";
+      }
+    }
+  }
+
   function getTechnicalTableHeadersFromRows(rows, tableKey) {
     if (!Array.isArray(rows) || !rows.length) return TECHNICAL_TABLE_HEADERS.slice();
     for (var i = 0; i < rows.length; i++) {
@@ -226,7 +316,9 @@
       if (!item || String(item.tableKey || "").trim() !== String(tableKey || "").trim()) continue;
       if (Array.isArray(item.tableColumns) && item.tableColumns.length) {
         return item.tableColumns.map(function (header) {
-          return tableTextOrDash(header);
+          var normalizedHeader = tableTextOrDash(header);
+          if (normalizedHeader === "№ в 1С") return "№";
+          return normalizedHeader;
         });
       }
     }
@@ -318,13 +410,19 @@
     var compactLayout = false;
     if (arguments.length > 2) compactLayout = !!arguments[2];
     var tr = document.createElement("tr");
-    var projectCode = pickTechnicalField(raw, ["project_code"]);
+    var projectCode = pickTechnicalField(raw, ["project_code", "nomer_proekta", "number", "order_number", "code"]);
     var title = pickTechnicalField(raw, ["name", "project_name", "title"]);
     var owner = pickTechnicalField(raw, ["rp", "project_manager", "manager"]);
     var dates = pickTechnicalField(raw, ["timeline", "sroki", "period", "date_range"]);
-    var deviation = pickTechnicalField(raw, ["otklonenie_summarnoe", "deviation", "delay_days", "deviation_text"]);
-    var status = pickTechnicalField(raw, ["status", "state"]);
-    var progress = pickTechnicalField(raw, ["progress_pct", "progress", "percent_complete"]);
+    var deviation = pickTechnicalField(raw, [
+      "otklonenie_summarnoe",
+      "deviation",
+      "delay_days",
+      "deviation_text",
+      "otklonenie",
+    ]);
+    var status = pickTechnicalField(raw, ["status", "state", "stage"]);
+    var progress = pickTechnicalField(raw, ["progress_pct", "progress", "percent_complete", "kpi_pct"]);
     var values = [
       tableTextOrDash(projectCode),
       tableTextOrDash(title),
@@ -341,6 +439,50 @@
         if (cellIndex === 5) td.className = "technical-table-col-status";
         if (cellIndex === 6) td.className = "technical-table-col-progress";
       }
+      if (compactLayout) {
+        if (cellIndex === 0) {
+          td.style.width = "124px";
+          td.style.minWidth = "112px";
+          td.style.maxWidth = "156px";
+          td.style.whiteSpace = "normal";
+          td.style.overflowWrap = "anywhere";
+          td.style.wordBreak = "break-word";
+        } else if (cellIndex === 1) {
+          td.style.width = "260px";
+          td.style.minWidth = "220px";
+          td.style.maxWidth = "340px";
+          td.style.whiteSpace = "normal";
+          td.style.overflowWrap = "break-word";
+          td.style.wordBreak = "break-word";
+        } else if (cellIndex === 2) {
+          td.style.width = "84px";
+          td.style.minWidth = "80px";
+          td.style.maxWidth = "116px";
+          td.style.whiteSpace = "normal";
+          td.style.overflowWrap = "break-word";
+          td.style.wordBreak = "break-word";
+          td.style.hyphens = "auto";
+        } else if (cellIndex === 3) {
+          td.style.width = "92px";
+          td.style.minWidth = "84px";
+          td.style.maxWidth = "112px";
+          td.style.whiteSpace = "normal";
+          td.style.overflowWrap = "anywhere";
+          td.style.wordBreak = "break-word";
+        } else if (cellIndex === 4) {
+          td.style.width = "72px";
+          td.style.minWidth = "70px";
+          td.style.maxWidth = "92px";
+          td.style.whiteSpace = "normal";
+          td.style.overflowWrap = "anywhere";
+          td.style.wordBreak = "break-word";
+        } else if (cellIndex === 5 || cellIndex === 6) {
+          td.style.width = "60px";
+          td.style.minWidth = "60px";
+          td.style.maxWidth = "76px";
+          td.style.whiteSpace = "nowrap";
+        }
+      }
       if (cellIndex === 4) {
         buildTechnicalDeviationCell(td, raw);
       } else {
@@ -352,7 +494,10 @@
         td.setAttribute("data-order", getTechnicalDeviationSortValue(deviation));
       } else if (cellIndex === 6) {
         var pct = Number(progress);
-        td.setAttribute("data-order", isNaN(pct) ? normalizeClaimsSearchText(progress) : String(Math.abs(pct) <= 1 ? pct * 100 : pct));
+        td.setAttribute(
+          "data-order",
+          isNaN(pct) ? normalizeClaimsSearchText(progress) : String(Math.abs(pct) <= 1 ? pct * 100 : pct)
+        );
       }
       tr.appendChild(td);
     });
@@ -570,6 +715,9 @@
     }
 
     td.className = "opdir-milestones-cell";
+    td.style.whiteSpace = "normal";
+    td.style.overflowWrap = "anywhere";
+    td.style.wordBreak = "break-word";
     td.addEventListener("click", openDetails);
     btn.addEventListener("click", openDetails);
 
@@ -755,7 +903,7 @@
       rows.filter(isTechnicalExternalOrderRow).forEach(function (item) {
         var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
         if (!raw) return;
-        appendTechnicalTableRow(tbody, raw, false);
+        appendTechnicalTableRow(tbody, raw, true);
       });
       return;
     }
@@ -1499,6 +1647,9 @@
       initialOrder: [[4, "desc"]],
       columnDefs: [
         { targets: "_all", orderable: false },
+        { targets: [2], className: "technical-table-col-rp", width: "96px" },
+        { targets: [5], className: "technical-table-col-status", width: "72px" },
+        { targets: [6], className: "technical-table-col-progress", width: "72px" },
         { targets: [4], type: "num", orderable: true },
         { targets: [6], type: "num-fmt", orderable: true },
       ],

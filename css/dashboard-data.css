@@ -974,8 +974,12 @@
 .dashboard-table#table-top-deviations.dashboard-table--compact-by-content tbody td:nth-child(1),
 .dashboard-table#table-lawsuits.dashboard-table--compact-by-content thead th:nth-child(1),
 .dashboard-table#table-lawsuits.dashboard-table--compact-by-content tbody td:nth-child(1) {
-  white-space: nowrap;
-  width: 1%;
+  white-space: normal;
+  width: 124px;
+  min-width: 112px;
+  max-width: 156px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .dashboard-table#table-top-deviations.dashboard-table--compact-by-content thead th:nth-child(2),
@@ -1013,11 +1017,11 @@
 .dashboard-table#table-lawsuits.dashboard-table--compact-by-content thead th:nth-child(3),
 .dashboard-table#table-lawsuits.dashboard-table--compact-by-content tbody td:nth-child(3) {
   width: 84px;
-  min-width: 84px;
-  max-width: 120px;
+  min-width: 80px;
+  max-width: 116px;
   white-space: normal;
-  overflow-wrap: normal;
-  word-break: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   hyphens: auto;
 }
 
@@ -1029,8 +1033,12 @@
 .dashboard-table#table-top-deviations.dashboard-table--compact-by-content tbody td:nth-child(5),
 .dashboard-table#table-lawsuits.dashboard-table--compact-by-content thead th:nth-child(5),
 .dashboard-table#table-lawsuits.dashboard-table--compact-by-content tbody td:nth-child(5) {
-  white-space: nowrap;
-  width: 74px;
+  white-space: normal;
+  width: 92px;
+  min-width: 84px;
+  max-width: 112px;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .dashboard-table#table-top-deviations.dashboard-table--compact-by-content thead th:nth-child(6),
@@ -1059,12 +1067,21 @@
   cursor: pointer;
   font: inherit;
   font-weight: 700;
+  display: block;
+  width: 100%;
   padding: 0;
   text-align: left;
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
+  hyphens: auto;
 }
 
 .opdir-milestones-cell {
   cursor: pointer;
+  white-space: normal !important;
+  overflow-wrap: anywhere !important;
+  word-break: break-word !important;
 }
 
 .opdir-milestones-toggle:hover,
