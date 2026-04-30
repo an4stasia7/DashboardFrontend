@@ -41,13 +41,15 @@
 
 .chart-panel {
   background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.54), rgba(245, 248, 252, 0.3) 52%, rgba(255, 255, 255, 0.42)),
-    radial-gradient(circle at top left, rgba(255, 255, 255, 0.62), transparent 36%);
+    linear-gradient(145deg, rgba(255, 255, 255, 0.22), rgba(245, 248, 252, 0.08) 52%, rgba(255, 255, 255, 0.16)),
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.34), transparent 36%);
   border-radius: 18px;
-  box-shadow: var(--glass-shadow, 0 22px 60px rgba(15, 23, 42, 0.14));
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  border-top-color: rgba(255, 255, 255, 0.76);
-  border-left-color: rgba(255, 255, 255, 0.66);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  border-top-color: rgba(255, 255, 255, 0.6);
+  border-left-color: rgba(255, 255, 255, 0.52);
   border-right-color: rgba(100, 116, 139, 0.16);
   border-bottom-color: rgba(100, 116, 139, 0.2);
   padding: 18px;
@@ -55,7 +57,7 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  backdrop-filter: blur(18px) saturate(1.2);
+  backdrop-filter: blur(20px) saturate(1.3);
 }
 
 .chart-panel h2 {
@@ -381,20 +383,22 @@
 
 .table-panel {
   background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.58), rgba(245, 248, 252, 0.34) 52%, rgba(255, 255, 255, 0.46)),
-    radial-gradient(circle at top left, rgba(255, 255, 255, 0.64), transparent 36%);
+    linear-gradient(145deg, rgba(255, 255, 255, 0.24), rgba(245, 248, 252, 0.1) 52%, rgba(255, 255, 255, 0.18)),
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.34), transparent 36%);
   border-radius: 18px;
-  box-shadow: var(--glass-shadow, 0 22px 60px rgba(15, 23, 42, 0.14));
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  border-top-color: rgba(255, 255, 255, 0.76);
-  border-left-color: rgba(255, 255, 255, 0.66);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  border-top-color: rgba(255, 255, 255, 0.6);
+  border-left-color: rgba(255, 255, 255, 0.52);
   border-right-color: rgba(100, 116, 139, 0.16);
   border-bottom-color: rgba(100, 116, 139, 0.2);
   padding: 0;
   overflow: visible;
   min-width: 0;
   margin: 20px 0 24px;
-  backdrop-filter: blur(18px) saturate(1.2);
+  backdrop-filter: blur(20px) saturate(1.3);
 }
 
 .table-panel h2 {

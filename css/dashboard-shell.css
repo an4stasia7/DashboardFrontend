@@ -1,11 +1,26 @@
 /* Dashboard shell */
 .dashboard-body {
   min-height: 100vh;
-  background-image: url("../temp/фон.jpg");
-  background-position: center top;
-  background-size: 100vw auto;
-  background-repeat: no-repeat;
-  background-attachment: fixed;
+  background-image:
+    radial-gradient(circle at 82% 30%, rgba(255, 255, 255, 0.18), transparent 26%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01)),
+    url("../temp/фон.jpg");
+  background-position:
+    center top,
+    center top,
+    center top;
+  background-size:
+    100vw 100vh,
+    100vw 100vh,
+    100vw auto;
+  background-repeat:
+    no-repeat,
+    no-repeat,
+    no-repeat;
+  background-attachment:
+    fixed,
+    fixed,
+    fixed;
 }
 
 .dashboard-layout {
@@ -692,27 +707,31 @@
   box-sizing: border-box;
   padding: 22px 22px 20px;
   background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.56), rgba(245, 248, 252, 0.32) 52%, rgba(255, 255, 255, 0.44)),
-    radial-gradient(circle at top left, rgba(255, 255, 255, 0.62), transparent 36%);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  border-top-color: rgba(255, 255, 255, 0.76);
-  border-left-color: rgba(255, 255, 255, 0.66);
+    linear-gradient(145deg, rgba(255, 255, 255, 0.22), rgba(245, 248, 252, 0.08) 52%, rgba(255, 255, 255, 0.16)),
+    radial-gradient(circle at top left, rgba(255, 255, 255, 0.34), transparent 36%);
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  border-top-color: rgba(255, 255, 255, 0.6);
+  border-left-color: rgba(255, 255, 255, 0.52);
   border-right-color: rgba(100, 116, 139, 0.16);
   border-bottom-color: rgba(100, 116, 139, 0.2);
   border-radius: 18px;
-  box-shadow: var(--glass-shadow, 0 22px 60px rgba(15, 23, 42, 0.14));
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
   cursor: pointer;
   transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
   font-family: inherit;
   text-align: left;
-  backdrop-filter: blur(18px) saturate(1.25);
+  backdrop-filter: blur(20px) saturate(1.3);
 }
 
 .dash-chairman-overview-card:hover,
 .dash-chairman-overview-card:focus-visible {
-  transform: translateY(-2px);
-  box-shadow: 0 28px 70px rgba(15, 23, 42, 0.18);
-  border-color: rgba(255, 255, 255, 0.78);
+  transform: translateY(-3px) scale(1.006);
+  box-shadow:
+    0 12px 38px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.34);
+  border-color: rgba(255, 255, 255, 0.54);
   outline: none;
 }
 
@@ -739,7 +758,7 @@
   gap: 6px;
   padding: 6px 12px;
   border-radius: 999px;
-  background: rgba(22, 52, 90, 0.08);
+  background: rgba(255, 255, 255, 0.18);
   color: var(--navy, #16345a);
   font-size: 0.85rem;
   font-weight: 600;
@@ -768,10 +787,11 @@
   gap: 10px;
   padding: 10px 12px;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.42);
-  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.32);
   min-width: 0;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24);
+  backdrop-filter: blur(12px) saturate(1.18);
 }
 
 .dash-chairman-overview-tile-dot {
