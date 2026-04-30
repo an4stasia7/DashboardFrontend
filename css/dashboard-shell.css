@@ -1,11 +1,10 @@
 /* Dashboard shell */
 .dashboard-body {
   min-height: 100vh;
-  background:
-    radial-gradient(circle at 16% 14%, rgba(255, 255, 255, 0.95), transparent 24%),
-    radial-gradient(circle at 82% 18%, rgba(191, 219, 254, 0.34), transparent 30%),
-    radial-gradient(circle at 70% 86%, rgba(226, 232, 240, 0.72), transparent 34%),
-    linear-gradient(135deg, #f7fbff 0%, #eef5fb 46%, #e5edf6 100%);
+  background-image: url("../temp/фон.jpg");
+  background-position: center top;
+  background-size: 100vw auto;
+  background-repeat: no-repeat;
   background-attachment: fixed;
 }
 
@@ -13,10 +12,7 @@
   min-height: 100vh;
   display: grid;
   grid-template-columns: clamp(220px, 18vw, 304px) minmax(0, 1fr);
-  background:
-    linear-gradient(115deg, transparent 0 31%, rgba(255, 255, 255, 0.34) 31.08%, transparent 31.28%),
-    linear-gradient(68deg, transparent 0 66%, rgba(100, 116, 139, 0.08) 66.08%, transparent 66.28%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.18), transparent 44%);
+  background: transparent;
 }
 
 .dash-sidebar {
