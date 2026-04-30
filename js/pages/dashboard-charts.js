@@ -1122,6 +1122,7 @@
     // Если API отдал Графики.KS-RAZVITIE.charts — КС развитие полностью
     // заменяет обычные donut-плитки KPI в этом блоке.
     if (ctx.ksRazvitieChart && Array.isArray(ctx.ksRazvitieChart.charts) && ctx.ksRazvitieChart.charts.length) {
+      setKsRazvitieChartsLayout(shouldUseWideKsRazvitieLayout(ctx.ksRazvitieChart));
       var renderedKs = renderKsRazvitieIntoDonutsGrid(grid, ctx.ksRazvitieChart, {
         aggregationMode: ctx.aggregationMode || "current",
         refMonth: ctx.refMonth,
@@ -1129,10 +1130,10 @@
         getVisibleDonutTiles: ctx.getVisibleDonutTiles
       });
       if (renderedKs) {
-        setKsRazvitieChartsLayout(shouldUseWideKsRazvitieLayout(ctx.ksRazvitieChart));
         updateDonutChartsPagerUISafe(ctx.ksRazvitieChart.charts.length);
         return;
       }
+      setKsRazvitieChartsLayout(false);
     }
 
     setKsRazvitieChartsLayout(false);
