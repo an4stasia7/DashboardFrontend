@@ -574,6 +574,7 @@
           }
           if (
             isBoardChairUser(viewContextUser) ||
+            isTechnicalDirectorUser(viewContextUser) ||
             isOperationalDirectorUser(viewContextUser) ||
             isTechnicalDirectorUser(viewContextUser) ||
             isProductionDeputyUser(viewContextUser)
@@ -1368,6 +1369,7 @@
 
     return tiles.map(function (tile) {
       if (!tile || !isFotOrPersonnelTurnoverKpiTitle(tile.title)) return tile;
+      if (tile.kpi_id != null && String(tile.kpi_id).trim() === "OD-M3.2") return tile;
       if (tile.__priorMonthMergedFromKpiAll) return tile;
       var monthly = tile.monthly_data;
       if (!Array.isArray(monthly) || !monthly.length) return tile;
@@ -1421,7 +1423,13 @@
   /* ---------- Таблицы дашборда ---------- */
 
   function normalizeDashboardRole(value) {
-    return value == null ? "" : String(value).trim().toLocaleLowerCase("ru-RU");
+    return value == null
+      ? ""
+      : String(value)
+          .trim()
+          .toLocaleLowerCase("ru-RU")
+          .replace(/\s+/g, " ")
+          .replace(/\s*-\s*/g, "-");
   }
 
   function isBoardChairUser(user) {
@@ -1723,6 +1731,7 @@
     var hasExplicitHasDataFlag = false;
     var extraSums = {
       found: 0, won: 0, not_participating: 0,
+      expected_plan: 0,
       dz_client: 0, kz_client: 0,
       dz_supplier: 0, kz_supplier: 0,
       dz_total: 0, kz_total: 0,
@@ -1730,6 +1739,7 @@
     };
     var extraHas = {
       found: false, won: false, not_participating: false,
+      expected_plan: false,
       dz_client: false, kz_client: false,
       dz_supplier: false, kz_supplier: false,
       dz_total: false, kz_total: false,
@@ -1805,6 +1815,7 @@
       month_name: null,
       plan: hasPlan ? plan : null,
       fact: hasFact ? fact : null,
+      expected_plan: extraHas.expected_plan ? extraSums.expected_plan : null,
       found: extraHas.found ? extraSums.found : null,
       won: extraHas.won ? extraSums.won : null,
       not_participating: extraHas.not_participating ? extraSums.not_participating : null,
@@ -1905,6 +1916,12 @@
       kpi_pct: pointPct != null ? pointPct : itemPct,
       plan: point ? point.plan : rawItem.plan,
       fact: point ? point.fact : rawItem.fact,
+      expected_plan:
+        point && point.expected_plan != null
+          ? point.expected_plan
+          : rawItem.expected_plan != null
+            ? rawItem.expected_plan
+            : null,
       found:
         point && point.found != null
           ? point.found
@@ -2081,7 +2098,10 @@
   }
 
   function shouldUseOpdirProjectTables() {
-    return isOperationalDirectorUser(sessionUser) && selectedViewId === "self";
+    return (
+      (isOperationalDirectorUser(sessionUser) || isProductionDeputyUser(sessionUser)) &&
+      selectedViewId === "self"
+    );
   }
 
   function shouldUseCommercialDirectorOverdueDebtEnhancements() {
@@ -2099,6 +2119,7 @@
     var showClaimsSwitcher = shouldUseClaimsAndLawsuitsSwitcher();
     var useTechnicalTables = shouldUseTechnicalTables();
     var useOpdirProjectTables = shouldUseOpdirProjectTables();
+    var useProductionDeputyProjectTables = isProductionDeputyUser(sessionUser) && selectedViewId === "self";
     if (useTechnicalTables) {
       activeClaimsTableView = "claims";
     }
@@ -2108,7 +2129,9 @@
 
     if (claimsTableTitleTextEl) {
       claimsTableTitleTextEl.textContent = useOpdirProjectTables
-        ? "Проекты с отклонениями по вехам"
+        ? useProductionDeputyProjectTables
+          ? "Проекты улучшений / сокращения потерь"
+          : "Проекты с отклонениями по вехам"
         : useTechnicalTables
           ? "Отклонения по вехам"
           : isBoardChairOwnDashboard
@@ -2119,7 +2142,9 @@
 
     if (overdueDebtTableTitleEl) {
       overdueDebtTableTitleEl.textContent = useOpdirProjectTables
-        ? "Проекты с отклонениями по вехам"
+        ? useProductionDeputyProjectTables
+          ? "Проекты улучшений / сокращения потерь"
+          : "Проекты с отклонениями по вехам"
         : useTechnicalTables
           ? "Улучшение и развитие"
           : isBoardChairOwnDashboard

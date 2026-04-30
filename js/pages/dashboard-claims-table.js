@@ -160,6 +160,7 @@
   var TECHNICAL_EXTERNAL_TABLE_KEY = "TD-T-M1-DEVIATIONS";
   var TECHNICAL_DEVELOPMENT_TABLE_KEY = "TD-T-Q1-DEVIATIONS";
   var OPDIR_PROJECT_TABLE_KEY = "OD-T-Q1-DEVIATIONS";
+  var PRODUCTION_DEPUTY_PROJECT_TABLE_KEY = "PD-T-Q1-DEVIATIONS";
   var technicalTablesMode = false;
   var opdirProjectTableMode = false;
 
@@ -403,7 +404,8 @@
   }
 
   function isOpdirProjectRow(item) {
-    return item && String(item.tableKey || "").trim() === OPDIR_PROJECT_TABLE_KEY;
+    var key = item && String(item.tableKey || "").trim();
+    return key === OPDIR_PROJECT_TABLE_KEY || key === PRODUCTION_DEPUTY_PROJECT_TABLE_KEY;
   }
 
   function appendTechnicalTableRow(tbody, raw) {

@@ -697,6 +697,7 @@
           kpi_pct: typeof item.kpi_pct === "number" && !isNaN(item.kpi_pct) ? item.kpi_pct : null,
           plan: item.plan,
           fact: item.fact,
+          expected_plan: item.expected_plan != null ? item.expected_plan : null,
           found: item.found != null ? item.found : null,
           won: item.won != null ? item.won : null,
           not_participating:
@@ -1223,6 +1224,7 @@
       out[String(tile.kpi_id)] = {
         plan: point.plan,
         fact: point.fact,
+        expected_plan: point.expected_plan,
         kpi_pct: typeof point.kpi_pct === "number" && !isNaN(point.kpi_pct) ? point.kpi_pct : null,
         plan_fact_period_label: formatPlanFactPeriodFromMonthlyPoint(point),
         has_data: typeof point.has_data === "boolean" ? point.has_data : undefined,
@@ -1277,6 +1279,7 @@
       if (ownMonthly) {
         tile.plan = ownMonthly.plan;
         tile.fact = ownMonthly.fact;
+        if (ownMonthly.expected_plan !== undefined) tile.expected_plan = ownMonthly.expected_plan;
         if (ownMonthly.kpi_pct != null) {
           tile.percent = ownMonthly.kpi_pct;
           tile.kpi_pct = ownMonthly.kpi_pct;

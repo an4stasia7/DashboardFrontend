@@ -1122,6 +1122,7 @@
     // Если API отдал Графики.KS-RAZVITIE.charts — КС развитие полностью
     // заменяет обычные donut-плитки KPI в этом блоке.
     if (ctx.ksRazvitieChart && Array.isArray(ctx.ksRazvitieChart.charts) && ctx.ksRazvitieChart.charts.length) {
+      setKsRazvitieChartsLayout(shouldUseWideKsRazvitieLayout(ctx.ksRazvitieChart));
       var renderedKs = renderKsRazvitieIntoDonutsGrid(grid, ctx.ksRazvitieChart, {
         aggregationMode: ctx.aggregationMode || "current",
         refMonth: ctx.refMonth,
@@ -1132,7 +1133,10 @@
         updateDonutChartsPagerUISafe(ctx.ksRazvitieChart.charts.length);
         return;
       }
+      setKsRazvitieChartsLayout(false);
     }
+
+    setKsRazvitieChartsLayout(false);
 
     var tiles = getCurrentTiles();
     if (!tiles || !tiles.length || typeof Highcharts === "undefined") {
@@ -1177,6 +1181,7 @@
 
   function destroyAllDashboardCharts() {
     closeChartPreviewDialog();
+    setKsRazvitieChartsLayout(false);
     if (lineChartInstance) {
       lineChartInstance.destroy();
       lineChartInstance = null;
@@ -1186,6 +1191,33 @@
       waterfallChartInstance = null;
     }
     destroyDonutCharts();
+  }
+
+  function reflowMainChartsSoon() {
+    window.requestAnimationFrame(function () {
+      try {
+        if (lineChartInstance && typeof lineChartInstance.reflow === "function") lineChartInstance.reflow();
+        if (waterfallChartInstance && typeof waterfallChartInstance.reflow === "function") waterfallChartInstance.reflow();
+      } catch (e) {
+        /* ignore */
+      }
+    });
+  }
+
+  function setKsRazvitieChartsLayout(enabled) {
+    var grid = document.getElementById("donuts-grid");
+    var row = grid && grid.closest ? grid.closest(".charts-row") : null;
+    if (!row) return;
+    var className = "charts-row--ks-wide";
+    var shouldEnable = !!enabled;
+    if (row.classList.contains(className) === shouldEnable) return;
+    row.classList.toggle(className, shouldEnable);
+    reflowMainChartsSoon();
+  }
+
+  function shouldUseWideKsRazvitieLayout(chart) {
+    var charts = chart && Array.isArray(chart.charts) ? chart.charts : [];
+    return charts.length > 1;
   }
 
   // ═══════════════════════════════════════════════════════════════
