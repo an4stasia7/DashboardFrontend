@@ -1,10 +1,12 @@
 /* Auth pages */
 .auth-body {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   min-height: 100vh;
   padding: 24px;
+  gap: 14px;
   background: linear-gradient(160deg, var(--navy) 0%, var(--navy-light) 45%, var(--bg-page) 45%);
 }
 
@@ -15,6 +17,12 @@
   border-radius: var(--radius);
   box-shadow: 0 12px 40px rgba(15, 23, 42, 0.15);
   padding: 32px;
+}
+
+.auth-version-footer {
+  width: 100%;
+  max-width: 420px;
+  text-align: center;
 }
 
 .auth-card h1 {
