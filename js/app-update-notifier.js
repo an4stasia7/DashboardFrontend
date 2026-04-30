@@ -445,7 +445,12 @@
             if (result && result.state) {
               applyReleaseUpdateState(result.state);
             }
-            if (!result || result.ok !== true) {
+            if (
+              !result ||
+              result.ok !== true ||
+              !result.state ||
+              (!result.state.available && !result.state.downloaded)
+            ) {
               return checkPackageJsonUpdates();
             }
           });
