@@ -799,6 +799,26 @@ article.kpi-tile[data-no-flip="1"] {
   flex: 0 0 auto;
 }
 
+.kpi-tile--split-plan-fact .kpi-tile-face--front {
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.kpi-tile--split-plan-fact .tile-body {
+  min-height: 4.65rem;
+  gap: 1px;
+}
+
+.kpi-tile--split-plan-fact .tile-title {
+  font-size: 1.02rem;
+  line-height: 1.08;
+}
+
+.kpi-tile--split-plan-fact .period {
+  font-size: 0.72rem;
+  line-height: 1.15;
+}
+
 .kpi-tile-metrics {
   margin-top: auto;
   margin-right: calc(-1 * (max(8rem, min(36%, 10rem)) - 16px));
@@ -874,6 +894,11 @@ article.kpi-tile[data-no-flip="1"] {
   min-width: 0;
 }
 
+.kpi-tile-pf-list--split {
+  width: min(280px, 100%);
+  gap: 4px;
+}
+
 .kpi-tile-pf-value-row {
   position: relative;
   overflow: hidden;
@@ -946,6 +971,62 @@ article.kpi-tile[data-no-flip="1"] {
   line-height: 1;
   text-align: right;
   white-space: nowrap;
+}
+
+.kpi-tile-pf-value-row--split {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 3px;
+  padding: 3px 8px;
+  border-radius: 8px;
+}
+
+.kpi-tile-pf-value-row--split .kpi-tile-pf-value-label {
+  max-width: 100%;
+  font-size: 0.72rem;
+  line-height: 1.05;
+  white-space: normal;
+}
+
+.kpi-tile-pf-value-number--split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  width: 100%;
+  color: var(--text-strong, #0f172a);
+  text-align: left;
+}
+
+.kpi-tile-pf-mini {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.kpi-tile-pf-mini span {
+  color: var(--text-muted, #64748b);
+  font-size: 0.58rem;
+  font-weight: 700;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.kpi-tile-pf-mini strong {
+  color: var(--tile-front-accent-color, var(--tile-rag-color, var(--accent-blue)));
+  font-size: 0.74rem;
+  font-weight: 800;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.kpi-tile--split-plan-fact .kpi-tile-metrics {
+  padding-top: 6px;
+}
+
+.kpi-tile--split-plan-fact .kpi-tile-pf-list--split {
+  width: min(292px, 100%);
 }
 
 .kpi-tile-pf-pill {
