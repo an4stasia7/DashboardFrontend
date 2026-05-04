@@ -191,6 +191,30 @@
   }
 
   function buildKpiTilePlanFactStackHtml(tile) {
+    if (tile && Array.isArray(tile.plan_fact_rows) && tile.plan_fact_rows.length) {
+      var customRows = tile.plan_fact_rows
+        .map(function (row) {
+          var unit = row && (row.unit || row.units) ? String(row.unit || row.units) : tile.units;
+          return (
+            '<div class="kpi-tile-pf-value-row kpi-tile-pf-value-row--split">' +
+            '<span class="kpi-tile-pf-value-label">' +
+            DashUi.escapeHtml(row && row.label != null ? String(row.label) : "") +
+            '</span><span class="kpi-tile-pf-value-number kpi-tile-pf-value-number--split">' +
+            '<span class="kpi-tile-pf-mini"><span>План</span><strong>' +
+            DashUi.escapeHtml(formatKpiTileMetricValue(row && row.plan, unit)) +
+            '</strong></span><span class="kpi-tile-pf-mini"><span>Факт</span><strong>' +
+            DashUi.escapeHtml(formatKpiTileMetricValue(row && row.fact, unit)) +
+            "</strong></span></span></div>"
+          );
+        })
+        .join("");
+      return (
+        '<div class="kpi-tile-pf-stack kpi-tile-pf-stack--split">' +
+        '<div class="kpi-tile-pf-list kpi-tile-pf-list--split">' +
+        customRows +
+        "</div></div>"
+      );
+    }
     var rows = [
       { label: "План", value: tile && tile.plan },
       { label: "Факт", value: tile && tile.fact },
@@ -492,6 +516,7 @@
           ? DashUi.kpiTilePlanFactValuePresent(tile && tile.fact)
           : tile && tile.fact != null)
       );
+    var hasCustomPlanFactRows = !!(tile && Array.isArray(tile.plan_fact_rows) && tile.plan_fact_rows.length);
     if (rule && rule.dualRatioOverview) {
       return (
         '<div class="kpi-tile-metrics kpi-tile-metrics--dual-ratio" aria-label="Соотношение ДЗ и КЗ">' +
@@ -523,7 +548,7 @@
         "</div>"
       );
     }
-    if (!hasPf && !hasPartialPf) return "";
+    if (!hasPf && !hasPartialPf && !hasCustomPlanFactRows) return "";
     return (
       '<div class="kpi-tile-metrics kpi-tile-metrics--pf-only" aria-label="' +
       DashUi.escapeHtml(KPI_TILE_ARIA_METRICS_PF) +
@@ -973,6 +998,7 @@
         tile.plan_fact_period_label != null
           ? String(tile.plan_fact_period_label).trim()
           : "";
+      var hasCustomPlanFactRows = !!(tile && Array.isArray(tile.plan_fact_rows) && tile.plan_fact_rows.length);
 
       el.className = "kpi-tile";
       el.style.setProperty("--tile-rag-color", pres.fillColor);
@@ -989,6 +1015,9 @@
       }
       if (!hasPf) {
         el.classList.add("kpi-tile--pct-only");
+      }
+      if (hasCustomPlanFactRows) {
+        el.classList.add("kpi-tile--split-plan-fact");
       }
       if (pendingFocus && !focusApplied && shouldMatchFocus(tile, pendingFocus)) {
         el.classList.add("kpi-tile--focus");

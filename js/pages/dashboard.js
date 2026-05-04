@@ -574,6 +574,8 @@
           }
           if (
             isBoardChairUser(viewContextUser) ||
+            isCommercialDirectorUser(viewContextUser) ||
+            isCommercialHierarchyRootForPriorMonthRule() ||
             isTechnicalDirectorUser(viewContextUser) ||
             isOperationalDirectorUser(viewContextUser) ||
             isTechnicalDirectorUser(viewContextUser) ||
@@ -2040,6 +2042,12 @@
       red_threshold: thStr(thresholds, "red", "red_threshold"),
       blue_threshold: thStr(thresholds, "blue", "blue_threshold"),
       monthly_data: Array.isArray(rawItem.monthly_data) ? rawItem.monthly_data : [],
+      plan_fact_rows:
+        point && Array.isArray(point.plan_fact_rows)
+          ? point.plan_fact_rows
+          : Array.isArray(rawItem.plan_fact_rows)
+            ? rawItem.plan_fact_rows
+            : [],
     };
   }
 

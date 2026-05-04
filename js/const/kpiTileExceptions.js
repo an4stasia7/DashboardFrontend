@@ -61,10 +61,9 @@
       frontAccentColor: "#374e6f",
     },
     "FND-T9": {
-      kpiPctOnly: true,
       hideHelp: true,
-      backPlanOnly: true,
-      frontAccentColor: "#374e6f",
+      hideKpiPercent: true,
+      showBackPlanFact: true,
     },
     "MRK-04": {
       kpiPctOnly: true,

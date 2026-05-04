@@ -14,6 +14,8 @@
   var CHART_AXIS_QUARTER = "\u041a\u0432\u0430\u0440\u0442\u0430\u043b";
   var CHART_SERIES_FACT = "\u0424\u0430\u043a\u0442";
   var CHART_SERIES_PLAN = "\u041f\u043b\u0430\u043d";
+  var KPI_GET_MEMORY_CACHE_TTL_MS = 2 * 60 * 1000;
+  var kpiGetMemoryCache = Object.create(null);
 
   function isAggregateKpiTile(item, title) {
     var kpiId = item && item.kpi_id != null ? String(item.kpi_id).trim().toUpperCase() : "";
@@ -555,6 +557,14 @@
     if (cfg.isMockApi && cfg.isMockApi()) {
       return Promise.resolve({ ok: false, skipped: true });
     }
+    var cached = kpiGetMemoryCache[url];
+    if (cached && Date.now() - cached.at < KPI_GET_MEMORY_CACHE_TTL_MS) {
+      var cachedProcessed = processKpiResponseBody(cached.data, url);
+      var cachedUnwrapped = cachedProcessed.unwrappedData || cached.data;
+      delete cachedProcessed.unwrappedData;
+      pushApiDebug("GET KPI cache", "GET", url, 200, { _memoryCache: true });
+      return Promise.resolve(Object.assign({ ok: true, data: cachedUnwrapped, raw: cached.data }, cachedProcessed));
+    }
     var A = global.Auth;
     if (!A || typeof A.getAuthHeaders !== "function") {
       return Promise.resolve({ ok: false, error: "Модуль Auth не загружен" });
@@ -596,6 +606,7 @@
               error: parseErrorBody(text) || "Ошибка KPI (" + res.status + ")",
             };
           }
+          kpiGetMemoryCache[url] = { at: Date.now(), data: data };
           var processed = processKpiResponseBody(data, url);
           var unwrapped = processed.unwrappedData || data;
           delete processed.unwrappedData;
@@ -692,6 +703,7 @@
               ? String(item.plan_fact_period_label)
               : null,
           monthly_data: Array.isArray(item.monthly_data) ? item.monthly_data : [],
+          plan_fact_rows: Array.isArray(item.plan_fact_rows) ? item.plan_fact_rows : [],
           percent: pct,
           kpi_pst: typeof item.kpi_pst === "number" && !isNaN(item.kpi_pst) ? item.kpi_pst : null,
           kpi_pct: typeof item.kpi_pct === "number" && !isNaN(item.kpi_pct) ? item.kpi_pct : null,
@@ -1226,6 +1238,7 @@
         fact: point.fact,
         expected_plan: point.expected_plan,
         kpi_pct: typeof point.kpi_pct === "number" && !isNaN(point.kpi_pct) ? point.kpi_pct : null,
+        plan_fact_rows: Array.isArray(point.plan_fact_rows) ? point.plan_fact_rows : [],
         plan_fact_period_label: formatPlanFactPeriodFromMonthlyPoint(point),
         has_data: typeof point.has_data === "boolean" ? point.has_data : undefined,
       };
@@ -1280,6 +1293,7 @@
         tile.plan = ownMonthly.plan;
         tile.fact = ownMonthly.fact;
         if (ownMonthly.expected_plan !== undefined) tile.expected_plan = ownMonthly.expected_plan;
+        if (Array.isArray(ownMonthly.plan_fact_rows)) tile.plan_fact_rows = ownMonthly.plan_fact_rows;
         if (ownMonthly.kpi_pct != null) {
           tile.percent = ownMonthly.kpi_pct;
           tile.kpi_pct = ownMonthly.kpi_pct;
