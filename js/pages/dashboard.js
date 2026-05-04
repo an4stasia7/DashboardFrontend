@@ -574,6 +574,8 @@
           }
           if (
             isBoardChairUser(viewContextUser) ||
+            isCommercialDirectorUser(viewContextUser) ||
+            isCommercialHierarchyRootForPriorMonthRule() ||
             isTechnicalDirectorUser(viewContextUser) ||
             isOperationalDirectorUser(viewContextUser) ||
             isProductionDeputyUser(viewContextUser)

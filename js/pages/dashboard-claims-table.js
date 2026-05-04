@@ -72,7 +72,7 @@
         .rows({ search: "applied" })
         .nodes()
         .each(function (row) {
-          var cell = row && row.cells && row.cells.length > 5 ? row.cells[5] : null;
+          var cell = row && row.cells && row.cells.length > 6 ? row.cells[6] : null;
           if (!cell || typeof cell.getAttribute !== "function") return;
           var rawValue = cell.getAttribute("data-order");
           var n = Number(rawValue);
@@ -81,7 +81,7 @@
     } else {
       var rows = document.querySelectorAll("#table-overdue-debt tbody tr");
       rows.forEach(function (row) {
-        var cell = row && row.cells && row.cells.length > 5 ? row.cells[5] : null;
+        var cell = row && row.cells && row.cells.length > 6 ? row.cells[6] : null;
         if (!cell || typeof cell.getAttribute !== "function") return;
         var rawValue = cell.getAttribute("data-order");
         var n = Number(rawValue);
@@ -144,7 +144,15 @@
     "Статус",
     "Сумма документа заказа, руб.",
   ];
-  var DEFAULT_OVERDUE_DEBT_HEADERS = ["№ Заказа клиента", "Контрагент", "Просрочка, дн.", "Причина", "Действие", "Сумма, руб"];
+  var DEFAULT_OVERDUE_DEBT_HEADERS = [
+    "№ Заказа клиента",
+    "Контрагент",
+    "Просрочка, дн.",
+    "Ликвидированное подразделение",
+    "Причина",
+    "Действие",
+    "Сумма, руб",
+  ];
   var EXECUTIVE_DEVIATIONS_HEADERS = ["Показатель", "Факт", "План", "RAG", "Комментарий"];
   var EXECUTIVE_DECISIONS_HEADERS = ["Вопрос", "Факт", "План", "RAG", "Решение"];
   var TECHNICAL_TABLE_HEADERS = [
@@ -754,13 +762,14 @@
           tableTextOrDash(orderNum),
           tableTextOrDash(counterparty),
           raw.days_overdue != null && raw.days_overdue !== "" ? tableTextOrDash(raw.days_overdue) : "—",
+          tableTextOrDash(raw.liquidated_dept_name || raw["Ликвидированное подразделение"]),
           tableTextOrDash(raw.reason),
           tableTextOrDash(raw.action),
           formatClaimsOrderSum(raw.amount),
         ].forEach(function (value, cellIndex) {
           var td = document.createElement("td");
           td.textContent = value;
-          if (cellIndex === 5) {
+          if (cellIndex === 6) {
             td.setAttribute("data-order", getClaimsOrderSumSortValue(raw.amount));
           }
           tr.appendChild(td);
@@ -1404,15 +1413,16 @@
         { index: 0, label: "№ Заказа клиента", type: "filter", searchType: "text" },
         { index: 1, label: "Контрагент", type: "filter", searchType: "text" },
         { index: 2, label: "Просрочка, дн.", type: "sort", searchType: "text" },
-        { index: 3, label: "Причина", type: "filter", searchType: "text" },
-        { index: 4, label: "Действие", type: "none", searchType: "text" },
-        { index: 5, label: "Сумма, руб", type: "sort", searchType: "text" },
+        { index: 3, label: "Ликвидированное подразделение", type: "filter", searchType: "text" },
+        { index: 4, label: "Причина", type: "filter", searchType: "text" },
+        { index: 5, label: "Действие", type: "none", searchType: "text" },
+        { index: 6, label: "Сумма, руб", type: "sort", searchType: "text" },
       ],
-      initialOrder: [[5, "desc"]],
+      initialOrder: [[6, "desc"]],
       columnDefs: [
         { targets: "_all", orderable: false },
         { targets: [2], type: "num", orderable: true },
-        { targets: [5], type: "num-fmt", orderable: true },
+        { targets: [6], type: "num-fmt", orderable: true },
       ],
       footerCallback: function () {
         updateOverdueDebtTotalRow(this.api());

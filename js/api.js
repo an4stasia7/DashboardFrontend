@@ -14,6 +14,8 @@
   var CHART_AXIS_QUARTER = "\u041a\u0432\u0430\u0440\u0442\u0430\u043b";
   var CHART_SERIES_FACT = "\u0424\u0430\u043a\u0442";
   var CHART_SERIES_PLAN = "\u041f\u043b\u0430\u043d";
+  var KPI_GET_MEMORY_CACHE_TTL_MS = 2 * 60 * 1000;
+  var kpiGetMemoryCache = Object.create(null);
 
   function isAggregateKpiTile(item, title) {
     var kpiId = item && item.kpi_id != null ? String(item.kpi_id).trim().toUpperCase() : "";
@@ -554,6 +556,14 @@
     if (cfg.isMockApi && cfg.isMockApi()) {
       return Promise.resolve({ ok: false, skipped: true });
     }
+    var cached = kpiGetMemoryCache[url];
+    if (cached && Date.now() - cached.at < KPI_GET_MEMORY_CACHE_TTL_MS) {
+      var cachedProcessed = processKpiResponseBody(cached.data, url);
+      var cachedUnwrapped = cachedProcessed.unwrappedData || cached.data;
+      delete cachedProcessed.unwrappedData;
+      pushApiDebug("GET KPI cache", "GET", url, 200, { _memoryCache: true });
+      return Promise.resolve(Object.assign({ ok: true, data: cachedUnwrapped, raw: cached.data }, cachedProcessed));
+    }
     var A = global.Auth;
     if (!A || typeof A.getAuthHeaders !== "function") {
       return Promise.resolve({ ok: false, error: "Модуль Auth не загружен" });
@@ -595,6 +605,7 @@
               error: parseErrorBody(text) || "Ошибка KPI (" + res.status + ")",
             };
           }
+          kpiGetMemoryCache[url] = { at: Date.now(), data: data };
           var processed = processKpiResponseBody(data, url);
           var unwrapped = processed.unwrappedData || data;
           delete processed.unwrappedData;
