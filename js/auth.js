@@ -72,9 +72,6 @@
       localStorage.setItem(REMEMBER_KEY, "1");
       localStorage.setItem(SESSION_KEY, raw);
       sessionStorage.removeItem(SESSION_KEY);
-      if (global.AppConfig && typeof global.AppConfig.setApiBaseUrlForUser === "function") {
-        global.AppConfig.setApiBaseUrlForUser(s.user);
-      }
       return true;
     } catch (e) {
       return false;
@@ -128,9 +125,6 @@
           /* ignore */
         }
       }
-      if (global.AppConfig && typeof global.AppConfig.setApiBaseUrlForUser === "function") {
-        global.AppConfig.setApiBaseUrlForUser(result.user);
-      }
       return { ok: true, user: result.user };
     });
   }
@@ -141,9 +135,6 @@
       localStorage.removeItem(SESSION_KEY);
       localStorage.removeItem(REMEMBER_KEY);
       /* REMEMBER_BACKUP_KEY, REMEMBER_EVER_KEY, CONTINUE_AS_* — для «Продолжить как» без пароля */
-      if (global.AppConfig && typeof global.AppConfig.resetApiBaseUrl === "function") {
-        global.AppConfig.resetApiBaseUrl();
-      }
     } catch (e) { /* ignore */ }
   }
 
