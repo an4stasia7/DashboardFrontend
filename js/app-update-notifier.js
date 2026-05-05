@@ -48,6 +48,15 @@
     return 0;
   }
 
+  /** Берём более новую из двух строк версий (пустые игнорируются). */
+  function pickNewerSemver(a, b) {
+    var na = normalizeVersion(a);
+    var nb = normalizeVersion(b);
+    if (!na) return nb;
+    if (!nb) return na;
+    return compareVersions(na, nb) >= 0 ? na : nb;
+  }
+
   function getLatestVersionFromReleaseInfo(releaseInfo) {
     if (!releaseInfo || typeof releaseInfo !== "object") return "";
     return normalizeVersion(releaseInfo.tag_name || releaseInfo.name || releaseInfo.version || "");
@@ -183,7 +192,9 @@
         var releaseInfo = results[1] || null;
         var remotePkg = results[2] || {};
         currentVersion = normalizeVersion(localPkg.version || currentVersion);
-        latestVersion = getLatestVersionFromReleaseInfo(releaseInfo) || normalizeVersion(remotePkg.version);
+        var fromRelease = getLatestVersionFromReleaseInfo(releaseInfo);
+        var fromPkg = normalizeVersion(remotePkg.version || "");
+        latestVersion = pickNewerSemver(fromRelease, fromPkg);
         if (!currentVersion || !latestVersion) return;
         showUpdateReadyBanner();
       })
