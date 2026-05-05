@@ -911,13 +911,13 @@ article.kpi-tile[data-no-flip="1"] {
   padding: 6px 10px;
   border-radius: 10px;
   background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.22), rgba(248, 250, 252, 0.08) 52%, rgba(255, 255, 255, 0.16)),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.62), rgba(248, 250, 252, 0.34) 52%, rgba(255, 255, 255, 0.48)),
     color-mix(
       in srgb,
-      var(--tile-front-accent-color, var(--tile-rag-color, var(--accent-blue))) 12%,
-      transparent
+      var(--tile-front-accent-color, var(--tile-rag-color, var(--accent-blue))) 8%,
+      white
     );
-  border: 1px solid rgba(255, 255, 255, 0.38);
+  border: 1px solid rgba(255, 255, 255, 0.68);
   border-right-color: color-mix(
     in srgb,
     var(--tile-front-accent-color, var(--tile-rag-color, var(--accent-blue))) 20%,
@@ -929,10 +929,10 @@ article.kpi-tile[data-no-flip="1"] {
     rgba(100, 116, 139, 0.26)
   );
   box-shadow:
-    0 8px 18px rgba(15, 23, 42, 0.08),
-    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    0 7px 16px rgba(15, 23, 42, 0.06),
+    inset 1px 1px 1px rgba(255, 255, 255, 0.82),
     inset -1px -1px 1px rgba(15, 23, 42, 0.05);
-  backdrop-filter: blur(12px) saturate(1.2);
+  backdrop-filter: blur(10px) saturate(1.12);
 }
 
 .kpi-tile-pf-value-row::before {
@@ -941,9 +941,9 @@ article.kpi-tile[data-no-flip="1"] {
   inset: 0;
   pointer-events: none;
   background:
-    linear-gradient(105deg, transparent 0%, rgba(255, 255, 255, 0.34) 32%, transparent 58%),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.22), transparent 42%);
-  opacity: 0.72;
+    linear-gradient(105deg, transparent 0%, rgba(255, 255, 255, 0.42) 32%, transparent 58%),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.36), transparent 42%);
+  opacity: 0.62;
 }
 
 .kpi-tile-pf-value-row > span {
