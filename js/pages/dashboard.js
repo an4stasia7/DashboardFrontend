@@ -80,6 +80,9 @@
   /** Фактическое число элементов в блоке «Показатели KPI» / «КС развитие»
    *  (для корректной пагинации — не завязываясь на lastKpiTiles). */
   var lastDonutsTotalCount = 0;
+  var productionDeputySelectedShop = "pc1";
+  var lastProductionDeputyRawTiles = null;
+  var lastProductionDeputyRawChartIndicators = null;
 
   function handleUnauthorized() {
     Auth.logout();
@@ -459,7 +462,13 @@
           return MockData.getKpiTilesForRole(role);
         },
         setLastApiChartIndicators: function (value) {
-          lastApiChartIndicators = value;
+          if (isProductionDeputyDashboardContext() && value) {
+            lastProductionDeputyRawChartIndicators = value;
+            lastApiChartIndicators = filterProductionDeputyChartIndicatorsByShop(value);
+          } else {
+            lastProductionDeputyRawChartIndicators = null;
+            lastApiChartIndicators = value;
+          }
         },
         setLastApiTableRows: function (value) {
           lastApiTableRows = value;
@@ -1396,13 +1405,210 @@
     });
   }
 
+  var PRODUCTION_DEPUTY_SHOP_TILE_IDS = {
+    pc1: {
+      "PD-M1.1": "Выполнение производственного плана",
+      "PD-M3.B1": "Бюджет",
+      "PD-M3.F1": "ФОТ",
+      "PD-Q2.1": "Текучесть персонала",
+    },
+    pc2: {
+      "PD-M1.2": "Выполнение производственного плана",
+      "PD-M3.B2": "Бюджет",
+      "PD-M3.F2": "ФОТ",
+      "PD-Q2.2": "Текучесть персонала",
+    },
+  };
+
+  function normalizeProductionShopKey(value) {
+    return value === "pc2" ? "pc2" : "pc1";
+  }
+
+  function productionShopLabel(shop) {
+    return normalizeProductionShopKey(shop) === "pc2" ? "Производственный цех 2" : "Производственный цех 1";
+  }
+
+  function isProductionDeputyDashboardContext() {
+    var currentUser = viewContextUser;
+    if (isProductionDeputyUser(currentUser)) return true;
+    if (lastKpiResponseDepartment && isProductionDeputyUser({ department: lastKpiResponseDepartment })) return true;
+    return false;
+  }
+
+  function getProductionDeputyShopTileShop(kpiId) {
+    var id = kpiId != null ? String(kpiId).trim() : "";
+    if (!id) return "";
+    if (Object.prototype.hasOwnProperty.call(PRODUCTION_DEPUTY_SHOP_TILE_IDS.pc1, id)) return "pc1";
+    if (Object.prototype.hasOwnProperty.call(PRODUCTION_DEPUTY_SHOP_TILE_IDS.pc2, id)) return "pc2";
+    return "";
+  }
+
+  function hasProductionDeputyShopTiles(tiles) {
+    if (!Array.isArray(tiles)) return false;
+    for (var i = 0; i < tiles.length; i++) {
+      if (tiles[i] && getProductionDeputyShopTileShop(tiles[i].kpi_id)) return true;
+    }
+    return false;
+  }
+
+  function stripProductionShopSuffix(title) {
+    return String(title || "")
+      .replace(/\s*\(ПЦ\s*[12]\)\s*/gi, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function normalizeProductionDeputyShopTile(tile, shop) {
+    if (!tile) return tile;
+    var id = tile.kpi_id != null ? String(tile.kpi_id).trim() : "";
+    var next = Object.assign({}, tile);
+    var baseTitle = PRODUCTION_DEPUTY_SHOP_TILE_IDS[shop] && PRODUCTION_DEPUTY_SHOP_TILE_IDS[shop][id];
+    if (!baseTitle) {
+      baseTitle = stripProductionShopSuffix(next.title || next.name);
+    }
+    if (baseTitle) {
+      next.title = baseTitle;
+      next.name = baseTitle;
+    }
+    next.production_shop = shop;
+    next.production_shop_label = productionShopLabel(shop);
+    return next;
+  }
+
+  function filterProductionDeputyTilesByShop(tiles) {
+    if (!Array.isArray(tiles) || !tiles.length) return tiles || [];
+    if (!isProductionDeputyDashboardContext() && !hasProductionDeputyShopTiles(tiles)) {
+      return tiles;
+    }
+    var selectedShop = normalizeProductionShopKey(productionDeputySelectedShop);
+    return tiles
+      .filter(function (tile) {
+        if (!tile) return false;
+        var tileShop = getProductionDeputyShopTileShop(tile.kpi_id);
+        return !tileShop || tileShop === selectedShop;
+      })
+      .map(function (tile) {
+        var tileShop = getProductionDeputyShopTileShop(tile && tile.kpi_id);
+        return tileShop ? normalizeProductionDeputyShopTile(tile, selectedShop) : tile;
+      });
+  }
+
+  function isProductionDeputyChartIndicatorForShop(indicator) {
+    var id = indicator && indicator.id != null ? String(indicator.id).trim().toUpperCase() : "";
+    if (id === "PD-C1-PC1" || id === "PD-C1-PC2") return true;
+    var kpiId = indicator && indicator.kpi_id != null ? String(indicator.kpi_id).trim().toUpperCase() : "";
+    return kpiId === "PD-C1-PC1" || kpiId === "PD-C1-PC2";
+  }
+
+  function chartIndicatorShop(indicator) {
+    var id = indicator && indicator.id != null ? String(indicator.id).trim().toUpperCase() : "";
+    var kpiId = indicator && indicator.kpi_id != null ? String(indicator.kpi_id).trim().toUpperCase() : "";
+    var value = id || kpiId;
+    if (value.indexOf("PC2") !== -1 || value.indexOf("ПЦ2") !== -1) return "pc2";
+    if (value.indexOf("PC1") !== -1 || value.indexOf("ПЦ1") !== -1) return "pc1";
+    var label = String((indicator && (indicator.optionLabel || indicator.option_label || indicator.name)) || "");
+    if (/ПЦ\s*2/i.test(label)) return "pc2";
+    if (/ПЦ\s*1/i.test(label)) return "pc1";
+    return "";
+  }
+
+  function filterProductionDeputyChartIndicatorsByShop(indicators) {
+    if (!indicators || typeof indicators !== "object") return indicators;
+    if (!isProductionDeputyDashboardContext()) return indicators;
+    var selectedShop = normalizeProductionShopKey(productionDeputySelectedShop);
+    var next = Object.assign({}, indicators);
+    if (Array.isArray(indicators.line)) {
+      next.line = indicators.line
+        .filter(function (indicator) {
+          if (!isProductionDeputyChartIndicatorForShop(indicator)) return true;
+          return chartIndicatorShop(indicator) === selectedShop;
+        })
+        .map(function (indicator) {
+          if (!isProductionDeputyChartIndicatorForShop(indicator)) return indicator;
+          var cloned = Object.assign({}, indicator);
+          cloned.optionLabel = productionShopLabel(selectedShop);
+          cloned.disableAllOption = true;
+          return cloned;
+        });
+    }
+    return next;
+  }
+
+  function ensureProductionShopSwitch() {
+    var block = document.querySelector(".dash-kpi-tiles-block");
+    var kpiContainer = document.getElementById("kpi-container");
+    if (!block || !kpiContainer) return null;
+    var existing = document.getElementById("production-shop-switch");
+    if (existing) return existing;
+
+    var wrap = document.createElement("div");
+    wrap.className = "production-shop-switch";
+    wrap.id = "production-shop-switch";
+    wrap.hidden = true;
+    wrap.setAttribute("role", "group");
+    wrap.setAttribute("aria-label", "Выбор производственного цеха");
+    wrap.innerHTML =
+      '<span class="production-shop-switch__label">Производственный цех</span>' +
+      '<div class="production-shop-switch__buttons">' +
+      '<button type="button" class="production-shop-switch__btn" data-production-shop="pc1">Цех 1</button>' +
+      '<button type="button" class="production-shop-switch__btn" data-production-shop="pc2">Цех 2</button>' +
+      "</div>";
+    block.insertBefore(wrap, kpiContainer);
+    wrap.addEventListener("click", function (event) {
+      var btn = event.target && event.target.closest ? event.target.closest("[data-production-shop]") : null;
+      if (!btn) return;
+      var shop = normalizeProductionShopKey(btn.getAttribute("data-production-shop"));
+      if (shop === productionDeputySelectedShop) return;
+      productionDeputySelectedShop = shop;
+      applyProductionDeputyShopSelection();
+    });
+    return wrap;
+  }
+
+  function updateProductionShopSwitchVisibility(show) {
+    var switchEl = ensureProductionShopSwitch();
+    if (!switchEl) return;
+    switchEl.hidden = !show;
+    var buttons = switchEl.querySelectorAll("[data-production-shop]");
+    for (var i = 0; i < buttons.length; i++) {
+      var btn = buttons[i];
+      var shop = normalizeProductionShopKey(btn.getAttribute("data-production-shop"));
+      var active = shop === normalizeProductionShopKey(productionDeputySelectedShop);
+      btn.classList.toggle("is-active", active);
+      btn.setAttribute("aria-pressed", active ? "true" : "false");
+    }
+  }
+
+  function applyProductionDeputyShopSelection() {
+    updateProductionShopSwitchVisibility(true);
+    if (lastProductionDeputyRawChartIndicators) {
+      lastApiChartIndicators = filterProductionDeputyChartIndicatorsByShop(lastProductionDeputyRawChartIndicators);
+    }
+    if (lastProductionDeputyRawTiles) {
+      renderKpiTiles(lastProductionDeputyRawTiles);
+    }
+    if (typeof initCharts === "function") {
+      initCharts();
+    }
+  }
+
   /**
    * Рендерит KPI-плитки единой адаптивной сеткой; оборот карточки строится отдельно при flip.
    * Более 6 плиток — постраничный показ (3×2) и навигатор `#kpi-tiles-pager`.
    * @param {object[]} tiles
    */
   function renderKpiTiles(tiles) {
-    tiles = applyPriorMonthFactForFotTurnoverTiles(tiles && tiles.length ? tiles : []);
+    var sourceTiles = tiles && tiles.length ? tiles : [];
+    var showProductionShopSwitch =
+      isProductionDeputyDashboardContext() && hasProductionDeputyShopTiles(sourceTiles);
+    if (showProductionShopSwitch) {
+      lastProductionDeputyRawTiles = sourceTiles.slice();
+      sourceTiles = filterProductionDeputyTilesByShop(sourceTiles);
+    } else {
+      lastProductionDeputyRawTiles = null;
+    }
+    updateProductionShopSwitchVisibility(showProductionShopSwitch);
+    tiles = applyPriorMonthFactForFotTurnoverTiles(sourceTiles);
     lastKpiTiles = tiles && tiles.length ? tiles : null;
     flippedTileIndices.clear();
     if (typeof DashboardKpiDrilldown !== "undefined" && DashboardKpiDrilldown) {

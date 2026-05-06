@@ -1440,6 +1440,31 @@
             }
             return MONTH_SHORT[(p.month || 1) - 1] || String(p.month);
           });
+          if (Array.isArray(s.line_series) && s.line_series.length) {
+            out.line.push({
+              id: s.kpi_id || name,
+              optionLabel: s.option_label || s.optionLabel || name,
+              title: name,
+              xAxisTitle: CHART_AXIS_MONTH,
+              yAxisTitle: s.y_axis_title || s.yAxisTitle || "Значение",
+              categories: categories,
+              points: sorted,
+              customLineSeries: true,
+              disableAllOption: !!s.disable_all_option,
+              series: s.line_series.map(function (line, idx) {
+                return {
+                  name: line.name || "Серия " + String(idx + 1),
+                  data: Array.isArray(line.data) ? line.data.map(numberOrNull) : [],
+                  color: line.color || null,
+                  dashStyle: line.dashStyle || line.dash_style || null,
+                  valueRole: line.value_role || line.valueRole || null,
+                  metric: line.metric || null,
+                  legendLabel: line.legend_label || line.legendLabel || line.name || null,
+                };
+              }),
+            });
+            return;
+          }
           out.line.push({
             id: s.kpi_id || name,
             optionLabel: name,

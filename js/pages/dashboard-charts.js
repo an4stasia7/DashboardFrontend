@@ -307,6 +307,29 @@
   function buildLineChartSeriesFactOnly(indicator, accentColor) {
     var series = indicator.series;
     if (!series || !series.length) return [];
+    if (indicator.customLineSeries) {
+      return series.map(function (src, idx) {
+        var role = src.valueRole || src.value_role || "";
+        var color = src.color || getAllChartsPaletteColor(idx);
+        var isPlan = role === "plan" || /план/i.test(String(src.name || ""));
+        return {
+          type: "line",
+          name: src.name || "Серия " + String(idx + 1),
+          legendLabel: src.legendLabel || src.name || "Серия " + String(idx + 1),
+          color: color,
+          data: Array.isArray(src.data) ? src.data.slice() : [],
+          dashStyle: isPlan ? (src.dashStyle || "Dash") : (src.dashStyle || "Solid"),
+          marker: {
+            enabled: !isPlan,
+            radius: 4,
+            symbol: "circle",
+            lineWidth: 2,
+            lineColor: "#ffffff",
+            fillColor: color,
+          },
+        };
+      });
+    }
     var factIdx = findFactSeriesIndexForRag(series);
     if (factIdx < 0 || factIdx >= series.length) factIdx = 0;
     var factSeries = series[factIdx];
@@ -707,10 +730,25 @@
     sel.disabled = false;
     if (label) label.style.display = "";
 
-    var allOpt = document.createElement("option");
-    allOpt.value = getChartSelectAllValue();
-    allOpt.textContent = "Отобразить все";
-    sel.appendChild(allOpt);
+    var disableAllOption = lineChartIndicators.every(function (ind) {
+      return !!(ind && ind.disableAllOption);
+    });
+    var hideSingleForcedSelect = disableAllOption && lineChartIndicators.length === 1;
+
+    if (hideSingleForcedSelect) {
+      sel.style.display = "none";
+      if (label) label.style.display = "none";
+    } else {
+      sel.style.display = "";
+      if (label) label.style.display = "";
+    }
+
+    if (!disableAllOption) {
+      var allOpt = document.createElement("option");
+      allOpt.value = getChartSelectAllValue();
+      allOpt.textContent = "Отобразить все";
+      sel.appendChild(allOpt);
+    }
 
     lineChartIndicators.forEach(function (ind, idx) {
       var opt = document.createElement("option");
@@ -728,8 +766,13 @@
       if (!isNaN(i) && lineChartIndicators[i]) renderLineChartForIndicator(lineChartIndicators[i]);
     };
 
-    sel.value = getChartSelectAllValue();
-    renderLineChartForAllIndicators(lineChartIndicators);
+    if (disableAllOption) {
+      sel.value = "0";
+      renderLineChartForIndicator(lineChartIndicators[0]);
+    } else {
+      sel.value = getChartSelectAllValue();
+      renderLineChartForAllIndicators(lineChartIndicators);
+    }
   }
 
   function findCurrentTileForIndicator(indicator) {
