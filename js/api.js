@@ -66,6 +66,109 @@
     return baseUrl() + p;
   }
 
+  function userApiPath(path) {
+    var p = path || "/";
+    if (p.charAt(0) !== "/") p = "/" + p;
+    return baseUrl() + "/api/user" + p;
+  }
+
+  function jsonFetch(url, options, debugLabel) {
+    var cfg = global.AppConfig || {};
+    var fetchOpts = options || {};
+    if (cfg.FETCH_CREDENTIALS === "include") {
+      fetchOpts.credentials = "include";
+    }
+    return fetch(url, fetchOpts).then(function (res) {
+      return res.text().then(function (text) {
+        var data = null;
+        try {
+          data = text ? JSON.parse(text) : null;
+        } catch (e) {
+          data = null;
+        }
+        pushApiDebug(debugLabel || url, fetchOpts.method || "GET", url, res.status, data || (text ? { _nonJson: text.slice(0, 2000) } : {}));
+        if (!res.ok) {
+          return {
+            ok: false,
+            status: res.status,
+            unauthorized: res.status === 401,
+            error: parseErrorBody(text) || "Ошибка запроса (" + res.status + ")",
+            data: data,
+          };
+        }
+        return { ok: true, data: data };
+      });
+    }).catch(function (err) {
+      var m = err && err.message ? err.message : String(err);
+      pushApiDebug(debugLabel || url, (fetchOpts && fetchOpts.method) || "GET", url, 0, { _networkError: m });
+      return { ok: false, error: m || "Ошибка сети" };
+    });
+  }
+
+  function fetchDepartments() {
+    return jsonFetch(userApiPath("/departments/"), { method: "GET", headers: { Accept: "application/json" } }, "GET /api/user/departments/")
+      .then(function (res) {
+        if (!res.ok) return res;
+        return {
+          ok: true,
+          departments: Array.isArray(res.data && res.data.departments) ? res.data.departments : [],
+          data: res.data,
+        };
+      });
+  }
+
+  function submitRegistrationRequest(payload) {
+    return jsonFetch(userApiPath("/access-requests/register/"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(payload || {}),
+    }, "POST /api/user/access-requests/register/");
+  }
+
+  function submitPasswordResetRequest(payload) {
+    return jsonFetch(userApiPath("/access-requests/password-reset/"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(payload || {}),
+    }, "POST /api/user/access-requests/password-reset/");
+  }
+
+  function adminHeaders() {
+    var A = global.Auth;
+    var authHeaders = A && typeof A.getAuthHeaders === "function" ? A.getAuthHeaders() : {};
+    return Object.assign({ Accept: "application/json", "Content-Type": "application/json" }, authHeaders);
+  }
+
+  function fetchAccessRequests(status) {
+    var url = userApiPath("/access-requests/");
+    if (status) url += "?status=" + encodeURIComponent(status);
+    return jsonFetch(url, { method: "GET", headers: adminHeaders() }, "GET /api/user/access-requests/")
+      .then(function (res) {
+        if (!res.ok) return res;
+        return {
+          ok: true,
+          requests: Array.isArray(res.data && res.data.requests) ? res.data.requests : [],
+          data: res.data,
+        };
+      });
+  }
+
+  function approveAccessRequest(id) {
+    return jsonFetch(userApiPath("/access-requests/" + encodeURIComponent(String(id)) + "/approve/"), {
+      method: "POST",
+      headers: adminHeaders(),
+      body: JSON.stringify({}),
+    }, "POST /api/user/access-requests/approve/");
+  }
+
+  function rejectAccessRequest(id, comment) {
+    return jsonFetch(userApiPath("/access-requests/" + encodeURIComponent(String(id)) + "/reject/"), {
+      method: "POST",
+      headers: adminHeaders(),
+      body: JSON.stringify({ comment: comment || "" }),
+    }, "POST /api/user/access-requests/reject/");
+  }
+
   function kpiUrl() {
     var cfg = global.AppConfig || {};
     var p = cfg.API_KPI_PATH || "/api/kpi/";
@@ -850,6 +953,27 @@
       if (explicitFact.length > maxLen) maxLen = explicitFact.length;
       if (points.length > maxLen) maxLen = points.length;
 
+      if (series.single_indicator || series.singleIndicator) {
+        return [{
+          id: series.kpi_id || name,
+          optionLabel: series.option_label || series.optionLabel || name,
+          title: series.option_label || series.optionLabel || name,
+          xAxisTitle: series.x_axis_title || series.xAxisTitle || "Период",
+          yAxisTitle: series.y_axis_title || series.yAxisTitle || series.unit || "Значение",
+          categories: explicitCategories.map(function (v, idx) {
+            if (v != null && String(v).trim() !== "") return String(v).trim();
+            var srcPoint = points[idx] && typeof points[idx] === "object" ? points[idx] : null;
+            if (srcPoint && srcPoint.label != null) return String(srcPoint.label);
+            return String(idx + 1);
+          }),
+          points: points,
+          plan: explicitPlan.map(numberOrNull),
+          fact: explicitFact.map(numberOrNull),
+          disableAllOption: !!series.disable_all_option,
+          unit: series.unit || null,
+        }];
+      }
+
       var indicators = [];
 
       for (var i = 0; i < maxLen; i++) {
@@ -1377,6 +1501,31 @@
             }
             return MONTH_SHORT[(p.month || 1) - 1] || String(p.month);
           });
+          if (Array.isArray(s.line_series) && s.line_series.length) {
+            out.line.push({
+              id: s.kpi_id || name,
+              optionLabel: s.option_label || s.optionLabel || name,
+              title: name,
+              xAxisTitle: CHART_AXIS_MONTH,
+              yAxisTitle: s.y_axis_title || s.yAxisTitle || "Значение",
+              categories: categories,
+              points: sorted,
+              customLineSeries: true,
+              disableAllOption: !!s.disable_all_option,
+              series: s.line_series.map(function (line, idx) {
+                return {
+                  name: line.name || "Серия " + String(idx + 1),
+                  data: Array.isArray(line.data) ? line.data.map(numberOrNull) : [],
+                  color: line.color || null,
+                  dashStyle: line.dashStyle || line.dash_style || null,
+                  valueRole: line.value_role || line.valueRole || null,
+                  metric: line.metric || null,
+                  legendLabel: line.legend_label || line.legendLabel || line.name || null,
+                };
+              }),
+            });
+            return;
+          }
           out.line.push({
             id: s.kpi_id || name,
             optionLabel: name,
@@ -2122,6 +2271,12 @@
     kpiImmediateSubordinatesUrl: kpiImmediateSubordinatesUrl,
     kpiUsersUrl: kpiUsersUrl,
     searchUrl: searchUrl,
+    fetchDepartments: fetchDepartments,
+    submitRegistrationRequest: submitRegistrationRequest,
+    submitPasswordResetRequest: submitPasswordResetRequest,
+    fetchAccessRequests: fetchAccessRequests,
+    approveAccessRequest: approveAccessRequest,
+    rejectAccessRequest: rejectAccessRequest,
     fetchKpiUsers: fetchKpiUsers,
     fetchKpis: fetchKpis,
     fetchKpiAll: fetchKpiAll,

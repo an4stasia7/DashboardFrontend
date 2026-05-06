@@ -17,6 +17,14 @@
   var nickSearch = document.getElementById("nickname-search");
   var nickPanel = document.getElementById("nickname-list");
   var nickCombo = document.getElementById("nickname-combo");
+  var registerPanel = document.getElementById("register-panel");
+  var resetPanel = document.getElementById("reset-panel");
+  var loginScreen = document.getElementById("login-screen");
+  var authTitle = document.getElementById("auth-title");
+  var authSubtitle = document.getElementById("auth-subtitle");
+  var registerForm = document.getElementById("register-request-form");
+  var resetForm = document.getElementById("reset-request-form");
+  var registerDepartment = document.getElementById("register-department");
 
   /** @type {Array<{nickname:string,department:string}>} */
   var usersCache = [];
@@ -29,12 +37,54 @@
 
   function showError(msg) {
     errorEl.textContent = msg;
+    errorEl.classList.remove("success");
     errorEl.classList.add("visible");
+  }
+
+  function showSuccess(msg) {
+    errorEl.textContent = msg;
+    errorEl.classList.add("visible");
+    errorEl.classList.add("success");
   }
 
   function clearError() {
     errorEl.textContent = "";
     errorEl.classList.remove("visible");
+    errorEl.classList.remove("success");
+  }
+
+  function setMode(mode) {
+    var isRegister = mode === "register";
+    var isReset = mode === "reset";
+    if (loginScreen) loginScreen.hidden = isRegister || isReset;
+    if (registerPanel) registerPanel.hidden = !isRegister;
+    if (resetPanel) resetPanel.hidden = !isReset;
+    if (authTitle) {
+      authTitle.textContent = isRegister ? "Регистрация" : isReset ? "Смена пароля" : "Вход";
+    }
+    if (authSubtitle) {
+      authSubtitle.textContent = isRegister
+        ? "Отправьте заявку администратору"
+        : isReset
+          ? "Запросите новый пароль"
+          : "Управленческий дашборд";
+    }
+    clearError();
+  }
+
+  function fillDepartments(departments) {
+    if (!registerDepartment) return;
+    registerDepartment.innerHTML = "";
+    var empty = document.createElement("option");
+    empty.value = "";
+    empty.textContent = "Выберите подразделение";
+    registerDepartment.appendChild(empty);
+    (departments || []).forEach(function (dep) {
+      var opt = document.createElement("option");
+      opt.value = dep;
+      opt.textContent = dep;
+      registerDepartment.appendChild(opt);
+    });
   }
 
   function formatUserLine(u) {
@@ -332,6 +382,80 @@
       setSearchPlaceholder("Ошибка загрузки");
     }
     showError("Модуль Api не загружен");
+  }
+
+  if (typeof Api !== "undefined" && typeof Api.fetchDepartments === "function") {
+    Api.fetchDepartments().then(function (res) {
+      if (res.ok) {
+        fillDepartments(res.departments || []);
+      } else if (registerDepartment) {
+        registerDepartment.innerHTML = '<option value="">Подразделения недоступны</option>';
+      }
+    });
+  }
+
+  var showRegister = document.getElementById("show-register-form");
+  var showReset = document.getElementById("show-reset-form");
+  if (showRegister) {
+    showRegister.addEventListener("click", function () {
+      setMode("register");
+    });
+  }
+  if (showReset) {
+    showReset.addEventListener("click", function () {
+      setMode("reset");
+    });
+  }
+  var closeButtons = document.querySelectorAll("[data-close-panel]");
+  for (var ci = 0; ci < closeButtons.length; ci++) {
+    closeButtons[ci].addEventListener("click", function () {
+      setMode("login");
+    });
+  }
+
+  if (registerForm) {
+    registerForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      clearError();
+      var nickname = String(document.getElementById("register-login").value || "").trim();
+      var password = document.getElementById("register-password").value || "";
+      var department = registerDepartment ? String(registerDepartment.value || "").trim() : "";
+      if (!nickname || !password || !department) {
+        showError("Заполните логин, пароль и подразделение.");
+        return;
+      }
+      Api.submitRegistrationRequest({ nickname: nickname, password: password, department: department }).then(function (res) {
+        if (!res.ok) {
+          showError(res.error || "Не удалось отправить заявку");
+          return;
+        }
+        registerForm.reset();
+        showSuccess("Заявка на регистрацию отправлена администратору.");
+        setTimeout(function () { setMode("login"); }, 1200);
+      });
+    });
+  }
+
+  if (resetForm) {
+    resetForm.addEventListener("submit", function (e) {
+      e.preventDefault();
+      clearError();
+      var nickname = String(document.getElementById("reset-login").value || "").trim();
+      var password = document.getElementById("reset-password").value || "";
+      if (!nickname || !password) {
+        showError("Заполните логин и новый пароль.");
+        return;
+      }
+      Api.submitPasswordResetRequest({ nickname: nickname, password: password }).then(function (res) {
+        if (!res.ok) {
+          showError(res.error || "Не удалось отправить заявку");
+          return;
+        }
+        resetForm.reset();
+        showSuccess("Заявка на смену пароля отправлена администратору.");
+        setTimeout(function () { setMode("login"); }, 1200);
+      });
+    });
   }
 
   form.addEventListener("submit", function (e) {

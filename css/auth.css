@@ -19,6 +19,23 @@
   padding: 32px;
 }
 
+.auth-screen[hidden] {
+  display: none !important;
+}
+
+.auth-body.auth-body-wide {
+  align-items: stretch;
+  justify-content: flex-start;
+  background:
+    radial-gradient(circle at top left, rgba(37, 99, 235, 0.18), transparent 32rem),
+    linear-gradient(160deg, var(--navy) 0%, var(--navy-light) 38%, var(--bg-page) 38%);
+}
+
+.auth-card.auth-card-wide {
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
 .auth-version-footer {
   width: 100%;
   max-width: 420px;
@@ -272,6 +289,225 @@
 
 .auth-error.visible {
   display: block;
+}
+
+.auth-error.success {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.auth-actions-row {
+  display: flex;
+  justify-content: center;
+  gap: 18px;
+  margin-top: 18px;
+  font-size: 0.92rem;
+}
+
+.auth-link-button,
+.auth-panel-close {
+  border: none;
+  background: transparent;
+  color: var(--accent-blue);
+  border-radius: 0;
+  padding: 0;
+  cursor: pointer;
+  font-weight: 600;
+  box-shadow: none;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.auth-link-button:hover,
+.auth-panel-close:hover {
+  background: transparent;
+  color: #1d4ed8;
+}
+
+.auth-request-panel {
+  margin-top: 0;
+  padding: 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  background: transparent;
+  border: none;
+}
+
+.auth-request-panel[hidden] {
+  display: none !important;
+}
+
+.auth-request-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.auth-request-head h2 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--navy);
+}
+
+.auth-panel-close {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  font-size: 20px;
+  line-height: 1;
+  text-decoration: none;
+}
+
+.auth-request-note {
+  margin: 8px 0 16px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.admin-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.admin-topbar h1 {
+  margin: 0 0 6px;
+}
+
+.admin-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.admin-stat {
+  padding: 18px;
+  border-radius: 16px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.admin-stat span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.admin-stat strong {
+  display: block;
+  margin-top: 6px;
+  color: var(--navy);
+  font-size: 1.7rem;
+}
+
+.admin-table-wrap {
+  overflow: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 860px;
+}
+
+.admin-table th,
+.admin-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: left;
+  vertical-align: top;
+}
+
+.admin-table th {
+  background: #f8fafc;
+  color: var(--navy);
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.admin-table tr:last-child td {
+  border-bottom: none;
+}
+
+.admin-badge {
+  display: inline-flex;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-weight: 700;
+  font-size: 0.78rem;
+}
+
+.admin-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.admin-actions .btn {
+  padding: 8px 10px;
+  font-size: 0.86rem;
+}
+
+.btn-danger {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.btn-danger:hover {
+  background: #fecaca;
+}
+
+.btn-soft {
+  background: #ecfdf5;
+  color: #047857;
+}
+
+.btn-soft:hover {
+  background: #d1fae5;
+}
+
+.admin-empty {
+  padding: 28px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.admin-nav-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.admin-back-link {
+  text-decoration: none;
+  min-width: 92px;
+  margin-top: 0;
+  background: #eef2ff;
+  color: #1e3a8a;
+}
+
+.admin-back-link:hover {
+  text-decoration: none;
+  background: #dbeafe;
+}
+
+@media (max-width: 760px) {
+  .auth-actions-row,
+  .admin-grid {
+    grid-template-columns: 1fr;
+  }
+  .admin-topbar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }
 
 .auth-links {
