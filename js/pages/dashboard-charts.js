@@ -30,6 +30,17 @@
     return value != null ? value : "__all__";
   }
 
+  function normalizeDashboardRole(value) {
+    return value == null
+      ? ""
+      : String(value).trim().toLocaleLowerCase("ru-RU").replace(/\s+/g, " ").replace(/\s*-\s*/g, "-");
+  }
+
+  function isProductionDeputyChartsContext(ctx) {
+    var role = normalizeDashboardRole(ctx && ctx.role);
+    return role === "заместитель операционного директора-директор по производству";
+  }
+
   function getVisibleDonutTilesSafe(tiles) {
     var fn = getContext().getVisibleDonutTiles;
     return typeof fn === "function" ? fn(tiles) : tiles || [];
@@ -1570,10 +1581,11 @@
     var hasApiLine = ci && ci.line && ci.line.length > 0;
     var hasApiBar = ci && ci.bar && ci.bar.length > 0;
 
-    lineChartIndicators = hasApiLine ? ci.line : MockData.getLineChartIndicators(ctx.role);
+    var useMockCharts = !ci && !isProductionDeputyChartsContext(ctx);
+    lineChartIndicators = hasApiLine ? ci.line : useMockCharts ? MockData.getLineChartIndicators(ctx.role) : [];
     initLineChartMetricSelect(elLine);
 
-    waterfallChartIndicators = hasApiBar ? ci.bar : MockData.getWaterfallChartIndicators(ctx.role);
+    waterfallChartIndicators = hasApiBar ? ci.bar : useMockCharts ? MockData.getWaterfallChartIndicators(ctx.role) : [];
     initBarMetricSelect(elBar);
 
     renderDonutCharts();
