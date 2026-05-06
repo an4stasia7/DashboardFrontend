@@ -8,46 +8,88 @@
   </head>
   <body class="auth-body">
     <div class="auth-card">
-      <h1>Вход</h1>
-      <p class="sub">Управленческий дашборд</p>
+      <h1 id="auth-title">Вход</h1>
+      <p class="sub" id="auth-subtitle">Управленческий дашборд</p>
       <div id="auth-error" class="auth-error" role="alert"></div>
-      <form id="login-form" novalidate>
-        <div class="auth-field">
-          <label for="nickname-search">Пользователь</label>
-          <div class="nickname-combo" id="nickname-combo">
-            <input type="hidden" id="nickname" name="nickname" value="" autocomplete="username" />
-            <input
-              type="text"
-              id="nickname-search"
-              class="nickname-combo-input"
-              autocomplete="off"
-              autocorrect="off"
-              spellcheck="false"
-              placeholder="Загрузка списка…"
-              aria-autocomplete="list"
-              aria-expanded="false"
-              aria-controls="nickname-list"
-              role="combobox"
-              disabled
-              aria-busy="true"
-            />
-            <div id="nickname-list" class="nickname-combo-panel" role="listbox" hidden></div>
+      <section class="auth-screen" id="login-screen">
+        <form id="login-form" novalidate>
+          <div class="auth-field">
+            <label for="nickname-search">Пользователь</label>
+            <div class="nickname-combo" id="nickname-combo">
+              <input type="hidden" id="nickname" name="nickname" value="" autocomplete="username" />
+              <input
+                type="text"
+                id="nickname-search"
+                class="nickname-combo-input"
+                autocomplete="off"
+                autocorrect="off"
+                spellcheck="false"
+                placeholder="Загрузка списка…"
+                aria-autocomplete="list"
+                aria-expanded="false"
+                aria-controls="nickname-list"
+                role="combobox"
+                disabled
+                aria-busy="true"
+              />
+              <div id="nickname-list" class="nickname-combo-panel" role="listbox" hidden></div>
+            </div>
           </div>
+          <div class="auth-field">
+            <label for="password">Пароль</label>
+            <input id="password" name="password" type="password" autocomplete="current-password" required />
+          </div>
+          <label class="auth-remember-label">
+            <input type="checkbox" id="remember-me" />
+            Запомнить меня
+          </label>
+          <div id="login-continue-wrap" class="login-continue-wrap" hidden>
+            <button type="button" id="btn-continue-as" class="btn btn-continue-as"></button>
+            <p class="login-continue-hint">Без пароля — по сохранённой сессии (пока действует токен)</p>
+          </div>
+          <button type="submit" class="btn btn-primary">Войти</button>
+        </form>
+        <div class="auth-actions-row" aria-label="Дополнительные действия">
+          <button type="button" class="auth-link-button" id="show-register-form">Зарегистрироваться</button>
+          <button type="button" class="auth-link-button" id="show-reset-form">Сбросить пароль</button>
         </div>
-        <div class="auth-field">
-          <label for="password">Пароль</label>
-          <input id="password" name="password" type="password" autocomplete="current-password" required />
-        </div>
-        <label class="auth-remember-label">
-          <input type="checkbox" id="remember-me" />
-          Запомнить меня
-        </label>
-        <div id="login-continue-wrap" class="login-continue-wrap" hidden>
-          <button type="button" id="btn-continue-as" class="btn btn-continue-as"></button>
-          <p class="login-continue-hint">Без пароля — по сохранённой сессии (пока действует токен)</p>
-        </div>
-        <button type="submit" class="btn btn-primary">Войти</button>
-      </form>
+      </section>
+      <section class="auth-screen auth-request-panel" id="register-panel" hidden>
+        <p class="auth-request-note">Аккаунт будет создан после подтверждения администратором.</p>
+        <form id="register-request-form" novalidate>
+          <div class="auth-field">
+            <label for="register-login">Логин</label>
+            <input id="register-login" type="text" autocomplete="username" required />
+          </div>
+          <div class="auth-field">
+            <label for="register-password">Пароль</label>
+            <input id="register-password" type="password" autocomplete="new-password" required />
+          </div>
+          <div class="auth-field">
+            <label for="register-department">Подразделение</label>
+            <select id="register-department" required>
+              <option value="">Загрузка подразделений…</option>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary">Отправить заявку</button>
+          <button type="button" class="btn btn-ghost" data-close-panel>Вернуться ко входу</button>
+        </form>
+      </section>
+      <section class="auth-screen auth-request-panel" id="reset-panel" hidden>
+        <p class="auth-request-note">Администратор увидит только логин и тип заявки, новый пароль не отображается.</p>
+        <form id="reset-request-form" novalidate>
+          <div class="auth-field">
+            <label for="reset-login">Логин</label>
+            <input id="reset-login" type="text" autocomplete="username" required />
+          </div>
+          <div class="auth-field">
+            <label for="reset-password">Новый пароль</label>
+            <input id="reset-password" type="password" autocomplete="new-password" required />
+          </div>
+          <button type="submit" class="btn btn-primary">Отправить заявку</button>
+          <button type="button" class="btn btn-ghost" data-close-panel>Вернуться ко входу</button>
+        </form>
+      </section>
     </div>
     <footer class="auth-version-footer">
       <span class="app-version-label" id="app-version-label" aria-label="Версия приложения"></span>

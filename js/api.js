@@ -66,6 +66,109 @@
     return baseUrl() + p;
   }
 
+  function userApiPath(path) {
+    var p = path || "/";
+    if (p.charAt(0) !== "/") p = "/" + p;
+    return baseUrl() + "/api/user" + p;
+  }
+
+  function jsonFetch(url, options, debugLabel) {
+    var cfg = global.AppConfig || {};
+    var fetchOpts = options || {};
+    if (cfg.FETCH_CREDENTIALS === "include") {
+      fetchOpts.credentials = "include";
+    }
+    return fetch(url, fetchOpts).then(function (res) {
+      return res.text().then(function (text) {
+        var data = null;
+        try {
+          data = text ? JSON.parse(text) : null;
+        } catch (e) {
+          data = null;
+        }
+        pushApiDebug(debugLabel || url, fetchOpts.method || "GET", url, res.status, data || (text ? { _nonJson: text.slice(0, 2000) } : {}));
+        if (!res.ok) {
+          return {
+            ok: false,
+            status: res.status,
+            unauthorized: res.status === 401,
+            error: parseErrorBody(text) || "Ошибка запроса (" + res.status + ")",
+            data: data,
+          };
+        }
+        return { ok: true, data: data };
+      });
+    }).catch(function (err) {
+      var m = err && err.message ? err.message : String(err);
+      pushApiDebug(debugLabel || url, (fetchOpts && fetchOpts.method) || "GET", url, 0, { _networkError: m });
+      return { ok: false, error: m || "Ошибка сети" };
+    });
+  }
+
+  function fetchDepartments() {
+    return jsonFetch(userApiPath("/departments/"), { method: "GET", headers: { Accept: "application/json" } }, "GET /api/user/departments/")
+      .then(function (res) {
+        if (!res.ok) return res;
+        return {
+          ok: true,
+          departments: Array.isArray(res.data && res.data.departments) ? res.data.departments : [],
+          data: res.data,
+        };
+      });
+  }
+
+  function submitRegistrationRequest(payload) {
+    return jsonFetch(userApiPath("/access-requests/register/"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(payload || {}),
+    }, "POST /api/user/access-requests/register/");
+  }
+
+  function submitPasswordResetRequest(payload) {
+    return jsonFetch(userApiPath("/access-requests/password-reset/"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(payload || {}),
+    }, "POST /api/user/access-requests/password-reset/");
+  }
+
+  function adminHeaders() {
+    var A = global.Auth;
+    var authHeaders = A && typeof A.getAuthHeaders === "function" ? A.getAuthHeaders() : {};
+    return Object.assign({ Accept: "application/json", "Content-Type": "application/json" }, authHeaders);
+  }
+
+  function fetchAccessRequests(status) {
+    var url = userApiPath("/access-requests/");
+    if (status) url += "?status=" + encodeURIComponent(status);
+    return jsonFetch(url, { method: "GET", headers: adminHeaders() }, "GET /api/user/access-requests/")
+      .then(function (res) {
+        if (!res.ok) return res;
+        return {
+          ok: true,
+          requests: Array.isArray(res.data && res.data.requests) ? res.data.requests : [],
+          data: res.data,
+        };
+      });
+  }
+
+  function approveAccessRequest(id) {
+    return jsonFetch(userApiPath("/access-requests/" + encodeURIComponent(String(id)) + "/approve/"), {
+      method: "POST",
+      headers: adminHeaders(),
+      body: JSON.stringify({}),
+    }, "POST /api/user/access-requests/approve/");
+  }
+
+  function rejectAccessRequest(id, comment) {
+    return jsonFetch(userApiPath("/access-requests/" + encodeURIComponent(String(id)) + "/reject/"), {
+      method: "POST",
+      headers: adminHeaders(),
+      body: JSON.stringify({ comment: comment || "" }),
+    }, "POST /api/user/access-requests/reject/");
+  }
+
   function kpiUrl() {
     var cfg = global.AppConfig || {};
     var p = cfg.API_KPI_PATH || "/api/kpi/";
@@ -2068,6 +2171,12 @@
     kpiImmediateSubordinatesUrl: kpiImmediateSubordinatesUrl,
     kpiUsersUrl: kpiUsersUrl,
     searchUrl: searchUrl,
+    fetchDepartments: fetchDepartments,
+    submitRegistrationRequest: submitRegistrationRequest,
+    submitPasswordResetRequest: submitPasswordResetRequest,
+    fetchAccessRequests: fetchAccessRequests,
+    approveAccessRequest: approveAccessRequest,
+    rejectAccessRequest: rejectAccessRequest,
     fetchKpiUsers: fetchKpiUsers,
     fetchKpis: fetchKpis,
     fetchKpiAll: fetchKpiAll,

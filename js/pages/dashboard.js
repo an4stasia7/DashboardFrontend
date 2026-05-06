@@ -11,6 +11,10 @@
 
   const session = Auth.getSession();
   const sessionUser = session.user;
+  const adminPanelLink = document.getElementById("admin-panel-link");
+  if (adminPanelLink && sessionUser && sessionUser.role === "User1") {
+    adminPanelLink.hidden = false;
+  }
 
   /* ---------- Отладка: журнал JSON-ответов API (рендер в dash-debug-log.js) ---------- */
 
