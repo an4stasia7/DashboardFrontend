@@ -973,10 +973,24 @@
     sel.disabled = false;
     if (label) label.style.display = "";
 
-    var allOpt = document.createElement("option");
-    allOpt.value = getChartSelectAllValue();
-    allOpt.textContent = "Отобразить все";
-    sel.appendChild(allOpt);
+    var disableAllOption = waterfallChartIndicators.every(function (ind) {
+      return !!(ind && ind.disableAllOption);
+    });
+    var hideSingleForcedSelect = disableAllOption && waterfallChartIndicators.length === 1;
+    if (hideSingleForcedSelect) {
+      sel.style.display = "none";
+      if (label) label.style.display = "none";
+    } else {
+      sel.style.display = "";
+      if (label) label.style.display = "";
+    }
+
+    if (!disableAllOption) {
+      var allOpt = document.createElement("option");
+      allOpt.value = getChartSelectAllValue();
+      allOpt.textContent = "Отобразить все";
+      sel.appendChild(allOpt);
+    }
 
     waterfallChartIndicators.forEach(function (ind, idx) {
       var opt = document.createElement("option");
@@ -994,8 +1008,13 @@
       if (!isNaN(i) && waterfallChartIndicators[i]) renderBarChartForIndicator(waterfallChartIndicators[i]);
     };
 
-    sel.value = getChartSelectAllValue();
-    renderBarChartForAllIndicators(waterfallChartIndicators);
+    if (disableAllOption) {
+      sel.value = "0";
+      renderBarChartForIndicator(waterfallChartIndicators[0]);
+    } else {
+      sel.value = getChartSelectAllValue();
+      renderBarChartForAllIndicators(waterfallChartIndicators);
+    }
   }
 
   function destroyDonutCharts() {

@@ -913,6 +913,27 @@
       if (explicitFact.length > maxLen) maxLen = explicitFact.length;
       if (points.length > maxLen) maxLen = points.length;
 
+      if (series.single_indicator || series.singleIndicator) {
+        return [{
+          id: series.kpi_id || name,
+          optionLabel: series.option_label || series.optionLabel || name,
+          title: series.option_label || series.optionLabel || name,
+          xAxisTitle: series.x_axis_title || series.xAxisTitle || "Период",
+          yAxisTitle: series.y_axis_title || series.yAxisTitle || series.unit || "Значение",
+          categories: explicitCategories.map(function (v, idx) {
+            if (v != null && String(v).trim() !== "") return String(v).trim();
+            var srcPoint = points[idx] && typeof points[idx] === "object" ? points[idx] : null;
+            if (srcPoint && srcPoint.label != null) return String(srcPoint.label);
+            return String(idx + 1);
+          }),
+          points: points,
+          plan: explicitPlan.map(numberOrNull),
+          fact: explicitFact.map(numberOrNull),
+          disableAllOption: !!series.disable_all_option,
+          unit: series.unit || null,
+        }];
+      }
+
       var indicators = [];
 
       for (var i = 0; i < maxLen; i++) {

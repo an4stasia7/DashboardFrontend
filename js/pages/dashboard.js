@@ -1499,9 +1499,9 @@
 
   function isProductionDeputyChartIndicatorForShop(indicator) {
     var id = indicator && indicator.id != null ? String(indicator.id).trim().toUpperCase() : "";
-    if (id === "PD-C1-PC1" || id === "PD-C1-PC2") return true;
+    if (id === "PD-C1-PC1" || id === "PD-C1-PC2" || id === "PD-C2-PC1" || id === "PD-C2-PC2") return true;
     var kpiId = indicator && indicator.kpi_id != null ? String(indicator.kpi_id).trim().toUpperCase() : "";
-    return kpiId === "PD-C1-PC1" || kpiId === "PD-C1-PC2";
+    return kpiId === "PD-C1-PC1" || kpiId === "PD-C1-PC2" || kpiId === "PD-C2-PC1" || kpiId === "PD-C2-PC2";
   }
 
   function chartIndicatorShop(indicator) {
@@ -1531,6 +1531,21 @@
           if (!isProductionDeputyChartIndicatorForShop(indicator)) return indicator;
           var cloned = Object.assign({}, indicator);
           cloned.optionLabel = productionShopLabel(selectedShop);
+          cloned.disableAllOption = true;
+          return cloned;
+        });
+    }
+    if (Array.isArray(indicators.bar)) {
+      next.bar = indicators.bar
+        .filter(function (indicator) {
+          if (!isProductionDeputyChartIndicatorForShop(indicator)) return true;
+          return chartIndicatorShop(indicator) === selectedShop;
+        })
+        .map(function (indicator) {
+          if (!isProductionDeputyChartIndicatorForShop(indicator)) return indicator;
+          var cloned = Object.assign({}, indicator);
+          cloned.optionLabel = productionShopLabel(selectedShop);
+          cloned.title = productionShopLabel(selectedShop);
           cloned.disableAllOption = true;
           return cloned;
         });
