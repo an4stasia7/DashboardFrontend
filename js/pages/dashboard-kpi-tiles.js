@@ -103,6 +103,11 @@
     return !!(rule && rule.backDeptAmounts);
   }
 
+  function shouldRenderKpiTileBackArticlesPlanFact(tile) {
+    var rule = getKpiTileException(tile);
+    return !!(rule && rule.backArticlesPlanFact);
+  }
+
   function buildKpiTileHelpButtonHtml() {
     return (
       '<button type="button" class="kpi-tile-help" aria-label="Справка: формула и цветовые пороги показателя" aria-haspopup="dialog" aria-controls="kpi-thresholds-dialog">' +
@@ -610,6 +615,66 @@
     );
   }
 
+  function articleRowHasPlanFact(row) {
+    if (!row || typeof row !== "object") return false;
+    if (typeof DashUi !== "undefined" && DashUi && typeof DashUi.kpiTilePlanFactValuePresent === "function") {
+      return (
+        DashUi.kpiTilePlanFactValuePresent(row.plan) ||
+        DashUi.kpiTilePlanFactValuePresent(row.fact)
+      );
+    }
+    return row.plan != null || row.fact != null;
+  }
+
+  /** Оборот: подразделения из API `articles: [{ name, plan, fact }]`. */
+  function buildKpiTileArticlesPlanFactHtml(tile) {
+    var list = tile && Array.isArray(tile.articles) ? tile.articles : [];
+    var units = tile && tile.units != null ? tile.units : null;
+    var rows = list
+      .map(function (row) {
+        var name = row && row.name != null ? String(row.name).trim() : "";
+        if (!name || !articleRowHasPlanFact(row)) return null;
+        return {
+          name: name,
+          planText: formatKpiTileMetricValue(row.plan, units),
+          factText: formatKpiTileMetricValue(row.fact, units),
+        };
+      })
+      .filter(Boolean);
+    if (!rows.length) {
+      return '<div class="kpi-tile-back-message">Нет данных по подразделениям.</div>';
+    }
+    return (
+      '<div class="kpi-tile-articles-list" role="list">' +
+      rows
+        .map(function (row) {
+          return (
+            '<div class="kpi-tile-article-row" role="listitem">' +
+            '<span class="kpi-tile-article-row-name">' +
+            DashUi.escapeHtml(row.name) +
+            "</span>" +
+            '<div class="kpi-tile-article-row-pf">' +
+            '<span class="kpi-tile-pf-mini">' +
+            "<span>План</span>" +
+            "<strong>" +
+            DashUi.escapeHtml(row.planText) +
+            "</strong>" +
+            "</span>" +
+            '<span class="kpi-tile-pf-mini">' +
+            "<span>Факт</span>" +
+            "<strong>" +
+            DashUi.escapeHtml(row.factText) +
+            "</strong>" +
+            "</span>" +
+            "</div>" +
+            "</div>"
+          );
+        })
+        .join("") +
+      "</div>"
+    );
+  }
+
   function buildKpiTileDepartmentAmountsHtml(tile) {
     var planByDept = tile && tile.plan_by_dept && typeof tile.plan_by_dept === "object" ? tile.plan_by_dept : null;
     var factByDept = tile && tile.fact_by_dept && typeof tile.fact_by_dept === "object" ? tile.fact_by_dept : null;
@@ -773,6 +838,26 @@
         '<div class="kpi-tile-back-section kpi-tile-back-section--dual">' +
         '<div class="kpi-tile-back-section-title">Отгрузки за период</div>' +
         buildKpiTileYearCompareAmountsHtml(tile) +
+        "</div>" +
+        (hint ? '<p class="kpi-tile-back-hint">' + DashUi.escapeHtml(hint) + "</p>" : "")
+      );
+    }
+    if (shouldRenderKpiTileBackArticlesPlanFact(tile)) {
+      return (
+        '<div class="kpi-tile-back-head">' +
+        '<div class="kpi-tile-back-head-copy">' +
+        (code ? '<span class="kpi-tile-back-badge">' + DashUi.escapeHtml(code) + "</span>" : "") +
+        '<h3 class="kpi-tile-back-title">' +
+        DashUi.escapeHtml(tile && tile.title ? tile.title : "Показатель") +
+        "</h3>" +
+        (period ? '<p class="kpi-tile-back-period">' + DashUi.escapeHtml(period) + "</p>" : "") +
+        "</div>" +
+        '<div class="kpi-tile-back-head-actions">' +
+        '<button type="button" class="kpi-tile-flip-action" aria-label="Вернуться к карточке">Назад</button>' +
+        "</div></div>" +
+        '<div class="kpi-tile-back-section kpi-tile-back-section--dual">' +
+        '<div class="kpi-tile-back-section-title">Подразделения за период</div>' +
+        buildKpiTileArticlesPlanFactHtml(tile) +
         "</div>" +
         (hint ? '<p class="kpi-tile-back-hint">' + DashUi.escapeHtml(hint) + "</p>" : "")
       );

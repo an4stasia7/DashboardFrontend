@@ -1749,6 +1749,7 @@
     };
     var planByDept = {};
     var factByDept = {};
+    var articlesFromBucket = null;
 
     bucket.forEach(function (point) {
       var planValue = parseNumberLoose(point.plan);
@@ -1776,6 +1777,9 @@
       });
       mergeNumericMapInto(planByDept, point.plan_by_dept);
       mergeNumericMapInto(factByDept, point.fact_by_dept);
+      if (Array.isArray(point.articles) && point.articles.length) {
+        articlesFromBucket = point.articles;
+      }
     });
 
     if (hasPlan && Math.abs(plan) > 0.000001 && hasFact) {
@@ -1834,6 +1838,7 @@
       pct_total: pctTotal,
       plan_by_dept: Object.keys(planByDept).length ? planByDept : null,
       fact_by_dept: Object.keys(factByDept).length ? factByDept : null,
+      articles: articlesFromBucket ? articlesFromBucket.slice() : null,
       kpi_pct: kpiPct,
       has_data: hasExplicitHasDataFlag ? hasData : (hasPlan || hasFact),
     };
@@ -2047,6 +2052,12 @@
           ? point.plan_fact_rows
           : Array.isArray(rawItem.plan_fact_rows)
             ? rawItem.plan_fact_rows
+            : [],
+      articles:
+        point && Array.isArray(point.articles) && point.articles.length
+          ? point.articles.slice()
+          : Array.isArray(rawItem.articles)
+            ? rawItem.articles.slice()
             : [],
     };
   }

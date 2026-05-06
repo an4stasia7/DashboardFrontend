@@ -735,6 +735,8 @@
             item.fact_by_dept && typeof item.fact_by_dept === "object"
               ? item.fact_by_dept
               : null,
+          /** QD-M1 и др.: подразделения с планом/фактом на обороте плитки. */
+          articles: Array.isArray(item.articles) ? item.articles : [],
           pct_client: item.pct_client != null ? item.pct_client : null,
           pct_supplier: item.pct_supplier != null ? item.pct_supplier : null,
           pct_total: item.pct_total != null ? item.pct_total : null,
@@ -778,6 +780,9 @@
       if (typeof point.has_data === "boolean") tile.has_data = point.has_data;
       var label = formatPlanFactPeriodFromMonthlyPoint(point);
       if (label) tile.plan_fact_period_label = label;
+      if (Array.isArray(point.articles)) {
+        tile.articles = point.articles.slice();
+      }
     });
   }
 

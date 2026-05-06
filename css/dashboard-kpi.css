@@ -1605,6 +1605,78 @@ article.kpi-tile[data-no-flip="1"] {
   color: var(--muted);
 }
 
+/* Подразделения на обороте QD-M1 (articles): карточки с подписью План / Факт */
+.kpi-tile-articles-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.kpi-tile-article-row {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 11px 12px;
+  border-radius: 12px;
+  background:
+    linear-gradient(152deg, rgba(255, 255, 255, 0.78) 0%, rgba(247, 250, 255, 0.52) 45%, rgba(255, 255, 255, 0.65) 100%),
+    color-mix(
+      in srgb,
+      var(--tile-front-accent-color, var(--tile-rag-color, var(--accent-blue))) 7%,
+      white
+    );
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  border-right-color: color-mix(
+    in srgb,
+    var(--tile-front-accent-color, var(--tile-rag-color, var(--accent-blue))) 16%,
+    rgba(100, 116, 139, 0.18)
+  );
+  border-bottom-color: color-mix(
+    in srgb,
+    var(--tile-front-accent-color, var(--tile-rag-color, var(--accent-blue))) 18%,
+    rgba(100, 116, 139, 0.2)
+  );
+  box-shadow:
+    0 8px 20px rgba(15, 23, 42, 0.06),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.kpi-tile-article-row-name {
+  font-size: 0.86rem;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  line-height: 1.25;
+  color: var(--text-strong, #0f172a);
+}
+
+.kpi-tile-article-row-pf {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+}
+
+.kpi-tile-article-row .kpi-tile-pf-mini {
+  padding: 7px 9px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.75);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+.kpi-tile-article-row .kpi-tile-pf-mini span {
+  font-size: 0.56rem;
+  letter-spacing: 0.06em;
+}
+
+.kpi-tile-article-row .kpi-tile-pf-mini strong {
+  font-size: 0.8rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
 .kpi-tile-children-list {
   display: flex;
   flex-direction: column;
