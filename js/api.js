@@ -1050,6 +1050,10 @@
     return p && planFactValuePresent(p.plan) && planFactValuePresent(p.fact);
   }
 
+  function planFactPointHasAny(p) {
+    return p && (planFactValuePresent(p.plan) || planFactValuePresent(p.fact));
+  }
+
   function capitalizeRuMonthToken(s) {
     if (s == null || !String(s).trim()) return "";
     var t = String(s).trim();
@@ -1139,6 +1143,17 @@
     return null;
   }
 
+  function pickMonthlyPointWithAnyPlanFactForYearMonth(points, year, month) {
+    if (!points || !points.length || year == null || month == null) return null;
+    var target = year * 100 + month;
+    for (var i = 0; i < points.length; i++) {
+      var p = points[i];
+      if (!planFactPointHasAny(p)) continue;
+      if (monthlyPointSortKey(p) === target) return p;
+    }
+    return null;
+  }
+
   /**
    * Самый поздний календарный месяц, у которого в точке заданы и plan, и fact.
    */
@@ -1149,6 +1164,23 @@
     for (var i = 0; i < points.length; i++) {
       var p = points[i];
       if (!planFactPointHasBoth(p)) continue;
+      var k = monthlyPointSortKey(p);
+      if (k < 0) continue;
+      if (k >= bestKey) {
+        bestKey = k;
+        best = p;
+      }
+    }
+    return best;
+  }
+
+  function pickLatestMonthlyPointWithAnyPlanFact(points) {
+    if (!points || !points.length) return null;
+    var best = null;
+    var bestKey = -1;
+    for (var i = 0; i < points.length; i++) {
+      var p = points[i];
+      if (!planFactPointHasAny(p)) continue;
       var k = monthlyPointSortKey(p);
       if (k < 0) continue;
       if (k >= bestKey) {
@@ -1359,8 +1391,8 @@
     tiles.forEach(function (tile) {
       if (!tile || !tile.kpi_id || !Array.isArray(tile.monthly_data) || !tile.monthly_data.length) return;
       var point = useMonthFilter
-        ? pickMonthlyPointWithPlanAndFactForYearMonth(tile.monthly_data, filterYear, filterMonth)
-        : pickLatestMonthlyPointWithPlanAndFact(tile.monthly_data);
+        ? pickMonthlyPointWithAnyPlanFactForYearMonth(tile.monthly_data, filterYear, filterMonth)
+        : pickLatestMonthlyPointWithAnyPlanFact(tile.monthly_data);
       if (!point) return;
       out[String(tile.kpi_id)] = {
         plan: point.plan,
@@ -1428,7 +1460,7 @@
           tile.kpi_pct = ownMonthly.kpi_pct;
         }
         if (ownMonthly.plan_fact_period_label) tile.plan_fact_period_label = String(ownMonthly.plan_fact_period_label);
-        applyHasDataFromSource(tile, ownMonthly);
+        if (typeof ownMonthly.has_data === "boolean") tile.has_data = ownMonthly.has_data;
         return;
       }
       var chartBoth =

@@ -5,6 +5,7 @@
     },
     /** QD-M1 (qualdir): на обороте — строки из `articles`: подразделение, план, факт. */
     "QD-M1": {
+      allowPartialPlanFact: true,
       backArticlesPlanFact: true,
     },
     /** План без факта (ожидание данных по месяцу) — всё равно показываем план на плитке. */
