@@ -278,6 +278,20 @@
     );
   }
 
+  function buildKpiTileNoDataHtml(tile) {
+    var message = tile && tile.has_data === false
+      ? "Нет данных из источника"
+      : "Нет данных";
+    return (
+      '<div class="kpi-tile-pf-stack">' +
+      '<div class="kpi-tile-pf-inline">' +
+      '<div class="kpi-tile-pf-inline-row">' +
+      '<span class="kpi-tile-pf-pill">' +
+      DashUi.escapeHtml(message) +
+      '</span></div></div></div>'
+    );
+  }
+
   function formatKpiTileMoneyShort(value) {
     var n = Number(value);
     if (!isFinite(n) || isNaN(n)) return "—";
@@ -553,7 +567,25 @@
         "</div>"
       );
     }
-    if (!hasPf && !hasPartialPf && !hasCustomPlanFactRows) return "";
+    if (!hasPf && !hasPartialPf && !hasCustomPlanFactRows) {
+      if (rule && rule.showEmptyPlanFact) {
+        return (
+          '<div class="kpi-tile-metrics kpi-tile-metrics--pf-only" aria-label="' +
+          DashUi.escapeHtml(KPI_TILE_ARIA_METRICS_PF) +
+          '">' +
+          buildKpiTilePlanFactStackHtml(tile) +
+          "</div>"
+        );
+      }
+      if (tile && tile.has_data === false) {
+        return (
+          '<div class="kpi-tile-metrics kpi-tile-metrics--pf-only" aria-label="Нет данных">' +
+          buildKpiTileNoDataHtml(tile) +
+          "</div>"
+        );
+      }
+      return "";
+    }
     return (
       '<div class="kpi-tile-metrics kpi-tile-metrics--pf-only" aria-label="' +
       DashUi.escapeHtml(KPI_TILE_ARIA_METRICS_PF) +

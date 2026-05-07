@@ -38,7 +38,19 @@
 
   function isProductionDeputyChartsContext(ctx) {
     var role = normalizeDashboardRole(ctx && ctx.role);
-    return role === "заместитель операционного директора-директор по производству";
+    if (role === "заместитель операционного директора-директор по производству") return true;
+
+    var indicators = ctx && ctx.apiChartIndicators;
+    var groups = indicators ? [indicators.line, indicators.bar] : [];
+    for (var i = 0; i < groups.length; i++) {
+      var group = Array.isArray(groups[i]) ? groups[i] : [];
+      for (var j = 0; j < group.length; j++) {
+        var item = group[j] || {};
+        var id = String(item.id || item.kpi_id || "").trim().toUpperCase();
+        if (id.indexOf("PD-C1") === 0 || id.indexOf("PD-C2") === 0) return true;
+      }
+    }
+    return false;
   }
 
   function getVisibleDonutTilesSafe(tiles) {
@@ -1255,6 +1267,7 @@
   function destroyAllDashboardCharts() {
     closeChartPreviewDialog();
     setKsRazvitieChartsLayout(false);
+    setProductionDeputyChartsLayout(false);
     if (lineChartInstance) {
       lineChartInstance.destroy();
       lineChartInstance = null;
@@ -1282,6 +1295,17 @@
     var row = grid && grid.closest ? grid.closest(".charts-row") : null;
     if (!row) return;
     var className = "charts-row--ks-wide";
+    var shouldEnable = !!enabled;
+    if (row.classList.contains(className) === shouldEnable) return;
+    row.classList.toggle(className, shouldEnable);
+    reflowMainChartsSoon();
+  }
+
+  function setProductionDeputyChartsLayout(enabled) {
+    var grid = document.getElementById("donuts-grid");
+    var row = grid && grid.closest ? grid.closest(".charts-row") : null;
+    if (!row) return;
+    var className = "charts-row--production-deputy";
     var shouldEnable = !!enabled;
     if (row.classList.contains(className) === shouldEnable) return;
     row.classList.toggle(className, shouldEnable);
@@ -1580,6 +1604,7 @@
     var ci = ctx.apiChartIndicators;
     var hasApiLine = ci && ci.line && ci.line.length > 0;
     var hasApiBar = ci && ci.bar && ci.bar.length > 0;
+    setProductionDeputyChartsLayout(isProductionDeputyChartsContext(ctx));
 
     var useMockCharts = !ci && !isProductionDeputyChartsContext(ctx);
     lineChartIndicators = hasApiLine ? ci.line : useMockCharts ? MockData.getLineChartIndicators(ctx.role) : [];
