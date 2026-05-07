@@ -3,9 +3,12 @@
     "OD-M1": {
       backDeptAmounts: true,
     },
-    /** QD-M1 (qualdir): на обороте — строки из `articles`: подразделение, план, факт. */
+    /** QD-M1 (qualdir): показываем только факт; на обороте — строки из `articles`. */
     "QD-M1": {
       allowPartialPlanFact: true,
+      factOnly: true,
+      factOnlyRow: true,
+      hideArticlesPlan: true,
       backArticlesPlanFact: true,
     },
     /** План без факта (ожидание данных по месяцу) — всё равно показываем план на плитке. */

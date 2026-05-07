@@ -262,6 +262,18 @@
     );
   }
 
+  function buildKpiTileFactOnlyRowHtml(tile) {
+    return (
+      '<div class="kpi-tile-pf-stack">' +
+      '<div class="kpi-tile-pf-list">' +
+      '<div class="kpi-tile-pf-value-row">' +
+      '<span class="kpi-tile-pf-value-label">Факт</span>' +
+      '<span class="kpi-tile-pf-value-number">' +
+      DashUi.escapeHtml(formatKpiTileMetricValue(tile && tile.fact, tile && tile.units)) +
+      "</span></div></div></div>"
+    );
+  }
+
   function buildKpiTileKpiPctOnlyHtml(pctShown, normLabel) {
     var normHtml = normLabel
       ? '<span class="kpi-tile-pf-norm">' + DashUi.escapeHtml(normLabel) + '</span>'
@@ -563,7 +575,7 @@
     if (rule && rule.factOnly) {
       return (
         '<div class="kpi-tile-metrics kpi-tile-metrics--pf-only" aria-label="Факт">' +
-        buildKpiTileFactOnlyHtml(factShown) +
+        (rule.factOnlyRow ? buildKpiTileFactOnlyRowHtml(tile) : buildKpiTileFactOnlyHtml(factShown)) +
         "</div>"
       );
     }
@@ -662,6 +674,8 @@
   function buildKpiTileArticlesPlanFactHtml(tile) {
     var list = tile && Array.isArray(tile.articles) ? tile.articles : [];
     var units = tile && tile.units != null ? tile.units : null;
+    var rule = getKpiTileException(tile);
+    var hidePlan = !!(rule && rule.hideArticlesPlan);
     var rows = list
       .map(function (row) {
         var name = row && row.name != null ? String(row.name).trim() : "";
@@ -680,6 +694,18 @@
       '<div class="kpi-tile-articles-list" role="list">' +
       rows
         .map(function (row) {
+          if (hidePlan) {
+            return (
+              '<div class="kpi-tile-article-row kpi-tile-article-row--fact-only" role="listitem">' +
+              '<span class="kpi-tile-article-row-name">' +
+              DashUi.escapeHtml(row.name) +
+              "</span>" +
+              '<span class="kpi-tile-article-row-fact">' +
+              DashUi.escapeHtml(row.factText) +
+              "</span>" +
+              "</div>"
+            );
+          }
           return (
             '<div class="kpi-tile-article-row" role="listitem">' +
             '<span class="kpi-tile-article-row-name">' +

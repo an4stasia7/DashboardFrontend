@@ -1709,12 +1709,38 @@ article.kpi-tile[data-no-flip="1"] {
   color: var(--text-strong, #0f172a);
 }
 
+.kpi-tile-article-row--fact-only {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.kpi-tile-article-row--fact-only .kpi-tile-article-row-name {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.kpi-tile-article-row-fact {
+  flex: 0 0 auto;
+  color: var(--tile-front-accent-color, var(--tile-rag-color, var(--accent-blue)));
+  font-size: 0.95rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  text-align: right;
+  white-space: nowrap;
+}
+
 .kpi-tile-article-row-pf {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
   width: 100%;
   min-width: 0;
+}
+
+.kpi-tile-article-row-pf--fact-only {
+  grid-template-columns: 1fr;
 }
 
 .kpi-tile-article-row .kpi-tile-pf-mini {
