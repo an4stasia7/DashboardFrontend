@@ -12,6 +12,10 @@
     "PD-Q1": {
       showBackPlanFact: true,
     },
+    "LOG-Q1": {
+      allowPartialPlanFact: true,
+      showEmptyPlanFact: true,
+    },
     "KD-M4": {
       factOnly: true,
       hideHelp: true,

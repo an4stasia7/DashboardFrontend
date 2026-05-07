@@ -1420,6 +1420,7 @@
       if (
         useMonthFilter &&
         requestedPeriodLabel &&
+        String(tile.data_granularity || "").toLowerCase() !== "quarterly" &&
         (planFactValuePresent(tile.plan) || planFactValuePresent(tile.fact))
       ) {
         tile.plan_fact_period_label = requestedPeriodLabel;
