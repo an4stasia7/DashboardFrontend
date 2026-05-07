@@ -1351,6 +1351,14 @@
     }
   }
 
+  function logisticsFotLimitRag(pct) {
+    var value = typeof pct === "number" && !isNaN(pct) ? pct : null;
+    if (value == null) return null;
+    if (value > 100) return "red";
+    if (value >= 90) return "yellow";
+    return "green";
+  }
+
   /**
    * Дополняет плитки полями `plan`, `fact`, подписью периода и `has_data`.
    * При явном месяце сначала берём точку из `monthly_data` самой плитки.
@@ -1386,6 +1394,10 @@
         if (ownMonthly.kpi_pct != null) {
           tile.percent = ownMonthly.kpi_pct;
           tile.kpi_pct = ownMonthly.kpi_pct;
+          if (String(id) === "LOG-M3.F") {
+            var fotRag = logisticsFotLimitRag(ownMonthly.kpi_pct);
+            if (fotRag) tile.rag = fotRag;
+          }
         }
         if (ownMonthly.plan_fact_period_label) tile.plan_fact_period_label = String(ownMonthly.plan_fact_period_label);
         applyHasDataFromSource(tile, ownMonthly);

@@ -1383,7 +1383,8 @@
 
     return tiles.map(function (tile) {
       if (!tile || !isFotOrPersonnelTurnoverKpiTitle(tile.title)) return tile;
-      if (tile.kpi_id != null && String(tile.kpi_id).trim() === "OD-M3.2") return tile;
+      var kpiId = tile.kpi_id != null ? String(tile.kpi_id).trim() : "";
+      if (kpiId === "OD-M3.2" || kpiId === "LOG-M3.F") return tile;
       if (tile.__priorMonthMergedFromKpiAll) return tile;
       var monthly = tile.monthly_data;
       if (!Array.isArray(monthly) || !monthly.length) return tile;
@@ -1429,7 +1430,7 @@
   }
 
   function productionShopLabel(shop) {
-    return normalizeProductionShopKey(shop) === "pc2" ? "Производственный цех 2" : "Производственный цех 1";
+    return normalizeProductionShopKey(shop) === "pc2" ? "Алмаз" : "Турбулентность";
   }
 
   function isProductionDeputyDashboardContext() {
@@ -1511,6 +1512,8 @@
     if (value.indexOf("PC2") !== -1 || value.indexOf("ПЦ2") !== -1) return "pc2";
     if (value.indexOf("PC1") !== -1 || value.indexOf("ПЦ1") !== -1) return "pc1";
     var label = String((indicator && (indicator.optionLabel || indicator.option_label || indicator.name)) || "");
+      if (/алмаз/i.test(label)) return "pc2";
+      if (/турбулентност/i.test(label)) return "pc1";
     if (/ПЦ\s*2/i.test(label)) return "pc2";
     if (/ПЦ\s*1/i.test(label)) return "pc1";
     return "";
@@ -1567,10 +1570,10 @@
     wrap.setAttribute("role", "group");
     wrap.setAttribute("aria-label", "Выбор производственного цеха");
     wrap.innerHTML =
-      '<span class="production-shop-switch__label">Производственный цех</span>' +
+      '<span class="production-shop-switch__label">Производство</span>' +
       '<div class="production-shop-switch__buttons">' +
-      '<button type="button" class="production-shop-switch__btn" data-production-shop="pc1">Цех 1</button>' +
-      '<button type="button" class="production-shop-switch__btn" data-production-shop="pc2">Цех 2</button>' +
+      '<button type="button" class="production-shop-switch__btn" data-production-shop="pc1">Турбулентность</button>' +
+      '<button type="button" class="production-shop-switch__btn" data-production-shop="pc2">Алмаз</button>' +
       "</div>";
     block.insertBefore(wrap, kpiContainer);
     wrap.addEventListener("click", function (event) {
