@@ -1970,8 +1970,10 @@
     var factByDept = {};
 
     bucket.forEach(function (point) {
-      var planValue = parseNumberLoose(point.plan);
-      var factValue = parseNumberLoose(point.fact);
+      var planValue = parseNumberLoose(point.period_plan);
+      var factValue = parseNumberLoose(point.period_fact);
+      if (planValue == null) planValue = parseNumberLoose(point.plan);
+      if (factValue == null) factValue = parseNumberLoose(point.fact);
       var pctValue = parseNumberLoose(point.kpi_pct);
       if (planValue != null) {
         plan += planValue;
