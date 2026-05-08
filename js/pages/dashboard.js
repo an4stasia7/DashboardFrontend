@@ -591,7 +591,8 @@
             isCommercialHierarchyRootForPriorMonthRule() ||
             isTechnicalDirectorUser(viewContextUser) ||
             isOperationalDirectorUser(viewContextUser) ||
-            isProductionDeputyUser(viewContextUser)
+            isProductionDeputyUser(viewContextUser) ||
+            isChiefConstructorDashboardContext()
           ) {
             loadKpiTilesAndChartsForView();
             return;
@@ -1430,14 +1431,40 @@
   }
 
   function productionShopLabel(shop) {
-    return normalizeProductionShopKey(shop) === "pc2" ? "Алмаз" : "Турбулентность";
+    return normalizeProductionShopKey(shop) === "pc2" ? "Алмаз" : "Турбулентность-Дон";
   }
 
   function isProductionDeputyDashboardContext() {
-    var currentUser = viewContextUser;
-    if (isProductionDeputyUser(currentUser)) return true;
+    var currentDepartment = getDepartmentForCurrentKpiContext();
+    if (currentDepartment && isProductionDeputyUser({ department: currentDepartment })) return true;
     if (lastKpiResponseDepartment && isProductionDeputyUser({ department: lastKpiResponseDepartment })) return true;
+    if (selectedViewId === "self" && isProductionDeputyUser(viewContextUser)) return true;
     return false;
+  }
+
+  function isProductionDirectorDashboardContext() {
+    var currentDepartment = normalizeDashboardRole(getDepartmentForCurrentKpiContext());
+    var responseDepartment = normalizeDashboardRole(lastKpiResponseDepartment);
+    var role = normalizeDashboardRole(viewContextUser && viewContextUser.role);
+    var department = normalizeDashboardRole(viewContextUser && viewContextUser.department);
+    return (
+      currentDepartment === "заместитель директора по производству" ||
+      responseDepartment === "заместитель директора по производству" ||
+      (selectedViewId === "self" &&
+        (role === "заместитель директора по производству" || department === "заместитель директора по производству"))
+    );
+  }
+
+  function isChiefConstructorDashboardContext() {
+    var currentDepartment = normalizeDashboardRole(getDepartmentForCurrentKpiContext());
+    var responseDepartment = normalizeDashboardRole(lastKpiResponseDepartment);
+    var role = normalizeDashboardRole(viewContextUser && viewContextUser.role);
+    var department = normalizeDashboardRole(viewContextUser && viewContextUser.department);
+    return (
+      currentDepartment === "главный конструктор" ||
+      responseDepartment === "главный конструктор" ||
+      (selectedViewId === "self" && (role === "главный конструктор" || department === "главный конструктор"))
+    );
   }
 
   function getProductionDeputyShopTileShop(kpiId) {
@@ -1572,7 +1599,7 @@
     wrap.innerHTML =
       '<span class="production-shop-switch__label">Производство</span>' +
       '<div class="production-shop-switch__buttons">' +
-      '<button type="button" class="production-shop-switch__btn" data-production-shop="pc1">Турбулентность</button>' +
+      '<button type="button" class="production-shop-switch__btn" data-production-shop="pc1">Турбулентность-Дон</button>' +
       '<button type="button" class="production-shop-switch__btn" data-production-shop="pc2">Алмаз</button>' +
       "</div>";
     block.insertBefore(wrap, kpiContainer);
@@ -1699,7 +1726,9 @@
     var department = normalizeDashboardRole(user.department);
     return (
       role === "заместитель операционного директора-директор по производству" ||
-      department === "заместитель операционного директора-директор по производству"
+      role === "заместитель директора по производству" ||
+      department === "заместитель операционного директора-директор по производству" ||
+      department === "заместитель директора по производству"
     );
   }
 
@@ -2319,6 +2348,7 @@
   }
 
   function shouldUseClaimsAndLawsuitsSwitcher() {
+    if (isProductionDirectorDashboardContext()) return true;
     if (shouldUseTechnicalTables()) return true;
     if (shouldUseCommercialDirectorOverdueDebtEnhancements()) return true;
     if (isBoardChairCommercialBlockContext()) return true;
@@ -2330,9 +2360,12 @@
   }
 
   function shouldUseOpdirProjectTables() {
+    var currentDepartment = getDepartmentForCurrentKpiContext();
     return (
-      (isOperationalDirectorUser(sessionUser) || isProductionDeputyUser(sessionUser)) &&
-      selectedViewId === "self"
+      (selectedViewId === "self" && (isOperationalDirectorUser(sessionUser) || isOperationalDirectorUser(viewContextUser))) ||
+      isOperationalDirectorUser({ department: currentDepartment }) ||
+      isOperationalDirectorUser({ department: lastKpiResponseDepartment }) ||
+      isProductionDeputyDashboardContext()
     );
   }
 
@@ -2351,7 +2384,9 @@
     var showClaimsSwitcher = shouldUseClaimsAndLawsuitsSwitcher();
     var useTechnicalTables = shouldUseTechnicalTables();
     var useOpdirProjectTables = shouldUseOpdirProjectTables();
-    var useProductionDeputyProjectTables = isProductionDeputyUser(sessionUser) && selectedViewId === "self";
+    var useChiefConstructorTables = isChiefConstructorDashboardContext();
+    var useProductionDirectorProjectTables = isProductionDirectorDashboardContext();
+    var useProductionDeputyProjectTables = isProductionDeputyDashboardContext();
     if (useTechnicalTables) {
       activeClaimsTableView = "claims";
     }
@@ -2361,9 +2396,11 @@
 
     if (claimsTableTitleTextEl) {
       claimsTableTitleTextEl.textContent = useOpdirProjectTables
-        ? useProductionDeputyProjectTables
-          ? "Проекты улучшений / сокращения потерь"
+        ? useProductionDirectorProjectTables
+          ? "Проекты с отклонениями по вехам"
           : "Проекты с отклонениями по вехам"
+        : useChiefConstructorTables
+          ? "Проекты КБ с отклонениями до 10 р.д."
         : useTechnicalTables
           ? "Отклонения по вехам"
           : isBoardChairOwnDashboard
@@ -2374,7 +2411,7 @@
 
     if (overdueDebtTableTitleEl) {
       overdueDebtTableTitleEl.textContent = useOpdirProjectTables
-        ? useProductionDeputyProjectTables
+        ? useProductionDirectorProjectTables
           ? "Проекты улучшений / сокращения потерь"
           : "Проекты с отклонениями по вехам"
         : useTechnicalTables
@@ -2393,12 +2430,16 @@
       var switchButtons = claimsTableSwitcherEl.querySelectorAll(".claims-table-switcher-btn");
       if (switchButtons && switchButtons.length >= 2) {
         switchButtons[0].textContent = useOpdirProjectTables
-          ? "Проекты"
+          ? useProductionDirectorProjectTables
+            ? "Отклонения"
+            : "Проекты"
           : useTechnicalTables
             ? "Внешний заказ"
             : "Претензии";
         switchButtons[1].textContent = useOpdirProjectTables
-          ? "Проекты"
+          ? useProductionDirectorProjectTables
+            ? "Проекты улучшений"
+            : "Проекты"
           : useTechnicalTables
             ? "Улучшение и развитие"
             : "Суды";
@@ -2407,7 +2448,7 @@
 
     if (overdueDebtTableTitleEl && overdueDebtTableTitleEl.closest) {
       var overduePanel = overdueDebtTableTitleEl.closest(".table-panel");
-      if (overduePanel) overduePanel.hidden = useTechnicalTables || useOpdirProjectTables;
+      if (overduePanel) overduePanel.hidden = useTechnicalTables || useOpdirProjectTables || useChiefConstructorTables;
     }
 
     updateClaimsTableSwitcherUi(showClaimsSwitcher);
@@ -2505,6 +2546,7 @@
         filterRowsMinAmountRub: psdTableMinRub,
         technicalTablesMode: shouldUseTechnicalTables(),
         opdirProjectTableMode: shouldUseOpdirProjectTables(),
+        constructorProjectTableMode: isChiefConstructorDashboardContext(),
       });
     }
   }

@@ -165,12 +165,17 @@
     "Процент выполнения",
   ];
   var OPDIR_PROJECT_TABLE_HEADERS = ["№ 1С", "Название", "РП", "Сроки", "Отклонение", "Статус", "Прогресс"];
+  var CONSTRUCTOR_PROJECT_TABLE_HEADERS = ["№ 1С", "Название", "РП", "Сроки", "Отклонение", "Статус", "Прогресс"];
+  var PRODUCTION_IMPROVEMENT_TABLE_HEADERS = ["№ 1С", "Название", "РП", "Куратор", "Сроки", "Статус", "Прогресс"];
   var TECHNICAL_EXTERNAL_TABLE_KEY = "TD-T-M1-DEVIATIONS";
   var TECHNICAL_DEVELOPMENT_TABLE_KEY = "TD-T-Q1-DEVIATIONS";
   var OPDIR_PROJECT_TABLE_KEY = "OD-T-Q1-DEVIATIONS";
   var PRODUCTION_DEPUTY_PROJECT_TABLE_KEY = "PD-T-Q1-DEVIATIONS";
+  var PRODUCTION_DEPUTY_IMPROVEMENT_TABLE_KEY = "PD-T-Q3-IMPROVEMENTS";
+  var CONSTRUCTOR_PROJECT_TABLE_KEY = "GK-T-M1-DEVIATIONS";
   var technicalTablesMode = false;
   var opdirProjectTableMode = false;
+  var constructorProjectTableMode = false;
 
   function setTableHeaders(tableId, headers) {
     var table = document.getElementById(tableId);
@@ -279,6 +284,16 @@
   function isOpdirProjectRow(item) {
     var key = item && String(item.tableKey || "").trim();
     return key === OPDIR_PROJECT_TABLE_KEY || key === PRODUCTION_DEPUTY_PROJECT_TABLE_KEY;
+  }
+
+  function isConstructorProjectRow(item) {
+    var key = item && String(item.tableKey || "").trim();
+    return key === CONSTRUCTOR_PROJECT_TABLE_KEY;
+  }
+
+  function isProductionImprovementProjectRow(item) {
+    var key = item && String(item.tableKey || "").trim();
+    return key === PRODUCTION_DEPUTY_IMPROVEMENT_TABLE_KEY;
   }
 
   function appendTechnicalTableRow(tbody, raw) {
@@ -487,6 +502,31 @@
     tbody.appendChild(tr);
   }
 
+  function appendProductionImprovementProjectTableRow(tbody, raw) {
+    var tr = document.createElement("tr");
+    var values = [
+      tableTextOrDash(raw.project_code || raw.number),
+      tableTextOrDash(raw.project_name),
+      tableTextOrDash(raw.project_manager),
+      tableTextOrDash(raw.kurator),
+      tableTextOrDash(raw.timeline),
+      tableTextOrDash(raw.status),
+      formatOpdirProjectPercent(raw.progress_pct),
+    ];
+    values.forEach(function (value, cellIndex) {
+      var td = document.createElement("td");
+      td.textContent = value;
+      if (cellIndex === 0) {
+        td.setAttribute("data-order", String(raw.project_code || raw.number || ""));
+      } else if (cellIndex === 6) {
+        var pct = Number(raw.progress_pct);
+        td.setAttribute("data-order", isNaN(pct) ? "" : String(pct));
+      }
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  }
+
   function formatExecutiveTableValue(value) {
     if (value == null || value === "") return "—";
     if (typeof DashUi !== "undefined" && DashUi && typeof DashUi.formatKpiTilePlanFactValue === "function") {
@@ -596,7 +636,18 @@
     if (!Array.isArray(rows) || !rows.length) return;
 
     if (opdirProjectTableMode) {
+      setTableHeaders("table-top-deviations", OPDIR_PROJECT_TABLE_HEADERS);
       rows.filter(isOpdirProjectRow).forEach(function (item) {
+        var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
+        if (!raw) return;
+        appendOpdirProjectTableRow(tbody, raw);
+      });
+      return;
+    }
+
+    if (constructorProjectTableMode) {
+      setTableHeaders("table-top-deviations", CONSTRUCTOR_PROJECT_TABLE_HEADERS);
+      rows.filter(isConstructorProjectRow).forEach(function (item) {
         var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
         if (!raw) return;
         appendOpdirProjectTableRow(tbody, raw);
@@ -694,10 +745,15 @@
     if (!Array.isArray(rows) || !rows.length) return;
 
     if (opdirProjectTableMode) {
-      rows.filter(isOpdirProjectRow).forEach(function (item) {
+      var improvementRows = rows.filter(isProductionImprovementProjectRow);
+      setTableHeaders(
+        "table-lawsuits",
+        improvementRows.length ? PRODUCTION_IMPROVEMENT_TABLE_HEADERS : OPDIR_PROJECT_TABLE_HEADERS
+      );
+      improvementRows.forEach(function (item) {
         var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
         if (!raw) return;
-        appendOpdirProjectTableRow(tbody, raw);
+        appendProductionImprovementProjectTableRow(tbody, raw);
       });
       return;
     }
@@ -1499,6 +1555,7 @@
     var enableLawsuitsTable = !!options.enableLawsuitsTable;
     technicalTablesMode = !!options.technicalTablesMode;
     opdirProjectTableMode = !!options.opdirProjectTableMode;
+    constructorProjectTableMode = !!options.constructorProjectTableMode;
     destroyClaimsTables();
 
     var topBody = document.querySelector("#table-top-deviations tbody");
@@ -1515,7 +1572,16 @@
 
     resetDefaultTables();
     setTechnicalTableMode(technicalTablesMode);
-    setOpdirProjectTableMode(opdirProjectTableMode);
+    setOpdirProjectTableMode(opdirProjectTableMode || constructorProjectTableMode);
+    if (constructorProjectTableMode) {
+      renderClaimsTableRows(rows);
+      initOpdirProjectDataTable(
+        "#table-top-deviations",
+        ".dashboard-table-wrap--claims",
+        "constructor-project-table-advanced"
+      );
+      return;
+    }
     if (opdirProjectTableMode) {
       renderClaimsTableRows(rows);
       renderLawsuitsTableRows(rows);
