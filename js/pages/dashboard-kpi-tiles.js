@@ -195,20 +195,33 @@
     return DashUi.formatKpiTilePlanFactValue(value);
   }
 
+  function normalizeKpiTileMetricValueForDisplay(tile, value) {
+    var rule = getKpiTileException(tile);
+    if (rule && rule.zeroGeneratedPlanFact && tile && tile.has_data === false) {
+      return 0;
+    }
+    if (rule && rule.zeroEmptyPlanFact && (value === undefined || value === null || value === "")) {
+      return 0;
+    }
+    return value;
+  }
+
   function buildKpiTilePlanFactStackHtml(tile) {
     if (tile && Array.isArray(tile.plan_fact_rows) && tile.plan_fact_rows.length) {
       var customRows = tile.plan_fact_rows
         .map(function (row) {
           var unit = row && (row.unit || row.units) ? String(row.unit || row.units) : tile.units;
+          var planValue = normalizeKpiTileMetricValueForDisplay(tile, row && row.plan);
+          var factValue = normalizeKpiTileMetricValueForDisplay(tile, row && row.fact);
           return (
             '<div class="kpi-tile-pf-value-row kpi-tile-pf-value-row--split">' +
             '<span class="kpi-tile-pf-value-label">' +
             DashUi.escapeHtml(row && row.label != null ? String(row.label) : "") +
             '</span><span class="kpi-tile-pf-value-number kpi-tile-pf-value-number--split">' +
             '<span class="kpi-tile-pf-mini"><span>План</span><strong>' +
-            DashUi.escapeHtml(formatKpiTileMetricValue(row && row.plan, unit)) +
+            DashUi.escapeHtml(formatKpiTileMetricValue(planValue, unit)) +
             '</strong></span><span class="kpi-tile-pf-mini"><span>Факт</span><strong>' +
-            DashUi.escapeHtml(formatKpiTileMetricValue(row && row.fact, unit)) +
+            DashUi.escapeHtml(formatKpiTileMetricValue(factValue, unit)) +
             "</strong></span></span></div>"
           );
         })
@@ -238,7 +251,7 @@
           '<span class="kpi-tile-pf-value-label">' +
           DashUi.escapeHtml(row.label) +
           '</span><span class="kpi-tile-pf-value-number">' +
-          DashUi.escapeHtml(formatKpiTileMetricValue(row.value, tile && tile.units)) +
+          DashUi.escapeHtml(formatKpiTileMetricValue(normalizeKpiTileMetricValueForDisplay(tile, row.value), tile && tile.units)) +
           "</span></div>"
         );
       })

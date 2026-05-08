@@ -31,6 +31,12 @@
       allowPartialPlanFact: true,
       showEmptyPlanFact: true,
     },
+    "HRD-Q2": {
+      allowPartialPlanFact: true,
+      showEmptyPlanFact: true,
+      zeroEmptyPlanFact: true,
+      zeroGeneratedPlanFact: true,
+    },
     "KD-M4": {
       factOnly: true,
       hideHelp: true,
