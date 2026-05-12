@@ -536,9 +536,9 @@
 
   /** Цвета сегментов RAG (с бэкенда позже можно отдавать свои hex под отдел). */
   var KPI_RAG_FILL = {
-    green: "#6cb65a",
-    yellow: "#f1c239",
-    red: "#db5252",
+    green: "#1f9d68",
+    yellow: "#d39a18",
+    red: "#e14f63",
     gray: "#94a3b8",
     grey: "#94a3b8",
     unknown: "#94a3b8",

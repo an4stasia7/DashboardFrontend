@@ -31,9 +31,7 @@
 }
 
 .dash-sidebar {
-  background:
-    linear-gradient(180deg, rgba(16, 39, 73, 0.94) 0%, rgba(31, 63, 107, 0.9) 100%),
-    radial-gradient(circle at 30% 0%, rgba(255, 255, 255, 0.2), transparent 34%);
+  background: #08233f;
   color: #fff;
   padding: 18px 14px;
   border-right: 1px solid rgba(255, 255, 255, 0.08);
@@ -53,7 +51,7 @@
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.35) rgba(0, 0, 0, 0.12);
   -webkit-overflow-scrolling: touch;
-  box-shadow: 20px 0 48px rgba(15, 23, 42, 0.16);
+  box-shadow: none;
 }
 
 .dash-sidebar::-webkit-scrollbar {
@@ -151,10 +149,10 @@
   appearance: none;
   box-sizing: border-box;
   width: 100%;
-  border: 1px solid rgba(255, 255, 255, 0.28);
-  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
   padding: 11px 14px 11px 42px;
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.08);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3E%3Ccircle cx='7' cy='7' r='4.5' fill='none' stroke='rgba(255,255,255,0.58)' stroke-width='1.5'/%3E%3Cpath d='M10.5 10.5L14 14' stroke='rgba(255,255,255,0.58)' stroke-width='1.5' stroke-linecap='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: 14px center;
@@ -162,9 +160,9 @@
   color: #fff;
   font: inherit;
   font-size: 0.95rem;
-  font-weight: 650;
+  font-weight: 500;
   outline: none;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 12px 28px rgba(15, 23, 42, 0.12);
+  box-shadow: none;
 }
 
 .dash-sidebar-search-input::placeholder {
@@ -202,13 +200,13 @@
   align-items: stretch;
   gap: 8px;
   margin-top: 16px;
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 6px;
   padding: 10px;
   font-size: 0.9rem;
   color: rgba(255, 255, 255, 0.86);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 18px 38px rgba(15, 23, 42, 0.14);
+  box-shadow: none;
 }
 
 .dash-hierarchy-breadcrumb[hidden] {
@@ -224,10 +222,10 @@
   background: rgba(255, 255, 255, 0.1);
   color: #f8fafc;
   font: inherit;
-  font-weight: 750;
+  font-weight: 500;
   cursor: pointer;
   padding: 10px 12px;
-  border-radius: 16px;
+  border-radius: 5px;
   text-decoration: none;
   line-height: 1.22;
   width: 100%;
@@ -251,10 +249,10 @@
 }
 
 .dash-hierarchy-crumb[aria-current="page"] {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(241, 245, 249, 0.88));
-  color: #16345a;
+  background: #ffffff;
+  color: #111827;
   border-color: rgba(255, 255, 255, 0.94);
-  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.18), inset 0 1px 0 #ffffff;
+  box-shadow: none;
   cursor: default;
   transform: none;
 }
@@ -296,20 +294,18 @@
   appearance: none;
   position: relative;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.07)),
-    rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
   color: #f8fafc;
   padding: 13px 14px 13px 16px;
-  border-radius: 18px;
+  border-radius: 5px;
   font-size: 0.95rem;
   font-family: inherit;
-  font-weight: 750;
+  font-weight: 500;
   cursor: pointer;
   line-height: 1.25;
   text-align: left;
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  box-shadow: none;
   width: 100%;
   min-height: 48px;
   white-space: normal;
@@ -346,15 +342,15 @@
 }
 
 .dash-view-tab[aria-selected="true"] {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(241, 245, 249, 0.9));
-  color: #16345a;
+  background: #ffffff;
+  color: #111827;
   border-color: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 18px 34px rgba(15, 23, 42, 0.18), inset 0 1px 0 #ffffff;
+  box-shadow: none;
 }
 
 .dash-view-tab[aria-selected="true"]::before {
   opacity: 1;
-  background: linear-gradient(180deg, #60a5fa, #1d4ed8);
+  background: #1d4ed8;
 }
 
 .dash-view-tab[aria-selected="true"]:hover {
@@ -363,31 +359,29 @@
 }
 
 .dash-topbar {
-  background:
-    linear-gradient(135deg, rgba(20, 47, 86, 0.94), rgba(30, 58, 95, 0.9)),
-    radial-gradient(circle at 18% 0%, rgba(255, 255, 255, 0.18), transparent 32%);
+  background: #08233f;
   color: #fff;
-  padding: 18px 24px;
+  padding: 14px 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 12px;
   flex-shrink: 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
-  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.1);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
 }
 
 .dash-topbar h1 {
   margin: 0;
-  font-size: 1.65rem;
-  font-weight: 760;
+  font-size: 1.38rem;
+  font-weight: 700;
   letter-spacing: -0.035em;
 }
 
 .dash-topbar .subtitle {
-  font-size: 0.95rem;
-  opacity: 0.9;
+  font-size: 0.86rem;
+  opacity: 0.82;
 }
 
 .dash-topbar-actions {
@@ -705,33 +699,24 @@
   min-width: 0;
   width: 100%;
   box-sizing: border-box;
-  padding: 22px 22px 20px;
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.22), rgba(245, 248, 252, 0.08) 52%, rgba(255, 255, 255, 0.16)),
-    radial-gradient(circle at top left, rgba(255, 255, 255, 0.34), transparent 36%);
-  border: 1px solid rgba(255, 255, 255, 0.34);
-  border-top-color: rgba(255, 255, 255, 0.6);
-  border-left-color: rgba(255, 255, 255, 0.52);
-  border-right-color: rgba(100, 116, 139, 0.16);
-  border-bottom-color: rgba(100, 116, 139, 0.2);
-  border-radius: 18px;
-  box-shadow:
-    0 8px 32px rgba(0, 0, 0, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  padding: 24px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 20px rgba(15, 23, 42, 0.06);
   cursor: pointer;
   transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
   font-family: inherit;
   text-align: left;
-  backdrop-filter: blur(20px) saturate(1.3);
+  backdrop-filter: none;
 }
+
 
 .dash-chairman-overview-card:hover,
 .dash-chairman-overview-card:focus-visible {
-  transform: translateY(-3px) scale(1.006);
-  box-shadow:
-    0 12px 38px rgba(0, 0, 0, 0.22),
-    inset 0 1px 0 rgba(255, 255, 255, 0.34);
-  border-color: rgba(255, 255, 255, 0.54);
+  transform: translateY(-1px);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 12px 24px rgba(15, 23, 42, 0.08);
+  border-color: #dbe3ee;
   outline: none;
 }
 

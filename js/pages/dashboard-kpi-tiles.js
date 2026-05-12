@@ -190,21 +190,247 @@
     return DashUi.formatKpiTilePlanFactValue(value);
   }
 
+  function readFiniteTileNumber(value) {
+    if (value == null || value === "") return null;
+    var n = Number(value);
+    return isFinite(n) && !isNaN(n) ? n : null;
+  }
+
+  function getTileSparklinePoints(tile) {
+    var monthly = tile && Array.isArray(tile.monthly_data) ? tile.monthly_data : [];
+    if (!monthly.length) return [];
+    var points = monthly
+      .map(function (point) {
+        if (!point || typeof point !== "object") return null;
+        var value = readFiniteTileNumber(point.fact);
+        if (value == null) value = readFiniteTileNumber(point.kpi_pct);
+        if (value == null) value = readFiniteTileNumber(point.plan);
+        if (value == null) return null;
+        return {
+          value: value,
+          month: readFiniteTileNumber(point.month),
+          year: readFiniteTileNumber(point.year),
+        };
+      })
+      .filter(Boolean)
+      .sort(function (a, b) {
+        var ay = a.year || 0;
+        var by = b.year || 0;
+        if (ay !== by) return ay - by;
+        return (a.month || 0) - (b.month || 0);
+      });
+    var latestYear = null;
+    for (var i = points.length - 1; i >= 0; i--) {
+      if (points[i].year) {
+        latestYear = points[i].year;
+        break;
+      }
+    }
+    if (latestYear != null) {
+      points = points.filter(function (point) { return point.year === latestYear; });
+    }
+    return points.slice(-12);
+  }
+
+  function shouldRenderTileSparkBars(tile, points) {
+    if (!points || !points.length) return false;
+    var units = String((tile && tile.units) || "").toLowerCase();
+    if (units.indexOf("%") !== -1) return false;
+    return points.every(function (point) {
+      return point.value >= 0;
+    });
+  }
+
+  function buildKpiTileSparklineHtml(tile) {
+    var points = getTileSparklinePoints(tile);
+    if (points.length < 2) return "";
+    var values = points.map(function (point) { return point.value; });
+    var min = Math.min.apply(Math, values);
+    var max = Math.max.apply(Math, values);
+    var range = max - min || 1;
+    if (shouldRenderTileSparkBars(tile, points)) {
+      var maxAbs = Math.max.apply(Math, values.map(function (value) { return Math.abs(value); })) || 1;
+      return (
+        '<div class="kpi-tile-spark kpi-tile-spark--bars" aria-hidden="true">' +
+        points
+          .map(function (point) {
+            var h = Math.max(12, Math.round((Math.abs(point.value) / maxAbs) * 100));
+            return '<span class="kpi-tile-spark-bar" style="height:' + h + '%"></span>';
+          })
+          .join("") +
+        "</div>"
+      );
+    }
+    var width = 126;
+    var height = 32;
+    var step = points.length > 1 ? width / (points.length - 1) : width;
+    var d = points
+      .map(function (point, index) {
+        var x = Math.round(index * step * 10) / 10;
+        var y = Math.round((height - ((point.value - min) / range) * (height - 4) - 2) * 10) / 10;
+        return (index === 0 ? "M" : "L") + x + " " + y;
+      })
+      .join(" ");
+    return (
+      '<svg class="kpi-tile-spark kpi-tile-spark--line" viewBox="0 0 ' +
+      width +
+      " " +
+      height +
+      '" preserveAspectRatio="none" aria-hidden="true">' +
+      '<path class="kpi-tile-spark-line-path" d="' +
+      DashUi.escapeHtml(d) +
+      '"></path></svg>'
+    );
+  }
+
+  function splitKpiTileValueAndUnit(text, fallbackUnits) {
+    var raw = String(text == null ? "" : text).trim();
+    if (!raw || raw === "—") return { value: "—", unit: "" };
+    var units = String(fallbackUnits || "").trim();
+    if (units && raw.toLowerCase().endsWith(units.toLowerCase())) {
+      return {
+        value: raw.slice(0, raw.length - units.length).trim(),
+        unit: units,
+      };
+    }
+    var match = raw.match(/^(.+?)\s+(млн\.?\s*руб\.?|млрд\.?\s*руб\.?|тыс\.?\s*руб\.?|руб\.?|поставок|шт\.?|%|чел\.)$/i);
+    if (match) return { value: match[1].trim(), unit: match[2].trim() };
+    return { value: raw, unit: "" };
+  }
+
+  function buildKpiTilePlanDeltaHtml(tile, factNum, planNum) {
+    var units = String((tile && tile.units) || "").trim();
+    var kpiPct = readFiniteTileNumber(tile && (tile.kpi_pct != null ? tile.kpi_pct : tile.percent));
+    var text = "";
+    if (units === "%" && factNum != null && planNum != null) {
+      var pp = factNum - planNum;
+      var signPp = pp > 0 ? "+" : "";
+      text = signPp + (Math.round(pp * 100) / 100).toLocaleString("ru-RU", { maximumFractionDigits: 2 }) + " п.п.";
+    } else if (kpiPct != null) {
+      var delta = kpiPct - 100;
+      var sign = delta > 0 ? "+" : "";
+      text = sign + Math.round(delta) + "%";
+    } else if (factNum != null && planNum != null && Math.abs(planNum) > 0) {
+      var deltaPct = ((factNum - planNum) / Math.abs(planNum)) * 100;
+      var signPct = deltaPct > 0 ? "+" : "";
+      text = signPct + Math.round(deltaPct) + "%";
+    }
+    if (!text) return "";
+    return (
+      '<span class="kpi-tile-plan-delta">' +
+      '<span class="kpi-tile-plan-delta-main">' +
+      DashUi.escapeHtml(text) +
+      '</span><span class="kpi-tile-plan-delta-sub">к плану</span></span>'
+    );
+  }
+
+  function buildKpiTilePlanFactHeroHtml(tile) {
+    var fact = tile && tile.fact;
+    var plan = tile && tile.plan;
+    var expected = tile && tile.expected_plan;
+    var units = tile && tile.units;
+    var factHtml = formatKpiTileMetricValue(fact, units);
+    var planHtml = formatKpiTileMetricValue(plan, units);
+    var expectedHtml = formatKpiTileMetricValue(expected, units);
+    var factParts = splitKpiTileValueAndUnit(factHtml, units);
+    var planParts = splitKpiTileValueAndUnit(planHtml, units);
+    var expectedParts = splitKpiTileValueAndUnit(expectedHtml, units);
+    var factNum = readFiniteTileNumber(fact);
+    var planNum = readFiniteTileNumber(plan);
+    var deltaHtml = buildKpiTilePlanDeltaHtml(tile, factNum, planNum);
+    var hasExpected =
+      typeof DashUi !== "undefined" && DashUi && typeof DashUi.kpiTilePlanFactValuePresent === "function"
+        ? DashUi.kpiTilePlanFactValuePresent(expected)
+        : expected != null;
+    return (
+      '<div class="kpi-tile-modern-metrics">' +
+      '<div class="kpi-tile-modern-value-row">' +
+      '<strong class="kpi-tile-modern-value">' +
+      '<span class="kpi-tile-modern-value-number">' +
+      DashUi.escapeHtml(factParts.value) +
+      '</span>' +
+      (factParts.unit ? '<span class="kpi-tile-modern-value-unit">' + DashUi.escapeHtml(factParts.unit) + "</span>" : "") +
+      "</strong>" +
+      deltaHtml +
+      "</div>" +
+      buildKpiTileSparklineHtml(tile) +
+      '<div class="kpi-tile-modern-numbers">' +
+      '<div class="kpi-tile-modern-number-row"><span>План</span><strong>' +
+      DashUi.escapeHtml(planParts.value + (planParts.unit ? " " + planParts.unit : "")) +
+      "</strong></div>" +
+      (hasExpected
+        ? '<div class="kpi-tile-modern-number-row"><span>Ожидаемо</span><strong>' +
+          DashUi.escapeHtml(expectedParts.value + (expectedParts.unit ? " " + expectedParts.unit : "")) +
+          "</strong></div>"
+        : "") +
+      "</div>" +
+      "</div>"
+    );
+  }
+
+  function buildKpiTileSplitMetricHtml(label, value, unit) {
+    return (
+      '<span class="kpi-tile-pf-mini">' +
+      '<span>' +
+      DashUi.escapeHtml(label) +
+      '</span><strong>' +
+      DashUi.escapeHtml(formatKpiTileMetricValue(value, unit)) +
+      "</strong></span>"
+    );
+  }
+
+  function getKpiTileSplitRowMetrics(row, unit) {
+    var metrics = [];
+    if (row && Array.isArray(row.metrics)) metrics = row.metrics;
+    if (!metrics.length && row && Array.isArray(row.values)) metrics = row.values;
+    if (metrics.length) {
+      return metrics
+        .filter(function (item) { return item && typeof item === "object"; })
+        .map(function (item) {
+          return {
+            label: item.label != null ? String(item.label) : "",
+            value: item.value,
+            unit: item.unit || item.units || unit,
+          };
+        })
+        .filter(function (item) { return item.label || item.value != null; })
+        .slice(0, 3);
+    }
+
+    var result = [
+      { label: "План", value: row && row.plan, unit: unit },
+      { label: "Факт", value: row && row.fact, unit: unit },
+    ];
+    if (row && row.expected_plan != null) {
+      result.push({ label: "Ожид.", value: row.expected_plan, unit: unit });
+    } else if (row && row.forecast != null) {
+      result.push({ label: "Прогноз", value: row.forecast, unit: unit });
+    } else if (row && row.third_value != null) {
+      result.push({ label: row.third_label != null ? String(row.third_label) : "Доп.", value: row.third_value, unit: unit });
+    }
+    return result.filter(function (item) { return item.value != null && item.value !== ""; }).slice(0, 3);
+  }
+
   function buildKpiTilePlanFactStackHtml(tile) {
     if (tile && Array.isArray(tile.plan_fact_rows) && tile.plan_fact_rows.length) {
       var customRows = tile.plan_fact_rows
         .map(function (row) {
           var unit = row && (row.unit || row.units) ? String(row.unit || row.units) : tile.units;
+          var metrics = getKpiTileSplitRowMetrics(row, unit);
+          var metricsClass = metrics.length >= 3 ? " kpi-tile-pf-value-number--triple" : "";
           return (
             '<div class="kpi-tile-pf-value-row kpi-tile-pf-value-row--split">' +
             '<span class="kpi-tile-pf-value-label">' +
             DashUi.escapeHtml(row && row.label != null ? String(row.label) : "") +
-            '</span><span class="kpi-tile-pf-value-number kpi-tile-pf-value-number--split">' +
-            '<span class="kpi-tile-pf-mini"><span>План</span><strong>' +
-            DashUi.escapeHtml(formatKpiTileMetricValue(row && row.plan, unit)) +
-            '</strong></span><span class="kpi-tile-pf-mini"><span>Факт</span><strong>' +
-            DashUi.escapeHtml(formatKpiTileMetricValue(row && row.fact, unit)) +
-            "</strong></span></span></div>"
+            '</span><span class="kpi-tile-pf-value-number kpi-tile-pf-value-number--split' +
+            metricsClass +
+            '">' +
+            metrics
+              .map(function (metric) {
+                return buildKpiTileSplitMetricHtml(metric.label, metric.value, metric.unit || unit);
+              })
+              .join("") +
+            "</span></div>"
           );
         })
         .join("");
@@ -215,6 +441,10 @@
         "</div></div>"
       );
     }
+    return buildKpiTilePlanFactHeroHtml(tile);
+  }
+
+  function buildKpiTilePlanFactStackRowsHtml(tile) {
     var rows = [
       { label: "План", value: tile && tile.plan },
       { label: "Факт", value: tile && tile.fact },
@@ -247,13 +477,14 @@
   }
 
   function buildKpiTileFactOnlyHtml(factShown) {
+    var parts = splitKpiTileValueAndUnit(factShown, "");
     return (
-      '<div class="kpi-tile-pf-stack">' +
-      '<div class="kpi-tile-pf-inline">' +
-      '<div class="kpi-tile-pf-inline-row">' +
-      '<span class="kpi-tile-pf-pill">' +
-      DashUi.escapeHtml(factShown) +
-      '</span><span class="kpi-tile-pf-inline-label">Факт</span></div></div></div>'
+      '<div class="kpi-tile-fact-only">' +
+      '<strong><span class="kpi-tile-fact-only-number">' +
+      DashUi.escapeHtml(parts.value) +
+      '</span>' +
+      (parts.unit ? '<span class="kpi-tile-fact-only-unit">' + DashUi.escapeHtml(parts.unit) + '</span>' : '') +
+      '</strong><span>Факт</span></div>'
     );
   }
 
@@ -278,12 +509,16 @@
       ? "Нет данных из источника"
       : "Нет данных";
     return (
-      '<div class="kpi-tile-pf-stack">' +
-      '<div class="kpi-tile-pf-inline">' +
-      '<div class="kpi-tile-pf-inline-row">' +
-      '<span class="kpi-tile-pf-pill">' +
-      DashUi.escapeHtml(message) +
-      '</span></div></div></div>'
+      '<div class="kpi-tile-no-data">' +
+      '<span class="kpi-tile-no-data-icon" aria-hidden="true">' +
+      '<svg viewBox="0 0 24 24" focusable="false">' +
+      '<path d="M5 19V9m5 10V5m5 14v-7m5 7V3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>' +
+      '<path d="M3.5 21h17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>' +
+      "</svg></span>" +
+      '<strong>Нет данных</strong>' +
+      '<span>' +
+      DashUi.escapeHtml(message === "Нет данных из источника" ? "Нет данных из источника" : "Данные появятся после обновления источника") +
+      "</span></div>"
     );
   }
 
@@ -574,7 +809,7 @@
       }
       if (tile && tile.has_data === false) {
         return (
-          '<div class="kpi-tile-metrics kpi-tile-metrics--pf-only" aria-label="Нет данных">' +
+          '<div class="kpi-tile-metrics kpi-tile-metrics--pf-only kpi-tile-metrics--no-data" aria-label="Нет данных">' +
           buildKpiTileNoDataHtml(tile) +
           "</div>"
         );
@@ -1050,6 +1285,9 @@
       }
       if (hasCustomPlanFactRows) {
         el.classList.add("kpi-tile--split-plan-fact");
+        if (tile.plan_fact_rows.length >= 3) {
+          el.classList.add("kpi-tile--split-plan-fact-many");
+        }
       }
       if (pendingFocus && !focusApplied && shouldMatchFocus(tile, pendingFocus)) {
         el.classList.add("kpi-tile--focus");

@@ -5,6 +5,7 @@
     },
     "OD-M3.2": {
       allowPartialPlanFact: true,
+      lowerIsBetterLimit: true,
     },
     "OD-Q1": {
       showBackPlanFact: true,
