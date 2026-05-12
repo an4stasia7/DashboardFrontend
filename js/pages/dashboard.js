@@ -1722,6 +1722,31 @@
     );
   }
 
+  /** Таблицы отклонений по вехам (ключ API `GSPP-T-Q4-DEVIATIONS`), тот же UI, что у ТД. */
+  function isGsppUser(user) {
+    if (!user || typeof user !== "object") return false;
+    var role = normalizeDashboardRole(user.role);
+    var department = normalizeDashboardRole(user.department);
+    return role === "gspp" || role === "гспп" || department === "gspp" || department === "гспп";
+  }
+
+  /** Таблица проектов с отклонениями по вехам (ключ `DEVDIR-T-PROJECTS-DEVIATIONS`), UI как у ОД. */
+  function isDevserviceUser(user) {
+    if (!user || typeof user !== "object") return false;
+    var role = normalizeDashboardRole(user.role);
+    var department = normalizeDashboardRole(user.department);
+    return (
+      role === "devservice" ||
+      department === "devservice" ||
+      role === "директор по развитию" ||
+      department === "директор по развитию"
+    );
+  }
+
+  function shouldUseDevserviceProjectDeviationsTables() {
+    return isDevserviceUser(sessionUser) && selectedViewId === "self";
+  }
+
   function isOperationalDirectorUser(user) {
     if (!user || typeof user !== "object") return false;
     var role = normalizeDashboardRole(user.role);
@@ -2367,6 +2392,14 @@
     return isVirtualChairmanCatalog(chairmanFor) && String(chairmanFor).trim() === "commerce";
   }
 
+  function shouldUseGsppTechnicalTables() {
+    return isGsppUser(sessionUser) && selectedViewId === "self";
+  }
+
+  function shouldUseTechnicalDeviationTables() {
+    return shouldUseTechnicalTables() || shouldUseGsppTechnicalTables();
+  }
+
   function shouldUseClaimsAndLawsuitsSwitcher() {
     if (isProductionDirectorDashboardContext()) return true;
     if (shouldUseTechnicalTables()) return true;
@@ -2402,15 +2435,17 @@
   function updateDashboardTableTitlesForRole() {
     var isBoardChairOwnDashboard = shouldUseBoardChairExecutiveTables();
     var showClaimsSwitcher = shouldUseClaimsAndLawsuitsSwitcher();
-    var useTechnicalTables = shouldUseTechnicalTables();
+    var useTechnicalTables = shouldUseTechnicalDeviationTables();
     var useOpdirProjectTables = shouldUseOpdirProjectTables();
+    var useDevserviceProjectTables = shouldUseDevserviceProjectDeviationsTables();
+    var useProjectMilestonesTables = useOpdirProjectTables || useDevserviceProjectTables;
     var useChiefConstructorTables = isChiefConstructorDashboardContext();
     var useProductionDirectorProjectTables = isProductionDirectorDashboardContext();
     var useProductionDeputyProjectTables = isProductionDeputyDashboardContext();
     if (useTechnicalTables) {
       activeClaimsTableView = "claims";
     }
-    if (useOpdirProjectTables) {
+    if (useProjectMilestonesTables) {
       activeClaimsTableView = "claims";
     }
 
@@ -2419,13 +2454,17 @@
         ? useProductionDirectorProjectTables
           ? "Проекты с отклонениями по вехам"
           : "Проекты с отклонениями по вехам"
-        : useChiefConstructorTables
+        : useDevserviceProjectTables
+          ? "Проекты с отклонениями по вехам"
+          : useChiefConstructorTables
           ? "Проекты КБ с отклонениями до 10 р.д."
-        : useTechnicalTables
-          ? "Отклонения по вехам"
-          : isBoardChairOwnDashboard
-          ? "ТОП-10 отклонений"
-          : "Претензии";
+        : shouldUseGsppTechnicalTables()
+          ? "Отклонения по проекту развития номенклатуры"
+          : useTechnicalTables
+            ? "Отклонения по вехам"
+            : isBoardChairOwnDashboard
+            ? "ТОП-10 отклонений"
+            : "Претензии";
       claimsTableTitleTextEl.hidden = showClaimsSwitcher;
     }
 
@@ -2443,7 +2482,7 @@
 
     if (claimsTableHelpWrapEl) {
       claimsTableHelpWrapEl.hidden =
-        useTechnicalTables || useOpdirProjectTables || activeClaimsTableView === "lawsuits";
+        useTechnicalTables || useProjectMilestonesTables || activeClaimsTableView === "lawsuits";
     }
 
     if (claimsTableSwitcherEl) {
@@ -2468,7 +2507,7 @@
 
     if (overdueDebtTableTitleEl && overdueDebtTableTitleEl.closest) {
       var overduePanel = overdueDebtTableTitleEl.closest(".table-panel");
-      if (overduePanel) overduePanel.hidden = useTechnicalTables || useOpdirProjectTables || useChiefConstructorTables;
+      if (overduePanel) overduePanel.hidden = useTechnicalTables || useProjectMilestonesTables || useChiefConstructorTables;
     }
 
     updateClaimsTableSwitcherUi(showClaimsSwitcher);
@@ -2538,7 +2577,10 @@
 
     if (claimsTableHelpWrapEl) {
       claimsTableHelpWrapEl.hidden =
-        shouldUseTechnicalTables() || shouldUseOpdirProjectTables() || nextView === "lawsuits";
+        shouldUseTechnicalDeviationTables() ||
+        shouldUseOpdirProjectTables() ||
+        shouldUseDevserviceProjectDeviationsTables() ||
+        nextView === "lawsuits";
     }
     if (nextView === "lawsuits") {
       hideClaimsTableHelpPopover();
@@ -2564,8 +2606,12 @@
         enhanceOverdueDebtTable: shouldUseCommercialDirectorOverdueDebtEnhancements(),
         enableLawsuitsTable: shouldUseClaimsAndLawsuitsSwitcher(),
         filterRowsMinAmountRub: psdTableMinRub,
-        technicalTablesMode: shouldUseTechnicalTables(),
-        opdirProjectTableMode: shouldUseOpdirProjectTables(),
+        technicalTablesMode: shouldUseTechnicalDeviationTables(),
+        technicalExternalTableKey: shouldUseGsppTechnicalTables() ? "GSPP-T-Q4-DEVIATIONS" : undefined,
+        technicalDevelopmentTableKey: shouldUseGsppTechnicalTables() ? "GSPP-T-Q4-DEVIATIONS" : undefined,
+        technicalDeviationsSinglePanel: shouldUseGsppTechnicalTables(),
+        opdirProjectTableMode: shouldUseOpdirProjectTables() || shouldUseDevserviceProjectDeviationsTables(),
+        opdirProjectSecondTableDisabled: shouldUseDevserviceProjectDeviationsTables(),
         constructorProjectTableMode: isChiefConstructorDashboardContext(),
       });
     }

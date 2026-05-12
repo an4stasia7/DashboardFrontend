@@ -169,12 +169,16 @@
   var PRODUCTION_IMPROVEMENT_TABLE_HEADERS = ["№ 1С", "Название", "РП", "Куратор", "Сроки", "Статус", "Прогресс"];
   var TECHNICAL_EXTERNAL_TABLE_KEY = "TD-T-M1-DEVIATIONS";
   var TECHNICAL_DEVELOPMENT_TABLE_KEY = "TD-T-Q1-DEVIATIONS";
+  var activeTechnicalExternalTableKey = TECHNICAL_EXTERNAL_TABLE_KEY;
+  var activeTechnicalDevelopmentTableKey = TECHNICAL_DEVELOPMENT_TABLE_KEY;
   var OPDIR_PROJECT_TABLE_KEY = "OD-T-Q1-DEVIATIONS";
   var PRODUCTION_DEPUTY_PROJECT_TABLE_KEY = "PD-T-Q1-DEVIATIONS";
+  var DEVDIR_PROJECTS_DEVIATIONS_TABLE_KEY = "DEVDIR-T-PROJECTS-DEVIATIONS";
   var PRODUCTION_DEPUTY_IMPROVEMENT_TABLE_KEY = "PD-T-Q3-IMPROVEMENTS";
   var CONSTRUCTOR_PROJECT_TABLE_KEY = "GK-T-M1-DEVIATIONS";
   var technicalTablesMode = false;
   var opdirProjectTableMode = false;
+  var opdirProjectSecondTableDisabled = false;
   var constructorProjectTableMode = false;
 
   function setTableHeaders(tableId, headers) {
@@ -409,16 +413,20 @@
   }
 
   function isTechnicalExternalOrderRow(item) {
-    return item && String(item.tableKey || "").trim() === TECHNICAL_EXTERNAL_TABLE_KEY;
+    return item && String(item.tableKey || "").trim() === activeTechnicalExternalTableKey;
   }
 
   function isTechnicalImprovementRow(item) {
-    return item && String(item.tableKey || "").trim() === TECHNICAL_DEVELOPMENT_TABLE_KEY;
+    return item && String(item.tableKey || "").trim() === activeTechnicalDevelopmentTableKey;
   }
 
   function isOpdirProjectRow(item) {
     var key = item && String(item.tableKey || "").trim();
-    return key === OPDIR_PROJECT_TABLE_KEY || key === PRODUCTION_DEPUTY_PROJECT_TABLE_KEY;
+    return (
+      key === OPDIR_PROJECT_TABLE_KEY ||
+      key === PRODUCTION_DEPUTY_PROJECT_TABLE_KEY ||
+      key === DEVDIR_PROJECTS_DEVIATIONS_TABLE_KEY
+    );
   }
 
   function isConstructorProjectRow(item) {
@@ -545,6 +553,19 @@
       .replace(/'/g, "&#39;");
   }
 
+  /** API: в вехах может быть `delay_days` или `delay_workdays`. */
+  function milestoneRowDelayDays(item) {
+    if (!item || typeof item !== "object") return null;
+    if (item.delay_days != null && item.delay_days !== "") return item.delay_days;
+    if (item.delay_workdays != null && item.delay_workdays !== "") return item.delay_workdays;
+    return null;
+  }
+
+  function milestoneRowDelayDaysText(item) {
+    var v = milestoneRowDelayDays(item);
+    return v != null ? String(v) : "0";
+  }
+
   function formatOpdirMilestoneDetails(raw) {
     var milestones = Array.isArray(raw && raw.milestone_deviations) ? raw.milestone_deviations : [];
     if (!milestones.length) return "";
@@ -553,7 +574,7 @@
         var title = escapeHtml(tableTextOrDash(item.name));
         var startDate = escapeHtml(formatTechnicalDate(item.start_date));
         var finishDate = escapeHtml(formatTechnicalDate(item.finish_date));
-        var delayDays = escapeHtml(item.delay_days != null ? String(item.delay_days) : "0");
+        var delayDays = escapeHtml(milestoneRowDelayDaysText(item));
         var progress = escapeHtml(formatTechnicalPercentComplete(item.percent_complete));
         return (
           '<li><strong>' +
@@ -631,7 +652,7 @@
               "</td><td>" +
               escapeHtml(formatTechnicalDate(item.finish_date)) +
               "</td><td>" +
-              escapeHtml(item.delay_days != null ? String(item.delay_days) : "0") +
+              escapeHtml(milestoneRowDelayDaysText(item)) +
               "</td><td>" +
               escapeHtml(formatTechnicalPercentComplete(item.percent_complete)) +
               "</td></tr>"
@@ -704,7 +725,7 @@
               "</td><td>" +
               escapeHtml(formatTechnicalDate(item.finish_date)) +
               "</td><td>" +
-              escapeHtml(item.delay_days != null ? String(item.delay_days) : "0") +
+              escapeHtml(milestoneRowDelayDaysText(item)) +
               "</td><td>" +
               escapeHtml(formatTechnicalPercentComplete(item.percent_complete)) +
               "</td></tr>"
@@ -722,7 +743,16 @@
 
   function buildTechnicalDeviationCell(td, raw) {
     var milestones = Array.isArray(raw && raw.milestone_deviations) ? raw.milestone_deviations : [];
-    td.setAttribute("data-order", String(raw && raw.delay_days != null ? raw.delay_days : ""));
+    td.setAttribute(
+      "data-order",
+      String(
+        raw && raw.delay_days != null
+          ? raw.delay_days
+          : raw && raw.delay_workdays != null
+            ? raw.delay_workdays
+            : ""
+      )
+    );
     if (!milestones.length) {
       td.textContent = tableTextOrDash(raw && raw.deviation);
       return;
@@ -751,7 +781,16 @@
 
   function buildOpdirDeviationCell(td, raw) {
     var milestones = Array.isArray(raw && raw.milestone_deviations) ? raw.milestone_deviations : [];
-    td.setAttribute("data-order", String(raw && raw.delay_days != null ? raw.delay_days : ""));
+    td.setAttribute(
+      "data-order",
+      String(
+        raw && raw.delay_days != null
+          ? raw.delay_days
+          : raw && raw.delay_workdays != null
+            ? raw.delay_workdays
+            : ""
+      )
+    );
     if (!milestones.length) {
       td.textContent = tableTextOrDash(raw && raw.deviation);
       return;
@@ -921,8 +960,8 @@
       setTableHeaders("table-top-deviations", OPDIR_PROJECT_TABLE_HEADERS);
       setTableHeaders("table-lawsuits", OPDIR_PROJECT_TABLE_HEADERS);
     } else if (technicalTablesMode) {
-      setTableHeaders("table-top-deviations", getTechnicalTableHeadersFromRows(rows, TECHNICAL_EXTERNAL_TABLE_KEY));
-      setTableHeaders("table-lawsuits", getTechnicalTableHeadersFromRows(rows, TECHNICAL_DEVELOPMENT_TABLE_KEY));
+      setTableHeaders("table-top-deviations", getTechnicalTableHeadersFromRows(rows, activeTechnicalExternalTableKey));
+      setTableHeaders("table-lawsuits", getTechnicalTableHeadersFromRows(rows, activeTechnicalDevelopmentTableKey));
     } else {
       setTableHeaders("table-top-deviations", DEFAULT_TOP_DEVIATIONS_HEADERS);
       setTableHeaders("table-lawsuits", ["Тип документа", "Контрагент", "Предмет спора", "Роль ГК в споре", "Юр. лицо", "Подразделение", "Сумма требований, руб."]);
@@ -1869,7 +1908,21 @@
     var enableLawsuitsTable = !!options.enableLawsuitsTable;
     technicalTablesMode = !!options.technicalTablesMode;
     opdirProjectTableMode = !!options.opdirProjectTableMode;
+    opdirProjectSecondTableDisabled = !!options.opdirProjectSecondTableDisabled;
     constructorProjectTableMode = !!options.constructorProjectTableMode;
+    if (technicalTablesMode) {
+      activeTechnicalExternalTableKey =
+        options.technicalExternalTableKey != null && String(options.technicalExternalTableKey).trim() !== ""
+          ? String(options.technicalExternalTableKey).trim()
+          : TECHNICAL_EXTERNAL_TABLE_KEY;
+      activeTechnicalDevelopmentTableKey =
+        options.technicalDevelopmentTableKey != null && String(options.technicalDevelopmentTableKey).trim() !== ""
+          ? String(options.technicalDevelopmentTableKey).trim()
+          : TECHNICAL_DEVELOPMENT_TABLE_KEY;
+    } else {
+      activeTechnicalExternalTableKey = TECHNICAL_EXTERNAL_TABLE_KEY;
+      activeTechnicalDevelopmentTableKey = TECHNICAL_DEVELOPMENT_TABLE_KEY;
+    }
     destroyClaimsTables();
 
     var topBody = document.querySelector("#table-top-deviations tbody");
@@ -1898,24 +1951,33 @@
     }
     if (opdirProjectTableMode) {
       renderClaimsTableRows(rows);
-      renderLawsuitsTableRows(rows);
+      if (!opdirProjectSecondTableDisabled) {
+        renderLawsuitsTableRows(rows);
+      }
       initOpdirProjectDataTable(
         "#table-top-deviations",
         ".dashboard-table-wrap--claims",
         "opdir-project-top-table-advanced"
       );
-      initOpdirProjectDataTable(
-        "#table-lawsuits",
-        ".dashboard-table-wrap--lawsuits",
-        "opdir-project-second-table-advanced"
-      );
+      if (!opdirProjectSecondTableDisabled) {
+        initOpdirProjectDataTable(
+          "#table-lawsuits",
+          ".dashboard-table-wrap--lawsuits",
+          "opdir-project-second-table-advanced"
+        );
+      }
       return;
     }
     if (technicalTablesMode) {
+      var singleTechnicalPanel = !!options.technicalDeviationsSinglePanel;
       renderClaimsTableRows(rows);
-      renderLawsuitsTableRows(rows);
+      if (!singleTechnicalPanel) {
+        renderLawsuitsTableRows(rows);
+      }
       initTechnicalClaimsDataTable();
-      initTechnicalLawsuitsDataTable();
+      if (!singleTechnicalPanel) {
+        initTechnicalLawsuitsDataTable();
+      }
       return;
     }
     renderClaimsTableRows(rows);
