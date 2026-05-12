@@ -592,7 +592,8 @@
             isTechnicalDirectorUser(viewContextUser) ||
             isOperationalDirectorUser(viewContextUser) ||
             isProductionDeputyUser(viewContextUser) ||
-            isChiefConstructorDashboardContext()
+            isChiefConstructorDashboardContext() ||
+            isChiefMetrologDashboardContext()
           ) {
             loadKpiTilesAndChartsForView();
             return;
@@ -1464,6 +1465,18 @@
       currentDepartment === "главный конструктор" ||
       responseDepartment === "главный конструктор" ||
       (selectedViewId === "self" && (role === "главный конструктор" || department === "главный конструктор"))
+    );
+  }
+
+  function isChiefMetrologDashboardContext() {
+    var currentDepartment = normalizeDashboardRole(getDepartmentForCurrentKpiContext());
+    var responseDepartment = normalizeDashboardRole(lastKpiResponseDepartment);
+    var role = normalizeDashboardRole(viewContextUser && viewContextUser.role);
+    var department = normalizeDashboardRole(viewContextUser && viewContextUser.department);
+    return (
+      currentDepartment === "главный метролог" ||
+      responseDepartment === "главный метролог" ||
+      (selectedViewId === "self" && (role === "главный метролог" || department === "главный метролог"))
     );
   }
 
@@ -2385,6 +2398,7 @@
     var useTechnicalTables = shouldUseTechnicalTables();
     var useOpdirProjectTables = shouldUseOpdirProjectTables();
     var useChiefConstructorTables = isChiefConstructorDashboardContext();
+    var useChiefMetrologTables = isChiefMetrologDashboardContext();
     var useProductionDirectorProjectTables = isProductionDirectorDashboardContext();
     var useProductionDeputyProjectTables = isProductionDeputyDashboardContext();
     if (useTechnicalTables) {
@@ -2399,6 +2413,8 @@
         ? useProductionDirectorProjectTables
           ? "Проекты с отклонениями по вехам"
           : "Проекты с отклонениями по вехам"
+        : useChiefMetrologTables
+          ? "Проекты с отклонениями по вехам >10 р.д."
         : useChiefConstructorTables
           ? "Проекты КБ с отклонениями до 10 р.д."
         : useTechnicalTables
@@ -2448,7 +2464,9 @@
 
     if (overdueDebtTableTitleEl && overdueDebtTableTitleEl.closest) {
       var overduePanel = overdueDebtTableTitleEl.closest(".table-panel");
-      if (overduePanel) overduePanel.hidden = useTechnicalTables || useOpdirProjectTables || useChiefConstructorTables;
+      if (overduePanel) {
+        overduePanel.hidden = useTechnicalTables || useOpdirProjectTables || useChiefConstructorTables || useChiefMetrologTables;
+      }
     }
 
     updateClaimsTableSwitcherUi(showClaimsSwitcher);
@@ -2546,7 +2564,7 @@
         filterRowsMinAmountRub: psdTableMinRub,
         technicalTablesMode: shouldUseTechnicalTables(),
         opdirProjectTableMode: shouldUseOpdirProjectTables(),
-        constructorProjectTableMode: isChiefConstructorDashboardContext(),
+        constructorProjectTableMode: isChiefConstructorDashboardContext() || isChiefMetrologDashboardContext(),
       });
     }
   }

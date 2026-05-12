@@ -173,6 +173,7 @@
   var PRODUCTION_DEPUTY_PROJECT_TABLE_KEY = "PD-T-Q1-DEVIATIONS";
   var PRODUCTION_DEPUTY_IMPROVEMENT_TABLE_KEY = "PD-T-Q3-IMPROVEMENTS";
   var CONSTRUCTOR_PROJECT_TABLE_KEY = "GK-T-M1-DEVIATIONS";
+  var METROLOG_PROJECT_TABLE_KEY = "METD-T-Q1-DEVIATIONS";
   var technicalTablesMode = false;
   var opdirProjectTableMode = false;
   var constructorProjectTableMode = false;
@@ -288,7 +289,20 @@
 
   function isConstructorProjectRow(item) {
     var key = item && String(item.tableKey || "").trim();
-    return key === CONSTRUCTOR_PROJECT_TABLE_KEY;
+    return key === CONSTRUCTOR_PROJECT_TABLE_KEY || key === METROLOG_PROJECT_TABLE_KEY;
+  }
+
+  function isProjectDeviationLikeRow(item) {
+    var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
+    if (!raw) return false;
+    return (
+      raw.project_name != null &&
+      (raw.project_manager != null ||
+        raw.timeline != null ||
+        raw.deviation != null ||
+        raw.delay_days != null ||
+        Array.isArray(raw.milestone_deviations))
+    );
   }
 
   function isProductionImprovementProjectRow(item) {
@@ -647,7 +661,9 @@
 
     if (constructorProjectTableMode) {
       setTableHeaders("table-top-deviations", CONSTRUCTOR_PROJECT_TABLE_HEADERS);
-      rows.filter(isConstructorProjectRow).forEach(function (item) {
+      rows.filter(function (item) {
+        return isConstructorProjectRow(item) || isProjectDeviationLikeRow(item);
+      }).forEach(function (item) {
         var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
         if (!raw) return;
         appendOpdirProjectTableRow(tbody, raw);
