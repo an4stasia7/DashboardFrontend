@@ -592,6 +592,7 @@
             isTechnicalDirectorUser(viewContextUser) ||
             isOperationalDirectorUser(viewContextUser) ||
             isProductionDeputyUser(viewContextUser) ||
+            isLogisticsDashboardContext() ||
             isChiefConstructorDashboardContext() ||
             isChiefMetrologDashboardContext()
           ) {
@@ -1477,6 +1478,19 @@
       currentDepartment === "главный метролог" ||
       responseDepartment === "главный метролог" ||
       (selectedViewId === "self" && (role === "главный метролог" || department === "главный метролог"))
+    );
+  }
+
+  function isLogisticsDashboardContext() {
+    var currentDepartment = normalizeDashboardRole(getDepartmentForCurrentKpiContext());
+    var responseDepartment = normalizeDashboardRole(lastKpiResponseDepartment);
+    var role = normalizeDashboardRole(viewContextUser && viewContextUser.role);
+    var department = normalizeDashboardRole(viewContextUser && viewContextUser.department);
+    return (
+      currentDepartment === "начальник службы логистики" ||
+      responseDepartment === "начальник службы логистики" ||
+      (selectedViewId === "self" &&
+        (role === "начальник службы логистики" || department === "начальник службы логистики"))
     );
   }
 

@@ -989,6 +989,93 @@
   hyphens: auto;
 }
 
+.dashboard-table#table-top-deviations.dashboard-table--logistics-claims {
+  table-layout: fixed;
+  min-width: 1420px;
+}
+
+.dashboard-table#table-top-deviations.dashboard-table--logistics-claims thead th,
+.dashboard-table#table-top-deviations.dashboard-table--logistics-claims tbody td {
+  overflow: hidden;
+}
+
+.dashboard-table#table-top-deviations.dashboard-table--logistics-claims thead th:nth-child(1),
+.dashboard-table#table-top-deviations.dashboard-table--logistics-claims tbody td:nth-child(1) {
+  width: 82px;
+  min-width: 82px;
+}
+
+.dashboard-table#table-top-deviations.dashboard-table--logistics-claims thead th:nth-child(2),
+.dashboard-table#table-top-deviations.dashboard-table--logistics-claims tbody td:nth-child(2) {
+  width: 118px;
+  min-width: 118px;
+}
+
+.dashboard-table#table-top-deviations.dashboard-table--logistics-claims thead th:nth-child(3),
+.dashboard-table#table-top-deviations.dashboard-table--logistics-claims tbody td:nth-child(3),
+.dashboard-table#table-top-deviations.dashboard-table--logistics-claims thead th:nth-child(4),
+.dashboard-table#table-top-deviations.dashboard-table--logistics-claims tbody td:nth-child(4) {
+  width: 124px;
+  min-width: 124px;
+}
+
+.dashboard-table#table-top-deviations.dashboard-table--logistics-claims thead th:nth-child(5),
+.dashboard-table#table-top-deviations.dashboard-table--logistics-claims tbody td:nth-child(5) {
+  width: 310px;
+  min-width: 310px;
+}
+
+.dashboard-table#table-top-deviations.dashboard-table--logistics-claims thead th:nth-child(6),
+.dashboard-table#table-top-deviations.dashboard-table--logistics-claims tbody td:nth-child(6),
+.dashboard-table#table-top-deviations.dashboard-table--logistics-claims thead th:nth-child(7),
+.dashboard-table#table-top-deviations.dashboard-table--logistics-claims tbody td:nth-child(7) {
+  width: 190px;
+  min-width: 190px;
+}
+
+.dashboard-table#table-top-deviations.dashboard-table--logistics-claims thead th:nth-child(8),
+.dashboard-table#table-top-deviations.dashboard-table--logistics-claims tbody td:nth-child(8),
+.dashboard-table#table-top-deviations.dashboard-table--logistics-claims thead th:nth-child(9),
+.dashboard-table#table-top-deviations.dashboard-table--logistics-claims tbody td:nth-child(9),
+.dashboard-table#table-top-deviations.dashboard-table--logistics-claims thead th:nth-child(10),
+.dashboard-table#table-top-deviations.dashboard-table--logistics-claims tbody td:nth-child(10),
+.dashboard-table#table-top-deviations.dashboard-table--logistics-claims thead th:nth-child(11),
+.dashboard-table#table-top-deviations.dashboard-table--logistics-claims tbody td:nth-child(11) {
+  width: 95px;
+  min-width: 95px;
+  text-align: right;
+}
+
+.dashboard-table#table-top-deviations.dashboard-table--logistics-claims tbody td {
+  height: 56px;
+  max-height: 56px;
+  padding: 9px 12px;
+  vertical-align: middle;
+}
+
+.dashboard-table#table-top-deviations.dashboard-table--logistics-claims .dashboard-table-cell-text {
+  display: -webkit-box;
+  max-height: 38px;
+  overflow: hidden;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.dashboard-table#table-top-deviations.dashboard-table--logistics-claims .dashboard-table-cell--number .dashboard-table-cell-text,
+.dashboard-table#table-top-deviations.dashboard-table--logistics-claims .dashboard-table-cell--date .dashboard-table-cell-text,
+.dashboard-table#table-top-deviations.dashboard-table--logistics-claims .dashboard-table-cell--status .dashboard-table-cell-text {
+  word-break: normal;
+  overflow-wrap: normal;
+}
+
+.dashboard-table#table-top-deviations.dashboard-table--logistics-claims .dashboard-table-cell--number .dashboard-table-cell-text {
+  display: block;
+  white-space: nowrap;
+  text-align: right;
+}
+
 .dashboard-table.dashboard-table--executive {
   table-layout: fixed;
   min-width: 100%;
