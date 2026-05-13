@@ -1366,7 +1366,7 @@
 
   /**
    * Для выбранного текущего календарного месяца (ещё не закончившегося) на плитках с «ФОТ» / «текучестью» в названии
-   * показываем план/факт за предыдущий месяц (из monthly_data).
+   * показываем план/факт за предыдущий месяц (из monthly_data). Исключения по kpi_id: OD-M3.2, LOG-M3.F, TD-M6.
    */
   function applyPriorMonthFactForFotTurnoverTiles(tiles) {
     if (!Array.isArray(tiles) || !tiles.length) return tiles;
@@ -1386,7 +1386,7 @@
     return tiles.map(function (tile) {
       if (!tile || !isFotOrPersonnelTurnoverKpiTitle(tile.title)) return tile;
       var kpiId = tile.kpi_id != null ? String(tile.kpi_id).trim() : "";
-      if (kpiId === "OD-M3.2" || kpiId === "LOG-M3.F") return tile;
+      if (kpiId === "OD-M3.2" || kpiId === "LOG-M3.F" || kpiId === "TD-M6") return tile;
       if (tile.__priorMonthMergedFromKpiAll) return tile;
       var monthly = tile.monthly_data;
       if (!Array.isArray(monthly) || !monthly.length) return tile;
@@ -1824,6 +1824,7 @@
     return currentTiles.map(function (tile) {
       if (!tile || !isFotOrPersonnelTurnoverKpiTitle(tile.title)) return tile;
       var id = tile.kpi_id != null ? String(tile.kpi_id).trim() : "";
+      if (id === "TD-M6") return tile;
       var src = id && byId[id] ? byId[id] : byTitle[normalizeKpiTitleForMatch(tile.title)];
       if (!src) return tile;
       var next = Object.assign({}, tile);
