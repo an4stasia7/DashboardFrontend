@@ -98,6 +98,11 @@
     return !!(rule && rule.allowPartialPlanFact);
   }
 
+  function shouldHideKpiTilePlanDelta(tile) {
+    var rule = getKpiTileException(tile);
+    return !!(rule && rule.hidePlanDelta);
+  }
+
   function shouldRenderKpiTileBackDeptAmounts(tile) {
     var rule = getKpiTileException(tile);
     return !!(rule && rule.backDeptAmounts);
@@ -202,7 +207,10 @@
     var points = monthly
       .map(function (point) {
         if (!point || typeof point !== "object") return null;
-        var value = readFiniteTileNumber(point.fact);
+        var value = point.aggregation === "weighted_delta_amount_div_project_amount"
+          ? readFiniteTileNumber(point.display_fact)
+          : null;
+        if (value == null) value = readFiniteTileNumber(point.fact);
         if (value == null) value = readFiniteTileNumber(point.kpi_pct);
         if (value == null) value = readFiniteTileNumber(point.plan);
         if (value == null) return null;
@@ -299,6 +307,7 @@
   }
 
   function buildKpiTilePlanDeltaHtml(tile, factNum, planNum) {
+    if (shouldHideKpiTilePlanDelta(tile)) return "";
     var units = String((tile && tile.units) || "").trim();
     var kpiPct = readFiniteTileNumber(tile && (tile.kpi_pct != null ? tile.kpi_pct : tile.percent));
     var text = "";
@@ -753,6 +762,69 @@
     );
   }
 
+  function buildKpiTileTenderDepartmentsHtml(tile) {
+    var rows = tile && Array.isArray(tile.tender_departments) ? tile.tender_departments : [];
+    if (!rows.length) {
+      return '<div class="kpi-tile-back-message">Нет данных по отделам.</div>';
+    }
+
+    function num(value) {
+      var n = Number(value);
+      return isNaN(n) ? null : n;
+    }
+    function ragFromPct(value) {
+      if (value == null) return "red";
+      if (value < 90) return "red";
+      if (value <= 100) return "yellow";
+      return "green";
+    }
+    function count(value) {
+      var n = num(value);
+      return n == null ? 0 : Math.round(n);
+    }
+    function metric(label, value) {
+      return (
+        '<span class="kpi-tile-tender-dept-status">' +
+        '<small>' + DashUi.escapeHtml(label) + "</small>" +
+        '<strong>' + DashUi.escapeHtml(String(value)) + "</strong>" +
+        "</span>"
+      );
+    }
+
+    return (
+      '<div class="kpi-tile-children-list kpi-tile-children-list--tenders">' +
+      rows
+        .map(function (row) {
+          var name = row && (row.department || row.name || row.dept_name) ? String(row.department || row.name || row.dept_name) : "Отдел";
+          var plan = count(row && (row.plan != null ? row.plan : row.found));
+          var fact = count(row && (row.fact != null ? row.fact : row.won));
+          var notParticipating = count(row && row.not_participating);
+          var pct = num(row && row.pct);
+          var pctText = pct == null ? "—" : DashUi.formatKpiTilePlanFactValue(pct) + "%";
+          var rag = ragFromPct(pct);
+          var progress = pct == null ? 0 : Math.max(0, Math.min(100, pct));
+          return (
+            '<div class="kpi-tile-child-item kpi-tile-child-item--static kpi-tile-tender-dept kpi-tile-tender-dept--' + rag + '">' +
+            '<span class="kpi-tile-child-dot rag-dot rag-' + rag + '"></span>' +
+            '<span class="kpi-tile-child-name">' + DashUi.escapeHtml(name) + "</span>" +
+            '<span class="kpi-tile-tender-dept-metrics">' +
+            '<strong class="kpi-tile-tender-dept-pct">' + DashUi.escapeHtml(pctText) + "</strong>" +
+            '<small class="kpi-tile-tender-dept-count">выиграно / всего</small>' +
+            "</span>" +
+            '<span class="kpi-tile-tender-dept-statuses">' +
+            metric("Найдено", plan) +
+            metric("Не участвуем", notParticipating) +
+            metric("Выиграно", fact) +
+            "</span>" +
+            '<span class="kpi-tile-tender-dept-bar" aria-hidden="true"><span style="width: ' + progress + '%"></span></span>' +
+            "</div>"
+          );
+        })
+        .join("") +
+      "</div>"
+    );
+  }
+
   function buildKpiTileMetricsSectionHtml(tile, hasPf, planFactShown, factShown, planFactLabel) {
     var rule = getKpiTileException(tile);
     var hasPartialPf =
@@ -1040,6 +1112,26 @@
         '<div class="kpi-tile-back-section kpi-tile-back-section--dual">' +
         '<div class="kpi-tile-back-section-title">Отгрузки за период</div>' +
         buildKpiTileYearCompareAmountsHtml(tile) +
+        "</div>" +
+        (hint ? '<p class="kpi-tile-back-hint">' + DashUi.escapeHtml(hint) + "</p>" : "")
+      );
+    }
+    if (rule && rule.tenderDepartmentsBreakdown) {
+      return (
+        '<div class="kpi-tile-back-head">' +
+        '<div class="kpi-tile-back-head-copy">' +
+        (code ? '<span class="kpi-tile-back-badge">' + DashUi.escapeHtml(code) + "</span>" : "") +
+        '<h3 class="kpi-tile-back-title">' +
+        DashUi.escapeHtml(tile && tile.title ? tile.title : "Показатель") +
+        "</h3>" +
+        (period ? '<p class="kpi-tile-back-period">' + DashUi.escapeHtml(period) + "</p>" : "") +
+        "</div>" +
+        '<div class="kpi-tile-back-head-actions">' +
+        '<button type="button" class="kpi-tile-flip-action" aria-label="Вернуться к карточке">Назад</button>' +
+        "</div></div>" +
+        '<div class="kpi-tile-back-section kpi-tile-back-section--dual">' +
+        '<div class="kpi-tile-back-section-title">Тендеры по отделам</div>' +
+        buildKpiTileTenderDepartmentsHtml(tile) +
         "</div>" +
         (hint ? '<p class="kpi-tile-back-hint">' + DashUi.escapeHtml(hint) + "</p>" : "")
       );

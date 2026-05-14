@@ -17,6 +17,9 @@
       allowPartialPlanFact: true,
       showEmptyPlanFact: true,
     },
+    "LOG-M2": {
+      hidePlanDelta: true,
+    },
     "KD-M4": {
       factOnly: true,
       hideHelp: true,
@@ -83,6 +86,7 @@
     },
     "MRK-09": {
       tenderStatusOverview: true,
+      tenderDepartmentsBreakdown: true,
       hideHelp: true,
       hideKpiPercent: true,
     },
