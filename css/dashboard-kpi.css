@@ -1,9 +1,12 @@
 /* Month navigator: центр — только переключатель месяца; справа — режим и предупреждение */
 .month-navigator {
+  position: relative;
+  z-index: 200;
   display: grid;
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   column-gap: 12px;
+  
   margin-bottom: 20px;
   padding: 10px 16px;
   background:
@@ -114,6 +117,7 @@
 
 .month-nav-quarter-wrap {
   position: relative;
+  z-index: 210;
   display: inline-flex;
   align-items: center;
 }
@@ -152,7 +156,7 @@
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  z-index: 90;
+  z-index: 220;
   width: min(260px, calc(100vw - 24px));
   padding: 12px;
   border-radius: 14px;
