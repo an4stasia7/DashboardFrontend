@@ -591,6 +591,7 @@
             isCommercialHierarchyRootForPriorMonthRule() ||
             isTechnicalDirectorUser(viewContextUser) ||
             isGsppUser(viewContextUser) ||
+            isDevserviceUser(viewContextUser) ||
             isOperationalDirectorUser(viewContextUser) ||
             isProductionDeputyUser(viewContextUser) ||
             isChiefConstructorDashboardContext() ||
