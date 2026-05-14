@@ -37,7 +37,22 @@
           </div>
           <div class="auth-field">
             <label for="password">Пароль</label>
-            <input id="password" name="password" type="password" autocomplete="current-password" required />
+            <div class="password-input-wrap">
+              <input id="password" name="password" type="password" autocomplete="current-password" required />
+              <button
+                type="button"
+                class="password-toggle-btn"
+                data-password-toggle
+                aria-controls="password"
+                aria-label="Показать пароль"
+                aria-pressed="false"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M2.75 12C4.65 7.85 7.82 5.75 12 5.75S19.35 7.85 21.25 12C19.35 16.15 16.18 18.25 12 18.25S4.65 16.15 2.75 12Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M12 15.25A3.25 3.25 0 1 0 12 8.75A3.25 3.25 0 0 0 12 15.25Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+            </div>
           </div>
           <label class="auth-remember-label">
             <input type="checkbox" id="remember-me" />
@@ -45,7 +60,6 @@
           </label>
           <div id="login-continue-wrap" class="login-continue-wrap" hidden>
             <button type="button" id="btn-continue-as" class="btn btn-continue-as"></button>
-            <p class="login-continue-hint">Без пароля — по сохранённой сессии (пока действует токен)</p>
           </div>
           <button type="submit" class="btn btn-primary">Войти</button>
         </form>
@@ -63,7 +77,22 @@
           </div>
           <div class="auth-field">
             <label for="register-password">Пароль</label>
-            <input id="register-password" type="password" autocomplete="new-password" required />
+            <div class="password-input-wrap">
+              <input id="register-password" type="password" autocomplete="new-password" required />
+              <button
+                type="button"
+                class="password-toggle-btn"
+                data-password-toggle
+                aria-controls="register-password"
+                aria-label="Показать пароль"
+                aria-pressed="false"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M2.75 12C4.65 7.85 7.82 5.75 12 5.75S19.35 7.85 21.25 12C19.35 16.15 16.18 18.25 12 18.25S4.65 16.15 2.75 12Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M12 15.25A3.25 3.25 0 1 0 12 8.75A3.25 3.25 0 0 0 12 15.25Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+            </div>
           </div>
           <div class="auth-field">
             <label for="register-department">Подразделение</label>
@@ -84,7 +113,22 @@
           </div>
           <div class="auth-field">
             <label for="reset-password">Новый пароль</label>
-            <input id="reset-password" type="password" autocomplete="new-password" required />
+            <div class="password-input-wrap">
+              <input id="reset-password" type="password" autocomplete="new-password" required />
+              <button
+                type="button"
+                class="password-toggle-btn"
+                data-password-toggle
+                aria-controls="reset-password"
+                aria-label="Показать пароль"
+                aria-pressed="false"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <path d="M2.75 12C4.65 7.85 7.82 5.75 12 5.75S19.35 7.85 21.25 12C19.35 16.15 16.18 18.25 12 18.25S4.65 16.15 2.75 12Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M12 15.25A3.25 3.25 0 1 0 12 8.75A3.25 3.25 0 0 0 12 15.25Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+              </button>
+            </div>
           </div>
           <button type="submit" class="btn btn-primary">Отправить заявку</button>
           <button type="button" class="btn btn-ghost" data-close-panel>Вернуться ко входу</button>

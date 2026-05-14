@@ -33,7 +33,7 @@
   var suppressSearchInput = false;
 
   var PLACEHOLDER_LOADING = "Загрузка списка…";
-  var PLACEHOLDER_READY = "Найти по имени или отделу…";
+  var PLACEHOLDER_READY = "Введите логин или найдите по имени/отделу…";
 
   function showError(msg) {
     errorEl.textContent = msg;
@@ -51,6 +51,21 @@
     errorEl.textContent = "";
     errorEl.classList.remove("visible");
     errorEl.classList.remove("success");
+  }
+
+  function setupPasswordToggles() {
+    var buttons = document.querySelectorAll("[data-password-toggle]");
+    for (var i = 0; i < buttons.length; i++) {
+      buttons[i].addEventListener("click", function () {
+        var inputId = this.getAttribute("aria-controls");
+        var input = inputId ? document.getElementById(inputId) : null;
+        if (!input) return;
+        var shouldShow = input.type === "password";
+        input.type = shouldShow ? "text" : "password";
+        this.setAttribute("aria-pressed", shouldShow ? "true" : "false");
+        this.setAttribute("aria-label", shouldShow ? "Скрыть пароль" : "Показать пароль");
+      });
+    }
   }
 
   function setMode(mode) {
@@ -123,6 +138,12 @@
   function getFilterQuery() {
     if (!nickSearch) return "";
     return String(nickSearch.value).trim().toLowerCase();
+  }
+
+  function getLoginNickname() {
+    var selected = nickHidden ? String(nickHidden.value).trim() : "";
+    if (selected) return selected;
+    return nickSearch ? String(nickSearch.value || "").trim() : "";
   }
 
   function userMatchesQuery(u, q) {
@@ -337,6 +358,8 @@
     }
   }
 
+  setupPasswordToggles();
+
   if (typeof Api !== "undefined" && typeof Api.fetchKpiUsers === "function") {
     Api.fetchKpiUsers().then(function (res) {
       if (!nickHidden || !nickSearch) return;
@@ -461,10 +484,10 @@
   form.addEventListener("submit", function (e) {
     e.preventDefault();
     clearError();
-    var nickname = nickHidden ? String(nickHidden.value).trim() : "";
+    var nickname = getLoginNickname();
     var password = document.getElementById("password").value;
     if (!nickname) {
-      showError("Выберите пользователя из списка или уточните поиск и выберите строку");
+      showError("Введите логин или выберите пользователя из списка");
       return;
     }
     var remember = document.getElementById("remember-me");

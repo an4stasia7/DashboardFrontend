@@ -59,13 +59,6 @@
   margin-bottom: 4px;
 }
 
-.login-continue-hint {
-  margin: 8px 0 0;
-  font-size: 0.78rem;
-  color: var(--muted);
-  line-height: 1.35;
-}
-
 .login-continue-wrap[hidden] {
   display: none !important;
 }
@@ -121,6 +114,53 @@
   cursor: not-allowed;
   opacity: 0.85;
   background-color: #f8fafc;
+}
+
+.password-input-wrap {
+  position: relative;
+}
+
+.password-input-wrap input {
+  padding-right: 44px;
+}
+
+.password-toggle-btn {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transform: translateY(-50%);
+}
+
+.password-toggle-btn:hover,
+.password-toggle-btn:focus {
+  color: var(--accent-blue);
+  background: #eff6ff;
+}
+
+.password-toggle-btn:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+
+.password-toggle-btn[aria-pressed="true"]::after {
+  content: "";
+  position: absolute;
+  width: 20px;
+  height: 2px;
+  border-radius: 999px;
+  background: currentColor;
+  transform: rotate(-35deg);
 }
 
 .auth-field input:focus,
