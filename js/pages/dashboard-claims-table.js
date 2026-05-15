@@ -201,16 +201,20 @@
   var OPDIR_PROJECT_TABLE_HEADERS = ["№ 1С", "Название", "РП", "Сроки", "Отклонение", "Статус", "Прогресс"];
   var CONSTRUCTOR_PROJECT_TABLE_HEADERS = ["№ 1С", "Название", "РП", "Сроки", "Отклонение", "Статус", "Прогресс"];
   var PRODUCTION_IMPROVEMENT_TABLE_HEADERS = ["№ 1С", "Название", "РП", "Куратор", "Сроки", "Статус", "Прогресс"];
+  var PRODUCTION_CLAIMS_HEADERS = ["Номер", "Дата", "Подразделение-виновник", "Статус", "Номенклатура", "Описание", "Расчетное кол-во брака"];
   var TECHNICAL_EXTERNAL_TABLE_KEY = "TD-T-M1-DEVIATIONS";
   var TECHNICAL_DEVELOPMENT_TABLE_KEY = "TD-T-Q1-DEVIATIONS";
   var OPDIR_PROJECT_TABLE_KEY = "OD-T-Q1-DEVIATIONS";
   var PRODUCTION_DEPUTY_PROJECT_TABLE_KEY = "PD-T-Q1-DEVIATIONS";
   var PRODUCTION_DEPUTY_IMPROVEMENT_TABLE_KEY = "PD-T-Q3-IMPROVEMENTS";
+  var PRODUCTION_CLAIMS_TABLE_KEY = "PD-T-PROD-CLAIMS";
   var CONSTRUCTOR_PROJECT_TABLE_KEY = "GK-T-M1-DEVIATIONS";
   var METROLOG_PROJECT_TABLE_KEY = "METD-T-Q1-DEVIATIONS";
   var LOGISTICS_CLAIMS_TABLE_KEY = "LOG-T-CLAIMS";
   var technicalTablesMode = false;
   var opdirProjectTableMode = false;
+  var productionClaimsTableMode = false;
+  var productionClaimsShop = "pc1";
   var constructorProjectTableMode = false;
 
   function setTableHeaders(tableId, headers) {
@@ -343,6 +347,25 @@
   function isProductionImprovementProjectRow(item) {
     var key = item && String(item.tableKey || "").trim();
     return key === PRODUCTION_DEPUTY_IMPROVEMENT_TABLE_KEY;
+  }
+
+  function normalizeProductionClaimsShop(value) {
+    return value === "pc2" ? "pc2" : "pc1";
+  }
+
+  function productionClaimsCulpritLabel(shop) {
+    return normalizeProductionClaimsShop(shop) === "pc2" ? "Алмаз" : "ТурбулентностьДОНПроизводство1";
+  }
+
+  function productionClaimsRowMatchesShop(raw, shop) {
+    if (!raw || typeof raw !== "object") return false;
+    var selected = normalizeProductionClaimsShop(shop);
+    var key = String(raw.culprit_dept_key || "").trim().toLowerCase();
+    var text = String(raw.order_dept || "").trim().toLocaleLowerCase("ru-RU");
+    if (selected === "pc2") {
+      return key === "3a9ac2f2-214f-11e0-b91c-00248c26ee57" || text.indexOf("алмаз") !== -1 || text === "пц2";
+    }
+    return key === "f12f2fca-d5d2-11e7-8267-ac1f6b05524d" || text.indexOf("турбулентность") !== -1 || text === "пц1";
   }
 
   function appendTechnicalTableRow(tbody, raw) {
@@ -665,7 +688,10 @@
     if (topTable) {
       topTable.classList.remove("dashboard-table--logistics-claims");
     }
-    if (opdirProjectTableMode) {
+    if (productionClaimsTableMode) {
+      setTableHeaders("table-top-deviations", PRODUCTION_CLAIMS_HEADERS);
+      setTableHeaders("table-lawsuits", OPDIR_PROJECT_TABLE_HEADERS);
+    } else if (opdirProjectTableMode) {
       setTableHeaders("table-top-deviations", OPDIR_PROJECT_TABLE_HEADERS);
       setTableHeaders("table-lawsuits", OPDIR_PROJECT_TABLE_HEADERS);
     } else if (technicalTablesMode) {
@@ -687,6 +713,25 @@
     tbody.innerHTML = "";
 
     if (!Array.isArray(rows) || !rows.length) return;
+
+    if (productionClaimsTableMode) {
+      setTableHeaders("table-top-deviations", PRODUCTION_CLAIMS_HEADERS);
+      rows.filter(isProductionClaimsRow).forEach(function (item) {
+        var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
+        if (!raw) return;
+        if (!productionClaimsRowMatchesShop(raw, productionClaimsShop)) return;
+        var tr = document.createElement("tr");
+        appendClampedCell(tr, raw.code, "dashboard-table-cell--compact");
+        appendClampedCell(tr, raw.date_reg, "dashboard-table-cell--date");
+        appendClampedCell(tr, productionClaimsCulpritLabel(productionClaimsShop), "dashboard-table-cell--medium-text");
+        appendClampedCell(tr, raw.status, "dashboard-table-cell--status");
+        appendClampedCell(tr, raw.nomenclature, "dashboard-table-cell--wide-text");
+        appendClampedCell(tr, raw.description, "dashboard-table-cell--wide-text");
+        appendClampedCell(tr, formatLogisticsClaimNumber(raw.calculated_defect_qty), "dashboard-table-cell--number");
+        tbody.appendChild(tr);
+      });
+      return;
+    }
 
     if (opdirProjectTableMode) {
       setTableHeaders("table-top-deviations", OPDIR_PROJECT_TABLE_HEADERS);
@@ -796,6 +841,11 @@
   function isLogisticsClaimsRow(item) {
     var key = item && item.tableKey != null ? String(item.tableKey).trim().toLocaleUpperCase("ru-RU") : "";
     return key === LOGISTICS_CLAIMS_TABLE_KEY;
+  }
+
+  function isProductionClaimsRow(item) {
+    var key = item && item.tableKey != null ? String(item.tableKey).trim().toLocaleUpperCase("ru-RU") : "";
+    return key === PRODUCTION_CLAIMS_TABLE_KEY;
   }
 
   function isOverdueDebtRow(item) {
@@ -1478,6 +1528,29 @@
     });
   }
 
+  function initProductionClaimsDataTable() {
+    return initInteractiveDashboardTable({
+      tableSelector: "#table-top-deviations",
+      wrapperSelector: ".dashboard-table-wrap--claims",
+      advancedSearchKey: "production-claims-table-advanced",
+      columnConfigs: [
+        { index: 0, label: "Номер", type: "filter", searchType: "text" },
+        { index: 1, label: "Дата", type: "filter", searchType: "date" },
+        { index: 2, label: "Подразделение-виновник", type: "filter", searchType: "text" },
+        { index: 3, label: "Статус", type: "filter", searchType: "text" },
+        { index: 4, label: "Номенклатура", type: "filter", searchType: "text" },
+        { index: 5, label: "Описание", type: "filter", searchType: "text" },
+        { index: 6, label: "Расчетное кол-во брака", type: "sort", searchType: "number" },
+      ],
+      initialOrder: [[1, "desc"], [0, "desc"]],
+      columnDefs: [
+        { targets: [0, 1, 3, 6], className: "dt-center" },
+        { targets: [2, 4, 5], className: "dt-left" },
+        { targets: [6], orderable: true },
+      ],
+    });
+  }
+
   function initLawsuitsDataTable() {
     return initInteractiveDashboardTable({
       tableSelector: "#table-lawsuits",
@@ -1669,6 +1742,8 @@
     var enableLawsuitsTable = !!options.enableLawsuitsTable;
     technicalTablesMode = !!options.technicalTablesMode;
     opdirProjectTableMode = !!options.opdirProjectTableMode;
+    productionClaimsTableMode = !!options.productionClaimsTableMode;
+    productionClaimsShop = normalizeProductionClaimsShop(options.productionClaimsShop);
     constructorProjectTableMode = !!options.constructorProjectTableMode;
     destroyClaimsTables();
 
@@ -1687,6 +1762,11 @@
     resetDefaultTables();
     setTechnicalTableMode(technicalTablesMode);
     setOpdirProjectTableMode(opdirProjectTableMode || constructorProjectTableMode);
+    if (productionClaimsTableMode) {
+      renderClaimsTableRows(rows);
+      initProductionClaimsDataTable();
+      return;
+    }
     if (constructorProjectTableMode) {
       renderClaimsTableRows(rows);
       initOpdirProjectDataTable(

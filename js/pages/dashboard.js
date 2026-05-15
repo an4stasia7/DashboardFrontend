@@ -119,9 +119,6 @@
 
   function attachActivePeriodToRequestOptions(opts) {
     var nextOpts = Object.assign({}, opts || {});
-    if (nextOpts.month != null && nextOpts.year != null) {
-      return nextOpts;
-    }
     if (typeof DashboardMonthNav === "undefined" || !DashboardMonthNav || typeof DashboardMonthNav.getPeriodState !== "function") {
       return nextOpts;
     }
@@ -138,6 +135,12 @@
     }
     if (nextOpts.year == null && year != null && !isNaN(year)) {
       nextOpts.year = year;
+    }
+    if (ps && ps.aggregationMode && nextOpts.aggregation_mode == null) {
+      nextOpts.aggregation_mode = String(ps.aggregationMode);
+    }
+    if (ps && Array.isArray(ps.selectedQuarters) && nextOpts.selected_quarters == null) {
+      nextOpts.selected_quarters = ps.selectedQuarters.join(",");
     }
     return nextOpts;
   }
@@ -1686,6 +1689,7 @@
     if (typeof initCharts === "function") {
       initCharts();
     }
+    initTables();
   }
 
   /**
@@ -2626,7 +2630,9 @@
 
     if (claimsTableTitleTextEl) {
       claimsTableTitleTextEl.textContent = useOpdirProjectTables
-        ? useProductionDirectorProjectTables
+        ? useProductionDeputyProjectTables
+          ? "Претензии на стороне производства"
+          : useProductionDirectorProjectTables
           ? "Проекты с отклонениями по вехам"
           : "Проекты с отклонениями по вехам"
         : useChiefMetrologTables
@@ -2780,6 +2786,8 @@
         filterRowsMinAmountRub: psdTableMinRub,
         technicalTablesMode: shouldUseTechnicalTables(),
         opdirProjectTableMode: shouldUseOpdirProjectTables(),
+        productionClaimsTableMode: isProductionDeputyDashboardContext(),
+        productionClaimsShop: normalizeProductionShopKey(productionDeputySelectedShop),
         constructorProjectTableMode: isChiefConstructorDashboardContext() || isChiefMetrologDashboardContext(),
       });
     }
