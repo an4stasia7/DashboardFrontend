@@ -1381,6 +1381,8 @@
       return tiles;
     }
     var periodState = DashboardMonthNav.getPeriodState();
+    var aggregationMode = periodState && periodState.aggregationMode != null ? String(periodState.aggregationMode).trim() : "current";
+    if (aggregationMode === "quarter" || aggregationMode === "ytd") return tiles;
     var selY = periodState.currentPeriodYear;
     var selM = periodState.currentPeriodMonth;
     if (selY == null || selM == null) return tiles;
@@ -1788,6 +1790,16 @@
     return normalized === "коммерческий директор" || normalized === "коммерция";
   }
 
+  function isCommercialDirectorDashboardContext() {
+    var currentDepartment = getDepartmentForCurrentKpiContext();
+    return (
+      isCommercialDirectorUser(viewContextUser) ||
+      isCommercialDepartmentContext(currentDepartment) ||
+      isCommercialDepartmentContext(lastKpiResponseDepartment) ||
+      isCommercialHierarchyRootForPriorMonthRule()
+    );
+  }
+
   function chairmanAggregationModeLabel(mode) {
     if (mode === "quarter") return "За квартал";
     if (mode === "ytd") return "С начала года";
@@ -1886,6 +1898,11 @@
       return;
     }
     var ps = DashboardMonthNav.getPeriodState();
+    var aggregationMode = ps && ps.aggregationMode != null ? String(ps.aggregationMode).trim() : "current";
+    if (aggregationMode === "quarter" || aggregationMode === "ytd") {
+      done(tilesToRender);
+      return;
+    }
     var selY = ps.currentPeriodYear;
     var selM = ps.currentPeriodMonth;
     if (selY == null || selM == null || !isSelectedPeriodCurrentCalendarMonth(selY, selM)) {
@@ -2521,7 +2538,7 @@
 
   function getCommercialFotTurnoverAggregatedTilesFromRaw(rawBody, baseTiles) {
     if (!rawBody || typeof rawBody !== "object" || !Array.isArray(baseTiles) || !baseTiles.length) return null;
-    if (!isCommercialDirectorUser(viewContextUser) && !isCommercialHierarchyRootForPriorMonthRule()) return null;
+    if (!isCommercialDirectorDashboardContext()) return null;
 
     var periodState =
       typeof DashboardMonthNav !== "undefined" && DashboardMonthNav && typeof DashboardMonthNav.getPeriodState === "function"
