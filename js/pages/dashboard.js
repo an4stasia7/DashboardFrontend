@@ -594,6 +594,7 @@
             isDevserviceUser(viewContextUser) ||
             isOperationalDirectorUser(viewContextUser) ||
             isProductionDeputyUser(viewContextUser) ||
+            isLogisticsDashboardContext() ||
             isChiefConstructorDashboardContext() ||
             isChiefMetrologDashboardContext()
           ) {
@@ -607,7 +608,9 @@
         },
         onAggregationModeChange: function (mode) {
           chairmanAggregationMode = mode || "current";
-          rerenderChairmanTilesFromRaw();
+          if (rerenderChairmanTilesFromRaw()) return;
+          if (applyCurrentPeriodFromLastRawResponse()) return;
+          loadKpiTilesAndChartsForView();
         },
       });
     }
@@ -1404,6 +1407,24 @@
         next.kpi_pst = prevPoint.kpi_pct;
         next.percent = prevPoint.kpi_pct;
       }
+      if (isTurnoverKpiItem(next)) {
+        var turnoverPct = parseNumberLoose(prevPoint.kpi_pct);
+        if (turnoverPct == null) {
+          var prevPlan = parseNumberLoose(prevPoint.plan);
+          var prevFact = parseNumberLoose(prevPoint.fact);
+          if (prevPlan != null && Math.abs(prevPlan) > 0.000001 && prevFact != null) {
+            turnoverPct = (prevFact / prevPlan) * 100;
+            next.kpi_pct = turnoverPct;
+            next.kpi_pst = turnoverPct;
+            next.percent = turnoverPct;
+          }
+        }
+        var turnoverRag = turnoverLimitRagFromPct(turnoverPct);
+        if (turnoverRag) {
+          next.rag = turnoverRag;
+          next.color = turnoverRag;
+        }
+      }
       var pl = planFactPeriodLabelFromMonthlyPoint(prevPoint, prevYm.year);
       if (pl) next.plan_fact_period_label = pl;
       return next;
@@ -1479,6 +1500,19 @@
       currentDepartment === "главный метролог" ||
       responseDepartment === "главный метролог" ||
       (selectedViewId === "self" && (role === "главный метролог" || department === "главный метролог"))
+    );
+  }
+
+  function isLogisticsDashboardContext() {
+    var currentDepartment = normalizeDashboardRole(getDepartmentForCurrentKpiContext());
+    var responseDepartment = normalizeDashboardRole(lastKpiResponseDepartment);
+    var role = normalizeDashboardRole(viewContextUser && viewContextUser.role);
+    var department = normalizeDashboardRole(viewContextUser && viewContextUser.department);
+    return (
+      currentDepartment === "начальник службы логистики" ||
+      responseDepartment === "начальник службы логистики" ||
+      (selectedViewId === "self" &&
+        (role === "начальник службы логистики" || department === "начальник службы логистики"))
     );
   }
 
@@ -1895,6 +1929,24 @@
         next.kpi_pst = src.kpi_pct;
         next.percent = src.kpi_pct;
       }
+      if (isTurnoverKpiItem(next)) {
+        var turnoverPct = parseNumberLoose(src.kpi_pct);
+        if (turnoverPct == null) {
+          var srcPlan = parseNumberLoose(src.plan);
+          var srcFact = parseNumberLoose(src.fact);
+          if (srcPlan != null && Math.abs(srcPlan) > 0.000001 && srcFact != null) {
+            turnoverPct = (srcFact / srcPlan) * 100;
+            next.kpi_pct = turnoverPct;
+            next.kpi_pst = turnoverPct;
+            next.percent = turnoverPct;
+          }
+        }
+        var turnoverRag = turnoverLimitRagFromPct(turnoverPct);
+        if (turnoverRag) {
+          next.rag = turnoverRag;
+          next.color = turnoverRag;
+        }
+      }
       var pl =
         src.plan_fact_period_label != null && String(src.plan_fact_period_label).trim()
           ? String(src.plan_fact_period_label).trim()
@@ -2070,6 +2122,69 @@
     return point;
   }
 
+  function isBudgetFotLimitKpiItem(item) {
+    if (!item || typeof item !== "object") return false;
+    var id = item.kpi_id != null ? String(item.kpi_id).trim().toUpperCase() : "";
+    if (id === "KD-M8") return true;
+    if (
+      id === "LOG-M3.B" ||
+      id === "LOG-M3.F" ||
+      id === "OD-M3.1" ||
+      id === "OD-M3.2" ||
+      id === "METD-M3.B" ||
+      id === "METD-M3.F"
+    ) {
+      return true;
+    }
+    if (id.indexOf("PD-M3.B") === 0 || id.indexOf("PD-M3.F") === 0) return true;
+    if (/-M3-[12]$/.test(id) || /M3\.[12]$/.test(id)) {
+      var title = normalizeKpiTitleForMatch(item.name || item.title || "");
+      return title.indexOf("фот") !== -1 || title.indexOf("бюджет") !== -1;
+    }
+    return false;
+  }
+
+  function planFactLimitRag(plan, fact) {
+    var planValue = parseNumberLoose(plan);
+    var factValue = parseNumberLoose(fact);
+    if (planValue == null || factValue == null) return null;
+    if (factValue < planValue) return "green";
+    if (Math.abs(factValue - planValue) < 0.000001) return "yellow";
+    return "red";
+  }
+
+  function isTurnoverKpiItem(item) {
+    if (!item || typeof item !== "object") return false;
+    var id = item.kpi_id != null ? String(item.kpi_id).trim().toUpperCase() : "";
+    var title = normalizeKpiTitleForMatch(item.name || item.title || "");
+    if (title.indexOf("текучесть") !== -1) return true;
+    if (id === "LOG-Q2" || id === "OD-Q2" || id === "QD-Q2" || id === "RD-Q2" || id === "TD-Q2" || id === "ZKD-Q2") return true;
+    if (id.indexOf("PD-Q2.") === 0) return true;
+    return id.slice(-3) === "-Q5";
+  }
+
+  function turnoverLimitRagFromPct(pct) {
+    var value = parseNumberLoose(pct);
+    if (value == null) return null;
+    if (value < 90) return "green";
+    if (value <= 100) return "yellow";
+    return "red";
+  }
+
+  function isPointInTimeDebtKpiItem(item) {
+    if (!item || typeof item !== "object") return false;
+    var id = item.kpi_id != null ? String(item.kpi_id).trim().toUpperCase() : "";
+    return id === "KD-M4" || id === "KD-M5" || id === "FND-T7";
+  }
+
+  function lowerIsBetterRagFromPct(pct) {
+    var value = parseNumberLoose(pct);
+    if (value == null) return null;
+    if (value < 100) return "green";
+    if (value <= 110) return "yellow";
+    return "red";
+  }
+
   function computeChairmanAggregatedPoint(item, year, month, mode, selectedQuarters) {
     if (!item || typeof item !== "object") return null;
     var points = Array.isArray(item.monthly_data) ? item.monthly_data.slice() : [];
@@ -2135,6 +2250,22 @@
     }
     if (!bucket.length) return null;
 
+    if (isPointInTimeDebtKpiItem(item)) {
+      var latestPoint = bucket
+        .slice()
+        .sort(function (a, b) { return Number(a.month) - Number(b.month); })
+        .filter(function (point) {
+          return point && point.has_data !== false && Number(point.month) <= m;
+        })
+        .pop();
+      if (!latestPoint) return null;
+      var snapshotPoint = Object.assign({}, latestPoint);
+      var snapshotPct = parseNumberLoose(snapshotPoint.kpi_pct);
+      snapshotPoint.color = lowerIsBetterRagFromPct(snapshotPct);
+      snapshotPoint.snapshot_aggregation = true;
+      return snapshotPoint;
+    }
+
     var plan = 0;
     var fact = 0;
     var kpiPct = null;
@@ -2162,6 +2293,9 @@
     var planByDept = {};
     var factByDept = {};
     var articlesFromBucket = null;
+    var weightedDisplay = false;
+    var displayPlan = null;
+    var displayUnit = null;
 
     bucket.forEach(function (point) {
       var planValue = parseNumberLoose(point.period_plan);
@@ -2178,6 +2312,11 @@
         hasFact = true;
       }
       if (pctValue != null) lastPct = pctValue;
+      if (point.aggregation === "weighted_delta_amount_div_project_amount") {
+        weightedDisplay = true;
+        if (displayPlan == null) displayPlan = parseNumberLoose(point.display_plan);
+        if (displayUnit == null && point.display_unit != null) displayUnit = String(point.display_unit);
+      }
       if (typeof point.has_data === "boolean") {
         hasExplicitHasDataFlag = true;
         if (point.has_data === true) hasData = true;
@@ -2228,6 +2367,8 @@
     if (pctTotal != null) {
       kpiPct = pctTotal;
     }
+    var limitRag = isBudgetFotLimitKpiItem(item) ? planFactLimitRag(plan, fact) : null;
+    var turnoverRag = isTurnoverKpiItem(item) ? turnoverLimitRagFromPct(kpiPct) : null;
 
     return {
       year: y,
@@ -2235,6 +2376,14 @@
       month_name: null,
       plan: hasPlan ? plan : null,
       fact: hasFact ? fact : null,
+      display_plan: weightedDisplay ? displayPlan : null,
+      display_fact: weightedDisplay ? kpiPct : null,
+      display_unit: weightedDisplay ? (displayUnit || "%") : null,
+      aggregation: weightedDisplay ? "weighted_delta_amount_div_project_amount" : null,
+      color:
+        weightedDisplay && kpiPct != null && displayPlan != null
+          ? (kpiPct < displayPlan ? "green" : (Math.abs(kpiPct - displayPlan) < 0.000001 ? "yellow" : "red"))
+          : (turnoverRag || limitRag),
       expected_plan: extraHas.expected_plan ? extraSums.expected_plan : null,
       found: extraHas.found ? extraSums.found : null,
       won: extraHas.won ? extraSums.won : null,
@@ -2316,6 +2465,23 @@
     var preserveBackendRag =
       mode !== "quarter" && mode !== "ytd";
 
+    var outPlan =
+      point && point.display_plan != null
+        ? point.display_plan
+        : point
+          ? point.plan
+          : rawItem.plan;
+    var outFact =
+      point && point.display_fact != null
+        ? point.display_fact
+        : point
+          ? point.fact
+          : rawItem.fact;
+    var outUnit =
+      point && point.display_unit != null
+        ? point.display_unit
+        : firstStringValue(["units", "unit", "uom", "measure_unit", "measurement_unit"]);
+
     return {
       kpi_id: rawItem.kpi_id != null ? String(rawItem.kpi_id) : "",
       title: title,
@@ -2326,7 +2492,7 @@
           : chairmanAggregationModeLabel(mode),
       units: normalizeUnits(
         rawItem.kpi_id,
-        firstStringValue(["units", "unit", "uom", "measure_unit", "measurement_unit"])
+        outUnit
       ),
       frequency: firstStringValue(["frequency", "periodicity", "update_frequency", "frequency_label"]),
       cache_updated_at: firstStringValue(["cache_updated_at"]),
@@ -2335,8 +2501,8 @@
       percent: pointPct != null ? pointPct : itemPct,
       kpi_pst: typeof rawItem.kpi_pst === "number" && !isNaN(rawItem.kpi_pst) ? rawItem.kpi_pst : null,
       kpi_pct: pointPct != null ? pointPct : itemPct,
-      plan: point ? point.plan : rawItem.plan,
-      fact: point ? point.fact : rawItem.fact,
+      plan: outPlan,
+      fact: outFact,
       expected_plan:
         point && point.expected_plan != null
           ? point.expected_plan
@@ -2453,9 +2619,11 @@
             : rawItem.comment != null
               ? String(rawItem.comment)
               : "",
-      rag: preserveBackendRag && rawItem.color != null
-        ? String(rawItem.color).toLowerCase().trim()
-        : null,
+      rag: point && point.color != null
+        ? String(point.color).toLowerCase().trim()
+        : preserveBackendRag && rawItem.color != null
+          ? String(rawItem.color).toLowerCase().trim()
+          : null,
       green_threshold: thStr(thresholds, "green", "green_threshold"),
       yellow_threshold: thStr(thresholds, "yellow", "yellow_threshold"),
       red_threshold: thStr(thresholds, "red", "red_threshold"),
@@ -2480,6 +2648,12 @@
           ? point.articles.slice()
           : Array.isArray(rawItem.articles)
             ? rawItem.articles.slice()
+            : [],
+      tender_departments:
+        point && Array.isArray(point.tender_departments)
+          ? point.tender_departments
+          : Array.isArray(rawItem.tender_departments)
+            ? rawItem.tender_departments
             : [],
     };
   }
@@ -2506,6 +2680,48 @@
         return normalizeKpiTileFromRawItem(item, point, mode);
       })
       .filter(Boolean);
+  }
+
+  function getCommercialFotTurnoverAggregatedTilesFromRaw(rawBody, baseTiles) {
+    if (!rawBody || typeof rawBody !== "object" || !Array.isArray(baseTiles) || !baseTiles.length) return null;
+    if (!isCommercialDirectorUser(viewContextUser) && !isCommercialHierarchyRootForPriorMonthRule()) return null;
+
+    var periodState =
+      typeof DashboardMonthNav !== "undefined" && DashboardMonthNav && typeof DashboardMonthNav.getPeriodState === "function"
+        ? DashboardMonthNav.getPeriodState()
+        : null;
+    var mode = periodState && periodState.aggregationMode != null ? String(periodState.aggregationMode).trim() : "current";
+    if (mode !== "quarter" && mode !== "ytd") return null;
+
+    var year = periodState && periodState.currentPeriodYear != null ? Number(periodState.currentPeriodYear) : null;
+    var month = periodState && periodState.currentPeriodMonth != null ? Number(periodState.currentPeriodMonth) : null;
+    var selectedQuarters = periodState && Array.isArray(periodState.selectedQuarters) ? periodState.selectedQuarters : [];
+    if (year == null || month == null || isNaN(year) || isNaN(month)) return null;
+
+    var itemsBlock = rawBody["Плитки"];
+    var rawItems = itemsBlock && Array.isArray(itemsBlock.items) ? itemsBlock.items : [];
+    if (!rawItems.length) return null;
+
+    var byId = {};
+    rawItems.forEach(function (item) {
+      if (item && item.kpi_id != null) byId[String(item.kpi_id).trim()] = item;
+    });
+
+    var touched = false;
+    var nextTiles = baseTiles.map(function (tile) {
+      var id = tile && tile.kpi_id != null ? String(tile.kpi_id).trim() : "";
+      if (id !== "KD-M8" && id !== "KD-M11") return tile;
+      var rawItem = byId[id];
+      if (!rawItem) return tile;
+      var point = computeChairmanAggregatedPoint(rawItem, year, month, mode, selectedQuarters);
+      if (!point) return tile;
+      var aggregated = normalizeKpiTileFromRawItem(rawItem, point, mode);
+      if (!aggregated) return tile;
+      touched = true;
+      return aggregated;
+    });
+
+    return touched ? nextTiles : null;
   }
 
   function rerenderChairmanTilesFromRaw() {
@@ -2946,6 +3162,13 @@
 
     var result = Api.processKpiResponseBodyAtPeriod(lastRawKpiResponse, year, month);
     if (!result || !Array.isArray(result.tiles)) return false;
+    var aggregatedCommercial = getCommercialFotTurnoverAggregatedTilesFromRaw(
+      result.unwrappedData || lastRawKpiResponse,
+      result.tiles
+    );
+    if (aggregatedCommercial && aggregatedCommercial.length) {
+      result.tiles = aggregatedCommercial;
+    }
     result.ok = true;
     result.data = result.unwrappedData || lastRawKpiResponse;
     result.raw = lastRawKpiResponse;

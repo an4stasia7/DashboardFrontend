@@ -17,6 +17,7 @@
     },
     "OD-M3.2": {
       allowPartialPlanFact: true,
+      lowerIsBetterLimit: true,
     },
     "TD-M3": {
       allowPartialPlanFact: true,
@@ -36,6 +37,9 @@
       showEmptyPlanFact: true,
       zeroEmptyPlanFact: true,
       zeroGeneratedPlanFact: true,
+    },
+    "LOG-M2": {
+      hidePlanDelta: true,
     },
     "KD-M4": {
       factOnly: true,
@@ -103,6 +107,7 @@
     },
     "MRK-09": {
       tenderStatusOverview: true,
+      tenderDepartmentsBreakdown: true,
       hideHelp: true,
       hideKpiPercent: true,
     },

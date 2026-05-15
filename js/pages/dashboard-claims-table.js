@@ -15,6 +15,28 @@
     });
   }
 
+  function formatLogisticsClaimNumber(v, fractionDigits) {
+    if (v == null || v === "") return "—";
+    var n = Number(v);
+    if (isNaN(n)) return tableTextOrDash(v);
+    return n.toLocaleString("ru-RU", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: fractionDigits == null ? 3 : fractionDigits,
+    });
+  }
+
+  function appendClampedCell(row, value, className) {
+    var td = document.createElement("td");
+    if (className) td.className = className;
+    var text = tableTextOrDash(value);
+    var span = document.createElement("span");
+    span.className = "dashboard-table-cell-text";
+    span.textContent = text;
+    td.title = text;
+    td.appendChild(span);
+    row.appendChild(td);
+  }
+
   function getClaimsOrderSumSortValue(v) {
     if (v == null || v === "") return "";
     var n = Number(v);
@@ -144,6 +166,18 @@
     "Статус",
     "Сумма документа заказа, руб.",
   ];
+  var LOGISTICS_CLAIMS_HEADERS = [
+    "Номер",
+    "Дата",
+    "Поставщик",
+    "Номер заказа поставщика",
+    "Статус",
+    "Состояние проведения",
+    "Номенклатура",
+    "Категория по причине",
+    "Возможность устранения",
+    "Расчетное кол-во брака",
+  ];
   var DEFAULT_OVERDUE_DEBT_HEADERS = [
     "№ Заказа клиента",
     "Контрагент",
@@ -177,6 +211,7 @@
   var PRODUCTION_DEPUTY_IMPROVEMENT_TABLE_KEY = "PD-T-Q3-IMPROVEMENTS";
   var CONSTRUCTOR_PROJECT_TABLE_KEY = "GK-T-M1-DEVIATIONS";
   var METROLOG_PROJECT_TABLE_KEY = "METD-T-Q1-DEVIATIONS";
+  var LOGISTICS_CLAIMS_TABLE_KEY = "LOG-T-CLAIMS";
   var technicalTablesMode = false;
   var opdirProjectTableMode = false;
   var opdirProjectSecondTableDisabled = false;
@@ -970,6 +1005,10 @@
   }
 
   function resetDefaultTables(rows) {
+    var topTable = document.getElementById("table-top-deviations");
+    if (topTable) {
+      topTable.classList.remove("dashboard-table--logistics-claims");
+    }
     if (opdirProjectTableMode) {
       setTableHeaders("table-top-deviations", OPDIR_PROJECT_TABLE_HEADERS);
       setTableHeaders("table-lawsuits", OPDIR_PROJECT_TABLE_HEADERS);
@@ -1024,6 +1063,34 @@
       return;
     }
 
+    var logisticsRows = rows.filter(isLogisticsClaimsRow);
+    if (logisticsRows.length) {
+      setTableHeaders("table-top-deviations", LOGISTICS_CLAIMS_HEADERS);
+      table.classList.add("dashboard-table--logistics-claims");
+      if (table.tFoot) {
+        table.tFoot.hidden = true;
+        table.tFoot.innerHTML =
+          '<tr><th colspan="9">Итого</th><th id="claims-table-total-sum">—</th></tr>';
+      }
+      logisticsRows.forEach(function (item) {
+        var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
+        if (!raw) return;
+        var tr = document.createElement("tr");
+        appendClampedCell(tr, raw.code, "dashboard-table-cell--compact");
+        appendClampedCell(tr, raw.date_reg, "dashboard-table-cell--date");
+        appendClampedCell(tr, raw.supplier, "dashboard-table-cell--wide-text");
+        appendClampedCell(tr, raw.supplier_order_number || raw.order_num, "dashboard-table-cell--compact");
+        appendClampedCell(tr, raw.status, "dashboard-table-cell--status");
+        appendClampedCell(tr, raw.posted === true ? "Проведен" : "Не проведен", "dashboard-table-cell--status");
+        appendClampedCell(tr, raw.nomenclature, "dashboard-table-cell--wide-text");
+        appendClampedCell(tr, raw.reason_category, "dashboard-table-cell--medium-text");
+        appendClampedCell(tr, raw.resolution, "dashboard-table-cell--medium-text");
+        appendClampedCell(tr, formatLogisticsClaimNumber(raw.calculated_defect_qty), "dashboard-table-cell--number");
+        tbody.appendChild(tr);
+      });
+      return;
+    }
+
     rows.filter(isClaimsTableRow).forEach(function (item) {
       var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
       if (!raw) return;
@@ -1068,6 +1135,11 @@
       raw.status != null ||
       raw.order_sum != null
     );
+  }
+
+  function isLogisticsClaimsRow(item) {
+    var key = item && item.tableKey != null ? String(item.tableKey).trim().toLocaleUpperCase("ru-RU") : "";
+    return key === LOGISTICS_CLAIMS_TABLE_KEY;
   }
 
   function isOverdueDebtRow(item) {
@@ -1692,6 +1764,32 @@
   }
 
   function initClaimsDataTable() {
+    var topTable = document.getElementById("table-top-deviations");
+    if (topTable && topTable.classList.contains("dashboard-table--logistics-claims")) {
+      return initInteractiveDashboardTable({
+        tableSelector: "#table-top-deviations",
+        wrapperSelector: ".dashboard-table-wrap--claims",
+        advancedSearchKey: "logistics-claims-table-advanced",
+        columnConfigs: [
+          { index: 0, label: "Номер", type: "filter", searchType: "text" },
+          { index: 1, label: "Дата", type: "filter", searchType: "date" },
+          { index: 2, label: "Поставщик", type: "filter", searchType: "text" },
+          { index: 3, label: "Номер заказа поставщика", type: "filter", searchType: "text" },
+          { index: 4, label: "Статус", type: "filter", searchType: "text" },
+          { index: 5, label: "Состояние проведения", type: "filter", searchType: "text" },
+          { index: 6, label: "Номенклатура", type: "filter", searchType: "text" },
+          { index: 7, label: "Категория по причине", type: "filter", searchType: "text" },
+          { index: 8, label: "Возможность устранения", type: "filter", searchType: "text" },
+          { index: 9, label: "Расчетное кол-во брака", type: "sort", searchType: "number" },
+        ],
+        initialOrder: [[1, "desc"], [0, "desc"]],
+        columnDefs: [
+          { targets: [0, 1, 4, 5, 9], className: "dt-center" },
+          { targets: [2, 3, 6, 7, 8], className: "dt-left" },
+          { targets: [9], orderable: true },
+        ],
+      });
+    }
     return initInteractiveDashboardTable({
       tableSelector: "#table-top-deviations",
       wrapperSelector: ".dashboard-table-wrap--claims",

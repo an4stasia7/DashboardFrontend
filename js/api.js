@@ -829,6 +829,7 @@
             item.status_counts && typeof item.status_counts === "object"
               ? item.status_counts
               : null,
+          tender_departments: Array.isArray(item.tender_departments) ? item.tender_departments : [],
           // FND-T3 «Соотношение ДЗ и КЗ» — клиенты/поставщики + общий итог.
           dz_client: item.dz_client != null ? item.dz_client : null,
           kz_client: item.kz_client != null ? item.kz_client : null,
@@ -1332,6 +1333,76 @@
     return out;
   }
 
+  function buildMonthlyDataFromCharts(body) {
+    var out = {};
+    if (!body) return out;
+    var charts = body[KPI_JSON_KEY_CHARTS];
+    if (!charts || typeof charts !== "object") return out;
+    Object.keys(charts).forEach(function (key) {
+      var chart = charts[key];
+      var seriesList = getChartSeriesList(chart);
+      if (!chart || !chart.chart_type || !seriesList.length) return;
+      if (classifyChartType(chart.chart_type) !== "line") return;
+      seriesList.forEach(function (s) {
+        var points = getSeriesPointsList(s);
+        if (!s || s.kpi_id == null || !points.length) return;
+        var kid = String(s.kpi_id);
+        var sortedPoints = points
+          .filter(function (point) { return point && typeof point === "object" && point.month != null; })
+          .sort(function (a, b) { return monthlyPointSortKey(a) - monthlyPointSortKey(b); });
+        var normalized = sortedPoints.map(function (point) {
+            return {
+              month: point.month,
+              month_name: point.month_name,
+              year: point.year,
+              plan: point.plan,
+              fact: point.fact,
+              expected_plan: point.expected_plan,
+              kpi_pct: point.kpi_pct,
+              has_data: hasDataFromPointAndSeries(point, s),
+            };
+          });
+        if (Array.isArray(s.line_series) && s.line_series.length) {
+          var factLine = null;
+          var planLine = null;
+          s.line_series.forEach(function (line) {
+            if (!line || !Array.isArray(line.data)) return;
+            var role = String(line.value_role || line.valueRole || "").toLowerCase();
+            var metric = String(line.metric || "").toLowerCase();
+            var name = String(line.name || "").toLowerCase();
+            if (!factLine && (role === "fact" || metric.indexOf("fact") !== -1 || name.indexOf("факт") !== -1)) factLine = line;
+            if (!planLine && (role === "plan" || metric.indexOf("plan") !== -1 || name.indexOf("план") !== -1)) planLine = line;
+          });
+          if (factLine || planLine) {
+            normalized = sortedPoints.map(function (point, idx) {
+              return {
+                month: point.month,
+                month_name: point.month_name,
+                year: point.year,
+                plan: planLine && planLine.data ? planLine.data[idx] : point.plan,
+                fact: factLine && factLine.data ? factLine.data[idx] : point.fact,
+                expected_plan: point.expected_plan,
+                kpi_pct: point.kpi_pct,
+                has_data: hasDataFromPointAndSeries(point, s),
+              };
+            });
+          }
+        }
+        if (normalized.length && (!out[kid] || normalized.length > out[kid].length)) {
+          out[kid] = normalized;
+        }
+      });
+    });
+    return out;
+  }
+
+  function monthlyDataHasSparkValues(monthly) {
+    if (!Array.isArray(monthly) || !monthly.length) return false;
+    return monthly.some(function (point) {
+      return point && (point.fact != null || point.kpi_pct != null || point.plan != null);
+    });
+  }
+
   /**
    * Обход строк body["Таблицы"]: значение по ключу — { rows: [...] } или сразу массив строк.
    * @param {object|null|undefined} tables
@@ -1402,14 +1473,17 @@
         ? pickMonthlyPointWithAnyPlanFactForYearMonth(tile.monthly_data, filterYear, filterMonth)
         : pickLatestMonthlyPointWithAnyPlanFact(tile.monthly_data);
       if (!point) return;
+      var isWeightedDeviation = point.aggregation === "weighted_delta_amount_div_project_amount";
       out[String(tile.kpi_id)] = {
-        plan: point.plan,
-        fact: point.fact,
+        plan: isWeightedDeviation && point.display_plan !== undefined ? point.display_plan : point.plan,
+        fact: isWeightedDeviation && point.display_fact !== undefined ? point.display_fact : point.fact,
         expected_plan: point.expected_plan,
         kpi_pct: typeof point.kpi_pct === "number" && !isNaN(point.kpi_pct) ? point.kpi_pct : null,
         plan_fact_rows: Array.isArray(point.plan_fact_rows) ? point.plan_fact_rows : [],
         plan_fact_period_label: formatPlanFactPeriodFromMonthlyPoint(point),
         has_data: typeof point.has_data === "boolean" ? point.has_data : undefined,
+        display_unit: isWeightedDeviation && point.display_unit != null ? point.display_unit : undefined,
+        color: isWeightedDeviation && point.color != null ? point.color : undefined,
       };
     });
     return out;
@@ -1431,12 +1505,40 @@
     }
   }
 
-  function logisticsFotLimitRag(pct) {
-    var value = typeof pct === "number" && !isNaN(pct) ? pct : null;
-    if (value == null) return null;
-    if (value > 100) return "red";
-    if (value >= 90) return "yellow";
-    return "green";
+  function planFactLimitRag(plan, fact) {
+    var planValue = Number(plan);
+    var factValue = Number(fact);
+    if (!isFinite(planValue) || isNaN(planValue) || !isFinite(factValue) || isNaN(factValue)) return null;
+    if (factValue < planValue) return "green";
+    if (Math.abs(factValue - planValue) < 0.000001) return "yellow";
+    return "red";
+  }
+
+  function turnoverLimitRagFromPct(pct) {
+    var value = Number(pct);
+    if (!isFinite(value) || isNaN(value)) return null;
+    if (value < 90) return "green";
+    if (value <= 100) return "yellow";
+    return "red";
+  }
+
+  function isTurnoverKpiTile(tile) {
+    if (!tile || typeof tile !== "object") return false;
+    var id = tile.kpi_id != null ? String(tile.kpi_id).trim().toUpperCase() : "";
+    var title = tile.title != null ? String(tile.title).toLocaleLowerCase("ru-RU") : "";
+    if (title.indexOf("текучесть") !== -1) return true;
+    if (id === "LOG-Q2" || id === "OD-Q2" || id === "QD-Q2" || id === "RD-Q2" || id === "TD-Q2" || id === "ZKD-Q2") return true;
+    if (id.indexOf("PD-Q2.") === 0) return true;
+    return id.slice(-3) === "-Q5";
+  }
+
+  function isBudgetFotLimitKpiId(kpiId) {
+    var id = kpiId != null ? String(kpiId).trim().toUpperCase() : "";
+    if (!id) return false;
+    if (id === "LOG-M3.B" || id === "LOG-M3.F" || id === "OD-M3.1" || id === "OD-M3.2") return true;
+    if (id === "METD-M3.B" || id === "METD-M3.F") return true;
+    if (id.indexOf("PD-M3.B") === 0 || id.indexOf("PD-M3.F") === 0) return true;
+    return /-M3-[12]$/.test(id) || /M3\.[12]$/.test(id);
   }
 
   /**
@@ -1459,24 +1561,38 @@
       : "";
     var fromTileMonthly = buildPlanFactLookupFromTileMonthlyData(tiles, filterYear, filterMonth);
     var fromCharts = buildPlanFactFromChartsLastAvailable(body, filterYear, filterMonth);
+    var monthlyFromCharts = buildMonthlyDataFromCharts(body);
     var fromTables = buildPlanFactLookupFromTablesOnly(body, filterYear, filterMonth);
     tiles.forEach(function (tile) {
       var id = tile.kpi_id;
       if (!id) return;
+      if (!monthlyDataHasSparkValues(tile.monthly_data) && Array.isArray(monthlyFromCharts[id])) {
+        tile.monthly_data = monthlyFromCharts[id];
+      }
       var ownMonthly = fromTileMonthly[id];
       var ch = fromCharts[id];
       var tb = fromTables[id];
       if (ownMonthly) {
         tile.plan = ownMonthly.plan;
         tile.fact = ownMonthly.fact;
+        if (ownMonthly.display_unit != null) {
+          tile.units = ownMonthly.display_unit;
+          tile.unit = ownMonthly.display_unit;
+        }
+        if (isBudgetFotLimitKpiId(id)) {
+          var pfRag = planFactLimitRag(ownMonthly.plan, ownMonthly.fact);
+          if (pfRag) tile.rag = pfRag;
+        } else if (ownMonthly.color != null) {
+          tile.rag = String(ownMonthly.color).toLowerCase().trim();
+        }
         if (ownMonthly.expected_plan !== undefined) tile.expected_plan = ownMonthly.expected_plan;
         if (Array.isArray(ownMonthly.plan_fact_rows)) tile.plan_fact_rows = ownMonthly.plan_fact_rows;
         if (ownMonthly.kpi_pct != null) {
           tile.percent = ownMonthly.kpi_pct;
           tile.kpi_pct = ownMonthly.kpi_pct;
-          if (String(id) === "LOG-M3.F") {
-            var fotRag = logisticsFotLimitRag(ownMonthly.kpi_pct);
-            if (fotRag) tile.rag = fotRag;
+          if (isTurnoverKpiTile(tile)) {
+            var turnoverRag = turnoverLimitRagFromPct(ownMonthly.kpi_pct);
+            if (turnoverRag) tile.rag = turnoverRag;
           }
         }
         if (ownMonthly.plan_fact_period_label) tile.plan_fact_period_label = String(ownMonthly.plan_fact_period_label);
