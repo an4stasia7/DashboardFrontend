@@ -119,9 +119,6 @@
 
   function attachActivePeriodToRequestOptions(opts) {
     var nextOpts = Object.assign({}, opts || {});
-    if (nextOpts.month != null && nextOpts.year != null) {
-      return nextOpts;
-    }
     if (typeof DashboardMonthNav === "undefined" || !DashboardMonthNav || typeof DashboardMonthNav.getPeriodState !== "function") {
       return nextOpts;
     }
@@ -138,6 +135,12 @@
     }
     if (nextOpts.year == null && year != null && !isNaN(year)) {
       nextOpts.year = year;
+    }
+    if (ps && ps.aggregationMode && nextOpts.aggregation_mode == null) {
+      nextOpts.aggregation_mode = String(ps.aggregationMode);
+    }
+    if (ps && Array.isArray(ps.selectedQuarters) && nextOpts.selected_quarters == null) {
+      nextOpts.selected_quarters = ps.selectedQuarters.join(",");
     }
     return nextOpts;
   }
@@ -1382,6 +1385,8 @@
       return tiles;
     }
     var periodState = DashboardMonthNav.getPeriodState();
+    var aggregationMode = periodState && periodState.aggregationMode != null ? String(periodState.aggregationMode).trim() : "current";
+    if (aggregationMode === "quarter" || aggregationMode === "ytd") return tiles;
     var selY = periodState.currentPeriodYear;
     var selM = periodState.currentPeriodMonth;
     if (selY == null || selM == null) return tiles;
@@ -1690,6 +1695,7 @@
     if (typeof initCharts === "function") {
       initCharts();
     }
+    initTables();
   }
 
   function getCurrentSelectedQuartersForTiles() {
@@ -1896,6 +1902,16 @@
     return normalized === "коммерческий директор" || normalized === "коммерция";
   }
 
+  function isCommercialDirectorDashboardContext() {
+    var currentDepartment = getDepartmentForCurrentKpiContext();
+    return (
+      isCommercialDirectorUser(viewContextUser) ||
+      isCommercialDepartmentContext(currentDepartment) ||
+      isCommercialDepartmentContext(lastKpiResponseDepartment) ||
+      isCommercialHierarchyRootForPriorMonthRule()
+    );
+  }
+
   function chairmanAggregationModeLabel(mode) {
     if (mode === "quarter") return "За квартал";
     if (mode === "ytd") return "С начала года";
@@ -1995,6 +2011,11 @@
       return;
     }
     var ps = DashboardMonthNav.getPeriodState();
+    var aggregationMode = ps && ps.aggregationMode != null ? String(ps.aggregationMode).trim() : "current";
+    if (aggregationMode === "quarter" || aggregationMode === "ytd") {
+      done(tilesToRender);
+      return;
+    }
     var selY = ps.currentPeriodYear;
     var selM = ps.currentPeriodMonth;
     if (selY == null || selM == null || !isSelectedPeriodCurrentCalendarMonth(selY, selM)) {
@@ -2703,7 +2724,7 @@
 
   function getCommercialFotTurnoverAggregatedTilesFromRaw(rawBody, baseTiles) {
     if (!rawBody || typeof rawBody !== "object" || !Array.isArray(baseTiles) || !baseTiles.length) return null;
-    if (!isCommercialDirectorUser(viewContextUser) && !isCommercialHierarchyRootForPriorMonthRule()) return null;
+    if (!isCommercialDirectorDashboardContext()) return null;
 
     var periodState =
       typeof DashboardMonthNav !== "undefined" && DashboardMonthNav && typeof DashboardMonthNav.getPeriodState === "function"
@@ -2836,7 +2857,9 @@
 
     if (claimsTableTitleTextEl) {
       claimsTableTitleTextEl.textContent = useOpdirProjectTables
-        ? useProductionDirectorProjectTables
+        ? useProductionDeputyProjectTables
+          ? "Претензии на стороне производства"
+          : useProductionDirectorProjectTables
           ? "Проекты с отклонениями по вехам"
           : "Проекты с отклонениями по вехам"
         : useDevserviceProjectTables
@@ -3013,6 +3036,8 @@
         technicalDeviationsSinglePanel: shouldUseGsppTechnicalTables(),
         opdirProjectTableMode: shouldUseOpdirProjectTables() || shouldUseDevserviceProjectDeviationsTables(),
         opdirProjectSecondTableDisabled: shouldUseDevserviceProjectDeviationsTables(),
+        productionClaimsTableMode: isProductionDeputyDashboardContext(),
+        productionClaimsShop: normalizeProductionShopKey(productionDeputySelectedShop),
         constructorProjectTableMode: isChiefConstructorDashboardContext() || isChiefMetrologDashboardContext(),
       });
     }
