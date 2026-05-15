@@ -591,6 +591,8 @@
             isCommercialHierarchyRootForPriorMonthRule() ||
             isTechnicalDirectorUser(viewContextUser) ||
             isGsppUser(viewContextUser) ||
+            isSupUser(viewContextUser) ||
+            isSupDepartmentContext(getDepartmentForCurrentKpiContext()) ||
             isDevserviceUser(viewContextUser) ||
             isOperationalDirectorUser(viewContextUser) ||
             isProductionDeputyUser(viewContextUser) ||
@@ -1836,6 +1838,23 @@
     return role === "gspp" || role === "гспп" || department === "gspp" || department === "гспп";
   }
 
+  function isSupUser(user) {
+    if (!user || typeof user !== "object") return false;
+    var role = normalizeDashboardRole(user.role);
+    var department = normalizeDashboardRole(user.department);
+    return (
+      role === "sup" ||
+      role === "служба управления персоналом" ||
+      department === "sup" ||
+      department === "служба управления персоналом"
+    );
+  }
+
+  function isSupDepartmentContext(value) {
+    var normalized = normalizeDashboardRole(value);
+    return normalized === "sup" || normalized === "служба управления персоналом";
+  }
+
   /** Таблица проектов с отклонениями по вехам (ключ `DEVDIR-T-PROJECTS-DEVIATIONS`), UI как у ОД. */
   function isDevserviceUser(user) {
     if (!user || typeof user !== "object") return false;
@@ -2751,6 +2770,16 @@
     return shouldUseTechnicalTables() || shouldUseGsppTechnicalTables();
   }
 
+  function shouldUseHrdLateVacanciesTable() {
+    var currentDepartment = getDepartmentForCurrentKpiContext();
+    return (
+      isSupUser(sessionUser) ||
+      isSupUser(viewContextUser) ||
+      isSupDepartmentContext(currentDepartment) ||
+      isSupDepartmentContext(lastKpiResponseDepartment)
+    );
+  }
+
   function shouldUseClaimsAndLawsuitsSwitcher() {
     if (isProductionDirectorDashboardContext()) return true;
     if (shouldUseTechnicalTables()) return true;
@@ -2794,10 +2823,14 @@
     var useChiefMetrologTables = isChiefMetrologDashboardContext();
     var useProductionDirectorProjectTables = isProductionDirectorDashboardContext();
     var useProductionDeputyProjectTables = isProductionDeputyDashboardContext();
+    var useHrdLateVacanciesTable = shouldUseHrdLateVacanciesTable();
     if (useTechnicalTables) {
       activeClaimsTableView = "claims";
     }
     if (useProjectMilestonesTables) {
+      activeClaimsTableView = "claims";
+    }
+    if (useHrdLateVacanciesTable) {
       activeClaimsTableView = "claims";
     }
 
@@ -2814,11 +2847,13 @@
               ? "Проекты КБ с отклонениями до 10 р.д."
               : shouldUseGsppTechnicalTables()
                 ? "Отклонения по проекту развития номенклатуры"
-                : useTechnicalTables
-                  ? "Отклонения по вехам"
-                  : isBoardChairOwnDashboard
-                    ? "ТОП-10 отклонений"
-                    : "Претензии";
+                : useHrdLateVacanciesTable
+                  ? "Вакансии, закрытые не в срок"
+                  : useTechnicalTables
+                    ? "Отклонения по вехам"
+                    : isBoardChairOwnDashboard
+                      ? "ТОП-10 отклонений"
+                      : "Претензии";
       claimsTableTitleTextEl.hidden = showClaimsSwitcher;
     }
 
@@ -2836,7 +2871,10 @@
 
     if (claimsTableHelpWrapEl) {
       claimsTableHelpWrapEl.hidden =
-        useTechnicalTables || useProjectMilestonesTables || activeClaimsTableView === "lawsuits";
+        useHrdLateVacanciesTable ||
+        useTechnicalTables ||
+        useProjectMilestonesTables ||
+        activeClaimsTableView === "lawsuits";
     }
 
     if (claimsTableSwitcherEl) {
@@ -2863,6 +2901,7 @@
       var overduePanel = overdueDebtTableTitleEl.closest(".table-panel");
       if (overduePanel) {
         overduePanel.hidden =
+          useHrdLateVacanciesTable ||
           useTechnicalTables ||
           useProjectMilestonesTables ||
           useChiefConstructorTables ||
@@ -2940,6 +2979,7 @@
         shouldUseTechnicalDeviationTables() ||
         shouldUseOpdirProjectTables() ||
         shouldUseDevserviceProjectDeviationsTables() ||
+        shouldUseHrdLateVacanciesTable() ||
         nextView === "lawsuits";
     }
     if (nextView === "lawsuits") {
@@ -2967,6 +3007,7 @@
         enableLawsuitsTable: shouldUseClaimsAndLawsuitsSwitcher(),
         filterRowsMinAmountRub: psdTableMinRub,
         technicalTablesMode: shouldUseTechnicalDeviationTables(),
+        hrdLateVacanciesTableMode: shouldUseHrdLateVacanciesTable(),
         technicalExternalTableKey: shouldUseGsppTechnicalTables() ? "GSPP-T-Q4-DEVIATIONS" : undefined,
         technicalDevelopmentTableKey: shouldUseGsppTechnicalTables() ? "GSPP-T-Q4-DEVIATIONS" : undefined,
         technicalDeviationsSinglePanel: shouldUseGsppTechnicalTables(),

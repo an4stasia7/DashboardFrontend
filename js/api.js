@@ -1872,6 +1872,11 @@
       (row.number != null && String(row.number).trim() !== "") ||
       (row.counterparty != null && String(row.counterparty).trim() !== "") ||
       (row.partner_name != null && String(row.partner_name).trim() !== "") ||
+      (row.company != null && String(row.company).trim() !== "") ||
+      (row.department != null && String(row.department).trim() !== "") ||
+      (row.vacancy != null && String(row.vacancy).trim() !== "") ||
+      (row.plan_close_date != null && String(row.plan_close_date).trim() !== "") ||
+      (row.fact_close_date != null && String(row.fact_close_date).trim() !== "") ||
       (row.order_num != null && String(row.order_num).trim() !== "") ||
       (row.milestone_planned_finish_date != null && String(row.milestone_planned_finish_date).trim() !== "") ||
       (row.deviation_date != null && String(row.deviation_date).trim() !== "") ||

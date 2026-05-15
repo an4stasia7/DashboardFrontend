@@ -206,6 +206,14 @@
   var activeTechnicalExternalTableKey = TECHNICAL_EXTERNAL_TABLE_KEY;
   var activeTechnicalDevelopmentTableKey = TECHNICAL_DEVELOPMENT_TABLE_KEY;
   var OPDIR_PROJECT_TABLE_KEY = "OD-T-Q1-DEVIATIONS";
+  var HRD_LATE_VACANCIES_TABLE_KEY = "HRD-T-M1-LATE-VACANCIES";
+  var HRD_LATE_VACANCIES_HEADERS = [
+    "Компания",
+    "Подразделение",
+    "Вакансия",
+    "Дата закрытия плановая",
+    "Дата закрытия факт",
+  ];
   var PRODUCTION_DEPUTY_PROJECT_TABLE_KEY = "PD-T-Q1-DEVIATIONS";
   var DEVDIR_PROJECTS_DEVIATIONS_TABLE_KEY = "DEVDIR-T-PROJECTS-DEVIATIONS";
   var PRODUCTION_DEPUTY_IMPROVEMENT_TABLE_KEY = "PD-T-Q3-IMPROVEMENTS";
@@ -216,6 +224,7 @@
   var opdirProjectTableMode = false;
   var opdirProjectSecondTableDisabled = false;
   var constructorProjectTableMode = false;
+  var hrdLateVacanciesTableMode = false;
 
   function setTableHeaders(tableId, headers) {
     var table = document.getElementById(tableId);
@@ -1008,8 +1017,11 @@
     var topTable = document.getElementById("table-top-deviations");
     if (topTable) {
       topTable.classList.remove("dashboard-table--logistics-claims");
+      topTable.classList.remove("dashboard-table--hrd-late-vacancies");
     }
-    if (opdirProjectTableMode) {
+    if (hrdLateVacanciesTableMode) {
+      setTableHeaders("table-top-deviations", HRD_LATE_VACANCIES_HEADERS);
+    } else if (opdirProjectTableMode) {
       setTableHeaders("table-top-deviations", OPDIR_PROJECT_TABLE_HEADERS);
       setTableHeaders("table-lawsuits", OPDIR_PROJECT_TABLE_HEADERS);
     } else if (technicalTablesMode) {
@@ -1022,6 +1034,41 @@
     setTableHeaders("table-overdue-debt", DEFAULT_OVERDUE_DEBT_HEADERS);
     setTopDeviationsTableMode(false);
     setOverdueDebtTableMode(false);
+  }
+
+  function isHrdLateVacancyRow(item) {
+    var key = item && item.tableKey != null ? String(item.tableKey).trim().toUpperCase() : "";
+    return key === HRD_LATE_VACANCIES_TABLE_KEY;
+  }
+
+  function renderHrdLateVacanciesTableRows(rows) {
+    var table = document.getElementById("table-top-deviations");
+    var tbody = table ? table.querySelector("tbody") : null;
+    if (!table || !tbody) return;
+    tbody.innerHTML = "";
+    table.classList.add("dashboard-table--hrd-late-vacancies");
+    setTableHeaders("table-top-deviations", HRD_LATE_VACANCIES_HEADERS);
+    if (table.tFoot) {
+      table.tFoot.hidden = true;
+      table.tFoot.innerHTML =
+        '<tr><th colspan="' + String(HRD_LATE_VACANCIES_HEADERS.length) + '"></th></tr>';
+    }
+
+    rows.filter(isHrdLateVacancyRow).forEach(function (item) {
+      var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
+      if (!raw) return;
+      var tr = document.createElement("tr");
+      [
+        raw.company,
+        raw.department,
+        raw.vacancy,
+        raw.plan_close_date,
+        raw.fact_close_date,
+      ].forEach(function (value, cellIndex) {
+        appendClampedCell(tr, value, cellIndex === 2 ? "dashboard-table-cell--wide-text" : "");
+      });
+      tbody.appendChild(tr);
+    });
   }
 
   function renderClaimsTableRows(rows) {
@@ -1764,6 +1811,25 @@
   }
 
   function initClaimsDataTable() {
+    if (hrdLateVacanciesTableMode) {
+      return initInteractiveDashboardTable({
+        tableSelector: "#table-top-deviations",
+        wrapperSelector: ".dashboard-table-wrap--claims",
+        advancedSearchKey: "hrd-late-vacancies-table-advanced",
+        columnConfigs: [
+          { index: 0, label: "Компания", type: "filter", searchType: "text" },
+          { index: 1, label: "Подразделение", type: "filter", searchType: "text" },
+          { index: 2, label: "Вакансия", type: "filter", searchType: "text" },
+          { index: 3, label: "Дата закрытия плановая", type: "sort", searchType: "date" },
+          { index: 4, label: "Дата закрытия факт", type: "sort", searchType: "date" },
+        ],
+        initialOrder: [[4, "desc"]],
+        columnDefs: [
+          { targets: "_all", orderable: false },
+          { targets: [3, 4], orderable: true },
+        ],
+      });
+    }
     var topTable = document.getElementById("table-top-deviations");
     if (topTable && topTable.classList.contains("dashboard-table--logistics-claims")) {
       return initInteractiveDashboardTable({
@@ -2024,6 +2090,7 @@
     opdirProjectTableMode = !!options.opdirProjectTableMode;
     opdirProjectSecondTableDisabled = !!options.opdirProjectSecondTableDisabled;
     constructorProjectTableMode = !!options.constructorProjectTableMode;
+    hrdLateVacanciesTableMode = !!options.hrdLateVacanciesTableMode;
     if (technicalTablesMode) {
       activeTechnicalExternalTableKey =
         options.technicalExternalTableKey != null && String(options.technicalExternalTableKey).trim() !== ""
@@ -2054,6 +2121,11 @@
     resetDefaultTables(rows);
     setTechnicalTableMode(technicalTablesMode);
     setOpdirProjectTableMode(opdirProjectTableMode || constructorProjectTableMode);
+    if (hrdLateVacanciesTableMode) {
+      renderHrdLateVacanciesTableRows(rows);
+      initClaimsDataTable();
+      return;
+    }
     if (constructorProjectTableMode) {
       renderClaimsTableRows(rows);
       initOpdirProjectDataTable(

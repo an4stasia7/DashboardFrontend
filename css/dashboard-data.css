@@ -1072,6 +1072,54 @@
   text-align: right;
 }
 
+.dashboard-table#table-top-deviations.dashboard-table--hrd-late-vacancies {
+  table-layout: fixed;
+  min-width: 100%;
+}
+
+.dashboard-table#table-top-deviations.dashboard-table--hrd-late-vacancies thead th,
+.dashboard-table#table-top-deviations.dashboard-table--hrd-late-vacancies tbody td {
+  padding: 9px 10px;
+  overflow: hidden;
+}
+
+.dashboard-table#table-top-deviations.dashboard-table--hrd-late-vacancies thead th:nth-child(1),
+.dashboard-table#table-top-deviations.dashboard-table--hrd-late-vacancies tbody td:nth-child(1) {
+  width: 20%;
+  min-width: 0;
+}
+
+.dashboard-table#table-top-deviations.dashboard-table--hrd-late-vacancies thead th:nth-child(2),
+.dashboard-table#table-top-deviations.dashboard-table--hrd-late-vacancies tbody td:nth-child(2) {
+  width: 18%;
+  min-width: 0;
+}
+
+.dashboard-table#table-top-deviations.dashboard-table--hrd-late-vacancies thead th:nth-child(3),
+.dashboard-table#table-top-deviations.dashboard-table--hrd-late-vacancies tbody td:nth-child(3) {
+  width: 28%;
+  min-width: 0;
+}
+
+.dashboard-table#table-top-deviations.dashboard-table--hrd-late-vacancies thead th:nth-child(4),
+.dashboard-table#table-top-deviations.dashboard-table--hrd-late-vacancies tbody td:nth-child(4),
+.dashboard-table#table-top-deviations.dashboard-table--hrd-late-vacancies thead th:nth-child(5),
+.dashboard-table#table-top-deviations.dashboard-table--hrd-late-vacancies tbody td:nth-child(5) {
+  width: 17%;
+  min-width: 0;
+  white-space: normal;
+}
+
+.dashboard-table#table-top-deviations.dashboard-table--hrd-late-vacancies .dashboard-table-cell-text {
+  display: -webkit-box;
+  max-height: 38px;
+  overflow: hidden;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
 .dashboard-table.dashboard-table--executive {
   table-layout: fixed;
   min-width: 100%;
