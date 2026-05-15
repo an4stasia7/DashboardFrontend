@@ -1656,6 +1656,62 @@
     }
   }
 
+  function getCurrentSelectedQuartersForTiles() {
+    if (typeof DashboardMonthNav === "undefined" || !DashboardMonthNav || typeof DashboardMonthNav.getPeriodState !== "function") {
+      return [];
+    }
+    var ps = DashboardMonthNav.getPeriodState();
+    return ps && Array.isArray(ps.selectedQuarters) ? ps.selectedQuarters : [];
+  }
+
+  function shouldUseTdM5PeriodAggregatesForTiles() {
+    if (typeof DashboardMonthNav === "undefined" || !DashboardMonthNav || typeof DashboardMonthNav.getPeriodState !== "function") {
+      return false;
+    }
+    var ps = DashboardMonthNav.getPeriodState();
+    var mode = ps ? String(ps.aggregationMode || "current") : "current";
+    return mode === "quarter" || mode === "ytd";
+  }
+
+  function applyTdM5PeriodAggregateForCurrentSelection(tiles) {
+    if (!Array.isArray(tiles) || !tiles.length || !shouldUseTdM5PeriodAggregatesForTiles()) {
+      return tiles;
+    }
+    var periodState = DashboardMonthNav.getPeriodState();
+    var mode = periodState ? String(periodState.aggregationMode || "current") : "current";
+    var selectedQuarters = getCurrentSelectedQuartersForTiles();
+    var changed = false;
+    var nextTiles = tiles.map(function (tile) {
+      if (
+        !tile ||
+        String(tile.kpi_id || "").trim() !== "TD-M5" ||
+        !tile.frontend_aggregation ||
+        !tile.frontend_aggregation.use_period_aggregates_for_buttons
+      ) {
+        return tile;
+      }
+      var aggregate =
+        mode === "ytd"
+          ? tile.period_aggregates && tile.period_aggregates.year_to_date
+          : getTdM5Aggregate(tile, selectedQuarters);
+      var point = buildPointFromPeriodAggregate(aggregate);
+      if (!point) return tile;
+      changed = true;
+      var nextTile = Object.assign({}, tile, {
+        plan: point.plan,
+        fact: point.fact,
+        percent: point.kpi_pct,
+        kpi_pct: point.kpi_pct,
+        has_data: point.has_data,
+      });
+      if (point.label != null && String(point.label).trim()) {
+        nextTile.plan_fact_period_label = String(point.label);
+      }
+      return nextTile;
+    });
+    return changed ? nextTiles : tiles;
+  }
+
   /**
    * Рендерит KPI-плитки единой адаптивной сеткой; оборот карточки строится отдельно при flip.
    * Более 6 плиток — постраничный показ (3×2) и навигатор `#kpi-tiles-pager`.
@@ -1672,6 +1728,7 @@
       lastProductionDeputyRawTiles = null;
     }
     updateProductionShopSwitchVisibility(showProductionShopSwitch);
+    sourceTiles = applyTdM5PeriodAggregateForCurrentSelection(sourceTiles);
     tiles = applyPriorMonthFactForFotTurnoverTiles(sourceTiles);
     lastKpiTiles = tiles && tiles.length ? tiles : null;
     flippedTileIndices.clear();
@@ -1973,13 +2030,71 @@
     });
   }
 
+  function normalizeSelectedQuarterNumbers(selectedQuarters) {
+    var seen = {};
+    var out = [];
+    var qs = Array.isArray(selectedQuarters) ? selectedQuarters : [];
+    qs.forEach(function (value) {
+      var q = parseInt(String(value), 10);
+      if (isNaN(q) || q < 1 || q > 4 || seen[q]) return;
+      seen[q] = true;
+      out.push(q);
+    });
+    out.sort(function (a, b) { return a - b; });
+    return out;
+  }
+
+  function getTdM5Aggregate(tile, selectedQuarters) {
+    if (!tile || String(tile.kpi_id || "").trim() !== "TD-M5") return null;
+    var quarters = normalizeSelectedQuarterNumbers(selectedQuarters);
+    if (!quarters.length) return null;
+    var key = quarters.join(",");
+    var aggregate =
+      tile.period_aggregates &&
+      tile.period_aggregates.quarter_combinations &&
+      tile.period_aggregates.quarter_combinations[key];
+    return aggregate && typeof aggregate === "object" ? aggregate : null;
+  }
+
+  function buildPointFromPeriodAggregate(aggregate) {
+    if (!aggregate || typeof aggregate !== "object") return null;
+    var point = Object.assign({}, aggregate);
+    var pctValue = parseNumberLoose(aggregate.kpi_pct);
+    if (pctValue != null) point.kpi_pct = pctValue;
+    if (typeof point.has_data !== "boolean") {
+      point.has_data =
+        aggregate.plan != null ||
+        aggregate.fact != null ||
+        aggregate.kpi_pct != null;
+    }
+    return point;
+  }
+
   function computeChairmanAggregatedPoint(item, year, month, mode, selectedQuarters) {
     if (!item || typeof item !== "object") return null;
     var points = Array.isArray(item.monthly_data) ? item.monthly_data.slice() : [];
-    if (!points.length) return null;
     var y = Number(year);
     var m = Number(month);
     if (isNaN(y) || isNaN(m) || m < 1 || m > 12) return null;
+
+    if (mode === "quarter" || mode === "ytd") {
+      var aggregateQs = normalizeSelectedQuarterNumbers(selectedQuarters);
+      if (!aggregateQs.length) aggregateQs = [Math.ceil(m / 3)];
+      if (
+        String(item.kpi_id || "").trim() === "TD-M5" &&
+        item.frontend_aggregation &&
+        item.frontend_aggregation.use_period_aggregates_for_buttons
+      ) {
+        var aggregate =
+          mode === "ytd"
+            ? item.period_aggregates && item.period_aggregates.year_to_date
+            : getTdM5Aggregate(item, aggregateQs);
+        var aggregatePoint = buildPointFromPeriodAggregate(aggregate);
+        if (aggregatePoint) return aggregatePoint;
+      }
+    }
+
+    if (!points.length) return null;
 
     var filtered = points
       .filter(function (point) {
@@ -1999,11 +2114,7 @@
 
     var bucket = [];
     if (mode === "quarter") {
-      var qs = Array.isArray(selectedQuarters) ? selectedQuarters.slice() : [];
-      qs = qs
-        .map(function (v) { return parseInt(String(v), 10); })
-        .filter(function (q) { return !isNaN(q) && q >= 1 && q <= 4; })
-        .sort(function (a, b) { return a - b; });
+      var qs = normalizeSelectedQuarterNumbers(selectedQuarters);
       if (!qs.length) qs = [Math.ceil(m / 3)];
       var ranges = qs.map(function (q) {
         return { start: (q - 1) * 3 + 1, end: q * 3 };
@@ -2350,6 +2461,14 @@
       red_threshold: thStr(thresholds, "red", "red_threshold"),
       blue_threshold: thStr(thresholds, "blue", "blue_threshold"),
       monthly_data: Array.isArray(rawItem.monthly_data) ? rawItem.monthly_data : [],
+      period_aggregates:
+        rawItem.period_aggregates && typeof rawItem.period_aggregates === "object"
+          ? rawItem.period_aggregates
+          : null,
+      frontend_aggregation:
+        rawItem.frontend_aggregation && typeof rawItem.frontend_aggregation === "object"
+          ? rawItem.frontend_aggregation
+          : null,
       plan_fact_rows:
         point && Array.isArray(point.plan_fact_rows)
           ? point.plan_fact_rows

@@ -168,6 +168,71 @@
     return typeof fn === "function" ? fn() : "current";
   }
 
+  function normalizeSelectedQuarterNumbers(selectedQuarters) {
+    var seen = {};
+    var out = [];
+    var qs = Array.isArray(selectedQuarters) ? selectedQuarters : [];
+    qs.forEach(function (value) {
+      var q = parseInt(String(value), 10);
+      if (isNaN(q) || q < 1 || q > 4 || seen[q]) return;
+      seen[q] = true;
+      out.push(q);
+    });
+    out.sort(function (a, b) { return a - b; });
+    return out;
+  }
+
+  function numberOrOriginal(value) {
+    if (value == null || value === "") return value;
+    var n = Number(value);
+    return isNaN(n) ? value : n;
+  }
+
+  function applyTdM5PeriodAggregateForCurrentSelection(tiles) {
+    if (!Array.isArray(tiles) || !tiles.length) return tiles;
+    var periodState = getPeriodState();
+    if (!periodState) return tiles;
+    var mode = String(periodState.aggregationMode || "current");
+    if (mode !== "quarter" && mode !== "ytd") return tiles;
+    var quarters = normalizeSelectedQuarterNumbers(periodState.selectedQuarters);
+    var key = quarters.join(",");
+    var changed = false;
+    var nextTiles = tiles.map(function (tile) {
+      if (
+        !tile ||
+        String(tile.kpi_id || "").trim() !== "TD-M5" ||
+        !tile.frontend_aggregation ||
+        !tile.frontend_aggregation.use_period_aggregates_for_buttons
+      ) {
+        return tile;
+      }
+      var aggregate = null;
+      if (mode === "quarter" && key) {
+        aggregate =
+          tile.period_aggregates &&
+          tile.period_aggregates.quarter_combinations &&
+          tile.period_aggregates.quarter_combinations[key];
+      } else if (mode === "ytd") {
+        aggregate = tile.period_aggregates && tile.period_aggregates.year_to_date;
+      }
+      if (!aggregate || typeof aggregate !== "object") return tile;
+      changed = true;
+      var nextTile = Object.assign({}, tile);
+      if (aggregate.plan !== undefined) nextTile.plan = aggregate.plan;
+      if (aggregate.fact !== undefined) nextTile.fact = aggregate.fact;
+      if (aggregate.kpi_pct !== undefined) {
+        nextTile.kpi_pct = numberOrOriginal(aggregate.kpi_pct);
+        nextTile.percent = numberOrOriginal(aggregate.kpi_pct);
+      }
+      if (typeof aggregate.has_data === "boolean") nextTile.has_data = aggregate.has_data;
+      if (aggregate.label != null && String(aggregate.label).trim()) {
+        nextTile.plan_fact_period_label = String(aggregate.label);
+      }
+      return nextTile;
+    });
+    return changed ? nextTiles : tiles;
+  }
+
   function showLoading() {
     var loader = document.getElementById("dash-loading");
     var content = document.getElementById("dash-content");
@@ -298,6 +363,7 @@
           tilesToRender = aggregated;
         }
       }
+      tilesToRender = applyTdM5PeriodAggregateForCurrentSelection(tilesToRender);
       var cacheKey =
         result.data &&
         result.data.department != null &&
@@ -308,6 +374,7 @@
       if (typeof augment === "function") {
         augment(result, tilesToRender, function (finalTiles) {
           var t = finalTiles && finalTiles.length ? finalTiles : tilesToRender;
+          t = applyTdM5PeriodAggregateForCurrentSelection(t);
           if (cacheKey) rememberDrilldownKpiTiles(cacheKey, t.slice());
           renderKpiTiles(t);
           updateTopBarForView();
