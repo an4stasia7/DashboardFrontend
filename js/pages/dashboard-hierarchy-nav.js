@@ -396,6 +396,11 @@
       nav.hidden = true;
       return;
     }
+    /* У ПСД переключение «Мой дашборд / Коммерческий блок» теперь встроено в верхнюю плашку. */
+    if (isBoardChairUser(sessionUser)) {
+      nav.hidden = true;
+      return;
+    }
     var overviewEl = document.getElementById("dash-chairman-overview");
     if (overviewEl && !overviewEl.hidden) {
       nav.hidden = true;
