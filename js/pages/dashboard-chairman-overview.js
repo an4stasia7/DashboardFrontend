@@ -14,6 +14,8 @@
   var monthNavEl = null;
   var chairmanTabsEl = null;
   var dashLoadingEl = null;
+  var commercialSummaryEl = null;
+  var commercialSummaryScrollBound = false;
 
   /** Сколько карточек дашбордов показывать на одном «экране» (ряд в сетке). */
   var CHAIRMAN_OVERVIEW_CARDS_PER_PAGE = 2;
@@ -24,6 +26,7 @@
     /** Страница среди карточек каталога (не строк KPI внутри карточки) */
     cardPageIndex: 0,
     requestSeq: 0,
+    commercialRequestSeq: 0,
   };
 
   function mergeContext(next) {
@@ -78,6 +81,17 @@
     return true;
   }
 
+  function getSelectedViewId() {
+    return call("getSelectedViewId", [], "self");
+  }
+
+  function shouldShowChairmanLanding() {
+    var user = getSessionUser();
+    if (!isBoardChairUser(user)) return false;
+    if (!isRootHierarchy()) return false;
+    return getSelectedViewId() === "self";
+  }
+
   function ensureDom() {
     if (!overviewEl) overviewEl = document.getElementById("dash-chairman-overview");
     if (!overviewBarEl) overviewBarEl = document.getElementById("dash-chairman-overview-bar");
@@ -87,7 +101,45 @@
     if (!monthNavEl) monthNavEl = document.getElementById("month-navigator");
     if (!chairmanTabsEl) chairmanTabsEl = document.getElementById("dashboard-chairman-tabs");
     if (!dashLoadingEl) dashLoadingEl = document.getElementById("dash-loading");
+    ensureCommercialSummaryElement();
     return !!overviewEl;
+  }
+
+  function ensureCommercialSummaryElement() {
+    if (commercialSummaryEl && document.body.contains(commercialSummaryEl)) return commercialSummaryEl;
+    var anchor = document.querySelector(".dash-kpi-tiles-block");
+    if (!anchor || !anchor.parentNode) return null;
+    commercialSummaryEl = document.createElement("section");
+    commercialSummaryEl.id = "dash-chairman-commercial-summary";
+    commercialSummaryEl.className = "dash-chairman-commercial-summary";
+    commercialSummaryEl.setAttribute("aria-label", "Коммерческий блок");
+    commercialSummaryEl.hidden = true;
+    anchor.parentNode.insertBefore(commercialSummaryEl, anchor);
+    bindCommercialSummaryScroll();
+    return commercialSummaryEl;
+  }
+
+  function bindCommercialSummaryScroll() {
+    if (commercialSummaryScrollBound) return;
+    commercialSummaryScrollBound = true;
+    var update = function () {
+      if (!commercialSummaryEl || commercialSummaryEl.hidden) return;
+      var main = document.querySelector(".dash-main");
+      var content = document.getElementById("dash-content");
+      var workspace = document.querySelector(".dash-workspace");
+      var scrollTop = Math.max(
+        window.pageYOffset || document.documentElement.scrollTop || 0,
+        main && main.scrollTop ? main.scrollTop : 0,
+        content && content.scrollTop ? content.scrollTop : 0,
+        workspace && workspace.scrollTop ? workspace.scrollTop : 0
+      );
+      commercialSummaryEl.classList.toggle("is-collapsed", scrollTop > 90);
+    };
+    window.addEventListener("scroll", update, { passive: true });
+    ["dash-main", "dash-content", "dash-workspace"].forEach(function (className) {
+      var el = className === "dash-content" ? document.getElementById(className) : document.querySelector("." + className);
+      if (el) el.addEventListener("scroll", update, { passive: true });
+    });
   }
 
   /** Убирает «липкий» футер (margin-top: auto), иначе между карточками и «Для разработчика» — пустая полоса на всю высоту экрана. */
@@ -245,6 +297,21 @@
     return found + " / " + notParticipating + " / " + won + " шт.";
   }
 
+  function normalizeRag(tile) {
+    var pres =
+      global.MockData && typeof global.MockData.getKpiTilePresentation === "function"
+        ? global.MockData.getKpiTilePresentation(tile)
+        : null;
+    var rag = pres && pres.rag ? String(pres.rag).toLowerCase() : tile && tile.rag ? String(tile.rag).toLowerCase() : "";
+    if (!rag && tile && tile.color) rag = String(tile.color).toLowerCase();
+    if (rag === "amber") rag = "yellow";
+    if (rag === "grey") rag = "gray";
+    if (rag !== "green" && rag !== "yellow" && rag !== "red" && rag !== "blue" && rag !== "gray") {
+      rag = "gray";
+    }
+    return rag;
+  }
+
   function titleEqualsKpiId(text, kpiId) {
     if (text == null || text === "" || kpiId == null || kpiId === "") return false;
     return String(text).trim().toLowerCase() === String(kpiId).trim().toLowerCase();
@@ -300,7 +367,7 @@
       global.MockData && typeof global.MockData.getKpiTilePresentation === "function"
         ? global.MockData.getKpiTilePresentation(tile)
         : null;
-    var rag = pres && pres.rag ? String(pres.rag).toLowerCase() : tile && tile.rag ? String(tile.rag).toLowerCase() : "";
+    var rag = normalizeRag(tile);
     var fillColor = pres && pres.fillColor ? String(pres.fillColor).trim() : "";
     dot.className = "dash-chairman-overview-tile-dot" + (rag ? " rag-" + rag : "");
     if (fillColor) {
@@ -326,6 +393,236 @@
     text.appendChild(value);
     li.appendChild(text);
     return li;
+  }
+
+  function normalizeIconFolderPart(value) {
+    return String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/ё/g, "е")
+      .replace(/[^a-z0-9а-я]+/g, "_")
+      .replace(/^_+|_+$/g, "");
+  }
+
+  function commercialIconFoldersForTile(tile, index) {
+    var title = normalizeIconFolderPart(tileDisplayTitle(tile));
+    var kpiId = normalizeIconFolderPart(tile && (tile.kpi_id || tile.badge || tile.id));
+    var raw = [tile && tile.iconFolder, tile && tile.icon_folder, tile && tile.slug, kpiId, title]
+      .map(normalizeIconFolderPart)
+      .filter(Boolean);
+    var text = title + " " + kpiId;
+    var aliases = [];
+    if (text.indexOf("отнош") !== -1 || text.indexOf("2026_2025") !== -1 || text.indexOf("2026/2025") !== -1) {
+      aliases = aliases.concat(["otntoshenie"]);
+    } else if (text.indexOf("день") !== -1 || text.indexOf("ден") !== -1 || text.indexOf("money") !== -1) {
+      aliases = aliases.concat(["plandeneg"]);
+    } else if (text.indexOf("договор") !== -1 || text.indexOf("contract") !== -1) {
+      aliases = aliases.concat(["dogovorplan"]);
+    } else if (text.indexOf("отгруз") !== -1 || text.indexOf("ship") !== -1) {
+      aliases = aliases.concat(["otgruzki"]);
+    }
+    if (text.indexOf("отгруз") !== -1 || text.indexOf("ship") !== -1) {
+      aliases = aliases.concat(["shipments", "shipment", "shipping", "otgruzka"]);
+    } else if (text.indexOf("договор") !== -1 || text.indexOf("contract") !== -1) {
+      aliases = aliases.concat(["contracts", "contract", "dogovory", "dogovor"]);
+    } else if (text.indexOf("день") !== -1 || text.indexOf("ден") !== -1 || text.indexOf("money") !== -1) {
+      aliases = aliases.concat(["money", "cash", "dengi"]);
+    } else if (text.indexOf("кассов") !== -1 || text.indexOf("разрыв") !== -1 || text.indexOf("gap") !== -1) {
+      aliases = aliases.concat(["cash_gap", "cashgap", "cash-gap", "kassovyi_razryv", "kassovy_razryv"]);
+    }
+    aliases.push("tile_" + (index + 1));
+    return raw.concat(aliases).filter(function (value, i, arr) {
+      return value && arr.indexOf(value) === i;
+    });
+  }
+
+  function setImageCandidates(img, candidates, fallbackEl) {
+    var list = Array.isArray(candidates) ? candidates.slice() : [];
+    var idx = 0;
+    var tryNext = function () {
+      if (idx >= list.length) {
+        img.hidden = true;
+        if (fallbackEl) fallbackEl.hidden = false;
+        return;
+      }
+      img.hidden = true;
+      if (fallbackEl) fallbackEl.hidden = false;
+      img.src = list[idx++];
+    };
+    img.addEventListener("load", function () {
+      img.hidden = false;
+      if (fallbackEl) fallbackEl.hidden = true;
+    });
+    img.addEventListener("error", tryNext);
+    tryNext();
+  }
+
+  function makeCommercialSummaryTile(tile, index) {
+    var item = document.createElement("article");
+    var rag = normalizeRag(tile);
+    item.className = "dash-chairman-commercial-tile rag-" + rag;
+
+    var iconBox = document.createElement("span");
+    iconBox.className = "dash-chairman-commercial-icon";
+    var img = document.createElement("img");
+    img.alt = "";
+    img.decoding = "async";
+    img.loading = "lazy";
+    var fallback = document.createElement("span");
+    fallback.className = "dash-chairman-commercial-icon-fallback";
+    fallback.hidden = true;
+    iconBox.appendChild(img);
+    iconBox.appendChild(fallback);
+    item.appendChild(iconBox);
+
+    var body = document.createElement("span");
+    body.className = "dash-chairman-commercial-tile-body";
+    var name = document.createElement("span");
+    name.className = "dash-chairman-commercial-tile-name";
+    var title = tileDisplayTitle(tile);
+    name.textContent = title;
+    name.title = title;
+    var value = document.createElement("span");
+    value.className = "dash-chairman-commercial-tile-value";
+    value.textContent = formatTileValue(tile);
+    body.appendChild(name);
+    body.appendChild(value);
+    item.appendChild(body);
+
+    var color = rag === "gray" ? "grey" : rag;
+    var folders = commercialIconFoldersForTile(tile, index);
+    var candidates = [];
+    folders.forEach(function (folder) {
+      ["png", "svg", "webp"].forEach(function (ext) {
+        candidates.push("temp/comblock/" + folder + "/" + color + "." + ext);
+      });
+    });
+    setImageCandidates(img, candidates, fallback);
+    return item;
+  }
+
+  function findCommercialTarget() {
+    var targets = getTargets();
+    for (var i = 0; i < targets.length; i++) {
+      var t = targets[i];
+      if (!t) continue;
+      var cid = t.catalogId != null ? String(t.catalogId).trim().toLowerCase() : "";
+      var id = t.id != null ? String(t.id).trim().toLowerCase() : "";
+      var label = t.label != null ? String(t.label).trim().toLowerCase() : "";
+      if (cid === "commerce" || id.indexOf("commerce") !== -1 || label.indexOf("коммер") !== -1) return t;
+    }
+    return null;
+  }
+
+  function commercialSummaryCacheKey(target) {
+    var catalogId = target && (target.catalogId || target.id) ? String(target.catalogId || target.id) : "commerce";
+    return "commercial-summary\0" + cacheKeyFor(catalogId);
+  }
+
+  function renderCommercialSummary(entry) {
+    var root = ensureCommercialSummaryElement();
+    if (!root) return;
+    var commercialTarget = findCommercialTarget();
+    if (!shouldShowChairmanLanding() || !commercialTarget) {
+      root.hidden = true;
+      root.innerHTML = "";
+      root.classList.remove("is-collapsed");
+      return;
+    }
+    root.hidden = false;
+    root.innerHTML = "";
+
+    var head = document.createElement("div");
+    head.className = "dash-chairman-commercial-head";
+    var titleWrap = document.createElement("div");
+    titleWrap.className = "dash-chairman-commercial-title-wrap";
+    var eyebrow = document.createElement("span");
+    eyebrow.className = "dash-chairman-commercial-eyebrow";
+    eyebrow.textContent = "Коммерческий блок";
+    titleWrap.appendChild(eyebrow);
+    head.appendChild(titleWrap);
+
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "dash-chairman-commercial-action";
+    btn.textContent = "Перейти в коммерческий блок";
+    btn.addEventListener("click", function () {
+      expandTarget(commercialTarget);
+    });
+    head.appendChild(btn);
+    root.appendChild(head);
+
+    var tilesRoot = document.createElement("div");
+    tilesRoot.className = "dash-chairman-commercial-tiles";
+    if (entry && entry.loading) {
+      for (var i = 0; i < 4; i++) {
+        var skeleton = document.createElement("span");
+        skeleton.className = "dash-chairman-commercial-tile dash-chairman-commercial-tile--loading";
+        tilesRoot.appendChild(skeleton);
+      }
+    } else if (entry && entry.error) {
+      var err = document.createElement("p");
+      err.className = "dash-chairman-commercial-empty";
+      err.textContent = "Не удалось загрузить коммерческий блок.";
+      tilesRoot.appendChild(err);
+    } else {
+      var tiles = entry && Array.isArray(entry.tiles) ? entry.tiles.slice(0, 4) : [];
+      if (!tiles.length) {
+        var empty = document.createElement("p");
+        empty.className = "dash-chairman-commercial-empty";
+        empty.textContent = "Нет данных коммерческого блока.";
+        tilesRoot.appendChild(empty);
+      } else {
+        tiles.forEach(function (tile, index) {
+          tilesRoot.appendChild(makeCommercialSummaryTile(tile, index));
+        });
+      }
+    }
+    root.appendChild(tilesRoot);
+  }
+
+  function hideCommercialSummary() {
+    var root = ensureCommercialSummaryElement();
+    if (!root) return;
+    root.hidden = true;
+    root.innerHTML = "";
+    root.classList.remove("is-collapsed");
+  }
+
+  function loadCommercialSummary() {
+    var target = findCommercialTarget();
+    if (!target || !shouldShowChairmanLanding()) {
+      hideCommercialSummary();
+      return Promise.resolve();
+    }
+    var key = commercialSummaryCacheKey(target);
+    var cached = state.cache[key];
+    if (cached && !cached.loading && Array.isArray(cached.tiles)) {
+      renderCommercialSummary(cached);
+      return Promise.resolve();
+    }
+    var seq = ++state.commercialRequestSeq;
+    state.cache[key] = { loading: true };
+    renderCommercialSummary(state.cache[key]);
+    var catalogId = target.catalogId || target.id || "";
+    return fetchTilesFor(catalogId)
+      .then(function (result) {
+        if (seq !== state.commercialRequestSeq) return;
+        if (!result || result.unauthorized || result.ok === false) {
+          state.cache[key] = { loading: false, tiles: [], error: "error" };
+        } else {
+          state.cache[key] = {
+            loading: false,
+            tiles: Array.isArray(result.tiles) ? result.tiles.slice(0, 4) : [],
+          };
+        }
+        renderCommercialSummary(state.cache[key]);
+      })
+      .catch(function () {
+        if (seq !== state.commercialRequestSeq) return;
+        state.cache[key] = { loading: false, tiles: [], error: "error" };
+        renderCommercialSummary(state.cache[key]);
+      });
   }
 
   function buildCardHead(target) {
@@ -612,15 +909,19 @@
     if (!target) return;
     state.expandedCatalogId = target.catalogId || target.id || "";
     if (overviewEl) overviewEl.hidden = true;
+    hideCommercialSummary();
     setWorkspaceChairmanOverviewMode(false);
     setExpandedBar(target);
     call("onExpand", [target]);
   }
 
   function backToOverview() {
-    show();
+    if (overviewEl) overviewEl.hidden = true;
+    setWorkspaceChairmanOverviewMode(false);
     hideExpandedBar();
     call("onBackToOverview", []);
+    renderCommercialSummary({ loading: true });
+    loadCommercialSummary();
   }
 
   function invalidate() {
@@ -634,16 +935,29 @@
       render();
       loadAll();
     }
+    loadCommercialSummary();
   }
 
   function showIfNeeded() {
     if (!shouldShowOverview()) {
       hide();
       hideExpandedBar();
+      hideCommercialSummary();
       return false;
     }
-    show();
-    return true;
+    if (!shouldShowChairmanLanding()) {
+      hide();
+      hideExpandedBar();
+      hideCommercialSummary();
+      return false;
+    }
+    /* На входе ПСД больше не показываем две обзорные карточки:
+       оставляем обычный my_dashboard и добавляем компактный коммерческий блок сверху. */
+    hide();
+    hideExpandedBar();
+    renderCommercialSummary({ loading: true });
+    loadCommercialSummary();
+    return false;
   }
 
   /**
@@ -655,6 +969,7 @@
     state.expandedCatalogId = null;
     hide();
     hideExpandedBar();
+    hideCommercialSummary();
   }
 
   function isVisible() {
@@ -686,6 +1001,7 @@
     getExpandedCatalogId: getExpandedCatalogId,
     backToOverview: backToOverview,
     reload: reload,
+    reloadCommercialSummary: loadCommercialSummary,
     invalidate: invalidate,
   };
 })(typeof window !== "undefined" ? window : globalThis);

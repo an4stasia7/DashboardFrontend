@@ -498,6 +498,9 @@
       getChairmanTargets: function () {
         return chairmanDashboardTargets || [];
       },
+      getSelectedViewId: function () {
+        return selectedViewId;
+      },
       getSessionUser: function () {
         return sessionUser;
       },
@@ -565,6 +568,7 @@
         }
         renderViewTabs();
         updateTopBarForView();
+        loadKpiTilesAndChartsForView();
       },
     });
   })();
@@ -588,6 +592,7 @@
             callChairmanOverview("reload", []);
             return;
           }
+          callChairmanOverview("reloadCommercialSummary", []);
           if (
             isBoardChairUser(viewContextUser) ||
             isCommercialDirectorUser(viewContextUser) ||
@@ -613,6 +618,7 @@
         },
         onAggregationModeChange: function (mode) {
           chairmanAggregationMode = mode || "current";
+          callChairmanOverview("reloadCommercialSummary", []);
           if (rerenderChairmanTilesFromRaw()) return;
           if (applyCurrentPeriodFromLastRawResponse()) return;
           loadKpiTilesAndChartsForView();
