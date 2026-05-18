@@ -2893,6 +2893,8 @@
           : "Проекты с отклонениями по вехам"
         : useTechnicalTables
           ? "Улучшение и развитие"
+          : isLogisticsDashboardContext()
+          ? "Дебиторская задолженность"
           : isBoardChairOwnDashboard
           ? "ТОП-10 решений / эскалаций"
           : "Расшифровка просроченной дебиторской задолженности";
@@ -3045,6 +3047,7 @@
         productionClaimsTableMode: isProductionDeputyDashboardContext(),
         productionClaimsShop: normalizeProductionShopKey(productionDeputySelectedShop),
         constructorProjectTableMode: isChiefConstructorDashboardContext() || isChiefMetrologDashboardContext(),
+        logisticsSupplierDebtTableMode: isLogisticsDashboardContext(),
       });
     }
   }

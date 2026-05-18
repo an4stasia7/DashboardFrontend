@@ -89,12 +89,13 @@
 
   function updateOverdueDebtTotalRow(dataTableApi) {
     var total = 0;
+    var amountCellIndex = logisticsSupplierDebtTableMode ? 4 : 6;
     if (dataTableApi && typeof dataTableApi.rows === "function") {
       dataTableApi
         .rows({ search: "applied" })
         .nodes()
         .each(function (row) {
-          var cell = row && row.cells && row.cells.length > 6 ? row.cells[6] : null;
+          var cell = row && row.cells && row.cells.length > amountCellIndex ? row.cells[amountCellIndex] : null;
           if (!cell || typeof cell.getAttribute !== "function") return;
           var rawValue = cell.getAttribute("data-order");
           var n = Number(rawValue);
@@ -103,7 +104,7 @@
     } else {
       var rows = document.querySelectorAll("#table-overdue-debt tbody tr");
       rows.forEach(function (row) {
-        var cell = row && row.cells && row.cells.length > 6 ? row.cells[6] : null;
+        var cell = row && row.cells && row.cells.length > amountCellIndex ? row.cells[amountCellIndex] : null;
         if (!cell || typeof cell.getAttribute !== "function") return;
         var rawValue = cell.getAttribute("data-order");
         var n = Number(rawValue);
@@ -187,6 +188,7 @@
     "Действие",
     "Сумма, руб",
   ];
+  var LOGISTICS_SUPPLIER_DZ_HEADERS = ["№ объекта расчетов", "Дата", "Объект расчетов", "Поставщик", "Сумма"];
   var EXECUTIVE_DEVIATIONS_HEADERS = ["Показатель", "Факт", "План", "RAG", "Комментарий"];
   var EXECUTIVE_DECISIONS_HEADERS = ["Вопрос", "Факт", "План", "RAG", "Решение"];
   var TECHNICAL_TABLE_HEADERS = [
@@ -222,6 +224,7 @@
   var CONSTRUCTOR_PROJECT_TABLE_KEY = "GK-T-M1-DEVIATIONS";
   var METROLOG_PROJECT_TABLE_KEY = "METD-T-Q1-DEVIATIONS";
   var LOGISTICS_CLAIMS_TABLE_KEY = "LOG-T-CLAIMS";
+  var LOGISTICS_SUPPLIER_DZ_TABLE_KEY = "LOG-T-SUPPLIER-DZ";
   var technicalTablesMode = false;
   var opdirProjectTableMode = false;
   var opdirProjectSecondTableDisabled = false;
@@ -229,6 +232,7 @@
   var productionClaimsShop = "pc1";
   var constructorProjectTableMode = false;
   var hrdLateVacanciesTableMode = false;
+  var logisticsSupplierDebtTableMode = false;
 
   function setTableHeaders(tableId, headers) {
     var table = document.getElementById(tableId);
@@ -1234,6 +1238,11 @@
     return key === LOGISTICS_CLAIMS_TABLE_KEY;
   }
 
+  function isLogisticsSupplierDzRow(item) {
+    var key = item && item.tableKey != null ? String(item.tableKey).trim().toLocaleUpperCase("ru-RU") : "";
+    return key === LOGISTICS_SUPPLIER_DZ_TABLE_KEY;
+  }
+
   function isProductionClaimsRow(item) {
     var key = item && item.tableKey != null ? String(item.tableKey).trim().toLocaleUpperCase("ru-RU") : "";
     return key === PRODUCTION_CLAIMS_TABLE_KEY;
@@ -1328,6 +1337,34 @@
     var tbody = table ? table.querySelector("tbody") : null;
     if (!table || !tbody) return;
     tbody.innerHTML = "";
+
+    if (logisticsSupplierDebtTableMode) {
+      var supplierDzRows = Array.isArray(rows) ? rows.filter(isLogisticsSupplierDzRow) : [];
+      logisticsSupplierDebtTableMode = true;
+      setTableHeaders("table-overdue-debt", LOGISTICS_SUPPLIER_DZ_HEADERS);
+      if (table.tFoot) {
+        table.tFoot.hidden = false;
+        table.tFoot.innerHTML =
+          '<tr><th colspan="4">Итого</th><th id="overdue-debt-table-total-sum">0,00</th></tr>';
+      }
+      supplierDzRows.forEach(function (item) {
+        var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
+        if (!raw) return;
+        var tr = document.createElement("tr");
+        appendClampedCell(tr, raw.order_num || raw.order_key, "dashboard-table-cell--compact");
+        appendClampedCell(tr, raw.order_date, "dashboard-table-cell--date");
+        appendClampedCell(tr, raw.object_name, "dashboard-table-cell--wide-text");
+        appendClampedCell(tr, raw.supplier, "dashboard-table-cell--wide-text");
+        var amountTd = document.createElement("td");
+        amountTd.textContent = formatClaimsOrderSum(raw.amount);
+        amountTd.setAttribute("data-order", getClaimsOrderSumSortValue(raw.amount));
+        amountTd.className = "dashboard-table-cell--number";
+        tr.appendChild(amountTd);
+        tbody.appendChild(tr);
+      });
+      updateOverdueDebtTotalRow(null);
+      return;
+    }
 
     if (!Array.isArray(rows) || !rows.length) return;
 
@@ -2067,6 +2104,32 @@
   }
 
   function initOverdueDebtDataTable() {
+    if (logisticsSupplierDebtTableMode) {
+      return initInteractiveDashboardTable({
+        tableSelector: "#table-overdue-debt",
+        wrapperSelector: ".dashboard-table-wrap--overdue-debt",
+        advancedSearchKey: "supplier-dz-table-advanced",
+        columnConfigs: [
+          { index: 0, label: "№ объекта расчетов", type: "filter", searchType: "text" },
+          { index: 1, label: "Дата", type: "date", searchType: "date" },
+          { index: 2, label: "Объект расчетов", type: "filter", searchType: "text" },
+          { index: 3, label: "Поставщик", type: "filter", searchType: "text" },
+          { index: 4, label: "Сумма", type: "sort", searchType: "text" },
+        ],
+        initialOrder: [[4, "desc"]],
+        columnDefs: [
+          { targets: "_all", orderable: false },
+          { targets: [1], type: "date", orderable: true },
+          { targets: [4], type: "num-fmt", orderable: true },
+        ],
+        footerCallback: function () {
+          updateOverdueDebtTotalRow(this.api());
+        },
+        afterInit: function (dataTable) {
+          updateOverdueDebtTotalRow(dataTable);
+        },
+      });
+    }
     return initInteractiveDashboardTable({
       tableSelector: "#table-overdue-debt",
       wrapperSelector: ".dashboard-table-wrap--overdue-debt",
@@ -2166,6 +2229,7 @@
     productionClaimsShop = normalizeProductionClaimsShop(options.productionClaimsShop);
     constructorProjectTableMode = !!options.constructorProjectTableMode;
     hrdLateVacanciesTableMode = !!options.hrdLateVacanciesTableMode;
+    logisticsSupplierDebtTableMode = !!options.logisticsSupplierDebtTableMode;
     if (technicalTablesMode) {
       activeTechnicalExternalTableKey =
         options.technicalExternalTableKey != null && String(options.technicalExternalTableKey).trim() !== ""
@@ -2249,7 +2313,7 @@
     renderClaimsTableRows(rows);
     renderOverdueDebtTableRows(rows);
     initClaimsDataTable();
-    if (enhanceOverdueDebtTable) {
+    if (enhanceOverdueDebtTable || logisticsSupplierDebtTableMode) {
       initOverdueDebtDataTable();
     }
     if (enableLawsuitsTable) {
