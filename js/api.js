@@ -169,6 +169,108 @@
     }, "POST /api/user/access-requests/reject/");
   }
 
+  function authHeaders() {
+    var A = global.Auth;
+    var auth = A && typeof A.getAuthHeaders === "function" ? A.getAuthHeaders() : {};
+    return Object.assign({ Accept: "application/json" }, auth);
+  }
+
+  function apiPath(path) {
+    var p = path || "/";
+    if (p.charAt(0) !== "/") p = "/" + p;
+    return baseUrl() + "/api" + p;
+  }
+
+  function normalizeFeedbackSubmitResult(res) {
+    if (!res.ok) return res;
+    return {
+      ok: true,
+      request: res.data && res.data.request,
+      email_sent: !!(res.data && res.data.email_sent),
+      data: res.data,
+    };
+  }
+
+  function postFeedbackRequest(url, formData) {
+    return jsonFetch(url, {
+      method: "POST",
+      headers: authHeaders(),
+      body: formData,
+    }, "POST feedback request");
+  }
+
+  function submitFeedbackRequest(formData) {
+    return postFeedbackRequest(userApiPath("/feedback-requests/"), formData).then(function (res) {
+      if (res && res.status === 404) {
+        return postFeedbackRequest(apiPath("/feedback-requests/"), formData).then(normalizeFeedbackSubmitResult);
+      }
+      return normalizeFeedbackSubmitResult(res);
+    });
+  }
+
+  function fetchMyFeedbackRequests() {
+    return jsonFetch(userApiPath("/feedback-requests/"), {
+      method: "GET",
+      headers: authHeaders(),
+    }, "GET /api/user/feedback-requests/").then(function (res) {
+      if (res && res.status === 404) {
+        return jsonFetch(apiPath("/feedback-requests/"), {
+          method: "GET",
+          headers: authHeaders(),
+        }, "GET /api/feedback-requests/");
+      }
+      return res;
+    }).then(function (res) {
+      if (!res.ok) return res;
+      return {
+        ok: true,
+        requests: Array.isArray(res.data && res.data.requests) ? res.data.requests : [],
+        data: res.data,
+      };
+    });
+  }
+
+  function fetchAdminFeedbackRequests(archive) {
+    var suffix = archive ? "?archive=1" : "";
+    return jsonFetch(userApiPath("/feedback-requests/admin/" + suffix), {
+      method: "GET",
+      headers: adminHeaders(),
+    }, "GET /api/user/feedback-requests/admin/").then(function (res) {
+      if (res && res.status === 404) {
+        return jsonFetch(apiPath("/feedback-requests/admin/" + suffix), {
+          method: "GET",
+          headers: adminHeaders(),
+        }, "GET /api/feedback-requests/admin/");
+      }
+      return res;
+    }).then(function (res) {
+      if (!res.ok) return res;
+      return {
+        ok: true,
+        requests: Array.isArray(res.data && res.data.requests) ? res.data.requests : [],
+        data: res.data,
+      };
+    });
+  }
+
+  function processFeedbackRequest(id, action) {
+    var cleanAction = action === "delete" ? "delete" : action === "reject" ? "reject" : "complete";
+    return jsonFetch(userApiPath("/feedback-requests/" + encodeURIComponent(String(id)) + "/" + cleanAction + "/"), {
+      method: "POST",
+      headers: adminHeaders(),
+      body: JSON.stringify({}),
+    }, "POST /api/user/feedback-requests/" + cleanAction + "/").then(function (res) {
+      if (res && res.status === 404) {
+        return jsonFetch(apiPath("/feedback-requests/" + encodeURIComponent(String(id)) + "/" + cleanAction + "/"), {
+          method: "POST",
+          headers: adminHeaders(),
+          body: JSON.stringify({}),
+        }, "POST /api/feedback-requests/" + cleanAction + "/");
+      }
+      return res;
+    });
+  }
+
   function kpiUrl() {
     var cfg = global.AppConfig || {};
     var p = cfg.API_KPI_PATH || "/api/kpi/";
@@ -2160,6 +2262,12 @@
 
   function parseErrorBody(text) {
     if (!text) return "";
+    if (/^\s*</.test(text) || /<!DOCTYPE\s+html/i.test(text)) {
+      var title = text.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+      var titleText = title && title[1] ? title[1].replace(/\s+/g, " ").trim() : "";
+      if (titleText) return titleText;
+      return "Сервер вернул HTML-страницу вместо JSON.";
+    }
     try {
       var j = JSON.parse(text);
       if (typeof j.detail === "string") return j.detail;
@@ -2359,6 +2467,10 @@
     fetchAccessRequests: fetchAccessRequests,
     approveAccessRequest: approveAccessRequest,
     rejectAccessRequest: rejectAccessRequest,
+    submitFeedbackRequest: submitFeedbackRequest,
+    fetchMyFeedbackRequests: fetchMyFeedbackRequests,
+    fetchAdminFeedbackRequests: fetchAdminFeedbackRequests,
+    processFeedbackRequest: processFeedbackRequest,
     fetchKpiUsers: fetchKpiUsers,
     fetchKpis: fetchKpis,
     fetchKpiAll: fetchKpiAll,

@@ -380,7 +380,7 @@
 
 .admin-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
   margin-bottom: 20px;
 }
@@ -409,6 +409,33 @@
   overflow: auto;
   border: 1px solid #e2e8f0;
   border-radius: 16px;
+}
+
+.admin-feedback-wrap {
+  margin-top: 18px;
+}
+
+.admin-section-head {
+  padding: 16px 18px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.admin-section-head h2 {
+  margin: 0 0 4px;
+  color: var(--navy);
+  font-size: 1.05rem;
+}
+
+.admin-section-head p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.admin-feedback-description {
+  max-width: 360px;
+  white-space: pre-wrap;
 }
 
 .admin-table {

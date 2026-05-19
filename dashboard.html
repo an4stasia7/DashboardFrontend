@@ -54,6 +54,21 @@
             aria-label="Дашборды пользователей в иерархии"
             hidden
           ></nav>
+          <div class="dash-sidebar-service" aria-label="Сервис">
+            <p class="dash-sidebar-service-title">Сервис</p>
+            <button type="button" class="dash-sidebar-service-btn" data-support-open="docs">
+              <img class="dash-sidebar-service-icon" src="temp/icons/document.png" alt="" aria-hidden="true" />
+              <span>Документация</span>
+            </button>
+            <button type="button" class="dash-sidebar-service-btn" data-support-open="feedback">
+              <img class="dash-sidebar-service-icon" src="temp/icons/message.png" alt="" aria-hidden="true" />
+              <span>Обратная связь</span>
+            </button>
+          </div>
+          <button type="button" class="dash-sidebar-collapse-btn" id="dash-sidebar-collapse-btn">
+            <span aria-hidden="true">‹</span>
+            <span>Свернуть меню</span>
+          </button>
         </div>
       </aside>
       <div class="dash-workspace">
@@ -62,6 +77,34 @@
             <h1 id="dash-role-title">—</h1>
           </div>
           <div class="dash-topbar-actions">
+            <div class="service-help-menu" id="service-help-menu">
+              <button
+                type="button"
+                class="service-help-trigger"
+                id="service-help-trigger"
+                aria-haspopup="menu"
+                aria-expanded="false"
+                aria-controls="service-help-dropdown"
+              >
+                <span class="service-help-icon" aria-hidden="true">?</span>
+                <span>Помощь</span>
+                <span class="service-help-trigger-arrow" aria-hidden="true"></span>
+              </button>
+              <div class="service-help-dropdown" id="service-help-dropdown" role="menu" hidden>
+                <button type="button" class="service-help-option" role="menuitem" data-support-open="docs">
+                  <img src="temp/icons/document.png" alt="" aria-hidden="true" />
+                  <span>Документация</span>
+                </button>
+                <button type="button" class="service-help-option" role="menuitem" data-support-open="question">
+                  <img src="temp/icons/message.png" alt="" aria-hidden="true" />
+                  <span>Задать вопрос</span>
+                </button>
+                <button type="button" class="service-help-option" role="menuitem" data-support-open="feedback">
+                  <img src="temp/icons/warning.png" alt="" aria-hidden="true" />
+                  <span>Сообщить об ошибке</span>
+                </button>
+              </div>
+            </div>
             <span class="user-hint" id="dash-user-hint"></span>
             <a href="admin.html" class="btn-logout" id="admin-panel-link" hidden>Админ-панель</a>
             <button type="button" class="btn-logout" id="btn-logout">Выйти</button>
@@ -422,6 +465,65 @@
       </div>
     </div>
 
+    <div class="service-panel-overlay" id="service-panel-overlay" hidden>
+      <aside class="service-panel" id="service-panel" role="dialog" aria-modal="true" aria-labelledby="service-panel-title">
+        <button type="button" class="service-panel-close" id="service-panel-close" aria-label="Закрыть">×</button>
+        <h2 id="service-panel-title" class="service-panel-title">Обратная связь</h2>
+        <div class="service-panel-tabs" role="tablist" aria-label="Разделы обратной связи">
+          <button type="button" class="service-panel-tab is-active" data-service-tab="new">Новое обращение</button>
+          <button type="button" class="service-panel-tab" data-service-tab="list">Мои обращения</button>
+        </div>
+
+        <section class="service-panel-docs" id="service-panel-docs" hidden>
+          <h3>Документация</h3>
+          <p>Раздел документации будет добавлен позже.</p>
+        </section>
+
+        <form class="service-feedback-form" id="service-feedback-form">
+          <label class="service-field">
+            <span>Тема обращения</span>
+            <select id="service-feedback-topic" required>
+              <option value="question">Вопрос по показателю</option>
+              <option value="bug">Сообщить об ошибке</option>
+              <option value="data">Проблема с данными</option>
+              <option value="feature">Предложение по улучшению</option>
+            </select>
+          </label>
+
+          <div class="service-related-card" id="service-related-card">
+            <strong id="service-feedback-session-department">Подразделение пользователя</strong>
+            <span id="service-related-card-subtitle">Подразделение подтягивается из активного сеанса</span>
+          </div>
+
+          <label class="service-field" id="service-feedback-child-department-wrap" hidden>
+            <span>К какому подразделению относится обращение</span>
+            <select id="service-feedback-child-department"></select>
+          </label>
+
+          <label class="service-field">
+            <span>Описание</span>
+            <textarea id="service-feedback-description" rows="6" placeholder="Опишите ваш вопрос или ситуацию..." required></textarea>
+            <span class="service-description-hint">Файл или скриншот можно вставить через Ctrl+V или перетащить прямо сюда.</span>
+          </label>
+          <div class="service-attachments" id="service-feedback-attachments" hidden></div>
+
+          <label class="service-field">
+            <span>Контакт для ответа</span>
+            <input id="service-feedback-contact" type="email" placeholder="email@company.ru" />
+          </label>
+
+          <button type="submit" class="service-feedback-submit">Отправить обращение</button>
+          <p class="service-feedback-note">Ваше обращение будет обработано в течение 1–2 рабочих дней</p>
+          <p class="service-feedback-status" id="service-feedback-status" role="status" hidden></p>
+        </form>
+
+        <section class="service-feedback-list" id="service-feedback-list" hidden>
+          <p class="service-feedback-empty" id="service-feedback-empty">Обращений пока нет.</p>
+          <div id="service-feedback-items"></div>
+        </section>
+      </aside>
+    </div>
+
     <dialog id="kpi-thresholds-dialog" class="kpi-thresholds-dialog" aria-labelledby="kpi-thresholds-dialog-title">
       <div class="kpi-thresholds-dialog-panel">
         <h2 id="kpi-thresholds-dialog-title" class="kpi-thresholds-dialog-title"></h2>
@@ -476,6 +578,7 @@
     <script src="js/pages/dashboard-claims-table.js"></script>
     <script src="js/pages/dashboard-charts.js"></script>
     <script src="js/pages/dashboard-chairman-overview.js"></script>
+    <script src="js/pages/dashboard-support.js"></script>
     <script src="js/pages/dashboard.js"></script>
   </body>
 </html>
