@@ -13,7 +13,10 @@
       <aside class="dash-sidebar">
         <div class="dash-sidebar-panel">
           <div class="dash-sidebar-head">
-            <h2 class="dash-sidebar-title">Навигация</h2>
+            <h2 class="dash-sidebar-title">
+              <span class="dash-sidebar-title-icon" aria-hidden="true"></span>
+              <span>Навигация</span>
+            </h2>
             <nav
               class="dash-hierarchy-breadcrumb"
               id="dashboard-hierarchy-breadcrumb"
@@ -58,11 +61,19 @@
             <p class="dash-sidebar-service-title">Сервис</p>
             <button type="button" class="dash-sidebar-service-btn" data-support-open="docs">
               <img class="dash-sidebar-service-icon" src="temp/icons/document.png" alt="" aria-hidden="true" />
-              <span>Документация</span>
+              <span class="dash-sidebar-service-text">
+                <strong>Документация</strong>
+                <small>Инструкции и регламенты</small>
+              </span>
+              <span class="dash-sidebar-service-arrow" aria-hidden="true">›</span>
             </button>
             <button type="button" class="dash-sidebar-service-btn" data-support-open="feedback">
               <img class="dash-sidebar-service-icon" src="temp/icons/message.png" alt="" aria-hidden="true" />
-              <span>Обратная связь</span>
+              <span class="dash-sidebar-service-text">
+                <strong>Обратная связь</strong>
+                <small>Сообщить о проблеме</small>
+              </span>
+              <span class="dash-sidebar-service-arrow" aria-hidden="true">›</span>
             </button>
           </div>
           <button type="button" class="dash-sidebar-collapse-btn" id="dash-sidebar-collapse-btn">
