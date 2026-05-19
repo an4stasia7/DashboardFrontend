@@ -3013,6 +3013,11 @@
     if (typeof DashboardMonthNav === "undefined" || !DashboardMonthNav || typeof DashboardMonthNav.getPeriodState !== "function") {
       return false;
     }
+    if (isProductionDeputyDashboardContext()) {
+      // PD-M1.*.W/M/T зависят от выбранного документа ТД_ПроизводственныйПлан,
+      // поэтому после агрегации нельзя восстанавливать их из старого monthly_data.
+      return false;
+    }
     var ps = DashboardMonthNav.getPeriodState();
     var month = ps && ps.currentPeriodMonth != null ? Number(ps.currentPeriodMonth) : null;
     var year = ps && ps.currentPeriodYear != null ? Number(ps.currentPeriodYear) : null;
