@@ -549,6 +549,7 @@
    * зелёный от 80 %, жёлтый от 50 % до 79 %, красный ниже 50 %.
    */
   function kpiRagFromPercentStub(percent) {
+    if (percent == null || percent === "") return { rag: "gray", fillColor: KPI_RAG_FILL.gray };
     var raw = Number(percent);
     if (!isFinite(raw) || isNaN(raw)) return { rag: "gray", fillColor: KPI_RAG_FILL.gray };
     var p = Math.min(100, Math.max(0, raw));
@@ -638,18 +639,25 @@
 
   function parseTilePercent(tile) {
     var n = extractPercentFromTile(tile);
-    return n == null ? 0 : n;
+    return n == null ? null : n;
   }
 
   /**
-   * Парсит green_threshold / yellow_threshold строки из JSON и определяет RAG.
-   * Поддерживает форматы: "≥100%", "90–99,9%", "<90%", а также числовые строки.
+   * Парсит green_threshold / yellow_threshold / red_threshold и определяет RAG.
+   * Поддерживает: "≥100%", "≤70%", "90–99,9%", ">75%".
    */
   function deriveRagFromThresholds(tile, percent) {
     if (tile == null || percent == null || isNaN(percent)) return null;
     var gs = tile.green_threshold != null ? String(tile.green_threshold) : "";
     var ys = tile.yellow_threshold != null ? String(tile.yellow_threshold) : "";
-    if (!gs && !ys) return null;
+    var rs = tile.red_threshold != null ? String(tile.red_threshold) : "";
+    if (!gs && !ys && !rs) return null;
+
+    var leMatch = gs.match(/[≤<]=?\s*([\d]+(?:[.,]\d+)?)/);
+    if (leMatch) {
+      var greenMax = parseFloat(leMatch[1].replace(",", "."));
+      if (percent <= greenMax) return "green";
+    }
 
     var gMatch = gs.match(/[≥>=]\s*([\d]+(?:[.,]\d+)?)\s*%?/);
     if (gMatch) {
@@ -664,7 +672,13 @@
       if (percent >= lo && percent <= hi) return "yellow";
     }
 
-    if (gMatch || range) return "red";
+    var gtMatch = rs.match(/>\s*([\d]+(?:[.,]\d+)?)/);
+    if (gtMatch) {
+      var redMin = parseFloat(gtMatch[1].replace(",", "."));
+      if (percent > redMin) return "red";
+    }
+
+    if (leMatch || gMatch || range || gtMatch) return "red";
     return null;
   }
 
@@ -706,6 +720,7 @@
   }
 
   function formatKpiPercentLabel(p) {
+    if (p == null || p === "") return "—";
     var n = Number(p);
     if (isNaN(n)) return "—";
     if (Math.abs(n - Math.round(n)) < 1e-6) return String(Math.round(n));

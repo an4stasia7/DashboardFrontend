@@ -2231,6 +2231,21 @@
     return "red";
   }
 
+  /** MRK-06 «Доля Газпром + БМИ»: ≤70 — зелёный, 70.1–75 — жёлтый, >75 — красный. */
+  function mrk06ShareRagFromPct(pct) {
+    var value = parseNumberLoose(pct);
+    if (value == null) return null;
+    if (value <= 70) return "green";
+    if (value <= 75) return "yellow";
+    return "red";
+  }
+
+  function isMrk06ShareKpiItem(item) {
+    if (!item || typeof item !== "object") return false;
+    var id = item.kpi_id != null ? String(item.kpi_id).trim().toUpperCase() : "";
+    return id === "MRK-06";
+  }
+
   function computeChairmanAggregatedPoint(item, year, month, mode, selectedQuarters) {
     if (!item || typeof item !== "object") return null;
     var points = Array.isArray(item.monthly_data) ? item.monthly_data.slice() : [];
@@ -2415,6 +2430,7 @@
     }
     var limitRag = isBudgetFotLimitKpiItem(item) ? planFactLimitRag(plan, fact) : null;
     var turnoverRag = isTurnoverKpiItem(item) ? turnoverLimitRagFromPct(kpiPct) : null;
+    var shareRag = isMrk06ShareKpiItem(item) ? mrk06ShareRagFromPct(kpiPct) : null;
 
     return {
       year: y,
@@ -2429,7 +2445,7 @@
       color:
         weightedDisplay && kpiPct != null && displayPlan != null
           ? (kpiPct < displayPlan ? "green" : (Math.abs(kpiPct - displayPlan) < 0.000001 ? "yellow" : "red"))
-          : (turnoverRag || limitRag),
+          : (shareRag || turnoverRag || limitRag),
       expected_plan: extraHas.expected_plan ? extraSums.expected_plan : null,
       found: extraHas.found ? extraSums.found : null,
       won: extraHas.won ? extraSums.won : null,
@@ -3228,6 +3244,11 @@
     if (!lastRawKpiResponse || typeof Api === "undefined" || !Api) return false;
     if (typeof Api.processKpiResponseBodyAtPeriod !== "function") return false;
     if (typeof DashboardMonthNav === "undefined" || !DashboardMonthNav || typeof DashboardMonthNav.getPeriodState !== "function") {
+      return false;
+    }
+    if (isProductionDeputyDashboardContext()) {
+      // PD-M1.*.W/M/T зависят от выбранного документа ТД_ПроизводственныйПлан,
+      // поэтому после агрегации нельзя восстанавливать их из старого monthly_data.
       return false;
     }
     var ps = DashboardMonthNav.getPeriodState();

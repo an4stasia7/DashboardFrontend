@@ -1563,6 +1563,10 @@
     var fromCharts = buildPlanFactFromChartsLastAvailable(body, filterYear, filterMonth);
     var monthlyFromCharts = buildMonthlyDataFromCharts(body);
     var fromTables = buildPlanFactLookupFromTablesOnly(body, filterYear, filterMonth);
+    function isProductionDeputyOutputPeriodTile(id) {
+      var normalized = id != null ? String(id).trim().toUpperCase() : "";
+      return /^(PD-M1\.[12]\.)(W|M|T)$/.test(normalized);
+    }
     tiles.forEach(function (tile) {
       var id = tile.kpi_id;
       if (!id) return;
@@ -1572,7 +1576,10 @@
       var ownMonthly = fromTileMonthly[id];
       var ch = fromCharts[id];
       var tb = fromTables[id];
-      if (ownMonthly) {
+      if (isProductionDeputyOutputPeriodTile(id)) {
+        return;
+      }
+      if (ownMonthly && !isProductionDeputyOutputPeriodTile(id)) {
         tile.plan = ownMonthly.plan;
         tile.fact = ownMonthly.fact;
         if (ownMonthly.display_unit != null) {

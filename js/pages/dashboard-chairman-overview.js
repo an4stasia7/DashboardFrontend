@@ -19,6 +19,9 @@
 
   /** Сколько карточек дашбордов показывать на одном «экране» (ряд в сетке). */
   var CHAIRMAN_OVERVIEW_CARDS_PER_PAGE = 2;
+  /** Иконки коммерческого блока лежат в DashboardFrontend/temp/comblock. */
+  var COMMERCIAL_ICON_BASE_PATH = "/temp/comblock";
+  var COMMERCIAL_ICON_FOLDERS_BY_INDEX = ["otgruzki", "dogovorplan", "plandeneg", "otntoshenie"];
 
   var state = {
     expandedCatalogId: null,
@@ -407,7 +410,8 @@
   function commercialIconFoldersForTile(tile, index) {
     var title = normalizeIconFolderPart(tileDisplayTitle(tile));
     var kpiId = normalizeIconFolderPart(tile && (tile.kpi_id || tile.badge || tile.id));
-    var raw = [tile && tile.iconFolder, tile && tile.icon_folder, tile && tile.slug, kpiId, title]
+    var forcedByIndex = COMMERCIAL_ICON_FOLDERS_BY_INDEX[index] || "";
+    var raw = [forcedByIndex, tile && tile.iconFolder, tile && tile.icon_folder, tile && tile.slug, kpiId, title]
       .map(normalizeIconFolderPart)
       .filter(Boolean);
     var text = title + " " + kpiId;
@@ -492,9 +496,15 @@
     var color = rag === "gray" ? "grey" : rag;
     var folders = commercialIconFoldersForTile(tile, index);
     var candidates = [];
+    var colors = [color];
+    ["red", "yellow", "green"].forEach(function (fallbackColor) {
+      if (colors.indexOf(fallbackColor) === -1) colors.push(fallbackColor);
+    });
     folders.forEach(function (folder) {
-      ["png", "svg", "webp"].forEach(function (ext) {
-        candidates.push("temp/comblock/" + folder + "/" + color + "." + ext);
+      colors.forEach(function (candidateColor) {
+        ["png", "svg", "webp"].forEach(function (ext) {
+          candidates.push(COMMERCIAL_ICON_BASE_PATH + "/" + folder + "/" + candidateColor + "." + ext);
+        });
       });
     });
     setImageCandidates(img, candidates, fallback);
