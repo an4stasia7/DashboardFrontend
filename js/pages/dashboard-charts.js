@@ -1145,7 +1145,7 @@
           var unit = item && item.unit ? String(item.unit) : "";
           var preview = Highcharts.chart(
             chartHost,
-            buildKsRazvitieDonutOptions(agg.plan, agg.fact, 220, unit)
+            buildKsRazvitieDonutOptions(agg.plan, agg.fact, 220, unit, agg)
           );
           chartPreviewInstances.push(preview);
         });
@@ -1330,9 +1330,20 @@
     return String(Math.round(n * 100) / 100).replace(".", ",");
   }
 
-  function formatKsRazvitieValueWithUnit(value, unit) {
-    var text = formatKsRazvitieValue(value);
+  function formatKsRazvitieCompactValue(value) {
+    if (value == null) return "0";
+    var n = Number(value);
+    if (!isFinite(n)) return "0";
+    var abs = Math.abs(n);
+    if (abs >= 1000000) return formatKsRazvitieValue(n / 1000000) + " млн.";
+    if (abs >= 1000) return formatKsRazvitieValue(n / 1000) + " тыс.";
+    return formatKsRazvitieValue(n);
+  }
+
+  function formatKsRazvitieValueWithUnit(value, unit, options) {
     var unitText = unit != null ? String(unit).trim() : "";
+    var useCompact = !!(options && options.compact) && unitText !== "%";
+    var text = useCompact ? formatKsRazvitieCompactValue(value) : formatKsRazvitieValue(value);
     if (!unitText) return text;
     if (unitText === "%") return text + "%";
     return text + " " + unitText;
@@ -1394,11 +1405,15 @@
 
     var plan = 0;
     var fact = 0;
+    var quantity = 0;
+    var ordersCount = 0;
     keep.forEach(function (m) {
       plan += Number(m && m.plan) || 0;
       fact += Number(m && m.fact) || 0;
+      quantity += Number(m && m.quantity) || 0;
+      ordersCount += Number(m && m.orders_count) || 0;
     });
-    return { plan: plan, fact: fact };
+    return { plan: plan, fact: fact, quantity: quantity, orders_count: ordersCount };
   }
 
   function periodLabelForMode(mode, refMonth, refYear) {
@@ -1428,7 +1443,7 @@
    * Donut-ячейка для КС развитие: тот же визуал, что у KPI-донатов.
    * Для процентных показателей в центре показываем только факт / план * 100.
    */
-  function buildKsRazvitieDonutOptions(planValue, factValue, chartSize, unit) {
+  function buildKsRazvitieDonutOptions(planValue, factValue, chartSize, unit, extra) {
     var safePlan = Math.max(0, Number(planValue) || 0);
     var safeFact = Math.max(0, Number(factValue) || 0);
     var fillColor = "#2b5ca6";
@@ -1456,9 +1471,9 @@
     var label = isPercentUnit
       ? (percentValue == null ? "—" : formatKsRazvitieValueWithUnit(percentValue, "%"))
       : (
-        formatKsRazvitieValue(safeFact) +
+        formatKsRazvitieCompactValue(safeFact) +
         "/" +
-        formatKsRazvitieValueWithUnit(safePlan, unitText)
+        formatKsRazvitieValueWithUnit(safePlan, unitText, { compact: true })
       );
     return {
       chart: {
@@ -1490,7 +1505,12 @@
               "<br/>План: " + formatKsRazvitieValue(safePlan)
             );
           }
-          return "<b>" + this.name + "</b>: " + formatKsRazvitieValueWithUnit(this.y, unitText);
+          var text = "<b>" + this.name + "</b>: " + formatKsRazvitieValueWithUnit(this.y, unitText, { compact: true });
+          if (extra && (Number(extra.quantity) || Number(extra.orders_count))) {
+            text += "<br/>Количество: " + formatKsRazvitieCompactValue(Number(extra.quantity) || 0);
+            text += "<br/>Заказов: " + formatKsRazvitieValue(Number(extra.orders_count) || 0);
+          }
+          return text;
         },
       },
       plotOptions: {
@@ -1561,7 +1581,7 @@
       var unit = item && item.unit ? String(item.unit) : "";
       var instance = Highcharts.chart(
         chartDiv,
-        buildKsRazvitieDonutOptions(agg.plan, agg.fact, chartSize, unit),
+        buildKsRazvitieDonutOptions(agg.plan, agg.fact, chartSize, unit, agg),
       );
       donutChartInstances.push(instance);
     });
