@@ -549,6 +549,7 @@
    * зелёный от 80 %, жёлтый от 50 % до 79 %, красный ниже 50 %.
    */
   function kpiRagFromPercentStub(percent) {
+    if (percent == null || percent === "") return { rag: "gray", fillColor: KPI_RAG_FILL.gray };
     var raw = Number(percent);
     if (!isFinite(raw) || isNaN(raw)) return { rag: "gray", fillColor: KPI_RAG_FILL.gray };
     var p = Math.min(100, Math.max(0, raw));
@@ -638,7 +639,7 @@
 
   function parseTilePercent(tile) {
     var n = extractPercentFromTile(tile);
-    return n == null ? 0 : n;
+    return n == null ? null : n;
   }
 
   /**
@@ -706,6 +707,7 @@
   }
 
   function formatKpiPercentLabel(p) {
+    if (p == null || p === "") return "—";
     var n = Number(p);
     if (isNaN(n)) return "—";
     if (Math.abs(n - Math.round(n)) < 1e-6) return String(Math.round(n));

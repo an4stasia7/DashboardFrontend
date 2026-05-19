@@ -1037,6 +1037,10 @@
   display: block;
 }
 
+.dash-chairman-commercial-icon img[hidden] {
+  display: none !important;
+}
+
 .dash-chairman-commercial-icon-fallback {
   width: 12px;
   height: 12px;

@@ -22,6 +22,7 @@
       "*.html",
       "css/**/*",
       "js/**/*",
+      "temp/**/*",
       "node_modules/katex/dist/**/*",
       "package.json"
     ],
