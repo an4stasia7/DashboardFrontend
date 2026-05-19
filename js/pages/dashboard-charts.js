@@ -1417,9 +1417,16 @@
     return (monthName ? monthName.charAt(0).toUpperCase() + monthName.slice(1) : "") + " " + ry;
   }
 
+  function computeKsRazvitiePercent(planValue, factValue) {
+    var plan = Number(planValue) || 0;
+    var fact = Number(factValue) || 0;
+    if (plan <= 0) return null;
+    return (fact / plan) * 100;
+  }
+
   /**
-   * Donut-ячейка для КС развитие: тот же визуал, что у KPI-донатов,
-   * но в центре — цифра «факт / план», а цветом сегмента — факт vs остаток плана.
+   * Donut-ячейка для КС развитие: тот же визуал, что у KPI-донатов.
+   * Для процентных показателей в центре показываем только факт / план * 100.
    */
   function buildKsRazvitieDonutOptions(planValue, factValue, chartSize, unit) {
     var safePlan = Math.max(0, Number(planValue) || 0);
@@ -1427,6 +1434,7 @@
     var fillColor = "#2b5ca6";
     var trackColor = "#e2e8f0";
     var unitText = unit != null ? String(unit).trim() : "";
+    var isPercentUnit = unitText === "%";
 
     var data;
     if (safePlan <= 0 && safeFact <= 0) {
@@ -1444,10 +1452,14 @@
       ];
     }
 
-    var label =
-      formatKsRazvitieValue(safeFact) +
-      "/" +
-      formatKsRazvitieValueWithUnit(safePlan, unitText);
+    var percentValue = computeKsRazvitiePercent(safePlan, safeFact);
+    var label = isPercentUnit
+      ? (percentValue == null ? "—" : formatKsRazvitieValueWithUnit(percentValue, "%"))
+      : (
+        formatKsRazvitieValue(safeFact) +
+        "/" +
+        formatKsRazvitieValueWithUnit(safePlan, unitText)
+      );
     return {
       chart: {
         type: "pie",
@@ -1470,6 +1482,14 @@
       credits: { enabled: false },
       tooltip: {
         pointFormatter: function () {
+          if (isPercentUnit) {
+            return (
+              "<b>KPI</b>: " +
+              (percentValue == null ? "—" : formatKsRazvitieValueWithUnit(percentValue, "%")) +
+              "<br/>Факт: " + formatKsRazvitieValue(safeFact) +
+              "<br/>План: " + formatKsRazvitieValue(safePlan)
+            );
+          }
           return "<b>" + this.name + "</b>: " + formatKsRazvitieValueWithUnit(this.y, unitText);
         },
       },
