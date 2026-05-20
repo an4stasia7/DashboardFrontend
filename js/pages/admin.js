@@ -9,11 +9,14 @@
   }
 
   var body = document.getElementById("admin-requests-body");
+  var feedbackBody = document.getElementById("admin-feedback-body");
+  var feedbackArchiveBody = document.getElementById("admin-feedback-archive-body");
   var errorEl = document.getElementById("admin-error");
   var btnRefresh = document.getElementById("admin-refresh");
   var statPending = document.getElementById("stat-pending");
   var statRegistration = document.getElementById("stat-registration");
   var statReset = document.getElementById("stat-reset");
+  var statFeedback = document.getElementById("stat-feedback");
 
   function showError(message, success) {
     if (!errorEl) return;
@@ -35,6 +38,16 @@
 
   function renderEmpty(text) {
     body.innerHTML = '<tr><td colspan="6" class="admin-empty">' + text + "</td></tr>";
+  }
+
+  function renderFeedbackEmpty(text) {
+    if (!feedbackBody) return;
+    feedbackBody.innerHTML = '<tr><td colspan="8" class="admin-empty">' + text + "</td></tr>";
+  }
+
+  function renderFeedbackArchiveEmpty(text) {
+    if (!feedbackArchiveBody) return;
+    feedbackArchiveBody.innerHTML = '<tr><td colspan="7" class="admin-empty">' + text + "</td></tr>";
   }
 
   function requestTypeLabel(req) {
@@ -81,6 +94,66 @@
     });
   }
 
+  function renderFeedbackRequests(requests) {
+    var items = Array.isArray(requests) ? requests : [];
+    if (statFeedback) statFeedback.textContent = String(items.length);
+    if (!feedbackBody) return;
+    if (!items.length) {
+      renderFeedbackEmpty("Обращений пока нет");
+      return;
+    }
+    feedbackBody.innerHTML = "";
+    items.forEach(function (req) {
+      var files = Array.isArray(req.attachment_names) ? req.attachment_names : [];
+      var tr = document.createElement("tr");
+      var actions =
+        '<div class="admin-actions">' +
+        (req.status === "failed"
+          ? '<button type="button" class="btn btn-danger" data-feedback-action="delete">Удалить</button>'
+          : '<button type="button" class="btn btn-soft" data-feedback-action="complete">Выполнено</button>' +
+            '<button type="button" class="btn btn-danger" data-feedback-action="reject">Отклонить</button>') +
+        "</div>";
+      tr.innerHTML =
+        "<td>" + badge(req.topic_label || req.topic || "Обращение") + "</td>" +
+        "<td><strong>" + escapeHtml(req.user || "—") + "</strong></td>" +
+        "<td>" + escapeHtml(req.related_department || req.department || "—") + "</td>" +
+        "<td>" + fmtDate(req.created_at) + "</td>" +
+        "<td>" + escapeHtml(req.status_label || req.status || "—") + "</td>" +
+        '<td class="admin-feedback-description">' + escapeHtml(req.description || "—") + "</td>" +
+        "<td>" + escapeHtml(files.length ? files.join(", ") : "—") + "</td>" +
+        "<td>" + actions + "</td>";
+      tr.querySelectorAll("[data-feedback-action]").forEach(function (btn) {
+        btn.addEventListener("click", function () {
+          processFeedback(req.id, btn.getAttribute("data-feedback-action"));
+        });
+      });
+      feedbackBody.appendChild(tr);
+    });
+  }
+
+  function renderFeedbackArchive(requests) {
+    var items = Array.isArray(requests) ? requests : [];
+    if (!feedbackArchiveBody) return;
+    if (!items.length) {
+      renderFeedbackArchiveEmpty("В архиве пока нет обращений");
+      return;
+    }
+    feedbackArchiveBody.innerHTML = "";
+    items.forEach(function (req) {
+      var files = Array.isArray(req.attachment_names) ? req.attachment_names : [];
+      var tr = document.createElement("tr");
+      tr.innerHTML =
+        "<td>" + badge(req.topic_label || req.topic || "Обращение") + "</td>" +
+        "<td><strong>" + escapeHtml(req.user || "—") + "</strong></td>" +
+        "<td>" + escapeHtml(req.related_department || req.department || "—") + "</td>" +
+        "<td>" + fmtDate(req.created_at) + "</td>" +
+        "<td>" + escapeHtml(req.status_label || req.status || "—") + "</td>" +
+        '<td class="admin-feedback-description">' + escapeHtml(req.description || "—") + "</td>" +
+        "<td>" + escapeHtml(files.length ? files.join(", ") : "—") + "</td>";
+      feedbackArchiveBody.appendChild(tr);
+    });
+  }
+
   function escapeHtml(value) {
     return String(value == null ? "" : value)
       .replace(/&/g, "&amp;")
@@ -92,6 +165,8 @@
   function loadRequests() {
     showError("");
     renderEmpty("Загрузка…");
+    renderFeedbackEmpty("Загрузка…");
+    renderFeedbackArchiveEmpty("Загрузка…");
     Api.fetchAccessRequests("pending").then(function (res) {
       if (!res.ok) {
         if (res.unauthorized) {
@@ -105,6 +180,25 @@
       }
       renderRequests(res.requests || []);
     });
+    Api.fetchAdminFeedbackRequests().then(function (res) {
+      if (!res.ok) {
+        if (res.unauthorized) {
+          Auth.logout();
+          window.location.href = "login.html";
+          return;
+        }
+        renderFeedbackEmpty("Ошибка загрузки");
+        return;
+      }
+      renderFeedbackRequests(res.requests || []);
+    });
+    Api.fetchAdminFeedbackRequests(true).then(function (res) {
+      if (!res.ok) {
+        renderFeedbackArchiveEmpty("Ошибка загрузки");
+        return;
+      }
+      renderFeedbackArchive(res.requests || []);
+    });
   }
 
   function processRequest(id, action) {
@@ -115,6 +209,18 @@
         return;
       }
       showError(action === "approve" ? "Заявка одобрена" : "Заявка отклонена", true);
+      loadRequests();
+    });
+  }
+
+  function processFeedback(id, action) {
+    Api.processFeedbackRequest(id, action).then(function (res) {
+      if (!res.ok) {
+        showError(res.error || "Не удалось обработать обращение");
+        return;
+      }
+      var msg = action === "delete" ? "Обращение удалено" : action === "reject" ? "Обращение отклонено" : "Обращение выполнено";
+      showError(msg, true);
       loadRequests();
     });
   }

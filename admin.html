@@ -32,6 +32,10 @@
           <span>Смена пароля</span>
           <strong id="stat-reset">0</strong>
         </div>
+        <div class="admin-stat">
+          <span>Обратная связь</span>
+          <strong id="stat-feedback">0</strong>
+        </div>
       </section>
       <section class="admin-table-wrap" aria-label="Заявки пользователей">
         <table class="admin-table">
@@ -47,6 +51,51 @@
           </thead>
           <tbody id="admin-requests-body">
             <tr><td colspan="6" class="admin-empty">Загрузка…</td></tr>
+          </tbody>
+        </table>
+      </section>
+      <section class="admin-table-wrap admin-feedback-wrap" aria-label="Обращения обратной связи">
+        <div class="admin-section-head">
+          <h2>Обратная связь</h2>
+          <p>Обращения пользователей, отправленные через дашборд.</p>
+        </div>
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Тема</th>
+              <th>Пользователь</th>
+              <th>Подразделение</th>
+              <th>Создано</th>
+              <th>Статус</th>
+              <th>Описание</th>
+              <th>Файлы</th>
+              <th>Действия</th>
+            </tr>
+          </thead>
+          <tbody id="admin-feedback-body">
+            <tr><td colspan="8" class="admin-empty">Загрузка…</td></tr>
+          </tbody>
+        </table>
+      </section>
+      <section class="admin-table-wrap admin-feedback-wrap" aria-label="Архив обратной связи">
+        <div class="admin-section-head">
+          <h2>Архив обратной связи</h2>
+          <p>Выполненные и отклонённые обращения.</p>
+        </div>
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>Тема</th>
+              <th>Пользователь</th>
+              <th>Подразделение</th>
+              <th>Создано</th>
+              <th>Статус</th>
+              <th>Описание</th>
+              <th>Файлы</th>
+            </tr>
+          </thead>
+          <tbody id="admin-feedback-archive-body">
+            <tr><td colspan="7" class="admin-empty">Загрузка…</td></tr>
           </tbody>
         </table>
       </section>

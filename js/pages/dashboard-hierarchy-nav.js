@@ -417,6 +417,10 @@
       btn.setAttribute("role", "tab");
       btn.setAttribute("data-target-id", t.id);
       btn.setAttribute("aria-selected", isViewTargetActive(t, selectedViewId, hierarchyStack) ? "true" : "false");
+      var icon = document.createElement("span");
+      icon.className = "dash-view-tab-icon";
+      icon.setAttribute("aria-hidden", "true");
+      btn.appendChild(icon);
       var span = document.createElement("span");
       span.className = "dash-view-tab-text";
       span.textContent =

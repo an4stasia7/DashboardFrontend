@@ -594,6 +594,16 @@
     }
     var fact = String(tile.fact != null ? tile.fact : "").trim();
     var plan = String(tile.plan != null ? tile.plan : "").trim();
+    var factNumber = finiteNumber(tile.fact);
+    var planNumber = finiteNumber(tile.plan);
+    var expectedNumber = finiteNumber(tile.expected_plan);
+
+    if (factNumber != null && planNumber != null && planNumber > 0) {
+      return Math.round(1000 * factNumber / planNumber) / 10;
+    }
+    if (factNumber != null && expectedNumber != null && expectedNumber > 0) {
+      return Math.round(1000 * factNumber / expectedNumber) / 10;
+    }
 
     var pct = fact.match(/^([\d]+(?:[.,]\d+)?)\s*%$/);
     if (pct) {
@@ -635,6 +645,18 @@
     }
 
     return null;
+  }
+
+  function finiteNumber(value) {
+    if (value == null || value === "") return null;
+    if (typeof value === "number") return isFinite(value) && !isNaN(value) ? value : null;
+    var raw = String(value).trim();
+    if (!raw || raw === "—" || raw === "-") return null;
+    raw = raw.replace(/\s/g, "").replace(",", ".");
+    var match = raw.match(/-?\d+(?:\.\d+)?/);
+    if (!match) return null;
+    var n = Number(match[0]);
+    return isFinite(n) && !isNaN(n) ? n : null;
   }
 
   function parseTilePercent(tile) {
@@ -694,6 +716,15 @@
       normalizeRagFromApi(tile.status) ||
       normalizeRagFromApi(tile.ragStatus);
     if (ragFromApi) {
+      if (ragFromApi === "gray" && percent != null) {
+        var ragFallback = deriveRagFromThresholds(tile, percent) || kpiRagFromPercentStub(percent).rag;
+        return {
+          percent: percent,
+          rag: ragFallback,
+          fillColor: KPI_RAG_FILL[ragFallback],
+          ragFromApi: false,
+        };
+      }
       return {
         percent: percent,
         rag: ragFromApi,
