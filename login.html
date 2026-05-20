@@ -6,10 +6,50 @@
     <title>Вход</title>
     <link rel="stylesheet" href="css/styles.css" />
   </head>
-  <body class="auth-body">
-    <div class="auth-card">
-      <h1 id="auth-title">Вход</h1>
-      <p class="sub" id="auth-subtitle">Управленческий дашборд</p>
+  <body class="auth-body auth-login-body">
+    <main class="auth-login-shell" aria-label="Вход в управленческий дашборд">
+      <section class="auth-login-hero" aria-label="Описание дашборда">
+        <div class="auth-brand-pill">
+          <span class="auth-brand-icon" aria-hidden="true">
+            <img src="temp/icons/logo.png" alt="" />
+          </span>
+          <span>Управленческий дашборд</span>
+        </div>
+        <div class="auth-hero-copy">
+          <h1>Управленческий<br />дашборд</h1>
+          <p>Единая панель контроля ключевых показателей коммерческого блока</p>
+        </div>
+        <div class="auth-mini-kpis" aria-hidden="true">
+          <article class="auth-mini-kpi auth-mini-kpi-red">
+            <span class="auth-mini-kpi-icon">
+              <img src="temp/icons/Rubl.png" alt="" />
+            </span>
+            <strong>Деньги</strong>
+            <b>35,7 <small>млн руб.</small></b>
+            <em>Ожидаемо 54 млн руб.</em>
+            <i></i>
+          </article>
+          <article class="auth-mini-kpi auth-mini-kpi-green">
+            <span class="auth-mini-kpi-icon">
+              <img src="temp/icons/Colco.png" alt="" />
+            </span>
+            <strong>KPI</strong>
+            <b>105,8<small>%</small></b>
+            <em>К плану +483%</em>
+            <i></i>
+          </article>
+        </div>
+        <a class="auth-guide-link" href="guide.html" aria-label="Открыть руководство">
+          <span aria-hidden="true">▱</span>
+          Открыть руководство
+          <span aria-hidden="true">→</span>
+        </a>
+      </section>
+
+      <section class="auth-login-center">
+        <div class="auth-card auth-login-card">
+      <h1 id="auth-title">Вход в систему</h1>
+      <p class="sub" id="auth-subtitle">Пожалуйста, выберите пользователя и введите пароль</p>
       <div id="auth-error" class="auth-error" role="alert"></div>
       <section class="auth-screen" id="login-screen">
         <form id="login-form" novalidate>
@@ -47,7 +87,10 @@
             <button type="button" id="btn-continue-as" class="btn btn-continue-as"></button>
             <p class="login-continue-hint">Без пароля — по сохранённой сессии (пока действует токен)</p>
           </div>
-          <button type="submit" class="btn btn-primary">Войти</button>
+          <button type="submit" class="btn btn-primary">
+            <span aria-hidden="true">♙</span>
+            Войти в систему
+          </button>
         </form>
         <div class="auth-actions-row" aria-label="Дополнительные действия">
           <button type="button" class="auth-link-button" id="show-register-form">Зарегистрироваться</button>
@@ -90,10 +133,38 @@
           <button type="button" class="btn btn-ghost" data-close-panel>Вернуться ко входу</button>
         </form>
       </section>
-    </div>
-    <footer class="auth-version-footer">
-      <span class="app-version-label" id="app-version-label" aria-label="Версия приложения"></span>
-    </footer>
+        </div>
+        <footer class="auth-version-footer">
+          <span class="app-version-label" id="app-version-label" aria-label="Версия приложения"></span>
+        </footer>
+      </section>
+
+      <aside class="auth-help-panel" aria-label="Руководство">
+        <h2>Руководство</h2>
+        <a href="guide.html#quick-start" class="auth-help-item">
+          <span aria-hidden="true">✧</span>
+          <strong>Быстрый старт</strong>
+          <small>Начните работу за 5 минут</small>
+          <i aria-hidden="true">›</i>
+        </a>
+        <a href="guide.html#read-metrics" class="auth-help-item">
+          <span aria-hidden="true">▥</span>
+          <strong>Как читать показатели</strong>
+          <small>Понимание метрик и трендов</small>
+          <i aria-hidden="true">›</i>
+        </a>
+        <a href="guide.html#faq" class="auth-help-item">
+          <span aria-hidden="true">?</span>
+          <strong>Частые вопросы</strong>
+          <small>Ответы на популярные вопросы</small>
+          <i aria-hidden="true">›</i>
+        </a>
+        <a href="guide.html" class="auth-help-open">
+          <span aria-hidden="true">↗</span>
+          Открыть все
+        </a>
+      </aside>
+    </main>
     <script src="js/config.js"></script>
     <script src="js/app-update-notifier.js"></script>
     <script src="js/app-version-label.js"></script>

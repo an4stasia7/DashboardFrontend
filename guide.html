@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Руководство пользователя</title>
+    <link rel="stylesheet" href="css/styles.css" />
+  </head>
+  <body class="guide-body">
+    <div class="guide-shell">
+      <aside class="guide-sidebar" aria-label="Разделы документации">
+        <a class="guide-brand" href="login.html" aria-label="На страницу входа">
+          <span class="guide-brand-icon"><img src="temp/icons/logo.png" alt="" /></span>
+          <span>Управленческий дашборд</span>
+        </a>
+
+        <nav class="guide-nav">
+          <p class="guide-nav-title">Документация</p>
+          <a class="guide-nav-section is-active" href="#quick-start">
+            <span class="guide-nav-icon">1</span>
+            <strong>Быстрый старт</strong>
+          </a>
+          <a class="guide-nav-sub" href="#account-register">Регистрация аккаунта</a>
+          <a class="guide-nav-sub" href="#dashboard-blocks">Блоки на странице дашборда</a>
+          <a class="guide-nav-sub" href="#first-login">Первый вход</a>
+
+          <a class="guide-nav-section" href="#read-metrics">
+            <span class="guide-nav-icon">2</span>
+            <strong>Как читать показатели</strong>
+          </a>
+          <a class="guide-nav-sub" href="#metric-cards">Карточки KPI</a>
+          <a class="guide-nav-sub" href="#colors-statuses">Цвета и статусы</a>
+          <a class="guide-nav-sub" href="#details-flow">Переход к деталям</a>
+
+          <a class="guide-nav-section" href="#faq">
+            <span class="guide-nav-icon">3</span>
+            <strong>Частые вопросы</strong>
+          </a>
+          <a class="guide-nav-sub" href="#faq-access">Доступ и роли</a>
+          <a class="guide-nav-sub" href="#faq-data">Данные и ошибки</a>
+          <a class="guide-nav-sub" href="#faq-feedback">Обратная связь</a>
+        </nav>
+
+        <a class="guide-sidebar-card" href="dashboard.html">
+          <span>▦</span>
+          <strong>Вернуться в дашборд</strong>
+          <small>Откройте рабочую панель</small>
+        </a>
+      </aside>
+
+      <main class="guide-main">
+        <header class="guide-topbar">
+          <a class="guide-topbar-back" href="login.html">← Назад ко входу</a>
+          <div class="guide-search" aria-label="Поиск по инструкции">
+            <span>⌕</span>
+            <input type="search" id="guide-search" placeholder="Поиск по инструкции" />
+          </div>
+        </header>
+
+        <section class="guide-hero" id="quick-start">
+          <div>
+            <p class="guide-eyebrow">Руководство пользователя</p>
+            <h1>Обучалка по управленческому дашборду</h1>
+            <p>
+              Здесь собраны первые действия, объяснение блоков на странице дашборда,
+              правила чтения показателей и ответы на частые вопросы.
+            </p>
+            <div class="guide-hero-actions">
+              <a href="#account-register" class="guide-primary-action">Начать с быстрого старта</a>
+              <a href="#faq" class="guide-secondary-action">Открыть FAQ</a>
+            </div>
+          </div>
+          <div class="guide-hero-shot" aria-label="Скриншот главного экрана">
+            <div class="guide-shot-window">
+              <span></span><span></span><span></span>
+            </div>
+            <div class="guide-shot-kpis">
+              <div></div>
+              <div></div>
+              <div></div>
+            </div>
+            <div class="guide-shot-chart"></div>
+          </div>
+        </section>
+
+        <div class="guide-card-grid" aria-label="Основные разделы">
+          <a class="guide-card" href="#quick-start">
+            <span>🚀</span>
+            <strong>Быстрый старт</strong>
+            <small>Регистрация, вход и первые действия</small>
+          </a>
+          <a class="guide-card" href="#read-metrics">
+            <span>▥</span>
+            <strong>Как читать показатели</strong>
+            <small>План, факт, динамика и статусы</small>
+          </a>
+          <a class="guide-card" href="#faq">
+            <span>?</span>
+            <strong>Частые вопросы</strong>
+            <small>Доступ, данные и обратная связь</small>
+          </a>
+        </div>
+
+        <section class="guide-section" id="account-register" data-guide-search="регистрация аккаунт заявка администратор подразделение пароль">
+          <div class="guide-section-head">
+            <span class="guide-step-badge">01</span>
+            <div>
+              <h2>Как зарегистрировать аккаунт</h2>
+              <p>Аккаунт создаётся через заявку администратору. После подтверждения вы сможете войти в дашборд.</p>
+            </div>
+          </div>
+          <div class="guide-two-col">
+            <ol class="guide-steps">
+              <li>
+                <strong>Откройте страницу входа.</strong>
+                Нажмите ссылку <b>Зарегистрироваться</b> внизу карточки входа.
+              </li>
+              <li>
+                <strong>Заполните заявку.</strong>
+                Укажите логин, пароль и подразделение из списка.
+              </li>
+              <li>
+                <strong>Дождитесь подтверждения.</strong>
+                Администратор увидит заявку в админ-панели и одобрит доступ.
+              </li>
+              <li>
+                <strong>Войдите в систему.</strong>
+                После одобрения выберите пользователя, введите пароль и нажмите <b>Войти в систему</b>.
+              </li>
+            </ol>
+            <figure class="guide-screen-card">
+              <figcaption>Скрин: карточка входа и ссылки регистрации</figcaption>
+              <div class="guide-login-shot">
+                <h3>Вход в систему</h3>
+                <p>Выберите пользователя и введите пароль</p>
+                <label>Пользователь</label>
+                <div class="guide-input-shot">comdir — Коммерческий директор</div>
+                <label>Пароль</label>
+                <div class="guide-input-shot guide-input-empty"></div>
+                <button>Войти в систему</button>
+                <div class="guide-login-links"><span>Зарегистрироваться</span><span>Сбросить пароль</span></div>
+              </div>
+            </figure>
+          </div>
+        </section>
+
+        <section class="guide-section" id="dashboard-blocks" data-guide-search="блоки дашборд навигация отделы помощь обратная связь топбар карточки графики таблицы">
+          <div class="guide-section-head">
+            <span class="guide-step-badge">02</span>
+            <div>
+              <h2>Какие есть блоки на странице дашборда</h2>
+              <p>Главная страница состоит из навигации, рабочей области, KPI-карточек, графиков, таблиц и сервисных кнопок.</p>
+            </div>
+          </div>
+          <div class="guide-dashboard-map">
+            <figure class="guide-screen-card guide-screen-wide">
+              <figcaption>Скрин: общий вид рабочего дашборда</figcaption>
+              <div class="guide-dashboard-shot">
+                <aside>
+                  <b>Навигация</b>
+                  <span></span><span></span><span></span><span></span>
+                  <small>Документация</small>
+                  <small>Обратная связь</small>
+                </aside>
+                <main>
+                  <header><b>Коммерческий директор</b><i>Помощь</i></header>
+                  <div class="guide-dashboard-kpis">
+                    <div class="is-green"></div>
+                    <div class="is-red"></div>
+                    <div class="is-yellow"></div>
+                  </div>
+                  <div class="guide-dashboard-chart"></div>
+                  <div class="guide-dashboard-table"></div>
+                </main>
+              </div>
+            </figure>
+            <div class="guide-block-list">
+              <article>
+                <strong>Левая панель</strong>
+                <p>Выбор подразделения, поиск отдела и сервисные кнопки.</p>
+              </article>
+              <article>
+                <strong>Верхняя панель</strong>
+                <p>Название текущего дашборда, меню помощи, админ-панель и выход.</p>
+              </article>
+              <article>
+                <strong>KPI-карточки</strong>
+                <p>Краткое состояние показателей: факт, план, процент выполнения и цветовой статус.</p>
+              </article>
+              <article>
+                <strong>Детализация</strong>
+                <p>Графики, таблицы и подробные расшифровки открываются из карточек и вкладок.</p>
+              </article>
+            </div>
+          </div>
+        </section>
+
+        <section class="guide-section" id="first-login" data-guide-search="первый вход роль подразделение сессия запомнить меня">
+          <div class="guide-section-head">
+            <span class="guide-step-badge">03</span>
+            <div>
+              <h2>Первый вход и выбор роли</h2>
+              <p>После входа система открывает дашборд, доступный вашему пользователю и подразделению.</p>
+            </div>
+          </div>
+          <div class="guide-note-grid">
+            <div class="guide-note">
+              <strong>Запомнить меня</strong>
+              <p>Если включить флажок на странице входа, можно продолжить работу по сохранённой сессии, пока действует токен.</p>
+            </div>
+            <div class="guide-note">
+              <strong>Роль и отдел</strong>
+              <p>Доступ к дашбордам зависит от роли пользователя и его подразделения, заданных администратором.</p>
+            </div>
+            <div class="guide-note">
+              <strong>Сервис</strong>
+              <p>Если что-то не сходится, используйте блок <b>Обратная связь</b> внизу левой панели.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="guide-section" id="read-metrics" data-guide-search="показатели читать kpi план факт процент динамика графики статус">
+          <div class="guide-section-head">
+            <span class="guide-step-badge">04</span>
+            <div>
+              <h2>Как читать показатели</h2>
+              <p>Каждая карточка показывает не только число, но и смысл: насколько показатель близок к плану.</p>
+            </div>
+          </div>
+          <div class="guide-two-col">
+            <figure class="guide-screen-card">
+              <figcaption>Скрин: KPI-карточка с цветовым статусом</figcaption>
+              <div class="guide-kpi-shot">
+                <span class="guide-kpi-dot is-green"></span>
+                <strong>KPI</strong>
+                <b>105,8%</b>
+                <p>К плану +483%</p>
+                <i></i>
+              </div>
+            </figure>
+            <div class="guide-explain-list">
+              <article id="metric-cards">
+                <strong>Название показателя</strong>
+                <p>Показывает, какой KPI вы смотрите: деньги, отгрузки, договоры, текучесть и другие.</p>
+              </article>
+              <article>
+                <strong>Факт</strong>
+                <p>Основное крупное число. Это текущее значение показателя за выбранный период.</p>
+              </article>
+              <article>
+                <strong>План или ожидаемое значение</strong>
+                <p>Подпись под фактом помогает понять, с чем сравнивается показатель.</p>
+              </article>
+              <article>
+                <strong>Мини-график</strong>
+                <p>Нижние столбики показывают динамику по времени и помогают быстро увидеть тренд.</p>
+              </article>
+            </div>
+          </div>
+        </section>
+
+        <section class="guide-section" id="colors-statuses" data-guide-search="цвета статусы зеленый желтый красный серый выполнение план">
+          <div class="guide-section-head">
+            <span class="guide-step-badge">05</span>
+            <div>
+              <h2>Цвета и статусы</h2>
+              <p>Цвет помогает быстро понять состояние KPI без чтения деталей.</p>
+            </div>
+          </div>
+          <div class="guide-status-grid">
+            <div class="guide-status-card is-green"><span></span><strong>Зелёный</strong><p>Показатель в норме или лучше плана.</p></div>
+            <div class="guide-status-card is-yellow"><span></span><strong>Жёлтый</strong><p>Есть отклонение, требуется внимание.</p></div>
+            <div class="guide-status-card is-red"><span></span><strong>Красный</strong><p>Показатель существенно хуже плана.</p></div>
+            <div class="guide-status-card is-gray"><span></span><strong>Серый</strong><p>Недостаточно данных для оценки.</p></div>
+          </div>
+        </section>
+
+        <section class="guide-section" id="details-flow" data-guide-search="детализация графики таблицы провалиться открыть подробности">
+          <div class="guide-section-head">
+            <span class="guide-step-badge">06</span>
+            <div>
+              <h2>Переход к деталям</h2>
+              <p>Если нужен разбор, откройте карточку или таблицу: там видны строки, периоды и причины отклонения.</p>
+            </div>
+          </div>
+          <figure class="guide-screen-card guide-screen-wide">
+            <figcaption>Скрин: путь от KPI к детализации</figcaption>
+            <div class="guide-flow-shot">
+              <div class="guide-flow-card">KPI-карточка</div>
+              <span>→</span>
+              <div class="guide-flow-card">График</div>
+              <span>→</span>
+              <div class="guide-flow-card">Таблица деталей</div>
+            </div>
+          </figure>
+        </section>
+
+        <section class="guide-section" id="faq" data-guide-search="частые вопросы faq помощь вопросы">
+          <div class="guide-section-head">
+            <span class="guide-step-badge">07</span>
+            <div>
+              <h2>Частые вопросы</h2>
+              <p>Короткие ответы на типовые ситуации.</p>
+            </div>
+          </div>
+          <div class="guide-faq-list">
+            <details id="faq-access" open>
+              <summary>Почему я не вижу нужный отдел?</summary>
+              <p>Список отделов зависит от вашей роли и подразделения. Если доступ должен быть шире, отправьте заявку администратору или обращение через обратную связь.</p>
+            </details>
+            <details id="faq-data">
+              <summary>Что делать, если данные кажутся неверными?</summary>
+              <p>Сначала проверьте выбранный месяц и подразделение. Затем откройте детализацию показателя. Если расхождение осталось, отправьте обращение с описанием и скриншотом.</p>
+            </details>
+            <details>
+              <summary>Почему показатель серый?</summary>
+              <p>Серый статус обычно означает, что не хватает плана, факта или правил оценки для выбранного периода.</p>
+            </details>
+            <details id="faq-feedback">
+              <summary>Как отправить файл или скриншот в обратной связи?</summary>
+              <p>Откройте «Обратная связь», вставьте скриншот через Ctrl+V или перетащите файл прямо в поле описания.</p>
+            </details>
+          </div>
+        </section>
+      </main>
+
+      <aside class="guide-toc" aria-label="Навигация по текущему разделу">
+        <div class="guide-toc-card">
+          <h2>В разделе</h2>
+          <a href="#account-register">Вход и регистрация</a>
+          <a href="#dashboard-blocks">Блоки дашборда</a>
+          <a href="#read-metrics">Чтение показателей</a>
+          <a href="#faq">FAQ</a>
+        </div>
+        <div class="guide-support-card">
+          <h2>Нужна помощь?</h2>
+          <p>Если инструкция не ответила на вопрос, отправьте обращение из дашборда.</p>
+          <a href="dashboard.html" class="guide-primary-action">Связаться с поддержкой</a>
+          <small>Версия 1.0 · Обновлено 20.05.2026</small>
+        </div>
+      </aside>
+    </div>
+
+    <script src="js/pages/guide.js"></script>
+  </body>
+</html>

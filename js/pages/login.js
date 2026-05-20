@@ -60,14 +60,14 @@
     if (registerPanel) registerPanel.hidden = !isRegister;
     if (resetPanel) resetPanel.hidden = !isReset;
     if (authTitle) {
-      authTitle.textContent = isRegister ? "Регистрация" : isReset ? "Смена пароля" : "Вход";
+      authTitle.textContent = isRegister ? "Регистрация" : isReset ? "Смена пароля" : "Вход в систему";
     }
     if (authSubtitle) {
       authSubtitle.textContent = isRegister
         ? "Отправьте заявку администратору"
         : isReset
           ? "Запросите новый пароль"
-          : "Управленческий дашборд";
+          : "Пожалуйста, выберите пользователя и введите пароль";
     }
     clearError();
   }
@@ -215,7 +215,7 @@
 
   function setLoading(loading) {
     submitBtn.disabled = loading;
-    submitBtn.textContent = loading ? "Вход…" : "Войти";
+    submitBtn.textContent = loading ? "Вход…" : "Войти в систему";
     if (nickSearch) nickSearch.disabled = loading;
   }
 
