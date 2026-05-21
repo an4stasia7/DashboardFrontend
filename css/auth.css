@@ -36,7 +36,7 @@
   filter: blur(10px);
   opacity: 0.72;
   transform-origin: center;
-  animation: auth-login-glow-pulse 6s ease-in-out infinite;
+  animation: auth-login-glow-drift 9s ease-in-out infinite;
 }
 
 .auth-login-body::after {
@@ -48,15 +48,19 @@
   background: linear-gradient(180deg, transparent, rgba(1, 12, 30, 0.32));
 }
 
-@keyframes auth-login-glow-pulse {
+@keyframes auth-login-glow-drift {
   0%,
   100% {
-    opacity: 0.56;
-    transform: scale(0.96);
+    opacity: 0.68;
+    transform: translate3d(-2.8vw, 0, 0) scale(1);
   }
-  50% {
-    opacity: 0.9;
-    transform: scale(1.08);
+  35% {
+    opacity: 0.86;
+    transform: translate3d(2.4vw, 2.2vh, 0) scale(1.04);
+  }
+  70% {
+    opacity: 0.76;
+    transform: translate3d(-0.8vw, 4vh, 0) scale(0.98);
   }
 }
 
@@ -330,9 +334,9 @@
   position: relative;
 }
 
-.auth-password-wrap input {
+.auth-login-card .auth-password-wrap input {
   padding-left: 42px;
-  padding-right: 86px;
+  padding-right: 50px;
 }
 
 .auth-input-icon {
@@ -363,21 +367,51 @@
   top: 50%;
   right: 10px;
   z-index: 2;
-  padding: 4px 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
   border: none;
+  border-radius: 999px;
   background: transparent;
-  color: #2563eb;
+  color: #64748b;
   cursor: pointer;
-  font: inherit;
-  font-size: 0.72rem;
-  font-weight: 700;
   transform: translateY(-50%);
+  transition: color 0.16s ease, background 0.16s ease;
 }
 
 .auth-password-toggle:hover,
 .auth-password-toggle:focus-visible {
-  color: #1d4ed8;
+  background: rgba(37, 99, 235, 0.08);
+  color: #2563eb;
   outline: none;
+}
+
+.auth-password-toggle svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+
+.auth-password-toggle circle {
+  fill: currentColor;
+  stroke: none;
+}
+
+.auth-password-eye--hide,
+.auth-password-toggle.is-visible .auth-password-eye--show {
+  display: none;
+}
+
+.auth-password-toggle.is-visible .auth-password-eye--hide {
+  display: inline-flex;
 }
 
 .auth-login-card .auth-field input::placeholder,

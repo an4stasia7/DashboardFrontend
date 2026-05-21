@@ -42,7 +42,7 @@
         </nav>
 
         <a class="guide-sidebar-card" href="dashboard.html">
-          <span>▦</span>
+          <span aria-hidden="true">←</span>
           <strong>Вернуться в дашборд</strong>
           <small>Откройте рабочую панель</small>
         </a>
@@ -77,17 +77,23 @@
 
         <div class="guide-card-grid" aria-label="Основные разделы">
           <a class="guide-card" href="#quick-start">
-            <span>🚀</span>
+            <span class="guide-card-icon" aria-hidden="true">
+              <img src="temp/icons/rocket.png" alt="" />
+            </span>
             <strong>Быстрый старт</strong>
             <small>Регистрация, вход и первые действия</small>
           </a>
           <a class="guide-card" href="#read-metrics">
-            <span>▥</span>
+            <span class="guide-card-icon" aria-hidden="true">
+              <img src="temp/icons/stolb.png" alt="" />
+            </span>
             <strong>Как читать показатели</strong>
             <small>План, факт, динамика и статусы</small>
           </a>
           <a class="guide-card" href="#faq">
-            <span>?</span>
+            <span class="guide-card-icon" aria-hidden="true">
+              <img src="temp/icons/what.png" alt="" />
+            </span>
             <strong>Частые вопросы</strong>
             <small>Доступ, данные и обратная связь</small>
           </a>
@@ -147,24 +153,7 @@
           <div class="guide-dashboard-map">
             <figure class="guide-screen-card guide-screen-wide">
               <figcaption>Скрин: общий вид рабочего дашборда</figcaption>
-              <div class="guide-dashboard-shot">
-                <aside>
-                  <b>Навигация</b>
-                  <span></span><span></span><span></span><span></span>
-                  <small>Документация</small>
-                  <small>Обратная связь</small>
-                </aside>
-                <main>
-                  <header><b>Коммерческий директор</b><i>Помощь</i></header>
-                  <div class="guide-dashboard-kpis">
-                    <div class="is-green"></div>
-                    <div class="is-red"></div>
-                    <div class="is-yellow"></div>
-                  </div>
-                  <div class="guide-dashboard-chart"></div>
-                  <div class="guide-dashboard-table"></div>
-                </main>
-              </div>
+              <img class="guide-dashboard-shot" src="temp/icons/ex.png" alt="Общий вид рабочего дашборда" />
             </figure>
             <div class="guide-block-list">
               <article>

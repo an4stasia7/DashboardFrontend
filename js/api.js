@@ -902,11 +902,13 @@
           frequency: frequency,
           cache_updated_at: cacheUpdatedAt,
           formula: formulaSrc != null ? String(formulaSrc) : null,
+          data_granularity: item.data_granularity != null ? String(item.data_granularity) : "",
           plan_fact_period_label:
             item.plan_fact_period_label != null
               ? String(item.plan_fact_period_label)
               : null,
           monthly_data: Array.isArray(item.monthly_data) ? item.monthly_data : [],
+          quarterly_data: Array.isArray(item.quarterly_data) ? item.quarterly_data : [],
           plan_fact_rows: Array.isArray(item.plan_fact_rows) ? item.plan_fact_rows : [],
           percent: pct,
           kpi_pst: typeof item.kpi_pst === "number" && !isNaN(item.kpi_pst) ? item.kpi_pst : null,

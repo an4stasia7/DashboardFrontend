@@ -1806,6 +1806,11 @@
     );
   }
 
+  function isChiefMetrologRatioKpiId(kpiId) {
+    var id = kpiId != null ? String(kpiId).trim().toUpperCase() : "";
+    return id === "METD-M1" || id === "METD-Q2" || id === "METD-Q3" || id === "METD-Q4";
+  }
+
   function chairmanAggregationModeLabel(mode) {
     if (mode === "quarter") return "За квартал";
     if (mode === "ytd") return "С начала года";
@@ -2386,6 +2391,7 @@
       ),
       frequency: firstStringValue(["frequency", "periodicity", "update_frequency", "frequency_label"]),
       cache_updated_at: firstStringValue(["cache_updated_at"]),
+      data_granularity: rawItem.data_granularity != null ? String(rawItem.data_granularity) : "",
       formula: rawItem.formula != null ? String(rawItem.formula) : null,
       plan_fact_period_label: label,
       percent: pointPct != null ? pointPct : itemPct,
@@ -2519,6 +2525,7 @@
       red_threshold: thStr(thresholds, "red", "red_threshold"),
       blue_threshold: thStr(thresholds, "blue", "blue_threshold"),
       monthly_data: Array.isArray(rawItem.monthly_data) ? rawItem.monthly_data : [],
+      quarterly_data: Array.isArray(rawItem.quarterly_data) ? rawItem.quarterly_data : [],
       plan_fact_rows:
         point && Array.isArray(point.plan_fact_rows)
           ? point.plan_fact_rows
@@ -2560,7 +2567,7 @@
 
   function getCommercialFotTurnoverAggregatedTilesFromRaw(rawBody, baseTiles) {
     if (!rawBody || typeof rawBody !== "object" || !Array.isArray(baseTiles) || !baseTiles.length) return null;
-    if (!isCommercialDirectorDashboardContext()) return null;
+    if (!isCommercialDirectorDashboardContext() && !isChiefMetrologDashboardContext()) return null;
 
     var periodState =
       typeof DashboardMonthNav !== "undefined" && DashboardMonthNav && typeof DashboardMonthNav.getPeriodState === "function"
@@ -2586,7 +2593,11 @@
     var touched = false;
     var nextTiles = baseTiles.map(function (tile) {
       var id = tile && tile.kpi_id != null ? String(tile.kpi_id).trim() : "";
-      if (id !== "KD-M8" && id !== "KD-M11") return tile;
+      if (isCommercialDirectorDashboardContext()) {
+        if (id !== "KD-M8" && id !== "KD-M11") return tile;
+      } else if (!isChiefMetrologRatioKpiId(id)) {
+        return tile;
+      }
       var rawItem = byId[id];
       if (!rawItem) return tile;
       var point = computeChairmanAggregatedPoint(rawItem, year, month, mode, selectedQuarters);

@@ -361,7 +361,7 @@
     passwordToggle.addEventListener("click", function () {
       var willShow = passwordInput.type === "password";
       passwordInput.type = willShow ? "text" : "password";
-      passwordToggle.textContent = willShow ? "Скрыть" : "Показать";
+      passwordToggle.classList.toggle("is-visible", willShow);
       passwordToggle.setAttribute("aria-label", willShow ? "Скрыть пароль" : "Показать пароль");
       passwordToggle.setAttribute("aria-pressed", willShow ? "true" : "false");
       try {
