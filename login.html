@@ -6,16 +6,61 @@
     <title>Вход</title>
     <link rel="stylesheet" href="css/styles.css" />
   </head>
-  <body class="auth-body">
-    <div class="auth-card">
-      <h1 id="auth-title">Вход</h1>
-      <p class="sub" id="auth-subtitle">Управленческий дашборд</p>
+  <body class="auth-body auth-login-body">
+    <main class="auth-login-shell" aria-label="Вход в управленческий дашборд">
+      <section class="auth-login-hero" aria-label="Описание дашборда">
+        <div class="auth-brand-pill">
+          <span class="auth-brand-icon" aria-hidden="true">
+            <img src="temp/icons/logo.png" alt="" />
+          </span>
+          <span>Управленческий дашборд</span>
+        </div>
+        <div class="auth-hero-copy">
+          <h1>Управленческий<br />дашборд</h1>
+          <p>Единая панель контроля ключевых показателей коммерческого блока</p>
+        </div>
+        <div class="auth-mini-kpis" aria-hidden="true">
+          <article class="auth-mini-kpi auth-mini-kpi-red">
+            <span class="auth-mini-kpi-icon">
+              <img src="temp/icons/Rubl.png" alt="" />
+            </span>
+            <strong>Деньги</strong>
+            <b>35,7 <small>млн руб.</small></b>
+            <em>Ожидаемо 54 млн руб.</em>
+            <i></i>
+          </article>
+          <article class="auth-mini-kpi auth-mini-kpi-green">
+            <span class="auth-mini-kpi-icon">
+              <img src="temp/icons/Colco.png" alt="" />
+            </span>
+            <strong>KPI</strong>
+            <b>105,8<small>%</small></b>
+            <em>К плану +483%</em>
+            <i></i>
+          </article>
+        </div>
+        <a class="auth-guide-link" href="guide.html" aria-label="Открыть руководство">
+          <span class="auth-guide-link-icon" aria-hidden="true">
+            <img src="temp/icons/book.png" alt="" />
+          </span>
+          Открыть руководство
+          <span aria-hidden="true">→</span>
+        </a>
+      </section>
+
+      <section class="auth-login-center">
+        <div class="auth-card auth-login-card">
+      <h1 id="auth-title">Вход в систему</h1>
+      <p class="sub" id="auth-subtitle">Пожалуйста, выберите пользователя и введите пароль</p>
       <div id="auth-error" class="auth-error" role="alert"></div>
       <section class="auth-screen" id="login-screen">
         <form id="login-form" novalidate>
           <div class="auth-field">
             <label for="nickname-search">Пользователь</label>
             <div class="nickname-combo" id="nickname-combo">
+              <span class="auth-input-icon" aria-hidden="true">
+                <img src="temp/icons/people.png" alt="" />
+              </span>
               <input type="hidden" id="nickname" name="nickname" value="" autocomplete="username" />
               <input
                 type="text"
@@ -37,20 +82,32 @@
           </div>
           <div class="auth-field">
             <label for="password">Пароль</label>
-            <div class="password-input-wrap">
+            <div class="auth-password-wrap">
+              <span class="auth-input-icon" aria-hidden="true">
+                <img src="temp/icons/block.png" alt="" />
+              </span>
               <input id="password" name="password" type="password" autocomplete="current-password" required />
               <button
                 type="button"
-                class="password-toggle-btn"
-                data-password-toggle
-                aria-controls="password"
+                class="auth-password-toggle"
+                id="password-toggle"
                 aria-label="Показать пароль"
                 aria-pressed="false"
               >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <path d="M2.75 12C4.65 7.85 7.82 5.75 12 5.75S19.35 7.85 21.25 12C19.35 16.15 16.18 18.25 12 18.25S4.65 16.15 2.75 12Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                  <path d="M12 15.25A3.25 3.25 0 1 0 12 8.75A3.25 3.25 0 0 0 12 15.25Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
+                <span class="auth-password-eye auth-password-eye--show" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" focusable="false">
+                    <path d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z" />
+                    <circle cx="12" cy="12" r="3" />
+                  </svg>
+                </span>
+                <span class="auth-password-eye auth-password-eye--hide" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" focusable="false">
+                    <path d="M3 3l18 18" />
+                    <path d="M10.6 10.6A2 2 0 0 0 12 14a2 2 0 0 0 1.4-.6" />
+                    <path d="M7.4 7.9C4.4 9.5 2.5 12 2.5 12s3.5 6 9.5 6c1.7 0 3.2-.5 4.4-1.2" />
+                    <path d="M11.1 6.1c.3 0 .6-.1.9-.1 6 0 9.5 6 9.5 6s-.8 1.4-2.3 2.8" />
+                  </svg>
+                </span>
               </button>
             </div>
           </div>
@@ -61,7 +118,12 @@
           <div id="login-continue-wrap" class="login-continue-wrap" hidden>
             <button type="button" id="btn-continue-as" class="btn btn-continue-as"></button>
           </div>
-          <button type="submit" class="btn btn-primary">Войти</button>
+          <button type="submit" class="btn btn-primary">
+            <span class="auth-btn-icon" aria-hidden="true">
+              <img src="temp/icons/peoplewhite.png" alt="" />
+            </span>
+            <span class="auth-btn-text">Войти в систему</span>
+          </button>
         </form>
         <div class="auth-actions-row" aria-label="Дополнительные действия">
           <button type="button" class="auth-link-button" id="show-register-form">Зарегистрироваться</button>
@@ -134,10 +196,49 @@
           <button type="button" class="btn btn-ghost" data-close-panel>Вернуться ко входу</button>
         </form>
       </section>
-    </div>
-    <footer class="auth-version-footer">
-      <span class="app-version-label" id="app-version-label" aria-label="Версия приложения"></span>
-    </footer>
+        </div>
+        <footer class="auth-version-footer">
+          <span class="app-version-label" id="app-version-label" aria-label="Версия приложения"></span>
+        </footer>
+      </section>
+
+      <aside class="auth-help-panel" aria-label="Руководство">
+        <h2>
+          <span class="auth-help-title-icon" aria-hidden="true">
+            <img src="temp/icons/book.png" alt="" />
+          </span>
+          Руководство
+        </h2>
+        <a href="guide.html#quick-start" class="auth-help-item">
+          <span class="auth-help-item-icon" aria-hidden="true">
+            <img src="temp/icons/rocket.png" alt="" />
+          </span>
+          <strong>Быстрый старт</strong>
+          <small>Начните работу за 5 минут</small>
+          <i aria-hidden="true">›</i>
+        </a>
+        <a href="guide.html#read-metrics" class="auth-help-item">
+          <span class="auth-help-item-icon" aria-hidden="true">
+            <img src="temp/icons/stolb.png" alt="" />
+          </span>
+          <strong>Как читать показатели</strong>
+          <small>Понимание метрик и трендов</small>
+          <i aria-hidden="true">›</i>
+        </a>
+        <a href="guide.html#faq" class="auth-help-item">
+          <span class="auth-help-item-icon" aria-hidden="true">
+            <img src="temp/icons/what.png" alt="" />
+          </span>
+          <strong>Частые вопросы</strong>
+          <small>Ответы на популярные вопросы</small>
+          <i aria-hidden="true">›</i>
+        </a>
+        <a href="guide.html" class="auth-help-open">
+          <span aria-hidden="true">↗</span>
+          Открыть все
+        </a>
+      </aside>
+    </main>
     <script src="js/config.js"></script>
     <script src="js/app-update-notifier.js"></script>
     <script src="js/app-version-label.js"></script>

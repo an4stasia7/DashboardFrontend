@@ -116,6 +116,10 @@
   function openPanel(mode) {
     if (!els.overlay) return;
     var actualMode = mode || "feedback";
+    if (actualMode === "docs") {
+      window.location.href = "guide.html";
+      return;
+    }
     els.overlay.hidden = false;
     document.body.classList.add("service-panel-open");
     if (els.title) {

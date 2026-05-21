@@ -41,6 +41,9 @@
     "LOG-M2": {
       hidePlanDelta: true,
     },
+    "GK-M1": {
+      backProjectDeviations: true,
+    },
     "KD-M4": {
       factOnly: true,
       hideHelp: true,
@@ -110,6 +113,21 @@
       tenderDepartmentsBreakdown: true,
       hideHelp: true,
       hideKpiPercent: true,
+    },
+    "METD-M1": {
+      kpiPctOnly: true,
+      showBackPlanFact: true,
+    },
+    "METD-Q2": {
+      showBackPlanFact: true,
+    },
+    "METD-Q3": {
+      kpiPctOnly: true,
+      showBackPlanFact: true,
+    },
+    "METD-Q4": {
+      kpiPctOnly: true,
+      showBackPlanFact: true,
     },
   };
 })(typeof window !== "undefined" ? window : globalThis);
