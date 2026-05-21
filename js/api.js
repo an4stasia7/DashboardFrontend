@@ -894,6 +894,13 @@
         );
         var frequency = firstStringValue(["frequency", "periodicity", "update_frequency", "frequency_label"]);
         var cacheUpdatedAt = firstStringValue(["cache_updated_at"]);
+        var lastFullMonthRow =
+          item.last_full_month_row && typeof item.last_full_month_row === "object" ? item.last_full_month_row : null;
+        var defectDirectionDepartments = normalizeDefectDirectionDepartments(
+          lastFullMonthRow && Array.isArray(lastFullMonthRow.departments)
+            ? lastFullMonthRow.departments
+            : item.departments
+        );
         return {
           kpi_id: item.kpi_id != null ? String(item.kpi_id) : "",
           title: title,
@@ -956,6 +963,8 @@
               : null,
           /** QD-M1 и др.: подразделения с планом/фактом на обороте плитки. */
           articles: Array.isArray(item.articles) ? item.articles : [],
+          last_full_month_row: lastFullMonthRow,
+          defect_direction_departments: defectDirectionDepartments,
           pct_client: item.pct_client != null ? item.pct_client : null,
           pct_supplier: item.pct_supplier != null ? item.pct_supplier : null,
           pct_total: item.pct_total != null ? item.pct_total : null,
@@ -984,6 +993,50 @@
     return null;
   }
 
+  function normalizeDefectDirectionDepartments(raw) {
+    if (!Array.isArray(raw)) return [];
+    return raw
+      .filter(function (item) {
+        return item && typeof item === "object";
+      })
+      .map(function (item) {
+        var count = Number(item.count);
+        return {
+          direction: item.direction != null ? String(item.direction).trim() : "",
+          name: item.name != null ? String(item.name).trim() : "",
+          direction_label: item.direction_label != null ? String(item.direction_label).trim() : "",
+          count: isFinite(count) && !isNaN(count) ? Math.round(count) : 0,
+        };
+      });
+  }
+
+  function applyDefectDirectionsToTile(tile, source, year, month) {
+    if (!tile || !source || typeof source !== "object") return;
+    if (year != null && month != null) {
+      var sy = Number(source.year);
+      var sm = Number(source.month);
+      if (!isNaN(sy) && !isNaN(sm) && (sy !== Number(year) || sm !== Number(month))) return;
+    }
+    var departments = normalizeDefectDirectionDepartments(source.departments);
+    if (departments.length) tile.defect_direction_departments = departments;
+    if (source.fact !== undefined && source.fact !== null) tile.fact = source.fact;
+  }
+
+  function syncDefectDirectionsForTile(tile, year, month) {
+    if (!tile) return;
+    var point =
+      year != null && month != null && Array.isArray(tile.monthly_data)
+        ? findTileMonthlyDataPoint(tile.monthly_data, year, month)
+        : null;
+    if (point && Array.isArray(point.departments)) {
+      applyDefectDirectionsToTile(tile, point, year, month);
+      return;
+    }
+    if (tile.last_full_month_row && typeof tile.last_full_month_row === "object") {
+      applyDefectDirectionsToTile(tile, tile.last_full_month_row, year, month);
+    }
+  }
+
   function applyMonthlyDataToTilesAtPeriod(tiles, year, month) {
     if (!Array.isArray(tiles) || !tiles.length) return;
     tiles.forEach(function (tile) {
@@ -1002,6 +1055,7 @@
       if (Array.isArray(point.articles)) {
         tile.articles = point.articles.slice();
       }
+      syncDefectDirectionsForTile(tile, year, month);
     });
   }
 
@@ -1864,6 +1918,8 @@
         }
         if (ownMonthly.plan_fact_period_label) tile.plan_fact_period_label = String(ownMonthly.plan_fact_period_label);
         if (typeof ownMonthly.has_data === "boolean") tile.has_data = ownMonthly.has_data;
+        if (Array.isArray(ownMonthly.articles)) tile.articles = ownMonthly.articles.slice();
+        syncDefectDirectionsForTile(tile, filterYear, filterMonth);
         return;
       }
       var chartBoth =
@@ -1900,6 +1956,7 @@
       ) {
         tile.plan_fact_period_label = requestedPeriodLabel;
       }
+      syncDefectDirectionsForTile(tile, filterYear, filterMonth);
     });
   }
 

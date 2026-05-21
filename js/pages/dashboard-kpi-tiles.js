@@ -765,6 +765,75 @@
     );
   }
 
+  function buildKpiTileBreakdownRows(tile) {
+    var rows = [];
+    var departments =
+      tile && Array.isArray(tile.defect_direction_departments) ? tile.defect_direction_departments : [];
+    if (departments.length) {
+      departments.forEach(function (item) {
+        if (!item || typeof item !== "object") return;
+        var label =
+          item.name != null && String(item.name).trim() !== ""
+            ? String(item.name).trim()
+            : item.direction_label != null && String(item.direction_label).trim() !== ""
+              ? String(item.direction_label).trim()
+              : "—";
+        var count = Number(item.count);
+        rows.push({
+          label: label,
+          value: isFinite(count) && !isNaN(count) ? Math.round(count) : 0,
+        });
+      });
+      return rows;
+    }
+    var articles = tile && Array.isArray(tile.articles) ? tile.articles : [];
+    articles.forEach(function (item) {
+      if (!item || typeof item !== "object") return;
+      var label = item.name != null ? String(item.name).trim() : "";
+      if (!label) return;
+      if (item.fact == null && item.count == null) return;
+      var value = item.fact != null ? item.fact : item.count;
+      var n = Number(value);
+      rows.push({
+        label: label,
+        value: isFinite(n) && !isNaN(n) ? Math.round(n) : 0,
+      });
+    });
+    return rows;
+  }
+
+  function buildKpiTileDefectDirectionsOverviewHtml(tile) {
+    function readCount(value) {
+      if (value == null || value === "") return 0;
+      var n = Number(value);
+      return isNaN(n) ? 0 : Math.round(n);
+    }
+    function cell(label, value) {
+      return (
+        '<div class="kpi-tile-tender-cell">' +
+        '<span class="kpi-tile-tender-label">' + DashUi.escapeHtml(label) + "</span>" +
+        '<span class="kpi-tile-tender-value">' + DashUi.escapeHtml(String(value)) + "</span>" +
+        "</div>"
+      );
+    }
+
+    var total = readCount(tile && tile.fact);
+    var breakdown = buildKpiTileBreakdownRows(tile);
+    var units = tile && tile.units != null ? String(tile.units).trim() : "шт.";
+    var ariaLabel =
+      tile && String(tile.kpi_id || "").trim().toUpperCase() === "QD-M1"
+        ? "Показатель по подразделениям"
+        : "Брак и рекламации по направлениям";
+    var html =
+      '<div class="kpi-tile-tender-grid" role="group" aria-label="' + DashUi.escapeHtml(ariaLabel) + '">' +
+      cell("Всего", formatKpiTileMetricValue(total, units));
+
+    breakdown.forEach(function (item) {
+      html += cell(item.label, formatKpiTileMetricValue(item.value, units));
+    });
+    return html + "</div>";
+  }
+
   function buildKpiTileTenderStatusOverviewHtml(tile) {
     function readCount(key) {
       var v = tile && tile[key];
@@ -919,6 +988,13 @@
       return (
         '<div class="kpi-tile-metrics kpi-tile-metrics--tender" aria-label="Сводка тендеров">' +
         buildKpiTileTenderStatusOverviewHtml(tile) +
+        "</div>"
+      );
+    }
+    if (rule && rule.defectDirectionsOverview) {
+      return (
+        '<div class="kpi-tile-metrics kpi-tile-metrics--tender" aria-label="Брак и рекламации по направлениям">' +
+        buildKpiTileDefectDirectionsOverviewHtml(tile) +
         "</div>"
       );
     }

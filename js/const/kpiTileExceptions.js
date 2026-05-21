@@ -3,11 +3,16 @@
     "OD-M1": {
       backDeptAmounts: true,
     },
-    /** QD-M1 (qualdir): показываем только факт; на обороте — строки из `articles`. */
-    "QD-M1": {
+    /** QD-M5: факт и количество по направлениям ОТК-1 / ОТК-2 из last_full_month_row.departments. */
+    "QD-M5": {
+      defectDirectionsOverview: true,
+      hideKpiPercent: true,
       allowPartialPlanFact: true,
-      factOnly: true,
-      factOnlyRow: true,
+    },
+    /** QD-M1 (qualdir): на лицевой — всего + факт по `articles`; на обороте — те же строки. */
+    "QD-M1": {
+      defectDirectionsOverview: true,
+      allowPartialPlanFact: true,
       hideArticlesPlan: true,
       backArticlesPlanFact: true,
     },
