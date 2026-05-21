@@ -2957,7 +2957,7 @@
     }
     if (claimsTableTitleTextEl) {
       claimsTableTitleTextEl.textContent = useQualdirDefectTables
-        ? getApiTableTitleFromRows(lastApiTableRows, "QD-T-M1") || "Внешний брак"
+        ? getApiTableTitleFromRows(lastApiTableRows, "QD-T-M5") || "Внешний брак"
         : useOpdirProjectTables
         ? useProductionDeputyProjectTables
           ? "Претензии на стороне производства"
@@ -3108,8 +3108,8 @@
       if (shouldUseQualdirDefectTables()) {
         claimsTableTitleTextEl.textContent =
           nextView === "lawsuits"
-            ? getApiTableTitleFromRows(lastApiTableRows, "QD-T-M5") || "Внутренний брак"
-            : getApiTableTitleFromRows(lastApiTableRows, "QD-T-M1") || "Внешний брак";
+            ? getApiTableTitleFromRows(lastApiTableRows, "QD-T-M1") || "Внутренний брак"
+            : getApiTableTitleFromRows(lastApiTableRows, "QD-T-M5") || "Внешний брак";
       }
     }
 
@@ -3176,8 +3176,8 @@
         constructorProjectTableMode: isChiefConstructorDashboardContext() || isChiefMetrologDashboardContext(),
         logisticsSupplierDebtTableMode: isLogisticsDashboardContext(),
         qualdirDefectTablesMode: shouldUseQualdirDefectTables(),
-        qualdirExternalTableKey: "QD-T-M1",
-        qualdirInternalTableKey: "QD-T-M5",
+        qualdirExternalTableKey: "QD-T-M5",
+        qualdirInternalTableKey: "QD-T-M1",
       });
     }
   }
