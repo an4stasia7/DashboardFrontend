@@ -825,6 +825,44 @@
     );
   }
 
+  function buildKpiTileProjectDeviationsHtml(tile) {
+    var rows = tile && Array.isArray(tile.project_deviation_rows) ? tile.project_deviation_rows : [];
+    if (!rows.length) {
+      return '<div class="kpi-tile-back-message">Нет данных по проектам.</div>';
+    }
+    var threshold = readFiniteTileNumber(tile && tile.max_allowed_delay_workdays);
+    if (threshold == null) threshold = 10;
+    return (
+      '<div class="kpi-tile-project-list">' +
+      rows
+        .map(function (row) {
+          var delay = readFiniteTileNumber(row && row.delay_workdays);
+          if (delay == null) delay = 0;
+          var isDelayed = !!(row && row.is_deviated) || delay >= threshold;
+          var projectName = row && row.project_name != null && String(row.project_name).trim()
+            ? String(row.project_name).trim()
+            : "Без названия";
+          var manager = row && row.project_manager != null && String(row.project_manager).trim()
+            ? String(row.project_manager).trim()
+            : "РП не указан";
+          return (
+            '<article class="kpi-tile-project-row' + (isDelayed ? " is-delayed" : "") + '">' +
+            '<div class="kpi-tile-project-main">' +
+            '<strong>' + DashUi.escapeHtml(projectName) + "</strong>" +
+            '<span>РП: ' + DashUi.escapeHtml(manager) + "</span>" +
+            "</div>" +
+            '<div class="kpi-tile-project-delay">' +
+            "<span>Отклонение</span>" +
+            '<strong>' + DashUi.escapeHtml(String(Math.round(delay)) + " р.д.") + "</strong>" +
+            "</div>" +
+            "</article>"
+          );
+        })
+        .join("") +
+      "</div>"
+    );
+  }
+
   function buildKpiTileMetricsSectionHtml(tile, hasPf, planFactShown, factShown, planFactLabel) {
     var rule = getKpiTileException(tile);
     var hasPartialPf =
@@ -1056,6 +1094,26 @@
         : DashUi.formatKpiTilePlanFactValue(tile.plan);
     var showHelp = shouldShowKpiTileHelp(tile);
     var showPercent = shouldShowKpiTilePercent(tile);
+    if (rule && rule.backProjectDeviations) {
+      return (
+        '<div class="kpi-tile-back-head">' +
+        '<div class="kpi-tile-back-head-copy">' +
+        (code ? '<span class="kpi-tile-back-badge">' + DashUi.escapeHtml(code) + "</span>" : "") +
+        '<h3 class="kpi-tile-back-title">' +
+        DashUi.escapeHtml(tile && tile.title ? tile.title : "Показатель") +
+        "</h3>" +
+        (period ? '<p class="kpi-tile-back-period">' + DashUi.escapeHtml(period) + "</p>" : "") +
+        "</div>" +
+        '<div class="kpi-tile-back-head-actions">' +
+        '<button type="button" class="kpi-tile-flip-action" aria-label="Вернуться к карточке">Назад</button>' +
+        "</div></div>" +
+        '<div class="kpi-tile-back-section">' +
+        '<div class="kpi-tile-back-section-title">Проекты КБ за период</div>' +
+        buildKpiTileProjectDeviationsHtml(tile) +
+        "</div>" +
+        (hint ? '<p class="kpi-tile-back-hint">' + DashUi.escapeHtml(hint) + "</p>" : "")
+      );
+    }
     if (rule && rule.backDualRatioAmounts) {
       return (
         '<div class="kpi-tile-back-head">' +

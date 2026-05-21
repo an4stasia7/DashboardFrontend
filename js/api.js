@@ -910,6 +910,9 @@
           monthly_data: Array.isArray(item.monthly_data) ? item.monthly_data : [],
           quarterly_data: Array.isArray(item.quarterly_data) ? item.quarterly_data : [],
           plan_fact_rows: Array.isArray(item.plan_fact_rows) ? item.plan_fact_rows : [],
+          project_deviation_rows: Array.isArray(item.project_deviation_rows) ? item.project_deviation_rows : [],
+          max_allowed_delay_workdays:
+            item.max_allowed_delay_workdays != null ? item.max_allowed_delay_workdays : null,
           percent: pct,
           kpi_pst: typeof item.kpi_pst === "number" && !isNaN(item.kpi_pst) ? item.kpi_pst : null,
           kpi_pct: typeof item.kpi_pct === "number" && !isNaN(item.kpi_pct) ? item.kpi_pct : null,
@@ -1504,6 +1507,9 @@
         expected_plan: point.expected_plan,
         kpi_pct: typeof point.kpi_pct === "number" && !isNaN(point.kpi_pct) ? point.kpi_pct : null,
         plan_fact_rows: Array.isArray(point.plan_fact_rows) ? point.plan_fact_rows : [],
+        project_deviation_rows: Array.isArray(point.project_deviation_rows) ? point.project_deviation_rows : [],
+        max_allowed_delay_workdays:
+          point.max_allowed_delay_workdays != null ? point.max_allowed_delay_workdays : null,
         plan_fact_period_label: formatPlanFactPeriodFromMonthlyPoint(point),
         has_data: typeof point.has_data === "boolean" ? point.has_data : undefined,
         display_unit: isWeightedDeviation && point.display_unit != null ? point.display_unit : undefined,
@@ -1618,6 +1624,12 @@
         }
         if (ownMonthly.expected_plan !== undefined) tile.expected_plan = ownMonthly.expected_plan;
         if (Array.isArray(ownMonthly.plan_fact_rows)) tile.plan_fact_rows = ownMonthly.plan_fact_rows;
+        if (Array.isArray(ownMonthly.project_deviation_rows)) {
+          tile.project_deviation_rows = ownMonthly.project_deviation_rows;
+        }
+        if (ownMonthly.max_allowed_delay_workdays != null) {
+          tile.max_allowed_delay_workdays = ownMonthly.max_allowed_delay_workdays;
+        }
         if (ownMonthly.kpi_pct != null) {
           tile.percent = ownMonthly.kpi_pct;
           tile.kpi_pct = ownMonthly.kpi_pct;

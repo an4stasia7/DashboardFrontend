@@ -2526,6 +2526,18 @@
       blue_threshold: thStr(thresholds, "blue", "blue_threshold"),
       monthly_data: Array.isArray(rawItem.monthly_data) ? rawItem.monthly_data : [],
       quarterly_data: Array.isArray(rawItem.quarterly_data) ? rawItem.quarterly_data : [],
+      project_deviation_rows:
+        point && Array.isArray(point.project_deviation_rows)
+          ? point.project_deviation_rows
+          : Array.isArray(rawItem.project_deviation_rows)
+            ? rawItem.project_deviation_rows
+            : [],
+      max_allowed_delay_workdays:
+        point && point.max_allowed_delay_workdays != null
+          ? point.max_allowed_delay_workdays
+          : rawItem.max_allowed_delay_workdays != null
+            ? rawItem.max_allowed_delay_workdays
+            : null,
       plan_fact_rows:
         point && Array.isArray(point.plan_fact_rows)
           ? point.plan_fact_rows

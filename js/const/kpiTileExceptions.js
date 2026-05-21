@@ -20,6 +20,9 @@
     "LOG-M2": {
       hidePlanDelta: true,
     },
+    "GK-M1": {
+      backProjectDeviations: true,
+    },
     "KD-M4": {
       factOnly: true,
       hideHelp: true,
