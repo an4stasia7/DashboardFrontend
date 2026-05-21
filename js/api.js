@@ -896,10 +896,11 @@
         var cacheUpdatedAt = firstStringValue(["cache_updated_at"]);
         var lastFullMonthRow =
           item.last_full_month_row && typeof item.last_full_month_row === "object" ? item.last_full_month_row : null;
+        var tileDepartments = normalizeDefectDirectionDepartments(
+          Array.isArray(item.departments) ? item.departments : []
+        );
         var defectDirectionDepartments = normalizeDefectDirectionDepartments(
-          lastFullMonthRow && Array.isArray(lastFullMonthRow.departments)
-            ? lastFullMonthRow.departments
-            : item.departments
+          lastFullMonthRow && Array.isArray(lastFullMonthRow.departments) ? lastFullMonthRow.departments : []
         );
         return {
           kpi_id: item.kpi_id != null ? String(item.kpi_id) : "",
@@ -964,6 +965,7 @@
           /** QD-M1 и др.: подразделения с планом/фактом на обороте плитки. */
           articles: Array.isArray(item.articles) ? item.articles : [],
           last_full_month_row: lastFullMonthRow,
+          departments: tileDepartments,
           defect_direction_departments: defectDirectionDepartments,
           pct_client: item.pct_client != null ? item.pct_client : null,
           pct_supplier: item.pct_supplier != null ? item.pct_supplier : null,
@@ -1022,6 +1024,18 @@
     if (source.fact !== undefined && source.fact !== null) tile.fact = source.fact;
   }
 
+  function syncDepartmentsForTile(tile, year, month) {
+    if (!tile) return;
+    var point =
+      year != null && month != null && Array.isArray(tile.monthly_data)
+        ? findTileMonthlyDataPoint(tile.monthly_data, year, month)
+        : null;
+    if (point && Array.isArray(point.departments) && point.departments.length) {
+      tile.departments = normalizeDefectDirectionDepartments(point.departments);
+      if (point.fact !== undefined && point.fact !== null) tile.fact = point.fact;
+    }
+  }
+
   function syncDefectDirectionsForTile(tile, year, month) {
     if (!tile) return;
     var point =
@@ -1055,6 +1069,7 @@
       if (Array.isArray(point.articles)) {
         tile.articles = point.articles.slice();
       }
+      syncDepartmentsForTile(tile, year, month);
       syncDefectDirectionsForTile(tile, year, month);
     });
   }
@@ -1919,6 +1934,7 @@
         if (ownMonthly.plan_fact_period_label) tile.plan_fact_period_label = String(ownMonthly.plan_fact_period_label);
         if (typeof ownMonthly.has_data === "boolean") tile.has_data = ownMonthly.has_data;
         if (Array.isArray(ownMonthly.articles)) tile.articles = ownMonthly.articles.slice();
+        syncDepartmentsForTile(tile, filterYear, filterMonth);
         syncDefectDirectionsForTile(tile, filterYear, filterMonth);
         return;
       }
@@ -1956,6 +1972,7 @@
       ) {
         tile.plan_fact_period_label = requestedPeriodLabel;
       }
+      syncDepartmentsForTile(tile, filterYear, filterMonth);
       syncDefectDirectionsForTile(tile, filterYear, filterMonth);
     });
   }

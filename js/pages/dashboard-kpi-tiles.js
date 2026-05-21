@@ -113,6 +113,11 @@
     return !!(rule && rule.backArticlesPlanFact);
   }
 
+  function shouldRenderKpiTileBackArticlesDeptCount(tile) {
+    var rule = getKpiTileException(tile);
+    return !!(rule && rule.backArticlesDeptCount);
+  }
+
   function buildKpiTileHelpButtonHtml() {
     return (
       '<button type="button" class="kpi-tile-help" aria-label="Справка: формула и цветовые пороги показателя" aria-haspopup="dialog" aria-controls="kpi-thresholds-dialog">' +
@@ -786,19 +791,6 @@
       });
       return rows;
     }
-    var articles = tile && Array.isArray(tile.articles) ? tile.articles : [];
-    articles.forEach(function (item) {
-      if (!item || typeof item !== "object") return;
-      var label = item.name != null ? String(item.name).trim() : "";
-      if (!label) return;
-      if (item.fact == null && item.count == null) return;
-      var value = item.fact != null ? item.fact : item.count;
-      var n = Number(value);
-      rows.push({
-        label: label,
-        value: isFinite(n) && !isNaN(n) ? Math.round(n) : 0,
-      });
-    });
     return rows;
   }
 
@@ -1106,6 +1098,38 @@
     return row.plan != null || row.fact != null;
   }
 
+  /** Оборот QD-M1: «Подразделение - кол-во» из API `departments`. */
+  function buildKpiTileArticlesDeptCountHtml(tile) {
+    var list = tile && Array.isArray(tile.departments) ? tile.departments : [];
+    var units = tile && tile.units != null ? String(tile.units).trim() : "";
+    var rows = list.filter(function (row) {
+      return row && typeof row === "object" && row.name != null && String(row.name).trim() !== "";
+    });
+    if (!rows.length) {
+      return '<div class="kpi-tile-back-message">Нет данных по подразделениям.</div>';
+    }
+    return (
+      '<div class="kpi-tile-articles-list kpi-tile-articles-list--dept-count" role="list">' +
+      rows
+        .map(function (row) {
+          var name = String(row.name).trim();
+          var count = Number(row.count);
+          var line =
+            name +
+            " - " +
+            formatKpiTileMetricValue(isFinite(count) && !isNaN(count) ? Math.round(count) : 0, units);
+          return (
+            '<div class="kpi-tile-article-row kpi-tile-article-row--dept-count" role="listitem">' +
+            '<span class="kpi-tile-article-row-line">' +
+            DashUi.escapeHtml(line) +
+            "</span></div>"
+          );
+        })
+        .join("") +
+      "</div>"
+    );
+  }
+
   /** Оборот: подразделения из API `articles: [{ name, plan, fact }]`. */
   function buildKpiTileArticlesPlanFactHtml(tile) {
     var list = tile && Array.isArray(tile.articles) ? tile.articles : [];
@@ -1352,6 +1376,26 @@
         '<div class="kpi-tile-back-section kpi-tile-back-section--dual">' +
         '<div class="kpi-tile-back-section-title">Отгрузки за период</div>' +
         buildKpiTileYearCompareAmountsHtml(tile) +
+        "</div>" +
+        (hint ? '<p class="kpi-tile-back-hint">' + DashUi.escapeHtml(hint) + "</p>" : "")
+      );
+    }
+    if (shouldRenderKpiTileBackArticlesDeptCount(tile)) {
+      return (
+        '<div class="kpi-tile-back-head">' +
+        '<div class="kpi-tile-back-head-copy">' +
+        (code ? '<span class="kpi-tile-back-badge">' + DashUi.escapeHtml(code) + "</span>" : "") +
+        '<h3 class="kpi-tile-back-title">' +
+        DashUi.escapeHtml(tile && tile.title ? tile.title : "Показатель") +
+        "</h3>" +
+        (period ? '<p class="kpi-tile-back-period">' + DashUi.escapeHtml(period) + "</p>" : "") +
+        "</div>" +
+        '<div class="kpi-tile-back-head-actions">' +
+        '<button type="button" class="kpi-tile-flip-action" aria-label="Вернуться к карточке">Назад</button>' +
+        "</div></div>" +
+        '<div class="kpi-tile-back-section kpi-tile-back-section--dual">' +
+        '<div class="kpi-tile-back-section-title">По подразделениям</div>' +
+        buildKpiTileArticlesDeptCountHtml(tile) +
         "</div>" +
         (hint ? '<p class="kpi-tile-back-hint">' + DashUi.escapeHtml(hint) + "</p>" : "")
       );

@@ -9,12 +9,12 @@
       hideKpiPercent: true,
       allowPartialPlanFact: true,
     },
-    /** QD-M1 (qualdir): на лицевой — всего + факт по `articles`; на обороте — те же строки. */
+    /** QD-M1 (qualdir): лицевая — только факт; оборот — `departments` с бэка «Название - кол-во». */
     "QD-M1": {
-      defectDirectionsOverview: true,
       allowPartialPlanFact: true,
-      hideArticlesPlan: true,
-      backArticlesPlanFact: true,
+      factOnly: true,
+      factOnlyRow: true,
+      backArticlesDeptCount: true,
     },
     /** План без факта (ожидание данных по месяцу) — всё равно показываем план на плитке. */
     "QD-M3": {

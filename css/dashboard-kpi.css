@@ -1749,6 +1749,24 @@ article.kpi-tile[data-no-flip="1"] {
   color: var(--text-strong, #0f172a);
 }
 
+.kpi-tile-article-row--dept-count {
+  padding: 10px 12px;
+}
+
+.kpi-tile-article-row-line {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  color: var(--text-strong, #0f172a);
+  font-variant-numeric: tabular-nums;
+}
+
+.kpi-tile-articles-list--dept-count {
+  gap: 8px;
+}
+
 .kpi-tile-article-row--fact-only {
   flex-direction: row;
   align-items: center;
