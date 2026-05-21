@@ -40,7 +40,9 @@
           </article>
         </div>
         <a class="auth-guide-link" href="guide.html" aria-label="Открыть руководство">
-          <span aria-hidden="true">▱</span>
+          <span class="auth-guide-link-icon" aria-hidden="true">
+            <img src="temp/icons/book.png" alt="" />
+          </span>
           Открыть руководство
           <span aria-hidden="true">→</span>
         </a>
@@ -56,6 +58,9 @@
           <div class="auth-field">
             <label for="nickname-search">Пользователь</label>
             <div class="nickname-combo" id="nickname-combo">
+              <span class="auth-input-icon" aria-hidden="true">
+                <img src="temp/icons/people.png" alt="" />
+              </span>
               <input type="hidden" id="nickname" name="nickname" value="" autocomplete="username" />
               <input
                 type="text"
@@ -77,7 +82,21 @@
           </div>
           <div class="auth-field">
             <label for="password">Пароль</label>
-            <input id="password" name="password" type="password" autocomplete="current-password" required />
+            <div class="auth-password-wrap">
+              <span class="auth-input-icon" aria-hidden="true">
+                <img src="temp/icons/block.png" alt="" />
+              </span>
+              <input id="password" name="password" type="password" autocomplete="current-password" required />
+              <button
+                type="button"
+                class="auth-password-toggle"
+                id="password-toggle"
+                aria-label="Показать пароль"
+                aria-pressed="false"
+              >
+                Показать
+              </button>
+            </div>
           </div>
           <label class="auth-remember-label">
             <input type="checkbox" id="remember-me" />
@@ -88,8 +107,10 @@
             <p class="login-continue-hint">Без пароля — по сохранённой сессии (пока действует токен)</p>
           </div>
           <button type="submit" class="btn btn-primary">
-            <span aria-hidden="true">♙</span>
-            Войти в систему
+            <span class="auth-btn-icon" aria-hidden="true">
+              <img src="temp/icons/peoplewhite.png" alt="" />
+            </span>
+            <span class="auth-btn-text">Войти в систему</span>
           </button>
         </form>
         <div class="auth-actions-row" aria-label="Дополнительные действия">
@@ -140,21 +161,32 @@
       </section>
 
       <aside class="auth-help-panel" aria-label="Руководство">
-        <h2>Руководство</h2>
+        <h2>
+          <span class="auth-help-title-icon" aria-hidden="true">
+            <img src="temp/icons/book.png" alt="" />
+          </span>
+          Руководство
+        </h2>
         <a href="guide.html#quick-start" class="auth-help-item">
-          <span aria-hidden="true">✧</span>
+          <span class="auth-help-item-icon" aria-hidden="true">
+            <img src="temp/icons/rocket.png" alt="" />
+          </span>
           <strong>Быстрый старт</strong>
           <small>Начните работу за 5 минут</small>
           <i aria-hidden="true">›</i>
         </a>
         <a href="guide.html#read-metrics" class="auth-help-item">
-          <span aria-hidden="true">▥</span>
+          <span class="auth-help-item-icon" aria-hidden="true">
+            <img src="temp/icons/stolb.png" alt="" />
+          </span>
           <strong>Как читать показатели</strong>
           <small>Понимание метрик и трендов</small>
           <i aria-hidden="true">›</i>
         </a>
         <a href="guide.html#faq" class="auth-help-item">
-          <span aria-hidden="true">?</span>
+          <span class="auth-help-item-icon" aria-hidden="true">
+            <img src="temp/icons/what.png" alt="" />
+          </span>
           <strong>Частые вопросы</strong>
           <small>Ответы на популярные вопросы</small>
           <i aria-hidden="true">›</i>

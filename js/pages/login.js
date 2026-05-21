@@ -13,6 +13,8 @@
   var submitBtn = form.querySelector('button[type="submit"]');
   var continueWrap = document.getElementById("login-continue-wrap");
   var btnContinue = document.getElementById("btn-continue-as");
+  var passwordInput = document.getElementById("password");
+  var passwordToggle = document.getElementById("password-toggle");
   var nickHidden = document.getElementById("nickname");
   var nickSearch = document.getElementById("nickname-search");
   var nickPanel = document.getElementById("nickname-list");
@@ -34,6 +36,24 @@
 
   var PLACEHOLDER_LOADING = "Загрузка списка…";
   var PLACEHOLDER_READY = "Найти по имени или отделу…";
+
+  function setSubmitLabel(text) {
+    var label = submitBtn ? submitBtn.querySelector(".auth-btn-text") : null;
+    if (label) {
+      label.textContent = text;
+    } else if (submitBtn) {
+      submitBtn.textContent = text;
+    }
+  }
+
+  function setContinueLabel(text) {
+    if (!btnContinue) return;
+    btnContinue.innerHTML =
+      '<span class="btn-continue-icon" aria-hidden="true"><img src="temp/icons/time.png" alt="" /></span>' +
+      '<span class="btn-continue-text"></span>';
+    var label = btnContinue.querySelector(".btn-continue-text");
+    if (label) label.textContent = text;
+  }
 
   function showError(msg) {
     errorEl.textContent = msg;
@@ -215,7 +235,7 @@
 
   function setLoading(loading) {
     submitBtn.disabled = loading;
-    submitBtn.textContent = loading ? "Вход…" : "Войти в систему";
+    setSubmitLabel(loading ? "Вход…" : "Войти в систему");
     if (nickSearch) nickSearch.disabled = loading;
   }
 
@@ -304,7 +324,7 @@
   if (typeof Auth !== "undefined" && typeof Auth.getContinueAsInfo === "function") {
     var cont = Auth.getContinueAsInfo();
     if (cont && continueWrap && btnContinue) {
-      btnContinue.textContent = "Продолжить как " + cont.displayName;
+      setContinueLabel("Продолжить как " + cont.displayName);
       continueWrap.hidden = false;
       btnContinue.addEventListener("click", function () {
         if (typeof Auth.getSession === "function" && Auth.getSession()) {
@@ -335,6 +355,21 @@
         }
       });
     }
+  }
+
+  if (passwordInput && passwordToggle) {
+    passwordToggle.addEventListener("click", function () {
+      var willShow = passwordInput.type === "password";
+      passwordInput.type = willShow ? "text" : "password";
+      passwordToggle.textContent = willShow ? "Скрыть" : "Показать";
+      passwordToggle.setAttribute("aria-label", willShow ? "Скрыть пароль" : "Показать пароль");
+      passwordToggle.setAttribute("aria-pressed", willShow ? "true" : "false");
+      try {
+        passwordInput.focus();
+      } catch (err) {
+        /* ignore */
+      }
+    });
   }
 
   if (typeof Api !== "undefined" && typeof Api.fetchKpiUsers === "function") {
