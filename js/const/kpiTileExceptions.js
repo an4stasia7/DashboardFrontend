@@ -9,11 +9,10 @@
       hideKpiPercent: true,
       allowPartialPlanFact: true,
     },
-    /** QD-M1 (qualdir): лицевая — только факт; оборот — `departments` с бэка «Название - кол-во». */
+    /** QD-M1 (qualdir): как обычная плитка (факт + спарклайн), без плана; оборот — `departments`. */
     "QD-M1": {
       allowPartialPlanFact: true,
-      factOnly: true,
-      factOnlyRow: true,
+      hidePlanOnTile: true,
       backArticlesDeptCount: true,
     },
     /** План без факта (ожидание данных по месяцу) — всё равно показываем план на плитке. */

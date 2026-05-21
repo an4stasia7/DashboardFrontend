@@ -100,7 +100,12 @@
 
   function shouldHideKpiTilePlanDelta(tile) {
     var rule = getKpiTileException(tile);
-    return !!(rule && rule.hidePlanDelta);
+    return !!(rule && (rule.hidePlanDelta || rule.hidePlanOnTile));
+  }
+
+  function shouldHidePlanOnTile(tile) {
+    var rule = getKpiTileException(tile);
+    return !!(rule && rule.hidePlanOnTile);
   }
 
   function shouldRenderKpiTileBackDeptAmounts(tile) {
@@ -166,16 +171,21 @@
   function buildKpiTileBodyHtml(tile, hasPf, pfPeriod) {
     var rule = getKpiTileException(tile);
     var isFactOnly = !!(rule && rule.factOnly);
+    var hidePlanOnTile = shouldHidePlanOnTile(tile);
     var isKpiPctOnly = !!(rule && rule.kpiPctOnly);
     var generatedFlag = tile.has_data === false ? buildKpiTileGeneratedFlagHtml() : "";
     var periodExtra =
-      (hasPf || isFactOnly || isKpiPctOnly) && pfPeriod
+      (hasPf || isFactOnly || hidePlanOnTile || isKpiPctOnly) && pfPeriod
         ? '<span class="kpi-tile-plan-fact-period" title="' +
           DashUi.escapeHtml(
-            isFactOnly ? "Период факта" : isKpiPctOnly ? "Период показателя KPI" : KPI_TILE_TITLE_PLAN_FACT_PERIOD
+            isFactOnly || hidePlanOnTile
+              ? "Период факта"
+              : isKpiPctOnly
+                ? "Период показателя KPI"
+                : KPI_TILE_TITLE_PLAN_FACT_PERIOD
           ) +
           '">' +
-          (isFactOnly ? "Факт: " : isKpiPctOnly ? "KPI: " : "План/факт: ") +
+          (isFactOnly || hidePlanOnTile ? "Факт: " : isKpiPctOnly ? "KPI: " : "План/факт: ") +
           DashUi.escapeHtml(pfPeriod) +
           "</span>"
         : "";
@@ -355,6 +365,7 @@
   }
 
   function buildKpiTilePlanFactHeroHtml(tile) {
+    var hidePlanOnTile = shouldHidePlanOnTile(tile);
     var fact = normalizeKpiTileMetricValueForDisplay(tile, tile && tile.fact);
     var plan = normalizeKpiTileMetricValueForDisplay(tile, tile && tile.plan);
     var expected = normalizeKpiTileMetricValueForDisplay(tile, tile && tile.expected_plan);
@@ -367,13 +378,30 @@
     var expectedParts = splitKpiTileValueAndUnit(expectedHtml, units);
     var factNum = readFiniteTileNumber(fact);
     var planNum = readFiniteTileNumber(plan);
-    var deltaHtml = buildKpiTilePlanDeltaHtml(tile, factNum, planNum);
+    var deltaHtml = hidePlanOnTile ? "" : buildKpiTilePlanDeltaHtml(tile, factNum, planNum);
     var hasExpected =
-      typeof DashUi !== "undefined" && DashUi && typeof DashUi.kpiTilePlanFactValuePresent === "function"
+      !hidePlanOnTile &&
+      (typeof DashUi !== "undefined" && DashUi && typeof DashUi.kpiTilePlanFactValuePresent === "function"
         ? DashUi.kpiTilePlanFactValuePresent(expected)
-        : expected != null;
+        : expected != null);
+    var bottomNumbersHtml = "";
+    if (!hidePlanOnTile) {
+      bottomNumbersHtml =
+        '<div class="kpi-tile-modern-numbers">' +
+        '<div class="kpi-tile-modern-number-row"><span>План</span><strong>' +
+        DashUi.escapeHtml(planParts.value + (planParts.unit ? " " + planParts.unit : "")) +
+        "</strong></div>" +
+        (hasExpected
+          ? '<div class="kpi-tile-modern-number-row"><span>Ожидаемо</span><strong>' +
+            DashUi.escapeHtml(expectedParts.value + (expectedParts.unit ? " " + expectedParts.unit : "")) +
+            "</strong></div>"
+          : "") +
+        "</div>";
+    }
     return (
-      '<div class="kpi-tile-modern-metrics">' +
+      '<div class="kpi-tile-modern-metrics' +
+      (hidePlanOnTile ? " kpi-tile-modern-metrics--fact-only" : "") +
+      '">' +
       '<div class="kpi-tile-modern-value-row">' +
       '<strong class="kpi-tile-modern-value">' +
       '<span class="kpi-tile-modern-value-number">' +
@@ -384,16 +412,7 @@
       deltaHtml +
       "</div>" +
       buildKpiTileSparklineHtml(tile) +
-      '<div class="kpi-tile-modern-numbers">' +
-      '<div class="kpi-tile-modern-number-row"><span>План</span><strong>' +
-      DashUi.escapeHtml(planParts.value + (planParts.unit ? " " + planParts.unit : "")) +
-      "</strong></div>" +
-      (hasExpected
-        ? '<div class="kpi-tile-modern-number-row"><span>Ожидаемо</span><strong>' +
-          DashUi.escapeHtml(expectedParts.value + (expectedParts.unit ? " " + expectedParts.unit : "")) +
-          "</strong></div>"
-        : "") +
-      "</div>" +
+      bottomNumbersHtml +
       "</div>"
     );
   }
@@ -1000,7 +1019,7 @@
         "</div>"
       );
     }
-    if (rule && rule.factOnly) {
+    if (rule && rule.factOnly && !shouldHidePlanOnTile(tile)) {
       return (
         '<div class="kpi-tile-metrics kpi-tile-metrics--pf-only" aria-label="Факт">' +
         (rule.factOnlyRow ? buildKpiTileFactOnlyRowHtml(tile) : buildKpiTileFactOnlyHtml(factShown)) +

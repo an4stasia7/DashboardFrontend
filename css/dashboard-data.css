@@ -1120,6 +1120,59 @@
   -webkit-line-clamp: 2;
 }
 
+.table-panel table.dataTable.dashboard-table--qualdir-defects {
+  width: 100% !important;
+  max-width: 100%;
+  table-layout: fixed !important;
+}
+
+.table-panel .dashboard-table-wrap--claims:has(.dashboard-table--qualdir-defects) .claims-table-scroll,
+.table-panel .dashboard-table-wrap--lawsuits:has(.dashboard-table--qualdir-defects) .claims-table-scroll {
+  overflow-x: hidden;
+}
+
+.dashboard-table.dashboard-table--qualdir-defects thead th,
+.dashboard-table.dashboard-table--qualdir-defects tbody td {
+  padding: 9px 10px;
+  overflow: hidden;
+  vertical-align: top;
+  box-sizing: border-box;
+}
+
+.table-panel table.dataTable.dashboard-table--qualdir-defects thead th:nth-child(1),
+.table-panel table.dataTable.dashboard-table--qualdir-defects tbody td:nth-child(1) {
+  width: 26% !important;
+  min-width: 0;
+}
+
+.table-panel table.dataTable.dashboard-table--qualdir-defects thead th:nth-child(2),
+.table-panel table.dataTable.dashboard-table--qualdir-defects tbody td:nth-child(2) {
+  width: 18% !important;
+  min-width: 0;
+}
+
+.table-panel table.dataTable.dashboard-table--qualdir-defects thead th:nth-child(3),
+.table-panel table.dataTable.dashboard-table--qualdir-defects tbody td:nth-child(3) {
+  width: 38% !important;
+  min-width: 0;
+}
+
+.table-panel table.dataTable.dashboard-table--qualdir-defects thead th:nth-child(4),
+.table-panel table.dataTable.dashboard-table--qualdir-defects tbody td:nth-child(4) {
+  width: 18% !important;
+  min-width: 0;
+}
+
+.dashboard-table.dashboard-table--qualdir-defects .dashboard-table-cell-text {
+  display: -webkit-box;
+  max-height: 52px;
+  overflow: hidden;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
 #protocol-overdue-table-panel {
   margin-top: 0;
 }

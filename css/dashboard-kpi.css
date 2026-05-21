@@ -2311,6 +2311,13 @@ article.kpi-tile[data-no-flip="1"] {
   align-items: end;
 }
 
+.kpi-tile-modern-metrics--fact-only {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas:
+    "value"
+    "spark";
+}
+
 .kpi-tile-modern-value-row {
   grid-area: value;
   display: flex;

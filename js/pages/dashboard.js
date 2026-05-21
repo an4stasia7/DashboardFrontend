@@ -1862,6 +1862,65 @@
     );
   }
 
+  function isQualityDirectorUser(user) {
+    if (!user || typeof user !== "object") return false;
+    var role = normalizeDashboardRole(user.role);
+    var department = normalizeDashboardRole(user.department);
+    return (
+      role === "qualdir" ||
+      role === "qd" ||
+      role === "директор по качеству" ||
+      role === "дирекция по качеству" ||
+      department === "qualdir" ||
+      department === "qd" ||
+      department === "директор по качеству" ||
+      department === "дирекция по качеству"
+    );
+  }
+
+  function isQualityDirectorDepartmentContext(value) {
+    var normalized = normalizeDashboardRole(value);
+    return (
+      normalized === "qualdir" ||
+      normalized === "qd" ||
+      normalized === "директор по качеству" ||
+      normalized === "дирекция по качеству"
+    );
+  }
+
+  function shouldUseQualdirDefectTables() {
+    if (selectedViewId !== "self") return false;
+    var currentDepartment = getDepartmentForCurrentKpiContext();
+    if (
+      isQualityDirectorUser(sessionUser) ||
+      isQualityDirectorUser(viewContextUser) ||
+      isQualityDirectorDepartmentContext(currentDepartment) ||
+      isQualityDirectorDepartmentContext(lastKpiResponseDepartment)
+    ) {
+      return true;
+    }
+    return (
+      typeof Api !== "undefined" &&
+      Api &&
+      typeof Api.hasQualdirDefectTablesInBody === "function" &&
+      Api.hasQualdirDefectTablesInBody(lastRawKpiResponse)
+    );
+  }
+
+  function getApiTableTitleFromRows(rows, tableKey) {
+    if (!Array.isArray(rows) || !tableKey) return "";
+    var wanted = String(tableKey).trim().toUpperCase();
+    for (var i = 0; i < rows.length; i++) {
+      var item = rows[i];
+      if (!item) continue;
+      if (String(item.tableKey || "").trim().toUpperCase() !== wanted) continue;
+      if (item.tableName != null && String(item.tableName).trim() !== "") {
+        return String(item.tableName).trim();
+      }
+    }
+    return "";
+  }
+
   function isSupDepartmentContext(value) {
     var normalized = normalizeDashboardRole(value);
     return normalized === "sup" || normalized === "служба управления персоналом";
@@ -2839,6 +2898,7 @@
   }
 
   function shouldUseClaimsAndLawsuitsSwitcher() {
+    if (shouldUseQualdirDefectTables()) return true;
     if (isProductionDirectorDashboardContext()) return true;
     if (shouldUseTechnicalTables()) return true;
     if (shouldUseCommercialDirectorOverdueDebtEnhancements()) return true;
@@ -2882,7 +2942,11 @@
     var useProductionDirectorProjectTables = isProductionDirectorDashboardContext();
     var useProductionDeputyProjectTables = isProductionDeputyDashboardContext();
     var useHrdLateVacanciesTable = shouldUseHrdLateVacanciesTable();
+    var useQualdirDefectTables = shouldUseQualdirDefectTables();
     if (useTechnicalTables) {
+      activeClaimsTableView = "claims";
+    }
+    if (useQualdirDefectTables) {
       activeClaimsTableView = "claims";
     }
     if (useProjectMilestonesTables) {
@@ -2892,7 +2956,9 @@
       activeClaimsTableView = "claims";
     }
     if (claimsTableTitleTextEl) {
-      claimsTableTitleTextEl.textContent = useOpdirProjectTables
+      claimsTableTitleTextEl.textContent = useQualdirDefectTables
+        ? getApiTableTitleFromRows(lastApiTableRows, "QD-T-M1") || "Внешний брак"
+        : useOpdirProjectTables
         ? useProductionDeputyProjectTables
           ? "Претензии на стороне производства"
           : useProductionDirectorProjectTables
@@ -2932,6 +2998,7 @@
 
     if (claimsTableHelpWrapEl) {
       claimsTableHelpWrapEl.hidden =
+        useQualdirDefectTables ||
         useHrdLateVacanciesTable ||
         useTechnicalTables ||
         useProjectMilestonesTables ||
@@ -2941,14 +3008,18 @@
     if (claimsTableSwitcherEl) {
       var switchButtons = claimsTableSwitcherEl.querySelectorAll(".claims-table-switcher-btn");
       if (switchButtons && switchButtons.length >= 2) {
-        switchButtons[0].textContent = useOpdirProjectTables
+        switchButtons[0].textContent = useQualdirDefectTables
+          ? "Внешний брак"
+          : useOpdirProjectTables
           ? useProductionDirectorProjectTables
             ? "Отклонения"
             : "Проекты"
           : useTechnicalTables
             ? "Внешний заказ"
             : "Претензии";
-        switchButtons[1].textContent = useOpdirProjectTables
+        switchButtons[1].textContent = useQualdirDefectTables
+          ? "Внутренний брак"
+          : useOpdirProjectTables
           ? useProductionDirectorProjectTables
             ? "Проекты улучшений"
             : "Проекты"
@@ -2962,6 +3033,7 @@
       var overduePanel = overdueDebtTableTitleEl.closest(".table-panel");
       if (overduePanel) {
         overduePanel.hidden =
+          useQualdirDefectTables ||
           useHrdLateVacanciesTable ||
           useTechnicalTables ||
           useProjectMilestonesTables ||
@@ -3033,10 +3105,17 @@
         ? false
         : !document.getElementById("claims-table-switcher").hidden;
       claimsTableTitleTextEl.hidden = switcherVisible;
+      if (shouldUseQualdirDefectTables()) {
+        claimsTableTitleTextEl.textContent =
+          nextView === "lawsuits"
+            ? getApiTableTitleFromRows(lastApiTableRows, "QD-T-M5") || "Внутренний брак"
+            : getApiTableTitleFromRows(lastApiTableRows, "QD-T-M1") || "Внешний брак";
+      }
     }
 
     if (claimsTableHelpWrapEl) {
       claimsTableHelpWrapEl.hidden =
+        shouldUseQualdirDefectTables() ||
         shouldUseTechnicalDeviationTables() ||
         shouldUseOpdirProjectTables() ||
         shouldUseDevserviceProjectDeviationsTables() ||
@@ -3096,6 +3175,9 @@
         productionClaimsShop: normalizeProductionShopKey(productionDeputySelectedShop),
         constructorProjectTableMode: isChiefConstructorDashboardContext() || isChiefMetrologDashboardContext(),
         logisticsSupplierDebtTableMode: isLogisticsDashboardContext(),
+        qualdirDefectTablesMode: shouldUseQualdirDefectTables(),
+        qualdirExternalTableKey: "QD-T-M1",
+        qualdirInternalTableKey: "QD-T-M5",
       });
     }
   }

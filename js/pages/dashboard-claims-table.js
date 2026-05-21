@@ -227,7 +227,18 @@
   var METROLOG_PROJECT_TABLE_KEY = "METD-T-Q1-DEVIATIONS";
   var LOGISTICS_CLAIMS_TABLE_KEY = "LOG-T-CLAIMS";
   var LOGISTICS_SUPPLIER_DZ_TABLE_KEY = "LOG-T-SUPPLIER-DZ";
+  var QUALDIR_EXTERNAL_DEFECT_TABLE_KEY = "QD-T-M1";
+  var QUALDIR_INTERNAL_DEFECT_TABLE_KEY = "QD-T-M5";
+  var QUALDIR_DEFECT_TABLE_HEADERS = [
+    "Документ",
+    "Объект несоответствия",
+    "Вид несоответствия",
+    "Подразделение",
+  ];
+  var activeQualdirExternalTableKey = QUALDIR_EXTERNAL_DEFECT_TABLE_KEY;
+  var activeQualdirInternalTableKey = QUALDIR_INTERNAL_DEFECT_TABLE_KEY;
   var technicalTablesMode = false;
+  var qualdirDefectTablesMode = false;
   var opdirProjectTableMode = false;
   var opdirProjectSecondTableDisabled = false;
   var productionClaimsTableMode = false;
@@ -285,6 +296,26 @@
     }
   }
 
+  function buildQualdirColgroupHtml(columnCount) {
+    var defaultWidths = ["26%", "18%", "38%", "18%"];
+    var cols = Math.max(1, Number(columnCount) || QUALDIR_DEFECT_TABLE_HEADERS.length);
+    var equalWidth = (100 / cols).toFixed(2) + "%";
+    var html = "<colgroup>";
+    for (var i = 0; i < cols; i++) {
+      html += '<col style="width:' + (defaultWidths[i] || equalWidth) + '">';
+    }
+    html += "</colgroup>";
+    return html;
+  }
+
+  function syncQualdirTableColgroup(tableId, columnCount) {
+    var table = document.getElementById(tableId);
+    if (!table) return;
+    var existing = table.querySelector("colgroup");
+    if (existing) existing.remove();
+    table.insertAdjacentHTML("afterbegin", buildQualdirColgroupHtml(columnCount));
+  }
+
   function setTableHeaders(tableId, headers) {
     var table = document.getElementById(tableId);
     var headRow = table ? table.querySelector("thead tr") : null;
@@ -297,6 +328,9 @@
         return "<th>" + normalizedHeader + "</th>";
       })
       .join("");
+    if (qualdirDefectTablesMode && table && table.classList.contains("dashboard-table--qualdir-defects")) {
+      syncQualdirTableColgroup(tableId, headers.length);
+    }
   }
 
   function setTopDeviationsTableMode(executiveMode) {
@@ -318,6 +352,7 @@
   }
 
   function setTechnicalTableMode(technicalMode) {
+    if (qualdirDefectTablesMode) return;
     var topTable = document.getElementById("table-top-deviations");
     var secondTable = document.getElementById("table-lawsuits");
     if (topTable) topTable.classList.toggle("dashboard-table--compact-by-content", !!technicalMode);
@@ -447,11 +482,180 @@
     return TECHNICAL_TABLE_HEADERS.slice();
   }
 
+  function getQualdirTableHeadersFromRows(rows, tableKey) {
+    if (!Array.isArray(rows) || !rows.length) return QUALDIR_DEFECT_TABLE_HEADERS.slice();
+    for (var i = 0; i < rows.length; i++) {
+      var item = rows[i];
+      if (!item || String(item.tableKey || "").trim().toUpperCase() !== String(tableKey || "").trim().toUpperCase()) {
+        continue;
+      }
+      if (Array.isArray(item.tableColumns) && item.tableColumns.length) {
+        return item.tableColumns.map(function (header) {
+          return tableTextOrDash(header);
+        });
+      }
+    }
+    return QUALDIR_DEFECT_TABLE_HEADERS.slice();
+  }
+
+  function qualdirDefectTableKey(item) {
+    return item && item.tableKey != null ? String(item.tableKey).trim().toUpperCase() : "";
+  }
+
+  function isQualdirExternalDefectRow(item) {
+    return qualdirDefectTableKey(item) === String(activeQualdirExternalTableKey || QUALDIR_EXTERNAL_DEFECT_TABLE_KEY).trim().toUpperCase();
+  }
+
+  function isQualdirInternalDefectRow(item) {
+    return qualdirDefectTableKey(item) === String(activeQualdirInternalTableKey || QUALDIR_INTERNAL_DEFECT_TABLE_KEY).trim().toUpperCase();
+  }
+
+  function isQualdirDefectRow(item) {
+    return isQualdirExternalDefectRow(item) || isQualdirInternalDefectRow(item);
+  }
+
+  function syncQualdirTableFooter(tableId, columnCount) {
+    var table = document.getElementById(tableId);
+    if (!table || !table.tFoot) return;
+    var cols = Math.max(1, Number(columnCount) || QUALDIR_DEFECT_TABLE_HEADERS.length);
+    var cells = [];
+    for (var i = 0; i < cols; i++) cells.push("<th></th>");
+    table.tFoot.hidden = true;
+    table.tFoot.innerHTML = "<tr>" + cells.join("") + "</tr>";
+  }
+
+  function setQualdirDefectTableMode(enabled) {
+    var topTable = document.getElementById("table-top-deviations");
+    var secondTable = document.getElementById("table-lawsuits");
+    if (topTable) topTable.classList.toggle("dashboard-table--qualdir-defects", !!enabled);
+    if (secondTable) secondTable.classList.toggle("dashboard-table--qualdir-defects", !!enabled);
+    if (enabled) {
+      syncQualdirTableFooter("table-top-deviations", QUALDIR_DEFECT_TABLE_HEADERS.length);
+      syncQualdirTableFooter("table-lawsuits", QUALDIR_DEFECT_TABLE_HEADERS.length);
+    } else {
+      if (topTable && topTable.tFoot) {
+        topTable.tFoot.hidden = false;
+        topTable.tFoot.innerHTML =
+          '<tr><th colspan="10">Итого</th><th id="claims-table-total-sum">0,00</th></tr>';
+      }
+      if (secondTable && secondTable.tFoot) {
+        secondTable.tFoot.hidden = false;
+        secondTable.tFoot.innerHTML =
+          '<tr><th colspan="6">Итого</th><th id="lawsuits-table-total-sum">0,00</th></tr>';
+      }
+    }
+  }
+
+  function appendQualdirDefectTableRow(tbody, raw) {
+    var tr = document.createElement("tr");
+    var cells = [
+      {
+        value: pickTableField(raw, ["\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442", "document"]),
+        className: "dashboard-table-cell--medium-text",
+      },
+      {
+        value: pickTableField(raw, [
+          "\u041e\u0431\u044a\u0435\u043a\u0442 \u043d\u0435\u0441\u043e\u043e\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u044f",
+          "object",
+        ]),
+        className: "dashboard-table-cell--medium-text",
+      },
+      {
+        value: pickTableField(raw, [
+          "\u0412\u0438\u0434 \u043d\u0435\u0441\u043e\u043e\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u044f",
+          "defect_type",
+          "violation_type",
+        ]),
+        className: "dashboard-table-cell--wide-text",
+      },
+      {
+        value: pickTableField(raw, ["\u041f\u043e\u0434\u0440\u0430\u0437\u0434\u0435\u043b\u0435\u043d\u0438\u0435", "department", "dept"]),
+        className: "dashboard-table-cell--medium-text",
+      },
+    ];
+    cells.forEach(function (cell) {
+      appendClampedCell(tr, cell.value, cell.className);
+    });
+    tbody.appendChild(tr);
+  }
+
+  function renderQualdirDefectTableRows(rows, tableKey, tableId) {
+    var table = document.getElementById(tableId);
+    var tbody = table ? table.querySelector("tbody") : null;
+    if (!table || !tbody) return;
+    tbody.innerHTML = "";
+    var headers = getQualdirTableHeadersFromRows(rows, tableKey);
+    setTableHeaders(tableId, headers);
+    syncQualdirTableColgroup(tableId, headers.length);
+    syncQualdirTableFooter(tableId, headers.length);
+    var wanted = String(tableKey || "").trim().toUpperCase();
+    rows
+      .filter(function (item) {
+        return qualdirDefectTableKey(item) === wanted;
+      })
+      .forEach(function (item) {
+        var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
+        if (!raw) return;
+        appendQualdirDefectTableRow(tbody, raw);
+      });
+  }
+
+  function applyQualdirTableFullWidth(tableSelector) {
+    var table =
+      typeof tableSelector === "string"
+        ? document.querySelector(tableSelector)
+        : tableSelector;
+    if (!table) return;
+    table.style.width = "100%";
+    table.style.minWidth = "100%";
+    table.style.maxWidth = "100%";
+    var cells = table.querySelectorAll("thead th, tbody td");
+    for (var i = 0; i < cells.length; i++) {
+      cells[i].style.width = "";
+      cells[i].style.minWidth = "";
+      cells[i].style.maxWidth = "";
+    }
+  }
+
+  function initQualdirDefectDataTable(tableSelector, wrapperSelector, advancedSearchKey) {
+    return initInteractiveDashboardTable({
+      tableSelector: tableSelector,
+      wrapperSelector: wrapperSelector,
+      advancedSearchKey: advancedSearchKey,
+      columnConfigs: [
+        { index: 0, label: "Документ", type: "filter", searchType: "text" },
+        { index: 1, label: "Объект несоответствия", type: "filter", searchType: "text" },
+        { index: 2, label: "Вид несоответствия", type: "filter", searchType: "text" },
+        { index: 3, label: "Подразделение", type: "filter", searchType: "text" },
+      ],
+      initialOrder: [[0, "desc"]],
+      columnDefs: [
+        { targets: 0, width: "26%" },
+        { targets: 1, width: "18%" },
+        { targets: 2, width: "38%" },
+        { targets: 3, width: "18%" },
+        { targets: "_all", orderable: false },
+      ],
+      afterInit: function (api) {
+        applyQualdirTableFullWidth(tableSelector);
+        window.setTimeout(function () {
+          applyQualdirTableFullWidth(tableSelector);
+          if (api && typeof api.columns === "function") {
+            try {
+              api.columns.adjust();
+            } catch (e) {}
+          }
+        }, 0);
+      },
+    });
+  }
+
   function setOpdirProjectTableMode(enabled) {
     var topTable = document.getElementById("table-top-deviations");
     var secondTable = document.getElementById("table-lawsuits");
     if (topTable) topTable.classList.toggle("dashboard-table--compact-by-content", !!enabled);
     if (secondTable) secondTable.classList.toggle("dashboard-table--compact-by-content", !!enabled);
+    if (qualdirDefectTablesMode) return;
     if (topTable && topTable.tFoot) {
       topTable.tFoot.hidden = !!enabled;
       if (enabled) {
@@ -1097,7 +1301,16 @@
       topTable.classList.remove("dashboard-table--logistics-claims");
       topTable.classList.remove("dashboard-table--hrd-late-vacancies");
     }
-    if (hrdLateVacanciesTableMode) {
+    if (qualdirDefectTablesMode) {
+      setTableHeaders(
+        "table-top-deviations",
+        getQualdirTableHeadersFromRows(rows, activeQualdirExternalTableKey)
+      );
+      setTableHeaders(
+        "table-lawsuits",
+        getQualdirTableHeadersFromRows(rows, activeQualdirInternalTableKey)
+      );
+    } else if (hrdLateVacanciesTableMode) {
       setTableHeaders("table-top-deviations", HRD_LATE_VACANCIES_HEADERS);
     } else if (productionClaimsTableMode) {
       setTableHeaders("table-top-deviations", PRODUCTION_CLAIMS_HEADERS);
@@ -1320,7 +1533,9 @@
 
   function isClaimsTableRow(item) {
     var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
-    if (!raw || isOverdueDebtRow(item) || isLawsuitsRow(item) || isProtocolOverdueRow(item)) return false;
+    if (!raw || isOverdueDebtRow(item) || isLawsuitsRow(item) || isProtocolOverdueRow(item) || isQualdirDefectRow(item)) {
+      return false;
+    }
     return (
       raw.code != null ||
       raw.name != null ||
@@ -1357,6 +1572,7 @@
   }
 
   function isLawsuitsRow(item) {
+    if (isQualdirDefectRow(item)) return false;
     var key = item && item.tableKey != null ? String(item.tableKey).trim().toLocaleLowerCase("ru-RU") : "";
     if (!key) return false;
     return (
@@ -2371,6 +2587,20 @@
     productionClaimsShop = normalizeProductionClaimsShop(options.productionClaimsShop);
     constructorProjectTableMode = !!options.constructorProjectTableMode;
     hrdLateVacanciesTableMode = !!options.hrdLateVacanciesTableMode;
+    qualdirDefectTablesMode = !!options.qualdirDefectTablesMode;
+    if (qualdirDefectTablesMode) {
+      activeQualdirExternalTableKey =
+        options.qualdirExternalTableKey != null && String(options.qualdirExternalTableKey).trim() !== ""
+          ? String(options.qualdirExternalTableKey).trim().toUpperCase()
+          : QUALDIR_EXTERNAL_DEFECT_TABLE_KEY;
+      activeQualdirInternalTableKey =
+        options.qualdirInternalTableKey != null && String(options.qualdirInternalTableKey).trim() !== ""
+          ? String(options.qualdirInternalTableKey).trim().toUpperCase()
+          : QUALDIR_INTERNAL_DEFECT_TABLE_KEY;
+    } else {
+      activeQualdirExternalTableKey = QUALDIR_EXTERNAL_DEFECT_TABLE_KEY;
+      activeQualdirInternalTableKey = QUALDIR_INTERNAL_DEFECT_TABLE_KEY;
+    }
     protocolOverdueTableMode =
       !!options.protocolOverdueTableMode ||
       !!options.protocolOverdueTableInBody ||
@@ -2407,6 +2637,23 @@
     resetDefaultTables(rows);
     setTechnicalTableMode(technicalTablesMode);
     setOpdirProjectTableMode(opdirProjectTableMode || constructorProjectTableMode);
+    setQualdirDefectTableMode(qualdirDefectTablesMode);
+    if (qualdirDefectTablesMode) {
+      renderQualdirDefectTableRows(rows, activeQualdirExternalTableKey, "table-top-deviations");
+      renderQualdirDefectTableRows(rows, activeQualdirInternalTableKey, "table-lawsuits");
+      initQualdirDefectDataTable(
+        "#table-top-deviations",
+        ".dashboard-table-wrap--claims",
+        "qualdir-external-defect-table-advanced"
+      );
+      initQualdirDefectDataTable(
+        "#table-lawsuits",
+        ".dashboard-table-wrap--lawsuits",
+        "qualdir-internal-defect-table-advanced"
+      );
+      syncProtocolOverduePanel(rows, options);
+      return;
+    }
     if (hrdLateVacanciesTableMode) {
       renderHrdLateVacanciesTableRows(rows);
       initClaimsDataTable();

@@ -1234,6 +1234,26 @@
     return key.indexOf("PROTOCOL-OVERDUE") !== -1;
   }
 
+  var QUALDIR_DEFECT_TABLE_KEYS = ["QD-T-M1", "QD-T-M5"];
+
+  function isQualdirDefectTableTabKey(tabKey) {
+    var key = tabKey != null ? String(tabKey).trim().toUpperCase() : "";
+    for (var i = 0; i < QUALDIR_DEFECT_TABLE_KEYS.length; i++) {
+      if (key === QUALDIR_DEFECT_TABLE_KEYS[i]) return true;
+    }
+    return false;
+  }
+
+  function hasQualdirDefectTablesInBody(body) {
+    var tables = getTablesMapFromBody(body);
+    if (!tables || typeof tables !== "object") return false;
+    var keys = Object.keys(tables);
+    for (var i = 0; i < keys.length; i++) {
+      if (isQualdirDefectTableTabKey(keys[i])) return true;
+    }
+    return false;
+  }
+
   function hasProtocolOverdueTableInBody(body, filterYear, filterMonth) {
     var tables = getTablesMapFromBody(body);
     if (!tables || typeof tables !== "object") return false;
@@ -2238,6 +2258,13 @@
       (row["\u041e\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0435\u043d\u043d\u044b\u0439"] != null &&
         String(row["\u041e\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0435\u043d\u043d\u044b\u0439"]).trim() !== "") ||
       (row["\u0410\u0432\u0442\u043e\u0440"] != null && String(row["\u0410\u0432\u0442\u043e\u0440"]).trim() !== "") ||
+      (row["\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442"] != null && String(row["\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442"]).trim() !== "") ||
+      (row["\u041e\u0431\u044a\u0435\u043a\u0442 \u043d\u0435\u0441\u043e\u043e\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u044f"] != null &&
+        String(row["\u041e\u0431\u044a\u0435\u043a\u0442 \u043d\u0435\u0441\u043e\u043e\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u044f"]).trim() !== "") ||
+      (row["\u0412\u0438\u0434 \u043d\u0435\u0441\u043e\u043e\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u044f"] != null &&
+        String(row["\u0412\u0438\u0434 \u043d\u0435\u0441\u043e\u043e\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u044f"]).trim() !== "") ||
+      (row["\u041f\u043e\u0434\u0440\u0430\u0437\u0434\u0435\u043b\u0435\u043d\u0438\u0435"] != null &&
+        String(row["\u041f\u043e\u0434\u0440\u0430\u0437\u0434\u0435\u043b\u0435\u043d\u0438\u0435"]).trim() !== "") ||
       (row.order_num != null && String(row.order_num).trim() !== "") ||
       (row.milestone_planned_finish_date != null && String(row.milestone_planned_finish_date).trim() !== "") ||
       (row.deviation_date != null && String(row.deviation_date).trim() !== "") ||
@@ -2402,6 +2429,8 @@
           deviation: devStr,
           comment: tableRowComment(row, tk),
           tableKey: tk != null ? String(tk).trim() : "",
+          tableName: item.tableName != null ? String(item.tableName).trim() : "",
+          tableColumns: Array.isArray(item.tableColumns) ? item.tableColumns.slice() : [],
           raw: row,
         };
       })
@@ -2848,5 +2877,7 @@
     buildChartIndicatorsFromApiResponse: buildChartIndicatorsFromApiResponse,
     processKpiResponseBodyAtPeriod: processKpiResponseBodyAtPeriod,
     hasProtocolOverdueTableInBody: hasProtocolOverdueTableInBody,
+    hasQualdirDefectTablesInBody: hasQualdirDefectTablesInBody,
+    isQualdirDefectTableTabKey: isQualdirDefectTableTabKey,
   };
 })(typeof window !== "undefined" ? window : globalThis);
