@@ -2,6 +2,13 @@
 
 const { app, BrowserWindow, screen, ipcMain, shell } = require("electron");
 const path = require("path");
+
+/** GPU process exit_code=34 на части Windows / RDP / VM. ELECTRON_ENABLE_GPU=1 — принудительно включить GPU. */
+if (process.env.ELECTRON_ENABLE_GPU !== "1" && (process.env.ELECTRON_DISABLE_GPU === "1" || process.platform === "win32")) {
+  app.disableHardwareAcceleration();
+  app.commandLine.appendSwitch("disable-gpu");
+  app.commandLine.appendSwitch("disable-gpu-sandbox");
+}
 const http = require("http");
 const fs = require("fs");
 const url = require("url");

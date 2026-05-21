@@ -2876,7 +2876,6 @@
     if (useHrdLateVacanciesTable) {
       activeClaimsTableView = "claims";
     }
-
     if (claimsTableTitleTextEl) {
       claimsTableTitleTextEl.textContent = useOpdirProjectTables
         ? useProductionDeputyProjectTables
@@ -3047,8 +3046,26 @@
           psdTableMinRub = 1000000;
         }
       }
+      var protocolTableYear = null;
+      var protocolTableMonth = null;
+      if (typeof DashboardMonthNav !== "undefined" && DashboardMonthNav && typeof DashboardMonthNav.getPeriodState === "function") {
+        var tablePeriodState = DashboardMonthNav.getPeriodState();
+        protocolTableYear =
+          tablePeriodState && tablePeriodState.currentPeriodYear != null
+            ? Number(tablePeriodState.currentPeriodYear)
+            : null;
+        protocolTableMonth =
+          tablePeriodState && tablePeriodState.currentPeriodMonth != null
+            ? Number(tablePeriodState.currentPeriodMonth)
+            : null;
+      }
       DashboardClaimsTable.init({
         rows: lastApiTableRows,
+        protocolOverdueTableInBody:
+          typeof Api !== "undefined" &&
+          Api &&
+          typeof Api.hasProtocolOverdueTableInBody === "function" &&
+          Api.hasProtocolOverdueTableInBody(lastRawKpiResponse, protocolTableYear, protocolTableMonth),
         executiveMode: false,
         enhanceOverdueDebtTable: shouldUseCommercialDirectorOverdueDebtEnhancements(),
         enableLawsuitsTable: shouldUseClaimsAndLawsuitsSwitcher(),

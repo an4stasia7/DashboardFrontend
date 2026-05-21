@@ -217,6 +217,8 @@
     "Дата закрытия плановая",
     "Дата закрытия факт",
   ];
+  var PROTOCOL_OVERDUE_TABLE_KEY_SUFFIX = "PROTOCOL-OVERDUE";
+  var PROTOCOL_OVERDUE_HEADERS = ["Протокол", "Срок", "Постановка", "Задача", "Исполнитель", "Автор"];
   var PRODUCTION_DEPUTY_PROJECT_TABLE_KEY = "PD-T-Q1-DEVIATIONS";
   var DEVDIR_PROJECTS_DEVIATIONS_TABLE_KEY = "DEVDIR-T-PROJECTS-DEVIATIONS";
   var PRODUCTION_DEPUTY_IMPROVEMENT_TABLE_KEY = "PD-T-Q3-IMPROVEMENTS";
@@ -232,7 +234,56 @@
   var productionClaimsShop = "pc1";
   var constructorProjectTableMode = false;
   var hrdLateVacanciesTableMode = false;
+  var protocolOverdueTableMode = false;
   var logisticsSupplierDebtTableMode = false;
+
+  function pickTableField(raw, keys) {
+    if (!raw || typeof raw !== "object") return null;
+    for (var i = 0; i < keys.length; i++) {
+      var key = keys[i];
+      if (raw[key] != null && String(raw[key]).trim() !== "") return raw[key];
+    }
+    return null;
+  }
+
+  function protocolOverdueTableKey(item) {
+    return item && item.tableKey != null ? String(item.tableKey).trim().toUpperCase() : "";
+  }
+
+  function rawLooksLikeProtocolOverdueRow(raw) {
+    if (!raw || typeof raw !== "object") return false;
+    return (
+      pickTableField(raw, ["\u041f\u0440\u043e\u0442\u043e\u043a\u043e\u043b", "protocol", "protocol_name"]) != null ||
+      pickTableField(raw, ["\u0417\u0430\u0434\u0430\u0447\u0430", "task", "task_text"]) != null
+    );
+  }
+
+  function isProtocolOverdueRow(item) {
+    var key = protocolOverdueTableKey(item);
+    if (key.indexOf(PROTOCOL_OVERDUE_TABLE_KEY_SUFFIX) !== -1) return true;
+    var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
+    return rawLooksLikeProtocolOverdueRow(raw);
+  }
+
+  function hasProtocolOverdueTableRows(rows) {
+    if (!Array.isArray(rows) || !rows.length) return false;
+    for (var i = 0; i < rows.length; i++) {
+      if (isProtocolOverdueRow(rows[i])) return true;
+    }
+    return false;
+  }
+
+  function setProtocolOverduePanelVisible(visible) {
+    var panel = document.getElementById("protocol-overdue-table-panel");
+    if (!panel) return;
+    if (visible) {
+      panel.hidden = false;
+      panel.removeAttribute("hidden");
+    } else {
+      panel.hidden = true;
+      panel.setAttribute("hidden", "");
+    }
+  }
 
   function setTableHeaders(tableId, headers) {
     var table = document.getElementById(tableId);
@@ -1071,6 +1122,58 @@
     return key === HRD_LATE_VACANCIES_TABLE_KEY;
   }
 
+  function renderProtocolOverdueTableRows(rows) {
+    var table = document.getElementById("table-protocol-overdue");
+    var tbody = table ? table.querySelector("tbody") : null;
+    if (!table || !tbody) return;
+    tbody.innerHTML = "";
+    setTableHeaders("table-protocol-overdue", PROTOCOL_OVERDUE_HEADERS);
+    table.setAttribute("aria-label", "Отклонения по протоколам");
+    table.classList.add("dashboard-table--protocol-overdue");
+
+    var protocolRows = rows.filter(isProtocolOverdueRow);
+
+    protocolRows.forEach(function (item) {
+      var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
+      if (!raw) return;
+      var tr = document.createElement("tr");
+      var cells = [
+        {
+          value: pickTableField(raw, ["\u041f\u0440\u043e\u0442\u043e\u043a\u043e\u043b", "protocol", "protocol_name"]),
+          className: "dashboard-table-cell--medium-text",
+        },
+        {
+          value: pickTableField(raw, ["\u0421\u0440\u043e\u043a\u0418\u0441\u043f\u043e\u043b\u043d\u0435\u043d\u0438\u044f", "due_date", "deadline"]),
+          className: "dashboard-table-cell--date",
+        },
+        {
+          value: pickTableField(raw, [
+            "\u0414\u0430\u0442\u0430\u041f\u043e\u0441\u0442\u0430\u043d\u043e\u0432\u043a\u0438\u0417\u0430\u0434\u0430\u0447\u0438",
+            "task_assigned_date",
+            "assigned_date",
+          ]),
+          className: "dashboard-table-cell--date",
+        },
+        {
+          value: pickTableField(raw, ["\u0417\u0430\u0434\u0430\u0447\u0430", "task", "task_text"]),
+          className: "dashboard-table-cell--wide-text",
+        },
+        {
+          value: pickTableField(raw, ["\u041e\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0435\u043d\u043d\u044b\u0439", "responsible", "executor"]),
+          className: "dashboard-table-cell--medium-text",
+        },
+        {
+          value: pickTableField(raw, ["\u0410\u0432\u0442\u043e\u0440", "author"]),
+          className: "dashboard-table-cell--medium-text",
+        },
+      ];
+      cells.forEach(function (cell) {
+        appendClampedCell(tr, cell.value, cell.className);
+      });
+      tbody.appendChild(tr);
+    });
+  }
+
   function renderHrdLateVacanciesTableRows(rows) {
     var table = document.getElementById("table-top-deviations");
     var tbody = table ? table.querySelector("tbody") : null;
@@ -1217,7 +1320,7 @@
 
   function isClaimsTableRow(item) {
     var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
-    if (!raw || isOverdueDebtRow(item) || isLawsuitsRow(item)) return false;
+    if (!raw || isOverdueDebtRow(item) || isLawsuitsRow(item) || isProtocolOverdueRow(item)) return false;
     return (
       raw.code != null ||
       raw.name != null ||
@@ -1897,6 +2000,43 @@
     return dataTable;
   }
 
+  function syncProtocolOverduePanel(rows, options) {
+    options = options || {};
+    protocolOverdueTableMode =
+      !!options.protocolOverdueTableInBody || hasProtocolOverdueTableRows(rows);
+    if (!protocolOverdueTableMode) {
+      setProtocolOverduePanelVisible(false);
+      if (typeof $ !== "undefined" && $.fn && $.fn.DataTable && $.fn.DataTable.isDataTable("#table-protocol-overdue")) {
+        $("#table-protocol-overdue").DataTable().destroy();
+      }
+      return;
+    }
+    setProtocolOverduePanelVisible(true);
+    renderProtocolOverdueTableRows(rows);
+    initProtocolOverdueDataTable();
+  }
+
+  function initProtocolOverdueDataTable() {
+    return initInteractiveDashboardTable({
+      tableSelector: "#table-protocol-overdue",
+      wrapperSelector: ".dashboard-table-wrap--protocol-overdue",
+      advancedSearchKey: "protocol-overdue-table-advanced",
+      columnConfigs: [
+        { index: 0, label: "Протокол", type: "filter", searchType: "text" },
+        { index: 1, label: "Срок", type: "sort", searchType: "date" },
+        { index: 2, label: "Постановка", type: "sort", searchType: "date" },
+        { index: 3, label: "Задача", type: "filter", searchType: "text" },
+        { index: 4, label: "Исполнитель", type: "filter", searchType: "text" },
+        { index: 5, label: "Автор", type: "filter", searchType: "text" },
+      ],
+      initialOrder: [[1, "desc"], [2, "desc"]],
+      columnDefs: [
+        { targets: "_all", orderable: false },
+        { targets: [1, 2], orderable: true },
+      ],
+    });
+  }
+
   function initClaimsDataTable() {
     if (hrdLateVacanciesTableMode) {
       return initInteractiveDashboardTable({
@@ -2159,11 +2299,13 @@
   }
 
   function destroyClaimsTables() {
-    ["#table-plan-fact", "#table-top-deviations", "#table-overdue-debt", "#table-lawsuits"].forEach(function (selector) {
-      if (typeof $ !== "undefined" && $.fn && $.fn.DataTable && $.fn.DataTable.isDataTable(selector)) {
-        $(selector).DataTable().destroy();
+    ["#table-plan-fact", "#table-top-deviations", "#table-overdue-debt", "#table-lawsuits", "#table-protocol-overdue"].forEach(
+      function (selector) {
+        if (typeof $ !== "undefined" && $.fn && $.fn.DataTable && $.fn.DataTable.isDataTable(selector)) {
+          $(selector).DataTable().destroy();
+        }
       }
-    });
+    );
   }
 
   function parseTableRublesAmount(value) {
@@ -2229,6 +2371,10 @@
     productionClaimsShop = normalizeProductionClaimsShop(options.productionClaimsShop);
     constructorProjectTableMode = !!options.constructorProjectTableMode;
     hrdLateVacanciesTableMode = !!options.hrdLateVacanciesTableMode;
+    protocolOverdueTableMode =
+      !!options.protocolOverdueTableMode ||
+      !!options.protocolOverdueTableInBody ||
+      hasProtocolOverdueTableRows(rows);
     logisticsSupplierDebtTableMode = !!options.logisticsSupplierDebtTableMode;
     if (technicalTablesMode) {
       activeTechnicalExternalTableKey =
@@ -2254,6 +2400,7 @@
 
     if (executiveMode) {
       renderExecutiveTables(rows);
+      setProtocolOverduePanelVisible(false);
       return;
     }
 
@@ -2263,11 +2410,13 @@
     if (hrdLateVacanciesTableMode) {
       renderHrdLateVacanciesTableRows(rows);
       initClaimsDataTable();
+      syncProtocolOverduePanel(rows, options);
       return;
     }
     if (productionClaimsTableMode) {
       renderClaimsTableRows(rows);
       initProductionClaimsDataTable();
+      syncProtocolOverduePanel(rows, options);
       return;
     }
     if (constructorProjectTableMode) {
@@ -2277,6 +2426,7 @@
         ".dashboard-table-wrap--claims",
         "constructor-project-table-advanced"
       );
+      syncProtocolOverduePanel(rows, options);
       return;
     }
     if (opdirProjectTableMode) {
@@ -2296,6 +2446,7 @@
           "opdir-project-second-table-advanced"
         );
       }
+      syncProtocolOverduePanel(rows, options);
       return;
     }
     if (technicalTablesMode) {
@@ -2308,6 +2459,7 @@
       if (!singleTechnicalPanel) {
         initTechnicalLawsuitsDataTable();
       }
+      syncProtocolOverduePanel(rows, options);
       return;
     }
     renderClaimsTableRows(rows);
@@ -2320,9 +2472,11 @@
       renderLawsuitsTableRows(rows);
       initLawsuitsDataTable();
     }
+    syncProtocolOverduePanel(rows, options);
   }
 
   global.DashboardClaimsTable = {
     init: init,
+    hasProtocolOverdueTableRows: hasProtocolOverdueTableRows,
   };
 })(typeof window !== "undefined" ? window : globalThis);

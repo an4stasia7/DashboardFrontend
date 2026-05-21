@@ -730,7 +730,7 @@
     return {
       tiles: tiles,
       chartIndicators: buildChartIndicatorsFromApiResponse(body),
-      tableRows: buildTableRowsFromApiResponse(body),
+      tableRows: buildTableRowsFromApiResponse(body, qp.year, qp.month),
       unwrappedData: body,
     };
   }
@@ -747,7 +747,7 @@
     return {
       tiles: tiles,
       chartIndicators: buildChartIndicatorsFromApiResponse(body),
-      tableRows: buildTableRowsFromApiResponse(body),
+      tableRows: buildTableRowsFromApiResponse(body, year, month),
       unwrappedData: body,
     };
   }
@@ -1029,11 +1029,123 @@
     return arrayFromValue(series.points);
   }
 
-  function getTableRowsList(tab) {
+  function rowsObjectToArray(rows) {
+    if (!rows || typeof rows !== "object") return [];
+    if (Array.isArray(rows)) return rows.slice();
+    var keys = Object.keys(rows);
+    if (!keys.length) return [];
+    var looksLikeRowMap = keys.every(function (key) {
+      var item = rows[key];
+      return item && typeof item === "object";
+    });
+    if (!looksLikeRowMap) return [rows];
+    return keys
+      .map(function (key) {
+        return rows[key];
+      })
+      .filter(function (item) {
+        return item && typeof item === "object";
+      });
+  }
+
+  function getTablesMapFromBody(body) {
+    if (!body || typeof body !== "object") return null;
+    var tables = body[KPI_JSON_KEY_TABLES] || body.tables || body.Tables;
+    if (!tables || typeof tables !== "object") return null;
+    if (Array.isArray(tables)) {
+      var mapped = Object.create(null);
+      for (var i = 0; i < tables.length; i++) {
+        var tab = tables[i];
+        if (!tab || typeof tab !== "object") continue;
+        var key =
+          tab.kpi_id != null && String(tab.kpi_id).trim() !== ""
+            ? String(tab.kpi_id).trim()
+            : tab.id != null && String(tab.id).trim() !== ""
+              ? String(tab.id).trim()
+              : tab.key != null && String(tab.key).trim() !== ""
+                ? String(tab.key).trim()
+                : "table-" + String(i + 1);
+        mapped[key] = tab;
+      }
+      return mapped;
+    }
+    return tables;
+  }
+
+  function pickLatestTableMonthlyDataPoint(monthlyData) {
+    if (!Array.isArray(monthlyData) || !monthlyData.length) return null;
+    var best = null;
+    var bestKey = -1;
+    for (var i = 0; i < monthlyData.length; i++) {
+      var point = monthlyData[i];
+      if (!point || typeof point !== "object") continue;
+      var y = Number(point.year);
+      var m = Number(point.month);
+      if (isNaN(y) || isNaN(m)) continue;
+      var key = y * 100 + m;
+      if (key >= bestKey) {
+        bestKey = key;
+        best = point;
+      }
+    }
+    return best;
+  }
+
+  /**
+   * Прикладная таблица: плоские rows или срез monthly_data по year/month (как у плиток KPI).
+   */
+  function resolveTableTabView(tab, filterYear, filterMonth) {
+    if (!tab || typeof tab !== "object") {
+      return { rows: [], columns: null, period: null, name: "", description: "" };
+    }
+    var hasFilter =
+      filterYear != null &&
+      filterMonth != null &&
+      !isNaN(filterYear) &&
+      !isNaN(filterMonth) &&
+      filterMonth >= 1 &&
+      filterMonth <= 12;
+    var monthly = Array.isArray(tab.monthly_data) ? tab.monthly_data : null;
+    var slice = null;
+
+    if (monthly && monthly.length) {
+      if (hasFilter) {
+        slice = findTileMonthlyDataPoint(monthly, filterYear, filterMonth);
+      } else {
+        var tabPeriod = tab.period && typeof tab.period === "object" ? tab.period : null;
+        if (tabPeriod && tabPeriod.year != null && tabPeriod.month != null) {
+          slice = findTileMonthlyDataPoint(monthly, tabPeriod.year, tabPeriod.month);
+        }
+        if (!slice) slice = pickLatestTableMonthlyDataPoint(monthly);
+      }
+    }
+
+    if (slice) {
+      return {
+        rows: rowsObjectToArray(slice.rows),
+        columns: Array.isArray(slice.columns) ? slice.columns : Array.isArray(tab.columns) ? tab.columns : null,
+        period: slice,
+        name: tab.name != null ? String(tab.name) : "",
+        description: tab.description != null ? String(tab.description) : "",
+      };
+    }
+
+    return {
+      rows: rowsObjectToArray(tab.rows),
+      columns: Array.isArray(tab.columns) ? tab.columns : null,
+      period: tab.period && typeof tab.period === "object" ? tab.period : null,
+      name: tab.name != null ? String(tab.name) : "",
+      description: tab.description != null ? String(tab.description) : "",
+    };
+  }
+
+  function getTableRowsList(tab, filterYear, filterMonth) {
     if (!tab) return [];
+    if (Array.isArray(tab.monthly_data) && tab.monthly_data.length) {
+      return resolveTableTabView(tab, filterYear, filterMonth).rows;
+    }
     if (Array.isArray(tab.items)) return tab.items.slice();
-    if (Array.isArray(tab && tab.rows)) return tab.rows.slice();
-    if (tab && tab.rows && typeof tab.rows === "object") return [tab.rows];
+    if (tab && tab.rows != null) return rowsObjectToArray(tab.rows);
     if (tab && tab.items && typeof tab.items === "object") return [tab.items];
     if (Array.isArray(tab)) return tab.slice();
     if (tab && typeof tab === "object" && Array.isArray(tab.data)) return tab.data.slice();
@@ -1041,6 +1153,21 @@
       return [tab];
     }
     return [];
+  }
+
+  function isProtocolOverdueTableTabKey(tabKey) {
+    var key = tabKey != null ? String(tabKey).trim().toUpperCase() : "";
+    return key.indexOf("PROTOCOL-OVERDUE") !== -1;
+  }
+
+  function hasProtocolOverdueTableInBody(body, filterYear, filterMonth) {
+    var tables = getTablesMapFromBody(body);
+    if (!tables || typeof tables !== "object") return false;
+    var keys = Object.keys(tables);
+    for (var i = 0; i < keys.length; i++) {
+      if (isProtocolOverdueTableTabKey(keys[i])) return true;
+    }
+    return false;
   }
 
   function numberOrNull(v) {
@@ -1510,14 +1637,26 @@
    * @param {object|null|undefined} tables
    * @param {function(string tabKey, object row): void} fn
    */
-  function forEachTablesRow(tables, fn) {
-    if (!tables || typeof tables !== "object") return;
-    Object.keys(tables).forEach(function (tk) {
-      var tab = tables[tk];
-      var rows = getTableRowsList(tab);
+  function forEachTablesRow(tables, fn, filterYear, filterMonth) {
+    var normalized = getTablesMapFromBody({ "\u0422\u0430\u0431\u043b\u0438\u0446\u044b": tables });
+    if (!normalized || typeof normalized !== "object") return;
+    Object.keys(normalized).forEach(function (tk) {
+      var tab = normalized[tk];
+      var view = resolveTableTabView(tab, filterYear, filterMonth);
+      var rows = view.rows;
       if (!rows || !rows.length) return;
+      var resolvedTab = {
+        kpi_id: tab.kpi_id,
+        name: view.name || tab.name,
+        description: view.description || tab.description,
+        columns: view.columns,
+        period: view.period,
+        monthly_data: tab.monthly_data,
+        data_granularity: tab.data_granularity,
+        rows: rows,
+      };
       for (var i = 0; i < rows.length; i++) {
-        fn(tk, rows[i], tab);
+        fn(tk, rows[i], resolvedTab);
       }
     });
   }
@@ -1526,7 +1665,7 @@
   function buildPlanFactLookupFromTablesOnly(body, filterYear, filterMonth) {
     var planFactLookup = {};
     if (!body) return planFactLookup;
-    var tables = body[KPI_JSON_KEY_TABLES];
+    var tables = getTablesMapFromBody(body);
     var useMonthFilter =
       filterYear != null &&
       filterMonth != null &&
@@ -1534,7 +1673,9 @@
       !isNaN(filterMonth) &&
       filterMonth >= 1 &&
       filterMonth <= 12;
-    forEachTablesRow(tables, function (tk, row) {
+    forEachTablesRow(
+      tables,
+      function (tk, row) {
       if (!row || typeof row !== "object") return;
       var id = row.kpi_id != null ? String(row.kpi_id) : row.kpi_name != null ? String(row.kpi_name) : "";
       if (!id) return;
@@ -1555,7 +1696,10 @@
           has_data: mergeHasDataFlags(prev.has_data, rowHd),
         };
       }
-    });
+    },
+      filterYear,
+      filterMonth
+    );
     return planFactLookup;
   }
 
@@ -1883,7 +2027,7 @@
       });
     }
 
-    var tables = body[KPI_JSON_KEY_TABLES];
+    var tables = getTablesMapFromBody(body);
     if (tables && typeof tables === "object") {
       forEachTablesRow(tables, function (tk, row) {
         if (!row || typeof row !== "object") return;
@@ -1957,6 +2101,17 @@
       return "project:" + projectName;
     }
     if (row && row.code != null && String(row.code).trim() !== "") return "code:" + String(row.code).trim();
+    if (row && row["\u041f\u0440\u043e\u0442\u043e\u043a\u043e\u043b"] != null && String(row["\u041f\u0440\u043e\u0442\u043e\u043a\u043e\u043b"]).trim() !== "") {
+      var protocolPoint =
+        row["\u041d\u043e\u043c\u0435\u0440\u041f\u0443\u043d\u043a\u0442\u0430\u041f\u0440\u043e\u0442\u043e\u043a\u043e\u043b\u0430"] != null
+          ? String(row["\u041d\u043e\u043c\u0435\u0440\u041f\u0443\u043d\u043a\u0442\u0430\u041f\u0440\u043e\u0442\u043e\u043a\u043e\u043b\u0430"]).trim()
+          : "";
+      return (
+        "protocol:" +
+        String(row["\u041f\u0440\u043e\u0442\u043e\u043a\u043e\u043b"]).trim() +
+        (protocolPoint ? "|point:" + protocolPoint : "")
+      );
+    }
     if (row && row.name != null && String(row.name).trim() !== "") return "name:" + String(row.name).trim();
     if (row && row.partner != null && String(row.partner).trim() !== "") return "partner:" + String(row.partner).trim();
     if (row && row.nomer_proekta != null && String(row.nomer_proekta).trim() !== "") return "project-number:" + String(row.nomer_proekta).trim();
@@ -1986,6 +2141,15 @@
       (row.vacancy != null && String(row.vacancy).trim() !== "") ||
       (row.plan_close_date != null && String(row.plan_close_date).trim() !== "") ||
       (row.fact_close_date != null && String(row.fact_close_date).trim() !== "") ||
+      (row["\u041f\u0440\u043e\u0442\u043e\u043a\u043e\u043b"] != null && String(row["\u041f\u0440\u043e\u0442\u043e\u043a\u043e\u043b"]).trim() !== "") ||
+      (row["\u0417\u0430\u0434\u0430\u0447\u0430"] != null && String(row["\u0417\u0430\u0434\u0430\u0447\u0430"]).trim() !== "") ||
+      (row["\u0421\u0440\u043e\u043a\u0418\u0441\u043f\u043e\u043b\u043d\u0435\u043d\u0438\u044f"] != null &&
+        String(row["\u0421\u0440\u043e\u043a\u0418\u0441\u043f\u043e\u043b\u043d\u0435\u043d\u0438\u044f"]).trim() !== "") ||
+      (row["\u0414\u0430\u0442\u0430\u041f\u043e\u0441\u0442\u0430\u043d\u043e\u0432\u043a\u0438\u0417\u0430\u0434\u0430\u0447\u0438"] != null &&
+        String(row["\u0414\u0430\u0442\u0430\u041f\u043e\u0441\u0442\u0430\u043d\u043e\u0432\u043a\u0438\u0417\u0430\u0434\u0430\u0447\u0438"]).trim() !== "") ||
+      (row["\u041e\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0435\u043d\u043d\u044b\u0439"] != null &&
+        String(row["\u041e\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0435\u043d\u043d\u044b\u0439"]).trim() !== "") ||
+      (row["\u0410\u0432\u0442\u043e\u0440"] != null && String(row["\u0410\u0432\u0442\u043e\u0440"]).trim() !== "") ||
       (row.order_num != null && String(row.order_num).trim() !== "") ||
       (row.milestone_planned_finish_date != null && String(row.milestone_planned_finish_date).trim() !== "") ||
       (row.deviation_date != null && String(row.deviation_date).trim() !== "") ||
@@ -2020,13 +2184,26 @@
    * а для прикладных таблиц возможны fallback-поля; RAG — color строки, иначе цвет плитки;
    * отклонение — ((fact − plan) / plan) × 100 %, либо готовое/статусное значение из строки.
    */
-  function buildTableRowsFromApiResponse(body) {
+  function buildTableRowsFromApiResponse(body, filterYear, filterMonth) {
     if (!body) return [];
-    var tables = body[KPI_JSON_KEY_TABLES];
+    var tables = getTablesMapFromBody(body);
     if (!tables || typeof tables !== "object") return [];
 
+    var periodYear = filterYear;
+    var periodMonth = filterMonth;
+    if (
+      (periodYear == null || periodMonth == null) &&
+      body.period &&
+      typeof body.period === "object"
+    ) {
+      if (periodYear == null && body.period.year != null) periodYear = Number(body.period.year);
+      if (periodMonth == null && body.period.month != null) periodMonth = Number(body.period.month);
+    }
+
     var collected = [];
-    forEachTablesRow(tables, function (tk, row, tab) {
+    forEachTablesRow(
+      tables,
+      function (tk, row, tab) {
       if (!row || typeof row !== "object") return;
       if (!tableRowHasDisplayableData(row)) return;
       collected.push({
@@ -2038,7 +2215,10 @@
         tablePeriod: tab && tab.period && typeof tab.period === "object" ? tab.period : null,
         tableDescription: tab && tab.description != null ? String(tab.description) : "",
       });
-    });
+    },
+      periodYear,
+      periodMonth
+    );
     if (!collected.length) return [];
 
     var idCount = Object.create(null);
@@ -2579,5 +2759,6 @@
     normalizeKpiListFromApiResponse: normalizeKpiListFromApiResponse,
     buildChartIndicatorsFromApiResponse: buildChartIndicatorsFromApiResponse,
     processKpiResponseBodyAtPeriod: processKpiResponseBodyAtPeriod,
+    hasProtocolOverdueTableInBody: hasProtocolOverdueTableInBody,
   };
 })(typeof window !== "undefined" ? window : globalThis);
