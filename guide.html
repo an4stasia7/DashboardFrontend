@@ -70,17 +70,9 @@
               <a href="#faq" class="guide-secondary-action">Открыть FAQ</a>
             </div>
           </div>
-          <div class="guide-hero-shot" aria-label="Скриншот главного экрана">
-            <div class="guide-shot-window">
-              <span></span><span></span><span></span>
-            </div>
-            <div class="guide-shot-kpis">
-              <div></div>
-              <div></div>
-              <div></div>
-            </div>
-            <div class="guide-shot-chart"></div>
-          </div>
+          <figure class="guide-hero-shot" aria-label="Скриншот главного экрана">
+            <img src="temp/icons/dashmaket.png" alt="Макет аналитического дашборда с графиком и круговой диаграммой" />
+          </figure>
         </section>
 
         <div class="guide-card-grid" aria-label="Основные разделы">
@@ -334,13 +326,31 @@
         </div>
         <div class="guide-support-card">
           <h2>Нужна помощь?</h2>
-          <p>Если инструкция не ответила на вопрос, отправьте обращение из дашборда.</p>
-          <a href="dashboard.html" class="guide-primary-action">Связаться с поддержкой</a>
+          <p>Если инструкция не ответила на вопрос, напишите нам прямо отсюда.</p>
+          <form class="guide-support-form" id="guide-support-form">
+            <label>
+              <span>Отдел</span>
+              <select id="guide-support-department" required>
+                <option value="">Загрузка отделов...</option>
+              </select>
+            </label>
+            <label>
+              <span>ФИО</span>
+              <input type="text" id="guide-support-full-name" autocomplete="name" required />
+            </label>
+            <label>
+              <span>Вопрос</span>
+              <textarea id="guide-support-question" rows="4" required></textarea>
+            </label>
+            <button type="submit" class="guide-primary-action">Отправить вопрос</button>
+            <small class="guide-support-status" id="guide-support-status" role="status" hidden></small>
+          </form>
           <small>Версия 1.0 · Обновлено 20.05.2026</small>
         </div>
       </aside>
     </div>
 
+    <script src="js/config.js"></script>
     <script src="js/pages/guide.js"></script>
   </body>
 </html>

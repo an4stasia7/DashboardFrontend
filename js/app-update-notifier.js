@@ -322,6 +322,18 @@
       });
   }
 
+  function runSidebarUpdate() {
+    runAutoUpdate();
+  }
+
+  function bindSidebarUpdateButton() {
+    var btn = document.getElementById("app-update-sidebar-btn");
+    if (!btn) return;
+    btn.addEventListener("click", function () {
+      runSidebarUpdate();
+    });
+  }
+
   function ensureBanner(versionNow, versionLatest) {
     if (!document.body) return;
 
@@ -483,6 +495,7 @@
         checkForUpdates();
       }
     });
+    bindSidebarUpdateButton();
     global.addEventListener("beforeunload", function () {
       if (typeof releaseListenerCleanup === "function") {
         releaseListenerCleanup();
@@ -496,4 +509,9 @@
   } else {
     init();
   }
+
+  global.AppUpdate = Object.assign(global.AppUpdate || {}, {
+    runAutoUpdate: runSidebarUpdate,
+    checkForUpdates: checkForUpdates,
+  });
 })(typeof window !== "undefined" ? window : globalThis);

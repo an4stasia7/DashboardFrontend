@@ -740,6 +740,16 @@
   box-sizing: content-box;
 }
 
+.dash-sidebar-service-icon-text {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #bfdbfe;
+  font-size: 1.05rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
 .dash-sidebar-service-text {
   display: flex;
   flex-direction: column;
