@@ -28,6 +28,28 @@ function Resolve-GhToken {
   return ""
 }
 
+function Prepare-NsisBuildEnvironment {
+  param(
+    [string]$RepoRoot
+  )
+
+  $ebTemp = Join-Path $RepoRoot "dist\.electron-builder-temp"
+  New-Item -ItemType Directory -Force -Path $ebTemp | Out-Null
+  $env:TEMP = $ebTemp
+  $env:TMP = $ebTemp
+
+  Get-ChildItem -LiteralPath (Join-Path $RepoRoot "dist") -Filter "*.nsis.7z" -ErrorAction SilentlyContinue |
+    Remove-Item -Force -ErrorAction SilentlyContinue
+  Get-ChildItem -LiteralPath (Join-Path $RepoRoot "dist") -Filter "__uninstaller-nsis-*.exe" -ErrorAction SilentlyContinue |
+    Remove-Item -Force -ErrorAction SilentlyContinue
+
+  $drive = [System.IO.Path]::GetPathRoot($ebTemp)
+  $disk = Get-PSDrive -Name ($drive.TrimEnd(':\')) -ErrorAction SilentlyContinue
+  if ($disk -and $disk.Free -lt 2GB) {
+    Write-Warning "На диске $drive осталось меньше 2 ГБ свободного места. NSIS может упасть с ошибкой #12345."
+  }
+}
+
 $token = Resolve-GhToken
 if (-not $token) {
   Write-Error @"
@@ -54,6 +76,8 @@ $builder = Join-Path $repoRoot "node_modules\.bin\electron-builder.cmd"
 if (-not (Test-Path -LiteralPath $builder)) {
   Write-Error "Не найден electron-builder: $builder. Сначала выполни npm install."
 }
+
+Prepare-NsisBuildEnvironment -RepoRoot $repoRoot
 
 & $builder @("--win", "--publish", "always")
 exit $LASTEXITCODE

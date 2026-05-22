@@ -1,6 +1,6 @@
 {
   "name": "dashboard-desktop",
-  "version": "1.1.3",
+  "version": "1.1.4",
   "description": "Управленческий дашборд — desktop (Electron)",
   "main": "main.js",
   "author": "Dashboard",
@@ -24,7 +24,9 @@
       "css/**/*",
       "js/**/*",
       "temp/**/*",
-      "node_modules/katex/dist/**/*",
+      "node_modules/katex/dist/katex.min.css",
+      "node_modules/katex/dist/katex.min.js",
+      "node_modules/katex/dist/fonts/**/*",
       "package.json"
     ],
     "asar": true,
@@ -38,6 +40,7 @@
     ],
     "win": {
       "signAndEditExecutable": false,
+      "executableName": "DashboardDesktop",
       "target": [
         {
           "target": "nsis",
@@ -57,7 +60,12 @@
       "artifactName": "dashboard-desktop-setup-${version}.${ext}",
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "perMachine": false
+      "perMachine": false,
+      "unicode": true,
+      "useZip": true,
+      "warningsAsErrors": false,
+      "differentialPackage": false,
+      "shortcutName": "Управленческий дашборд"
     },
     "portable": {
       "artifactName": "dashboard-desktop-portable-${version}.${ext}"
