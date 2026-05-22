@@ -827,6 +827,27 @@
 
   function buildKpiTileProjectDeviationsHtml(tile) {
     var rows = tile && Array.isArray(tile.project_deviation_rows) ? tile.project_deviation_rows : [];
+    if (!rows.length && tile && Array.isArray(tile.monthly_data) && tile.monthly_data.length) {
+      var periodState =
+        typeof DashboardMonthNav !== "undefined" && DashboardMonthNav && typeof DashboardMonthNav.getPeriodState === "function"
+          ? DashboardMonthNav.getPeriodState()
+          : null;
+      var targetYear = periodState && periodState.currentPeriodYear != null ? Number(periodState.currentPeriodYear) : null;
+      var targetMonth = periodState && periodState.currentPeriodMonth != null ? Number(periodState.currentPeriodMonth) : null;
+      var point = null;
+      if (targetYear != null && targetMonth != null && !isNaN(targetYear) && !isNaN(targetMonth)) {
+        for (var p = 0; p < tile.monthly_data.length; p++) {
+          var candidate = tile.monthly_data[p];
+          if (!candidate) continue;
+          if (Number(candidate.year) === targetYear && Number(candidate.month) === targetMonth) {
+            point = candidate;
+            break;
+          }
+        }
+      }
+      if (!point) point = tile.monthly_data[tile.monthly_data.length - 1];
+      rows = point && Array.isArray(point.project_deviation_rows) ? point.project_deviation_rows : [];
+    }
     if (!rows.length) {
       return '<div class="kpi-tile-back-message">Нет данных по проектам.</div>';
     }
