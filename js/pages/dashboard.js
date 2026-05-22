@@ -1890,6 +1890,7 @@
 
   function shouldUseQualdirDefectTables() {
     if (selectedViewId !== "self") return false;
+    if (shouldUseTechnicalDeviationTables()) return false;
     var currentDepartment = getDepartmentForCurrentKpiContext();
     if (
       isQualityDirectorUser(sessionUser) ||

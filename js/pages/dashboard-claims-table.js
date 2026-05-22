@@ -296,26 +296,6 @@
     }
   }
 
-  function buildQualdirColgroupHtml(columnCount) {
-    var defaultWidths = ["26%", "18%", "38%", "18%"];
-    var cols = Math.max(1, Number(columnCount) || QUALDIR_DEFECT_TABLE_HEADERS.length);
-    var equalWidth = (100 / cols).toFixed(2) + "%";
-    var html = "<colgroup>";
-    for (var i = 0; i < cols; i++) {
-      html += '<col style="width:' + (defaultWidths[i] || equalWidth) + '">';
-    }
-    html += "</colgroup>";
-    return html;
-  }
-
-  function syncQualdirTableColgroup(tableId, columnCount) {
-    var table = document.getElementById(tableId);
-    if (!table) return;
-    var existing = table.querySelector("colgroup");
-    if (existing) existing.remove();
-    table.insertAdjacentHTML("afterbegin", buildQualdirColgroupHtml(columnCount));
-  }
-
   function setTableHeaders(tableId, headers) {
     var table = document.getElementById(tableId);
     var headRow = table ? table.querySelector("thead tr") : null;
@@ -328,15 +308,13 @@
         return "<th>" + normalizedHeader + "</th>";
       })
       .join("");
-    if (qualdirDefectTablesMode && table && table.classList.contains("dashboard-table--qualdir-defects")) {
-      syncQualdirTableColgroup(tableId, headers.length);
-    }
   }
 
   function setTopDeviationsTableMode(executiveMode) {
     var table = document.getElementById("table-top-deviations");
     if (!table) return;
     table.classList.toggle("dashboard-table--executive", !!executiveMode);
+    if (qualdirDefectTablesMode || technicalTablesMode) return;
     if (table.tFoot) {
       table.tFoot.hidden = !!executiveMode;
     }
@@ -359,25 +337,11 @@
     if (secondTable) secondTable.classList.toggle("dashboard-table--compact-by-content", !!technicalMode);
     applyTechnicalCompactSizing(topTable, !!technicalMode);
     applyTechnicalCompactSizing(secondTable, !!technicalMode);
-    if (topTable && topTable.tFoot) {
-      topTable.tFoot.hidden = !!technicalMode;
-      if (technicalMode) {
-        topTable.tFoot.innerHTML =
-          '<tr><th colspan="6">Итого</th><th id="claims-table-total-sum">—</th></tr>';
-      } else {
-        topTable.tFoot.innerHTML =
-          '<tr><th colspan="10">Итого</th><th id="claims-table-total-sum">0,00</th></tr>';
-      }
-    }
-    if (secondTable && secondTable.tFoot) {
-      secondTable.tFoot.hidden = !!technicalMode;
-      if (technicalMode) {
-        secondTable.tFoot.innerHTML =
-          '<tr><th colspan="6">Итого</th><th id="lawsuits-table-total-sum">—</th></tr>';
-      } else {
-        secondTable.tFoot.innerHTML =
-          '<tr><th colspan="6">Итого</th><th id="lawsuits-table-total-sum">0,00</th></tr>';
-      }
+    if (technicalMode) {
+      removeQualdirTableFooter(topTable);
+      removeQualdirTableFooter(secondTable);
+    } else {
+      restoreQualdirClaimsTableFooters();
     }
   }
 
@@ -489,7 +453,7 @@
       if (!item || String(item.tableKey || "").trim().toUpperCase() !== String(tableKey || "").trim().toUpperCase()) {
         continue;
       }
-      if (Array.isArray(item.tableColumns) && item.tableColumns.length) {
+      if (Array.isArray(item.tableColumns) && item.tableColumns.length === QUALDIR_DEFECT_TABLE_HEADERS.length) {
         return item.tableColumns.map(function (header) {
           return tableTextOrDash(header);
         });
@@ -514,14 +478,67 @@
     return isQualdirExternalDefectRow(item) || isQualdirInternalDefectRow(item);
   }
 
-  function syncQualdirTableFooter(tableId, columnCount) {
-    var table = document.getElementById(tableId);
-    if (!table || !table.tFoot) return;
-    var cols = Math.max(1, Number(columnCount) || QUALDIR_DEFECT_TABLE_HEADERS.length);
-    var cells = [];
-    for (var i = 0; i < cols; i++) cells.push("<th></th>");
-    table.tFoot.hidden = true;
-    table.tFoot.innerHTML = "<tr>" + cells.join("") + "</tr>";
+  function removeQualdirTableFooter(table) {
+    if (!table) return;
+    var tfoot = table.querySelector("tfoot");
+    if (tfoot) tfoot.remove();
+  }
+
+  function restoreQualdirClaimsTableFooters() {
+    var topTable = document.getElementById("table-top-deviations");
+    var secondTable = document.getElementById("table-lawsuits");
+    if (topTable && !topTable.querySelector("tfoot")) {
+      topTable.insertAdjacentHTML(
+        "beforeend",
+        '<tfoot><tr><th colspan="10">Итого</th><th id="claims-table-total-sum">0,00</th></tr></tfoot>'
+      );
+    }
+    if (secondTable && !secondTable.querySelector("tfoot")) {
+      secondTable.insertAdjacentHTML(
+        "beforeend",
+        '<tfoot><tr><th colspan="6">Итого</th><th id="lawsuits-table-total-sum">0,00</th></tr></tfoot>'
+      );
+    }
+  }
+
+  function normalizeTableFooterForDataTables(tableNode) {
+    if (!tableNode) return;
+    var tfoot = tableNode.querySelector("tfoot");
+    if (!tfoot) return;
+    var headerCount = tableNode.querySelectorAll("thead tr:first-child th").length;
+    if (!headerCount) {
+      tfoot.remove();
+      return;
+    }
+    var footerRow = tfoot.querySelector("tr");
+    if (!footerRow || !footerRow.cells.length) {
+      tfoot.remove();
+      return;
+    }
+    var spanTotal = 0;
+    for (var i = 0; i < footerRow.cells.length; i++) {
+      spanTotal += footerRow.cells[i].colSpan || 1;
+    }
+    if (spanTotal !== headerCount) {
+      tfoot.remove();
+    }
+  }
+
+  function prepareQualdirTableForDataTables(tableSelector) {
+    var table =
+      typeof tableSelector === "string"
+        ? document.querySelector(tableSelector)
+        : tableSelector;
+    if (!table) return;
+    removeQualdirTableFooter(table);
+    var headerCount = table.querySelectorAll("thead tr th").length;
+    if (!headerCount) return;
+    var bodyRows = table.querySelectorAll("tbody tr");
+    for (var i = 0; i < bodyRows.length; i++) {
+      if (bodyRows[i].cells.length !== headerCount) {
+        bodyRows[i].remove();
+      }
+    }
   }
 
   function setQualdirDefectTableMode(enabled) {
@@ -530,9 +547,10 @@
     if (topTable) topTable.classList.toggle("dashboard-table--qualdir-defects", !!enabled);
     if (secondTable) secondTable.classList.toggle("dashboard-table--qualdir-defects", !!enabled);
     if (enabled) {
-      syncQualdirTableFooter("table-top-deviations", QUALDIR_DEFECT_TABLE_HEADERS.length);
-      syncQualdirTableFooter("table-lawsuits", QUALDIR_DEFECT_TABLE_HEADERS.length);
+      removeQualdirTableFooter(topTable);
+      removeQualdirTableFooter(secondTable);
     } else {
+      restoreQualdirClaimsTableFooters();
       if (topTable && topTable.tFoot) {
         topTable.tFoot.hidden = false;
         topTable.tFoot.innerHTML =
@@ -579,25 +597,44 @@
     tbody.appendChild(tr);
   }
 
-  function renderQualdirDefectTableRows(rows, tableKey, tableId) {
-    var table = document.getElementById(tableId);
-    var tbody = table ? table.querySelector("tbody") : null;
-    if (!table || !tbody) return;
-    tbody.innerHTML = "";
-    var headers = getQualdirTableHeadersFromRows(rows, tableKey);
-    setTableHeaders(tableId, headers);
-    syncQualdirTableColgroup(tableId, headers.length);
-    syncQualdirTableFooter(tableId, headers.length);
+  function replaceQualdirDefectTable(tableId, headers, rows, tableKey) {
+    var prev = document.getElementById(tableId);
+    if (!prev || !prev.parentNode) return null;
     var wanted = String(tableKey || "").trim().toUpperCase();
-    rows
-      .filter(function (item) {
-        return qualdirDefectTableKey(item) === wanted;
-      })
-      .forEach(function (item) {
+    var table = document.createElement("table");
+    table.id = tableId;
+    table.className = prev.className;
+    var aria = prev.getAttribute("aria-label");
+    if (aria) table.setAttribute("aria-label", aria);
+
+    var thead = document.createElement("thead");
+    var headerRow = document.createElement("tr");
+    headers.forEach(function (header) {
+      var th = document.createElement("th");
+      th.textContent = tableTextOrDash(header);
+      headerRow.appendChild(th);
+    });
+    thead.appendChild(headerRow);
+    table.appendChild(thead);
+
+    var tbody = document.createElement("tbody");
+    if (Array.isArray(rows)) {
+      rows.forEach(function (item) {
+        if (qualdirDefectTableKey(item) !== wanted) return;
         var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
         if (!raw) return;
         appendQualdirDefectTableRow(tbody, raw);
       });
+    }
+    table.appendChild(tbody);
+
+    prev.parentNode.replaceChild(table, prev);
+    return table;
+  }
+
+  function renderQualdirDefectTableRows(rows, tableKey, tableId) {
+    var headers = getQualdirTableHeadersFromRows(rows, tableKey);
+    replaceQualdirDefectTable(tableId, headers, rows, tableKey);
   }
 
   function applyQualdirTableFullWidth(tableSelector) {
@@ -618,10 +655,12 @@
   }
 
   function initQualdirDefectDataTable(tableSelector, wrapperSelector, advancedSearchKey) {
+    prepareQualdirTableForDataTables(tableSelector);
     return initInteractiveDashboardTable({
       tableSelector: tableSelector,
       wrapperSelector: wrapperSelector,
       advancedSearchKey: advancedSearchKey,
+      omitFooter: true,
       columnConfigs: [
         { index: 0, label: "Документ", type: "filter", searchType: "text" },
         { index: 1, label: "Объект несоответствия", type: "filter", searchType: "text" },
@@ -655,7 +694,7 @@
     var secondTable = document.getElementById("table-lawsuits");
     if (topTable) topTable.classList.toggle("dashboard-table--compact-by-content", !!enabled);
     if (secondTable) secondTable.classList.toggle("dashboard-table--compact-by-content", !!enabled);
-    if (qualdirDefectTablesMode) return;
+    if (qualdirDefectTablesMode || technicalTablesMode) return;
     if (topTable && topTable.tFoot) {
       topTable.tFoot.hidden = !!enabled;
       if (enabled) {
@@ -1326,7 +1365,9 @@
       setTableHeaders("table-lawsuits", ["Тип документа", "Контрагент", "Предмет спора", "Роль ГК в споре", "Юр. лицо", "Подразделение", "Сумма требований, руб."]);
     }
     setTableHeaders("table-overdue-debt", DEFAULT_OVERDUE_DEBT_HEADERS);
-    setTopDeviationsTableMode(false);
+    if (!qualdirDefectTablesMode && !technicalTablesMode) {
+      setTopDeviationsTableMode(false);
+    }
     setOverdueDebtTableMode(false);
   }
 
@@ -1739,7 +1780,33 @@
       wrapper.find(".claims-column-filter-menu").remove();
     }
     if ($.fn.DataTable.isDataTable(table)) {
-      table.DataTable().destroy();
+      try {
+        table.DataTable().destroy();
+      } catch (e) {}
+    }
+    var staleWrapper = table.closest(".dataTables_wrapper");
+    if (staleWrapper.length) {
+      table.detach();
+      staleWrapper.replaceWith(table);
+    }
+
+    var tableNode = table[0];
+    if (tableNode) {
+      if (options.omitFooter) {
+        var footer = tableNode.querySelector("tfoot");
+        if (footer) footer.remove();
+      } else {
+        normalizeTableFooterForDataTables(tableNode);
+      }
+      var colgroup = tableNode.querySelector("colgroup");
+      if (colgroup) colgroup.remove();
+    }
+
+    var headerCount = tableNode ? tableNode.querySelectorAll("thead tr:first-child th").length : 0;
+    if (headerCount && table[0]) {
+      table[0].querySelectorAll("tbody tr").forEach(function (row) {
+        if (row.cells.length !== headerCount) row.remove();
+      });
     }
 
     var dataTable = table.DataTable({
@@ -2383,10 +2450,12 @@
   }
 
   function initTechnicalClaimsDataTable() {
+    prepareQualdirTableForDataTables("#table-top-deviations");
     return initInteractiveDashboardTable({
       tableSelector: "#table-top-deviations",
       wrapperSelector: ".dashboard-table-wrap--claims",
       advancedSearchKey: "technical-external-order-table-advanced",
+      omitFooter: true,
       columnConfigs: [
         { index: 0, label: "№", type: "filter", searchType: "text" },
         { index: 1, label: "Название", type: "filter", searchType: "text" },
@@ -2409,10 +2478,12 @@
   }
 
   function initTechnicalLawsuitsDataTable() {
+    prepareQualdirTableForDataTables("#table-lawsuits");
     return initInteractiveDashboardTable({
       tableSelector: "#table-lawsuits",
       wrapperSelector: ".dashboard-table-wrap--lawsuits",
       advancedSearchKey: "technical-development-table-advanced",
+      omitFooter: true,
       columnConfigs: [
         { index: 0, label: "№", type: "filter", searchType: "text" },
         { index: 1, label: "Название", type: "filter", searchType: "text" },
@@ -2514,14 +2585,31 @@
     });
   }
 
+  function destroyClaimsTableInstance(selector) {
+    if (typeof $ === "undefined" || !$.fn || !$.fn.DataTable) return;
+    var $table = $(selector);
+    if (!$table.length) return;
+    if ($.fn.DataTable.isDataTable($table)) {
+      try {
+        $table.DataTable().destroy();
+      } catch (e) {}
+    }
+    var $wrapper = $table.closest(".dataTables_wrapper");
+    if ($wrapper.length) {
+      $table.detach();
+      $wrapper.replaceWith($table);
+    }
+    $table.closest(".dashboard-table-wrap").find(".claims-column-filter-menu").remove();
+  }
+
   function destroyClaimsTables() {
-    ["#table-plan-fact", "#table-top-deviations", "#table-overdue-debt", "#table-lawsuits", "#table-protocol-overdue"].forEach(
-      function (selector) {
-        if (typeof $ !== "undefined" && $.fn && $.fn.DataTable && $.fn.DataTable.isDataTable(selector)) {
-          $(selector).DataTable().destroy();
-        }
-      }
-    );
+    [
+      "#table-plan-fact",
+      "#table-top-deviations",
+      "#table-overdue-debt",
+      "#table-lawsuits",
+      "#table-protocol-overdue",
+    ].forEach(destroyClaimsTableInstance);
   }
 
   function parseTableRublesAmount(value) {
