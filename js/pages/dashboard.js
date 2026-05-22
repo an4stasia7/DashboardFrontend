@@ -606,7 +606,8 @@
             isProductionDeputyUser(viewContextUser) ||
             isLogisticsDashboardContext() ||
             isChiefConstructorDashboardContext() ||
-            isChiefMetrologDashboardContext()
+            isChiefMetrologDashboardContext() ||
+            isChiefAccountantDashboardContext()
           ) {
             loadKpiTilesAndChartsForView();
             return;
@@ -1516,6 +1517,27 @@
     );
   }
 
+  function isChiefAccountantRoleName(value) {
+    var normalized = normalizeDashboardRole(value);
+    return (
+      normalized === "главный бухгалтер" ||
+      normalized === "главный бухгалтер нпо" ||
+      normalized === "главный бухгалтер алмаз"
+    );
+  }
+
+  function isChiefAccountantDashboardContext() {
+    var currentDepartment = getDepartmentForCurrentKpiContext();
+    var responseDepartment = lastKpiResponseDepartment;
+    var role = viewContextUser && viewContextUser.role;
+    var department = viewContextUser && viewContextUser.department;
+    return (
+      isChiefAccountantRoleName(currentDepartment) ||
+      isChiefAccountantRoleName(responseDepartment) ||
+      (selectedViewId === "self" && (isChiefAccountantRoleName(role) || isChiefAccountantRoleName(department)))
+    );
+  }
+
   function isLogisticsDashboardContext() {
     var currentDepartment = normalizeDashboardRole(getDepartmentForCurrentKpiContext());
     var responseDepartment = normalizeDashboardRole(lastKpiResponseDepartment);
@@ -1541,6 +1563,15 @@
     if (!Array.isArray(tiles)) return false;
     for (var i = 0; i < tiles.length; i++) {
       if (tiles[i] && getProductionDeputyShopTileShop(tiles[i].kpi_id)) return true;
+    }
+    return false;
+  }
+
+  function hasChiefAccountantTiles(tiles) {
+    if (!Array.isArray(tiles)) return false;
+    for (var i = 0; i < tiles.length; i++) {
+      var id = tiles[i] && tiles[i].kpi_id != null ? String(tiles[i].kpi_id).trim().toUpperCase() : "";
+      if (id.indexOf("GB-") === 0) return true;
     }
     return false;
   }
@@ -1676,10 +1707,17 @@
     return wrap;
   }
 
-  function updateProductionShopSwitchVisibility(show) {
+  function updateProductionShopSwitchVisibility(show, mode) {
     var switchEl = ensureProductionShopSwitch();
     if (!switchEl) return;
     switchEl.hidden = !show;
+    var isChiefAccountantMode = mode === "chief-accountant";
+    var labelEl = switchEl.querySelector(".production-shop-switch__label");
+    if (labelEl) labelEl.textContent = isChiefAccountantMode ? "Раздел" : "Производство";
+    switchEl.setAttribute(
+      "aria-label",
+      isChiefAccountantMode ? "Выбор раздела главного бухгалтера" : "Выбор производственного цеха"
+    );
     var buttons = switchEl.querySelectorAll("[data-production-shop]");
     for (var i = 0; i < buttons.length; i++) {
       var btn = buttons[i];
@@ -1769,13 +1807,20 @@
     var sourceTiles = tiles && tiles.length ? tiles : [];
     var showProductionShopSwitch =
       isProductionDeputyDashboardContext() && hasProductionDeputyShopTiles(sourceTiles);
+    var showChiefAccountantSwitch =
+      !showProductionShopSwitch && isChiefAccountantDashboardContext() && hasChiefAccountantTiles(sourceTiles);
     if (showProductionShopSwitch) {
       lastProductionDeputyRawTiles = sourceTiles.slice();
       sourceTiles = filterProductionDeputyTilesByShop(sourceTiles);
+    } else if (showChiefAccountantSwitch) {
+      lastProductionDeputyRawTiles = sourceTiles.slice();
     } else {
       lastProductionDeputyRawTiles = null;
     }
-    updateProductionShopSwitchVisibility(showProductionShopSwitch);
+    updateProductionShopSwitchVisibility(
+      showProductionShopSwitch || showChiefAccountantSwitch,
+      showChiefAccountantSwitch ? "chief-accountant" : "production"
+    );
     sourceTiles = applyTdM5PeriodAggregateForCurrentSelection(sourceTiles);
     tiles = applyPriorMonthFactForFotTurnoverTiles(sourceTiles);
     lastKpiTiles = tiles && tiles.length ? tiles : null;

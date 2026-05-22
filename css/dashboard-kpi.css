@@ -2434,16 +2434,16 @@ article.kpi-tile[data-no-flip="1"] {
 .kpi-tile-modern-plan strong,
 .kpi-tile-modern-number-row strong {
   color: #172033;
-  font-size: 0.78rem;
+  font-size: clamp(1rem, 1.35vw, 1.18rem);
   font-weight: 700;
-  line-height: 1.2;
+  line-height: 1.08;
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
 
 .kpi-tile-modern-number-row {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: auto minmax(2.4rem, 1fr);
   gap: 12px;
   width: 100%;
   align-items: baseline;

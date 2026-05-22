@@ -48,6 +48,9 @@
     "GK-M1": {
       backProjectDeviations: true,
     },
+    "GK-Q1": {
+      backProjectDeviations: true,
+    },
     "KD-M4": {
       factOnly: true,
       hideHelp: true,
@@ -121,6 +124,12 @@
     "METD-M1": {
       kpiPctOnly: true,
       showBackPlanFact: true,
+    },
+    "METD-Q1": {
+      backProjectDeviations: true,
+    },
+    "МЕТ-Q4-1": {
+      backProjectDeviations: true,
     },
     "METD-Q2": {
       showBackPlanFact: true,
