@@ -14,17 +14,49 @@
         <div class="dash-sidebar-panel">
           <div class="dash-sidebar-head">
             <h2 class="dash-sidebar-title">
-              <span class="dash-sidebar-title-icon" aria-hidden="true"></span>
+              <img class="dash-sidebar-title-icon" src="temp/icons/logo.png" alt="" aria-hidden="true" />
               <span>Навигация</span>
             </h2>
-            <nav
-              class="dash-hierarchy-breadcrumb"
-              id="dashboard-hierarchy-breadcrumb"
-              aria-label="Уровень в структуре подразделений"
-              hidden
-            ></nav>
-            <div class="dash-sidebar-subhead">
-              <p class="dash-sidebar-subtitle">Доступные отделы</p>
+            <div class="dash-sidebar-nav" aria-label="Основная навигация">
+              <button
+                type="button"
+                class="dash-sidebar-nav-btn"
+                id="dash-sidebar-home-btn"
+                aria-selected="true"
+              >
+                <img src="temp/icons/home.png" alt="" aria-hidden="true" />
+                <span>Главная</span>
+              </button>
+              <button
+                type="button"
+                class="dash-sidebar-nav-btn dash-sidebar-nav-btn--back"
+                id="dash-sidebar-level-back-btn"
+                aria-selected="false"
+                hidden
+              >
+                <span class="dash-sidebar-back-icon" aria-hidden="true">‹</span>
+                <span>Назад</span>
+              </button>
+              <button
+                type="button"
+                class="dash-sidebar-nav-btn"
+                id="dash-sidebar-departments-btn"
+                aria-expanded="false"
+                aria-controls="dash-sidebar-departments-panel"
+                aria-selected="false"
+              >
+                <img src="temp/icons/podrazd.png" alt="" aria-hidden="true" />
+                <span>Подразделения</span>
+                <span class="dash-sidebar-nav-caret" aria-hidden="true"></span>
+              </button>
+            </div>
+            <div class="dash-sidebar-departments-panel" id="dash-sidebar-departments-panel" hidden>
+              <nav
+                class="dash-hierarchy-breadcrumb"
+                id="dashboard-hierarchy-breadcrumb"
+                aria-label="Уровень в структуре подразделений"
+                hidden
+              ></nav>
               <button
                 type="button"
                 class="dash-sidebar-back-btn"
@@ -36,29 +68,41 @@
                   <path d="M9.5 3L4.5 8L9.5 13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
               </button>
-            </div>
-            <div class="dash-sidebar-search">
               <input
                 type="search"
                 id="dash-sidebar-search-input"
-                class="dash-sidebar-search-input"
+                class="dash-sidebar-search-input dash-sidebar-search-input--hidden"
                 placeholder="Найти отдел"
                 aria-label="Найти отдел"
                 autocomplete="off"
                 spellcheck="false"
+                hidden
               />
+              <p id="dash-sidebar-search-empty" class="dash-sidebar-search-empty" hidden>Ничего не найдено</p>
+              <nav
+                class="dash-view-tabs"
+                id="dashboard-view-tabs"
+                role="tablist"
+                aria-label="Дашборды пользователей в иерархии"
+                hidden
+              ></nav>
             </div>
-            <p id="dash-sidebar-search-empty" class="dash-sidebar-search-empty" hidden>Ничего не найдено</p>
           </div>
-          <nav
-            class="dash-view-tabs"
-            id="dashboard-view-tabs"
-            role="tablist"
-            aria-label="Дашборды пользователей в иерархии"
-            hidden
-          ></nav>
           <div class="dash-sidebar-service" aria-label="Сервис">
             <p class="dash-sidebar-service-title">Сервис</p>
+            <button
+              type="button"
+              class="dash-sidebar-service-btn dash-sidebar-service-btn--structure"
+              id="dash-sidebar-structure-btn"
+              aria-selected="false"
+              aria-controls="dash-structure-overlay"
+            >
+              <img class="dash-sidebar-service-icon" src="temp/icons/struct.png" alt="" aria-hidden="true" />
+              <span class="dash-sidebar-service-text">
+                <strong>Структура</strong>
+              </span>
+              <span class="dash-sidebar-service-arrow" aria-hidden="true">›</span>
+            </button>
             <button type="button" class="dash-sidebar-service-btn" data-support-open="docs">
               <img class="dash-sidebar-service-icon" src="temp/icons/document.png" alt="" aria-hidden="true" />
               <span class="dash-sidebar-service-text">
@@ -482,6 +526,21 @@
           <span class="app-version-label" id="app-version-label" aria-label="Версия приложения"></span>
         </footer>
       </div>
+    </div>
+
+    <div class="dash-structure-overlay" id="dash-structure-overlay" hidden>
+      <aside class="dash-structure-panel" id="dash-structure-panel" role="dialog" aria-modal="true" aria-labelledby="dash-structure-title">
+        <div class="dash-structure-head">
+          <div>
+            <h2 id="dash-structure-title" class="dash-structure-title">Структура компании</h2>
+            <p class="dash-structure-subtitle">Дерево подчинения подразделений</p>
+          </div>
+          <button type="button" class="dash-structure-close" id="dash-structure-close" aria-label="Закрыть структуру">×</button>
+        </div>
+        <div class="dash-structure-tree" id="dash-structure-tree" aria-live="polite">
+          <p class="dash-structure-state">Загрузка структуры…</p>
+        </div>
+      </aside>
     </div>
 
     <div class="service-panel-overlay" id="service-panel-overlay" hidden>

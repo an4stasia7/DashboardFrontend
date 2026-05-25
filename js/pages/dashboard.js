@@ -376,6 +376,12 @@
           }
           return Api.fetchChairmanDashboardCatalog();
         },
+        fetchKpiStructure: function () {
+          if (typeof Api === "undefined" || typeof Api.fetchKpiStructure !== "function") {
+            return Promise.resolve({ ok: false, structure: {}, error: "Структура недоступна" });
+          }
+          return Api.fetchKpiStructure();
+        },
         searchDepartments: function (query) {
           if (typeof Api === "undefined" || typeof Api.searchDepartments !== "function") {
             return Promise.resolve({ ok: false, results: [], error: "Поиск недоступен" });
@@ -2395,6 +2401,7 @@
       var kid = kpiId != null ? String(kpiId).trim() : "";
       if (kid === "OD-M1" || kid === "OD-M3.1" || kid === "OD-M3.2") return "руб.";
       if (kid === "KD-M11") return "чел.";
+      if (kid === "METD-M1" || kid === "МЕТ-M1") return "шт.";
       return value;
     }
 

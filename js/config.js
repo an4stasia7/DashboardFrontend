@@ -18,6 +18,7 @@
     API_KPI_PATH: "/api/kpi/",
     API_KPI_ALL_PATH: "/api/kpi/all/",
     API_KPI_IMMEDIATE_SUBORDINATES_PATH: "/api/kpi/immediate-subordinates/",
+    API_KPI_STRUCTURE_PATH: "/api/kpi/structure/",
     API_KPI_CHAIRMAN_CATALOG_PATH: "/api/kpi/chairman/for-catalog/",
     API_SEARCH_PATH: "/api/search/",
     /** Список пользователей для входа (GET без авторизации) */

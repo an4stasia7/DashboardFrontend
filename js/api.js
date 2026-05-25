@@ -329,6 +329,13 @@
     return baseUrl() + p;
   }
 
+  function kpiStructureUrl() {
+    var cfg = global.AppConfig || {};
+    var p = cfg.API_KPI_STRUCTURE_PATH || "/api/kpi/structure/";
+    if (p.charAt(0) !== "/") p = "/" + p;
+    return baseUrl() + p;
+  }
+
   function kpiChairmanCatalogUrl() {
     var cfg = global.AppConfig || {};
     var p = cfg.API_KPI_CHAIRMAN_CATALOG_PATH || "/api/kpi/chairman/for-catalog/";
@@ -471,7 +478,7 @@
     if (!authHeaders.Authorization) {
       return Promise.resolve({ ok: false, error: "Нет токена авторизации" });
     }
-    var url = buildImmediateSubordinatesUrl({ department: dept });
+    var url = buildImmediateSubordinatesUrl(options || { department: dept });
     var headers = Object.assign({ Accept: "application/json" }, authHeaders);
     var fetchOpts = { method: "GET", headers: headers };
     if (cfg.FETCH_CREDENTIALS === "include") {
@@ -518,6 +525,32 @@
           return { ok: false, error: "Нет связи с сервером (immediate-subordinates)" };
         }
         return { ok: false, error: m || "Ошибка запроса immediate-subordinates" };
+      });
+  }
+
+  function fetchKpiStructure() {
+    var cfg = global.AppConfig || {};
+    if (cfg.isMockApi && cfg.isMockApi()) {
+      return Promise.resolve({ ok: false, skipped: true });
+    }
+    var A = global.Auth;
+    if (!A || typeof A.getAuthHeaders !== "function") {
+      return Promise.resolve({ ok: false, error: "Модуль Auth не загружен" });
+    }
+    var authHeaders = A.getAuthHeaders();
+    if (!authHeaders.Authorization) {
+      return Promise.resolve({ ok: false, error: "Нет токена авторизации" });
+    }
+    var url = kpiStructureUrl();
+    var headers = Object.assign({ Accept: "application/json" }, authHeaders);
+    return jsonFetch(url, { method: "GET", headers: headers }, "GET /api/kpi/structure/")
+      .then(function (res) {
+        if (!res.ok) return res;
+        return {
+          ok: true,
+          structure: res.data && res.data.structure && typeof res.data.structure === "object" ? res.data.structure : {},
+          data: res.data,
+        };
       });
   }
 
@@ -883,6 +916,7 @@
           var kid = kpiId != null ? String(kpiId).trim() : "";
           if (kid === "OD-M1" || kid === "OD-M3.1" || kid === "OD-M3.2") return "руб.";
           if (kid === "KD-M11") return "чел.";
+          if (kid === "METD-M1" || kid === "МЕТ-M1") return "шт.";
           return value;
         }
         var formulaSrc = item.formula != null ? item.formula : th.formula;
@@ -2473,6 +2507,7 @@
     kpiUrl: kpiUrl,
     kpiAllUrl: kpiAllUrl,
     kpiImmediateSubordinatesUrl: kpiImmediateSubordinatesUrl,
+    kpiStructureUrl: kpiStructureUrl,
     kpiUsersUrl: kpiUsersUrl,
     searchUrl: searchUrl,
     fetchDepartments: fetchDepartments,
@@ -2489,6 +2524,7 @@
     fetchKpis: fetchKpis,
     fetchKpiAll: fetchKpiAll,
     fetchImmediateSubordinates: fetchImmediateSubordinates,
+    fetchKpiStructure: fetchKpiStructure,
     fetchChairmanDashboardCatalog: fetchChairmanDashboardCatalog,
     searchDepartments: searchDepartments,
     normalizeKpiListFromApiResponse: normalizeKpiListFromApiResponse,
