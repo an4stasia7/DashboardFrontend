@@ -1853,7 +1853,7 @@
 
   function isChiefMetrologRatioKpiId(kpiId) {
     var id = kpiId != null ? String(kpiId).trim().toUpperCase() : "";
-    return id === "METD-M1" || id === "METD-Q2" || id === "METD-Q3" || id === "METD-Q4";
+    return id === "METD-Q2" || id === "METD-Q3" || id === "METD-Q4";
   }
 
   function chairmanAggregationModeLabel(mode) {
@@ -2773,6 +2773,13 @@
         useTechnicalTables || useOpdirProjectTables || activeClaimsTableView === "lawsuits";
     }
 
+    if (claimsTableTitleTextEl && claimsTableTitleTextEl.closest) {
+      var claimsPanel = claimsTableTitleTextEl.closest(".table-panel");
+      if (claimsPanel) {
+        claimsPanel.hidden = useChiefMetrologTables;
+      }
+    }
+
     if (claimsTableSwitcherEl) {
       var switchButtons = claimsTableSwitcherEl.querySelectorAll(".claims-table-switcher-btn");
       if (switchButtons && switchButtons.length >= 2) {
@@ -2796,7 +2803,7 @@
     if (overdueDebtTableTitleEl && overdueDebtTableTitleEl.closest) {
       var overduePanel = overdueDebtTableTitleEl.closest(".table-panel");
       if (overduePanel) {
-        overduePanel.hidden = useTechnicalTables || useOpdirProjectTables || useChiefConstructorTables || useChiefMetrologTables;
+        overduePanel.hidden = useTechnicalTables || useOpdirProjectTables || useChiefConstructorTables;
       }
     }
 
@@ -2897,7 +2904,7 @@
         opdirProjectTableMode: shouldUseOpdirProjectTables(),
         productionClaimsTableMode: isProductionDeputyDashboardContext(),
         productionClaimsShop: normalizeProductionShopKey(productionDeputySelectedShop),
-        constructorProjectTableMode: isChiefConstructorDashboardContext() || isChiefMetrologDashboardContext(),
+        constructorProjectTableMode: isChiefConstructorDashboardContext(),
         logisticsSupplierDebtTableMode: isLogisticsDashboardContext(),
       });
     }

@@ -188,6 +188,20 @@
     "Действие",
     "Сумма, руб",
   ];
+  var DEPT_PROTOCOL_OVERDUE_HEADERS = [
+    "Протокол",
+    "№ пункта",
+    "Задача",
+    "Срок исполнения",
+    "Дата постановки",
+    "Ответственный",
+    "Автор",
+    "Руководитель протокола",
+    "Тема совещания",
+    "Выполнена",
+    "Подтверждена",
+    "Примечание",
+  ];
   var LOGISTICS_SUPPLIER_DZ_HEADERS = ["№ объекта расчетов", "Дата", "Объект расчетов", "Поставщик", "Сумма"];
   var EXECUTIVE_DEVIATIONS_HEADERS = ["Показатель", "Факт", "План", "RAG", "Комментарий"];
   var EXECUTIVE_DECISIONS_HEADERS = ["Вопрос", "Факт", "План", "RAG", "Решение"];
@@ -214,6 +228,7 @@
   var METROLOG_PROJECT_TABLE_KEY = "METD-T-Q1-DEVIATIONS";
   var LOGISTICS_CLAIMS_TABLE_KEY = "LOG-T-CLAIMS";
   var LOGISTICS_SUPPLIER_DZ_TABLE_KEY = "LOG-T-SUPPLIER-DZ";
+  var DEPT_PROTOCOL_OVERDUE_TABLE_KEY = "DEPT-T-PROTOCOL-OVERDUE";
   var technicalTablesMode = false;
   var opdirProjectTableMode = false;
   var productionClaimsTableMode = false;
@@ -862,6 +877,11 @@
     return key === "kd-t-overdue";
   }
 
+  function isDepartmentProtocolOverdueRow(item) {
+    var key = item && item.tableKey != null ? String(item.tableKey).trim().toLocaleUpperCase("ru-RU") : "";
+    return key === DEPT_PROTOCOL_OVERDUE_TABLE_KEY;
+  }
+
   function isLawsuitsRow(item) {
     var key = item && item.tableKey != null ? String(item.tableKey).trim().toLocaleLowerCase("ru-RU") : "";
     if (!key) return false;
@@ -976,6 +996,37 @@
     }
 
     if (!Array.isArray(rows) || !rows.length) return;
+
+    var protocolRows = rows.filter(isDepartmentProtocolOverdueRow);
+    if (protocolRows.length) {
+      setTableHeaders("table-overdue-debt", DEPT_PROTOCOL_OVERDUE_HEADERS);
+      if (table.tFoot) {
+        table.tFoot.hidden = true;
+      }
+      protocolRows.forEach(function (item) {
+        var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
+        if (!raw) return;
+        var tr = document.createElement("tr");
+        [
+          raw["Протокол"],
+          raw["НомерПунктаПротокола"],
+          raw["Задача"],
+          raw["СрокИсполнения"],
+          raw["ДатаПостановкиЗадачи"],
+          raw["Ответственный"],
+          raw["Автор"],
+          raw["РуководительПротокола"],
+          raw["ТемаСовещания"],
+          raw["Выполнена"],
+          raw["Подтверждена"],
+          raw["Примечание"],
+        ].forEach(function (value) {
+          appendClampedCell(tr, tableTextOrDash(value), "dashboard-table-cell--wide-text");
+        });
+        tbody.appendChild(tr);
+      });
+      return;
+    }
 
     rows
       .filter(isOverdueDebtRow)
