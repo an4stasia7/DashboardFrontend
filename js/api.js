@@ -357,6 +357,13 @@
     return baseUrl() + p;
   }
 
+  function assistantChatUrl() {
+    var cfg = global.AppConfig || {};
+    var p = cfg.API_ASSISTANT_CHAT_PATH || "/api/assistant/chat/";
+    if (p.charAt(0) !== "/") p = "/" + p;
+    return baseUrl() + p;
+  }
+
   function buildSearchUrlWithQuery(options) {
     var url = searchUrl();
     var q = options && options.q != null ? String(options.q).trim() : "";
@@ -368,6 +375,84 @@
     }
     url += (url.indexOf("?") === -1 ? "?" : "&") + "top_k=" + encodeURIComponent(String(topK));
     return url;
+  }
+
+  function sendAssistantMessageStream(payload, handlers) {
+    var cfg = global.AppConfig || {};
+    var A = global.Auth;
+    handlers = handlers || {};
+    if (!A || typeof A.getAuthHeaders !== "function") {
+      return Promise.resolve({ ok: false, error: "Модуль Auth не загружен" });
+    }
+    var authHeaders = A.getAuthHeaders();
+    if (!authHeaders.Authorization) {
+      return Promise.resolve({ ok: false, error: "Нет токена авторизации", unauthorized: true });
+    }
+    var url = assistantChatUrl();
+    var headers = Object.assign(
+      { Accept: "application/x-ndjson", "Content-Type": "application/json" },
+      authHeaders
+    );
+    var fetchOpts = {
+      method: "POST",
+      headers: headers,
+      body: JSON.stringify(payload || {}),
+    };
+    if (cfg.FETCH_CREDENTIALS === "include") {
+      fetchOpts.credentials = "include";
+    }
+    return fetch(url, fetchOpts)
+      .then(function (res) {
+        if (res.status === 401) {
+          return { ok: false, status: 401, unauthorized: true, error: "Требуется повторный вход" };
+        }
+        if (!res.ok) {
+          return res.text().then(function (text) {
+            pushApiDebug("POST /api/assistant/chat/", "POST", url, res.status, text ? { _nonJson: text.slice(0, 2000) } : {});
+            return { ok: false, status: res.status, error: parseErrorBody(text) || "Ошибка AI-ассистента (" + res.status + ")" };
+          });
+        }
+        if (!res.body || typeof res.body.getReader !== "function") {
+          return { ok: false, error: "Браузер не поддерживает потоковый ответ" };
+        }
+        var reader = res.body.getReader();
+        var decoder = new TextDecoder("utf-8");
+        var buffer = "";
+        function pump() {
+          return reader.read().then(function (chunk) {
+            if (chunk.done) {
+              if (buffer.trim()) {
+                emitAssistantStreamLine(buffer);
+              }
+              return { ok: true };
+            }
+            buffer += decoder.decode(chunk.value, { stream: true });
+            var lines = buffer.split(/\r?\n/);
+            buffer = lines.pop() || "";
+            lines.forEach(emitAssistantStreamLine);
+            return pump();
+          });
+        }
+        function emitAssistantStreamLine(line) {
+          var text = line != null ? String(line).trim() : "";
+          if (!text) return;
+          var event = null;
+          try {
+            event = JSON.parse(text);
+          } catch (e) {
+            event = { type: "raw", content: text };
+          }
+          if (typeof handlers.onEvent === "function") {
+            handlers.onEvent(event);
+          }
+        }
+        return pump();
+      })
+      .catch(function (err) {
+        var m = err && err.message ? err.message : String(err);
+        pushApiDebug("POST /api/assistant/chat/", "POST", url, 0, { _networkError: m });
+        return { ok: false, error: m || "Ошибка запроса AI-ассистента" };
+      });
   }
 
   function normalizeKpiUserEntry(u) {
@@ -2515,6 +2600,7 @@
     kpiStructureUrl: kpiStructureUrl,
     kpiUsersUrl: kpiUsersUrl,
     searchUrl: searchUrl,
+    assistantChatUrl: assistantChatUrl,
     fetchDepartments: fetchDepartments,
     submitRegistrationRequest: submitRegistrationRequest,
     submitPasswordResetRequest: submitPasswordResetRequest,
@@ -2531,6 +2617,7 @@
     fetchImmediateSubordinates: fetchImmediateSubordinates,
     fetchKpiStructure: fetchKpiStructure,
     fetchChairmanDashboardCatalog: fetchChairmanDashboardCatalog,
+    sendAssistantMessageStream: sendAssistantMessageStream,
     searchDepartments: searchDepartments,
     normalizeKpiListFromApiResponse: normalizeKpiListFromApiResponse,
     buildChartIndicatorsFromApiResponse: buildChartIndicatorsFromApiResponse,
