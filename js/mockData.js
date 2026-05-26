@@ -577,6 +577,20 @@
     return null;
   }
 
+  function shouldSkipPlanFactPercentDerivation(tile) {
+    var cfg = typeof global !== "undefined" && global.KPI_TILE_EXCEPTIONS ? global.KPI_TILE_EXCEPTIONS : null;
+    if (!cfg || !tile) return false;
+    var key = tile.kpi_id != null ? String(tile.kpi_id).trim() : "";
+    var rule = key && cfg[key] ? cfg[key] : null;
+    return !!(
+      rule &&
+      (rule.hidePlanOnTile ||
+        rule.hideKpiPercent ||
+        rule.qualdirControlOverview ||
+        rule.backArticlesDeptCount)
+    );
+  }
+
   /** Достаёт число 0–100 из плитки: kpi_pst / kpi_pct / percent / value или разбор legacy plan/fact. */
   function extractPercentFromTile(tile) {
     if (tile == null) return null;
@@ -591,6 +605,9 @@
     }
     if (typeof tile.value === "number" && !isNaN(tile.value)) {
       return tile.value;
+    }
+    if (shouldSkipPlanFactPercentDerivation(tile)) {
+      return null;
     }
     var fact = String(tile.fact != null ? tile.fact : "").trim();
     var plan = String(tile.plan != null ? tile.plan : "").trim();

@@ -108,6 +108,34 @@
     return !!(rule && rule.hidePlanOnTile);
   }
 
+  function kpiTilePlanFactValuePresent(value) {
+    if (typeof DashUi !== "undefined" && DashUi && typeof DashUi.kpiTilePlanFactValuePresent === "function") {
+      return DashUi.kpiTilePlanFactValuePresent(value);
+    }
+    return value != null && value !== "";
+  }
+
+  function getKpiTileHeroPrimaryValue(tile) {
+    if (!tile) return null;
+    if (!shouldHidePlanOnTile(tile)) return tile.fact;
+    if (kpiTilePlanFactValuePresent(tile.fact)) return tile.fact;
+    if (kpiTilePlanFactValuePresent(tile.plan)) return tile.plan;
+    return tile.fact;
+  }
+
+  function resolveKpiTileDisplayUnits(tile) {
+    var rule = getKpiTileException(tile);
+    var usesPieceCount =
+      !!(rule && (rule.hidePlanOnTile || rule.defectDirectionsOverview || rule.qualdirControlOverview || rule.backArticlesDeptCount));
+    var raw = tile && (tile.units != null ? tile.units : tile.unit);
+    var unitText = raw != null ? String(raw).trim() : "";
+    if (usesPieceCount) {
+      if (!unitText || unitText === "%") return "шт.";
+      return unitText;
+    }
+    return unitText;
+  }
+
   function shouldRenderKpiTileBackDeptAmounts(tile) {
     var rule = getKpiTileException(tile);
     return !!(rule && rule.backDeptAmounts);
@@ -366,10 +394,11 @@
 
   function buildKpiTilePlanFactHeroHtml(tile) {
     var hidePlanOnTile = shouldHidePlanOnTile(tile);
-    var fact = normalizeKpiTileMetricValueForDisplay(tile, tile && tile.fact);
+    var heroValue = hidePlanOnTile ? getKpiTileHeroPrimaryValue(tile) : tile && tile.fact;
+    var fact = normalizeKpiTileMetricValueForDisplay(tile, heroValue);
     var plan = normalizeKpiTileMetricValueForDisplay(tile, tile && tile.plan);
     var expected = normalizeKpiTileMetricValueForDisplay(tile, tile && tile.expected_plan);
-    var units = tile && tile.units;
+    var units = resolveKpiTileDisplayUnits(tile);
     var factHtml = formatKpiTileMetricValue(fact, units);
     var planHtml = formatKpiTileMetricValue(plan, units);
     var expectedHtml = formatKpiTileMetricValue(expected, units);
@@ -813,6 +842,82 @@
     return rows;
   }
 
+  function resolveQualdirControlFieldForTile(tile, fieldName, lastFullMonthOnly) {
+    if (!tile || !fieldName) return undefined;
+    if (Object.prototype.hasOwnProperty.call(tile, fieldName)) {
+      return tile[fieldName];
+    }
+    if (!lastFullMonthOnly) return undefined;
+    var periodState =
+      typeof DashboardMonthNav !== "undefined" && DashboardMonthNav && typeof DashboardMonthNav.getPeriodState === "function"
+        ? DashboardMonthNav.getPeriodState()
+        : null;
+    var year =
+      periodState && periodState.currentPeriodYear != null ? Number(periodState.currentPeriodYear) : null;
+    var month =
+      periodState && periodState.currentPeriodMonth != null ? Number(periodState.currentPeriodMonth) : null;
+    var lfm = tile.last_full_month_row;
+    if (!lfm || typeof lfm !== "object" || year == null || month == null || isNaN(year) || isNaN(month)) {
+      return undefined;
+    }
+    if (
+      Number(lfm.year) === year &&
+      Number(lfm.month) === month &&
+      Object.prototype.hasOwnProperty.call(lfm, fieldName)
+    ) {
+      return lfm[fieldName];
+    }
+    return undefined;
+  }
+
+  function buildKpiTileQualdirControlOverviewHtml(tile, overviewRule) {
+    function readCount(value) {
+      if (value == null || value === "") return 0;
+      var n = Number(value);
+      return isNaN(n) ? 0 : Math.round(n);
+    }
+    function cell(label, value, unit) {
+      var shown =
+        unit != null && String(unit).trim()
+          ? formatKpiTileMetricValue(value, unit)
+          : String(readCount(value));
+      return (
+        '<div class="kpi-tile-tender-cell">' +
+        '<span class="kpi-tile-tender-label">' + DashUi.escapeHtml(label) + "</span>" +
+        '<span class="kpi-tile-tender-value">' + DashUi.escapeHtml(shown) + "</span>" +
+        "</div>"
+      );
+    }
+
+    if (!overviewRule || !Array.isArray(overviewRule.rows) || !overviewRule.rows.length) {
+      return "";
+    }
+
+    var units = tile && tile.units != null ? String(tile.units).trim() : "шт.";
+    var ariaLabel =
+      overviewRule.ariaLabel != null && String(overviewRule.ariaLabel).trim()
+        ? String(overviewRule.ariaLabel).trim()
+        : "Показатель контроля";
+    var html =
+      '<div class="kpi-tile-tender-grid" role="group" aria-label="' + DashUi.escapeHtml(ariaLabel) + '">';
+
+    overviewRule.rows.forEach(function (row) {
+      if (!row || !row.field) return;
+      var value;
+      if (row.lastFullMonthOnly) {
+        value = resolveQualdirControlFieldForTile(tile, row.field, true);
+        if (value === undefined) return;
+      } else if (row.field === "fact") {
+        value = tile && tile.fact;
+      } else {
+        value = tile && tile[row.field];
+      }
+      html += cell(row.label || row.field, readCount(value), row.useUnits ? units : null);
+    });
+
+    return html + "</div>";
+  }
+
   function buildKpiTileDefectDirectionsOverviewHtml(tile) {
     function readCount(value) {
       if (value == null || value === "") return 0;
@@ -830,7 +935,7 @@
 
     var total = readCount(tile && tile.fact);
     var breakdown = buildKpiTileBreakdownRows(tile);
-    var units = tile && tile.units != null ? String(tile.units).trim() : "шт.";
+    var units = resolveKpiTileDisplayUnits(tile) || "шт.";
     var ariaLabel =
       tile && String(tile.kpi_id || "").trim().toUpperCase() === "QD-M1"
         ? "Показатель по подразделениям"
@@ -1027,6 +1132,19 @@
       return (
         '<div class="kpi-tile-metrics kpi-tile-metrics--tender" aria-label="Брак и рекламации по направлениям">' +
         buildKpiTileDefectDirectionsOverviewHtml(tile) +
+        "</div>"
+      );
+    }
+    if (rule && rule.qualdirControlOverview) {
+      return (
+        '<div class="kpi-tile-metrics kpi-tile-metrics--tender" aria-label="' +
+        DashUi.escapeHtml(
+          rule.qualdirControlOverview.ariaLabel != null
+            ? String(rule.qualdirControlOverview.ariaLabel)
+            : "Показатель контроля"
+        ) +
+        '">' +
+        buildKpiTileQualdirControlOverviewHtml(tile, rule.qualdirControlOverview) +
         "</div>"
       );
     }

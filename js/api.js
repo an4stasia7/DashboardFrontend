@@ -881,9 +881,14 @@
           return "";
         }
         function normalizeUnits(kpiId, value) {
-          var kid = kpiId != null ? String(kpiId).trim() : "";
+          var kid = kpiId != null ? String(kpiId).trim().toUpperCase() : "";
           if (kid === "OD-M1" || kid === "OD-M3.1" || kid === "OD-M3.2") return "руб.";
           if (kid === "KD-M11") return "чел.";
+          if (/^QD-M\d+$/i.test(kid)) {
+            var unitText = value != null ? String(value).trim() : "";
+            if (!unitText || unitText === "%") return "шт.";
+            return unitText;
+          }
           return value;
         }
         var formulaSrc = item.formula != null ? item.formula : th.formula;
@@ -897,12 +902,16 @@
         var lastFullMonthRow =
           item.last_full_month_row && typeof item.last_full_month_row === "object" ? item.last_full_month_row : null;
         var tileDepartments = normalizeDefectDirectionDepartments(
-          Array.isArray(item.departments) ? item.departments : []
+          Array.isArray(item.departments) && item.departments.length
+            ? item.departments
+            : lastFullMonthRow && Array.isArray(lastFullMonthRow.departments)
+              ? lastFullMonthRow.departments
+              : []
         );
         var defectDirectionDepartments = normalizeDefectDirectionDepartments(
           lastFullMonthRow && Array.isArray(lastFullMonthRow.departments) ? lastFullMonthRow.departments : []
         );
-        return {
+        var tileOut = {
           kpi_id: item.kpi_id != null ? String(item.kpi_id) : "",
           title: title,
           badge: item.kpi_id != null ? String(item.kpi_id) : "KPI",
@@ -954,6 +963,7 @@
           kz_total: item.kz_total != null ? item.kz_total : null,
           portfolio_count: item.portfolio_count != null ? item.portfolio_count : null,
           deviation_count: item.deviation_count != null ? item.deviation_count : null,
+          delay_count: item.delay_count !== undefined ? item.delay_count : null,
           plan_by_dept:
             item.plan_by_dept && typeof item.plan_by_dept === "object"
               ? item.plan_by_dept
@@ -978,8 +988,103 @@
           red_threshold: thStr(th, "red", "red_threshold"),
           blue_threshold: thStr(th, "blue", "blue_threshold"),
         };
+        applyQualdirControlFieldsToTileOut(tileOut, item, lastFullMonthRow);
+        ensureQualdirPieceCountUnits(tileOut);
+        return tileOut;
       })
       .filter(Boolean);
+  }
+
+  function isQualdirPieceCountKpiId(kpiId) {
+    var id = kpiId != null ? String(kpiId).trim().toUpperCase() : "";
+    return /^QD-M\d+$/.test(id);
+  }
+
+  function ensureQualdirPieceCountUnits(tile) {
+    if (!tile || !isQualdirPieceCountKpiId(tile.kpi_id)) return;
+    var unitText =
+      tile.units != null ? String(tile.units).trim() : tile.unit != null ? String(tile.unit).trim() : "";
+    if (!unitText || unitText === "%") {
+      tile.units = "шт.";
+      tile.unit = "шт.";
+    }
+  }
+
+  function getQualdirControlOverviewRule(kpiId) {
+    var cfg = global.KPI_TILE_EXCEPTIONS || null;
+    var key = kpiId != null ? String(kpiId).trim().toUpperCase() : "";
+    return cfg && key && cfg[key] && cfg[key].qualdirControlOverview ? cfg[key].qualdirControlOverview : null;
+  }
+
+  function applyQualdirControlFieldsToTileOut(tileOut, item, lastFullMonthRow) {
+    if (!tileOut || !item) return;
+    var rule = getQualdirControlOverviewRule(tileOut.kpi_id);
+    if (!rule || !Array.isArray(rule.rows)) return;
+    rule.rows.forEach(function (row) {
+      if (!row || !row.field || row.field === "fact") return;
+      if (row.lastFullMonthOnly) {
+        if (Object.prototype.hasOwnProperty.call(item, row.field)) {
+          tileOut[row.field] = item[row.field];
+        } else if (
+          lastFullMonthRow &&
+          Object.prototype.hasOwnProperty.call(lastFullMonthRow, row.field)
+        ) {
+          tileOut[row.field] = lastFullMonthRow[row.field];
+        }
+        return;
+      }
+      if (item[row.field] !== undefined) {
+        tileOut[row.field] = item[row.field];
+      }
+    });
+  }
+
+  function resolveQualdirControlField(tile, point, year, month, fieldName) {
+    if (!tile || !fieldName) return undefined;
+    if (point && Object.prototype.hasOwnProperty.call(point, fieldName)) {
+      return point[fieldName];
+    }
+    var lfm = tile.last_full_month_row;
+    if (!lfm || typeof lfm !== "object") return undefined;
+    var y = Number(year);
+    var m = Number(month);
+    var ly = Number(lfm.year);
+    var lm = Number(lfm.month);
+    if (isNaN(y) || isNaN(m) || isNaN(ly) || isNaN(lm) || y !== ly || m !== lm) {
+      return undefined;
+    }
+    if (Object.prototype.hasOwnProperty.call(lfm, fieldName)) {
+      return lfm[fieldName];
+    }
+    return undefined;
+  }
+
+  function syncQualdirControlTileFieldsFromPoint(tile, point, year, month) {
+    var rule = getQualdirControlOverviewRule(tile && tile.kpi_id);
+    if (!rule || !Array.isArray(rule.rows)) return;
+    if (!point || typeof point !== "object") {
+      rule.rows.forEach(function (row) {
+        if (row && row.field && row.field !== "fact") delete tile[row.field];
+      });
+      return;
+    }
+    rule.rows.forEach(function (row) {
+      if (!row || !row.field || row.field === "fact") return;
+      if (row.lastFullMonthOnly) {
+        var todayValue = resolveQualdirControlField(tile, point, year, month, row.field);
+        if (todayValue !== undefined) {
+          tile[row.field] = todayValue;
+        } else {
+          delete tile[row.field];
+        }
+        return;
+      }
+      if (point[row.field] !== undefined) {
+        tile[row.field] = point[row.field];
+      } else {
+        tile[row.field] = null;
+      }
+    });
   }
 
   function findTileMonthlyDataPoint(monthlyData, year, month) {
@@ -1030,10 +1135,19 @@
       year != null && month != null && Array.isArray(tile.monthly_data)
         ? findTileMonthlyDataPoint(tile.monthly_data, year, month)
         : null;
-    if (point && Array.isArray(point.departments) && point.departments.length) {
+    if (!point) return;
+    if (Array.isArray(point.departments)) {
       tile.departments = normalizeDefectDirectionDepartments(point.departments);
-      if (point.fact !== undefined && point.fact !== null) tile.fact = point.fact;
+    } else if (
+      tile.last_full_month_row &&
+      typeof tile.last_full_month_row === "object" &&
+      Number(tile.last_full_month_row.year) === Number(year) &&
+      Number(tile.last_full_month_row.month) === Number(month) &&
+      Array.isArray(tile.last_full_month_row.departments)
+    ) {
+      tile.departments = normalizeDefectDirectionDepartments(tile.last_full_month_row.departments);
     }
+    if (point.fact !== undefined && point.fact !== null) tile.fact = point.fact;
   }
 
   function syncDefectDirectionsForTile(tile, year, month) {
@@ -1059,7 +1173,10 @@
       if (!point) return;
       if (point.plan !== undefined) tile.plan = point.plan;
       if (point.fact !== undefined) tile.fact = point.fact;
-      if (typeof point.kpi_pct === "number" && !isNaN(point.kpi_pct)) {
+      else if (String(tile.kpi_id || "").trim().toUpperCase() === "QD-M8") {
+        tile.fact = null;
+      }
+      if (typeof point.kpi_pct === "number" && !isNaN(point.kpi_pct) && !isQualdirPieceCountKpiId(tile.kpi_id)) {
         tile.percent = point.kpi_pct;
         tile.kpi_pct = point.kpi_pct;
       }
@@ -1071,6 +1188,8 @@
       }
       syncDepartmentsForTile(tile, year, month);
       syncDefectDirectionsForTile(tile, year, month);
+      syncQualdirControlTileFieldsFromPoint(tile, point, year, month);
+      ensureQualdirPieceCountUnits(tile);
     });
   }
 
@@ -1925,10 +2044,11 @@
       if (ownMonthly && !isProductionDeputyOutputPeriodTile(id)) {
         tile.plan = ownMonthly.plan;
         tile.fact = ownMonthly.fact;
-        if (ownMonthly.display_unit != null) {
+        if (ownMonthly.display_unit != null && !isQualdirPieceCountKpiId(id)) {
           tile.units = ownMonthly.display_unit;
           tile.unit = ownMonthly.display_unit;
         }
+        ensureQualdirPieceCountUnits(tile);
         if (isBudgetFotLimitKpiId(id)) {
           var pfRag = planFactLimitRag(ownMonthly.plan, ownMonthly.fact);
           if (pfRag) tile.rag = pfRag;
@@ -1943,7 +2063,7 @@
         if (ownMonthly.max_allowed_delay_workdays != null) {
           tile.max_allowed_delay_workdays = ownMonthly.max_allowed_delay_workdays;
         }
-        if (ownMonthly.kpi_pct != null) {
+        if (ownMonthly.kpi_pct != null && !isQualdirPieceCountKpiId(id)) {
           tile.percent = ownMonthly.kpi_pct;
           tile.kpi_pct = ownMonthly.kpi_pct;
           if (isTurnoverKpiTile(tile)) {
@@ -1994,6 +2114,8 @@
       }
       syncDepartmentsForTile(tile, filterYear, filterMonth);
       syncDefectDirectionsForTile(tile, filterYear, filterMonth);
+      syncQualdirControlTileFieldsFromPoint(tile, findTileMonthlyDataPoint(tile.monthly_data, filterYear, filterMonth), filterYear, filterMonth);
+      ensureQualdirPieceCountUnits(tile);
     });
   }
 

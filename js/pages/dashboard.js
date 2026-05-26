@@ -2624,9 +2624,14 @@
       return "";
     }
     function normalizeUnits(kpiId, value) {
-      var kid = kpiId != null ? String(kpiId).trim() : "";
+      var kid = kpiId != null ? String(kpiId).trim().toUpperCase() : "";
       if (kid === "OD-M1" || kid === "OD-M3.1" || kid === "OD-M3.2") return "руб.";
       if (kid === "KD-M11") return "чел.";
+      if (/^QD-M\d+$/.test(kid)) {
+        var unitText = value != null ? String(value).trim() : "";
+        if (!unitText || unitText === "%") return "шт.";
+        return unitText;
+      }
       return value;
     }
 
@@ -2654,7 +2659,7 @@
         ? point.display_unit
         : firstStringValue(["units", "unit", "uom", "measure_unit", "measurement_unit"]);
 
-    return {
+    var normalizedTile = {
       kpi_id: rawItem.kpi_id != null ? String(rawItem.kpi_id) : "",
       title: title,
       badge: rawItem.kpi_id != null ? String(rawItem.kpi_id) : "KPI",
@@ -2748,6 +2753,12 @@
           : rawItem.deviation_count != null
             ? rawItem.deviation_count
             : null,
+      delay_count:
+        point && point.delay_count !== undefined
+          ? point.delay_count
+          : rawItem.delay_count !== undefined
+            ? rawItem.delay_count
+            : null,
       plan_by_dept:
         point && point.plan_by_dept && typeof point.plan_by_dept === "object"
           ? point.plan_by_dept
@@ -2833,7 +2844,77 @@
           : Array.isArray(rawItem.tender_departments)
             ? rawItem.tender_departments
             : [],
+      departments: (function () {
+        var rawDepts =
+          point && Array.isArray(point.departments)
+            ? point.departments
+            : Array.isArray(rawItem.departments) && rawItem.departments.length
+              ? rawItem.departments
+              : rawItem.last_full_month_row &&
+                  typeof rawItem.last_full_month_row === "object" &&
+                  Array.isArray(rawItem.last_full_month_row.departments)
+                ? rawItem.last_full_month_row.departments
+                : [];
+        if (!Array.isArray(rawDepts)) return [];
+        return rawDepts
+          .filter(function (item) {
+            return item && typeof item === "object";
+          })
+          .map(function (item) {
+            var count = Number(item.count);
+            return {
+              name: item.name != null ? String(item.name).trim() : "",
+              count: isFinite(count) && !isNaN(count) ? Math.round(count) : 0,
+            };
+          });
+      })(),
+      last_full_month_row:
+        rawItem.last_full_month_row && typeof rawItem.last_full_month_row === "object"
+          ? rawItem.last_full_month_row
+          : null,
     };
+    var qualdirCfg =
+      typeof global !== "undefined" && global.KPI_TILE_EXCEPTIONS
+        ? global.KPI_TILE_EXCEPTIONS
+        : typeof window !== "undefined" && window.KPI_TILE_EXCEPTIONS
+          ? window.KPI_TILE_EXCEPTIONS
+          : null;
+    var qualdirKey = normalizedTile.kpi_id != null ? String(normalizedTile.kpi_id).trim().toUpperCase() : "";
+    var qualdirRule =
+      qualdirCfg && qualdirKey && qualdirCfg[qualdirKey] && qualdirCfg[qualdirKey].qualdirControlOverview
+        ? qualdirCfg[qualdirKey].qualdirControlOverview
+        : null;
+    if (qualdirRule && Array.isArray(qualdirRule.rows)) {
+      var inWorkSource = point && typeof point === "object" ? point : rawItem;
+      var lfm =
+        rawItem.last_full_month_row && typeof rawItem.last_full_month_row === "object"
+          ? rawItem.last_full_month_row
+          : null;
+      qualdirRule.rows.forEach(function (row) {
+        if (!row || !row.field || row.field === "fact") return;
+        if (row.lastFullMonthOnly) {
+          if (Object.prototype.hasOwnProperty.call(inWorkSource, row.field)) {
+            normalizedTile[row.field] = inWorkSource[row.field];
+          } else if (
+            lfm &&
+            Object.prototype.hasOwnProperty.call(lfm, row.field) &&
+            point &&
+            Number(point.year) === Number(lfm.year) &&
+            Number(point.month) === Number(lfm.month)
+          ) {
+            normalizedTile[row.field] = lfm[row.field];
+          }
+          return;
+        }
+        if (inWorkSource[row.field] !== undefined) {
+          normalizedTile[row.field] = inWorkSource[row.field];
+        }
+      });
+    }
+    if (!normalizedTile.last_full_month_row && rawItem.last_full_month_row) {
+      normalizedTile.last_full_month_row = rawItem.last_full_month_row;
+    }
+    return normalizedTile;
   }
 
   function getChairmanAggregatedTilesFromRaw(rawBody) {
