@@ -160,7 +160,7 @@
       hideKpiPercent: true,
     },
     "METD-M1": {
-      kpiPctOnly: true,
+      hideKpiPercent: true,
       showBackPlanFact: true,
     },
     "METD-Q1": {

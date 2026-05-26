@@ -376,6 +376,12 @@
           }
           return Api.fetchChairmanDashboardCatalog();
         },
+        fetchKpiStructure: function (options) {
+          if (typeof Api === "undefined" || typeof Api.fetchKpiStructure !== "function") {
+            return Promise.resolve({ ok: false, structure: {}, error: "Структура недоступна" });
+          }
+          return Api.fetchKpiStructure(options || {});
+        },
         searchDepartments: function (query) {
           if (typeof Api === "undefined" || typeof Api.searchDepartments !== "function") {
             return Promise.resolve({ ok: false, results: [], error: "Поиск недоступен" });
@@ -2025,7 +2031,7 @@
 
   function isChiefMetrologRatioKpiId(kpiId) {
     var id = kpiId != null ? String(kpiId).trim().toUpperCase() : "";
-    return id === "METD-M1" || id === "METD-Q2" || id === "METD-Q3" || id === "METD-Q4";
+    return id === "METD-Q2" || id === "METD-Q3" || id === "METD-Q4";
   }
 
   function chairmanAggregationModeLabel(mode) {
@@ -2632,6 +2638,7 @@
         if (!unitText || unitText === "%") return "шт.";
         return unitText;
       }
+      if (kid === "METD-M1" || kid === "МЕТ-M1") return "шт.";
       return value;
     }
 
@@ -3132,6 +3139,13 @@
         activeClaimsTableView === "lawsuits";
     }
 
+    if (claimsTableTitleTextEl && claimsTableTitleTextEl.closest) {
+      var claimsPanel = claimsTableTitleTextEl.closest(".table-panel");
+      if (claimsPanel) {
+        claimsPanel.hidden = useChiefMetrologTables;
+      }
+    }
+
     if (claimsTableSwitcherEl) {
       var switchButtons = claimsTableSwitcherEl.querySelectorAll(".claims-table-switcher-btn");
       if (switchButtons && switchButtons.length >= 2) {
@@ -3163,6 +3177,7 @@
           useQualdirDefectTables ||
           useHrdLateVacanciesTable ||
           useTechnicalTables ||
+          useOpdirProjectTables ||
           useProjectMilestonesTables ||
           useChiefConstructorTables ||
           useChiefMetrologTables;
@@ -3300,7 +3315,7 @@
         opdirProjectSecondTableDisabled: shouldUseDevserviceProjectDeviationsTables(),
         productionClaimsTableMode: isProductionDeputyDashboardContext(),
         productionClaimsShop: normalizeProductionShopKey(productionDeputySelectedShop),
-        constructorProjectTableMode: isChiefConstructorDashboardContext() || isChiefMetrologDashboardContext(),
+        constructorProjectTableMode: isChiefConstructorDashboardContext(),
         logisticsSupplierDebtTableMode: isLogisticsDashboardContext(),
         qualdirDefectTablesMode: shouldUseQualdirDefectTables(),
         qualdirExternalTableKey: "QD-T-M5",

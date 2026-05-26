@@ -6,6 +6,12 @@
   var sidebarSearchError = "";
   var sidebarSearchResults = [];
   var rememberedChairmanCatalogId = "";
+  var departmentsExpanded = false;
+  var structureOpen = false;
+  var structureLoading = false;
+  var structureError = "";
+  var structureCache = null;
+  var structureHeadcount = null;
 
   function rememberChairmanCatalogId(value) {
     rememberedChairmanCatalogId = value != null ? String(value).trim() : "";
@@ -113,6 +119,13 @@
       : Promise.resolve({ ok: false, items: [], error: "Каталог ПСД недоступен" });
   }
 
+  function fetchKpiStructure(options) {
+    var fn = getContext().fetchKpiStructure;
+    return typeof fn === "function"
+      ? fn(options || {})
+      : Promise.resolve({ ok: false, structure: {}, error: "Структура недоступна" });
+  }
+
   function searchDepartments(query) {
     var fn = getContext().searchDepartments;
     return typeof fn === "function"
@@ -167,6 +180,77 @@
     }
     dashSidebarSearchEmptyEl.textContent = message;
     dashSidebarSearchEmptyEl.hidden = !message;
+  }
+
+  function getSidebarButton(id) {
+    return document.getElementById(id);
+  }
+
+  function setSidebarButtonSelected(id, selected) {
+    var btn = getSidebarButton(id);
+    if (btn) btn.setAttribute("aria-selected", selected ? "true" : "false");
+  }
+
+  function getDepartmentViewTargets() {
+    var viewTargets = getViewTargets();
+    return Array.isArray(viewTargets)
+      ? viewTargets.filter(function (target) {
+          return target && target.id !== "self";
+        })
+      : [];
+  }
+
+  function normalizeDepartmentIconName(value) {
+    return String(value || "")
+      .toLocaleLowerCase("ru-RU")
+      .replace(/[«»"']/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function departmentSideIcon(name) {
+    var text = normalizeDepartmentIconName(name);
+    var icon = "";
+    if (text === "одп" || text.indexOf(" одп") !== -1) icon = "odp";
+    else if (text.indexOf("газпром") !== -1) icon = "gazprom";
+    else if (text.indexOf("вэд") !== -1) icon = "fea";
+    else if (text.indexOf("опэоиу") !== -1) icon = "opeoiu";
+    else if (text.indexOf("бми") !== -1) icon = "bmi";
+    else if (text.indexOf("ключев") !== -1) icon = "klyuchkli";
+    else if (text.indexOf("коммерческ") !== -1 && text.indexOf("директор") !== -1) icon = "comdir";
+    else if (text.indexOf("операцион") !== -1 && text.indexOf("директор") !== -1) icon = "operofficer";
+    else if (text.indexOf("председатель совета директоров") !== -1) icon = "psd";
+    if (icon) return "temp/iconsside/" + icon + ".png";
+    return "";
+  }
+
+  function renderSidebarNavState() {
+    var panel = document.getElementById("dash-sidebar-departments-panel");
+    var departmentsBtn = getSidebarButton("dash-sidebar-departments-btn");
+    var levelBackBtn = getSidebarButton("dash-sidebar-level-back-btn");
+    var hasDepartmentChildren = getDepartmentViewTargets().length > 0;
+    if (!hasDepartmentChildren) {
+      departmentsExpanded = false;
+    }
+    if (departmentsBtn) {
+      departmentsBtn.hidden = !hasDepartmentChildren;
+    }
+    if (panel) panel.hidden = !departmentsExpanded;
+    if (departmentsBtn) {
+      departmentsBtn.setAttribute("aria-expanded", departmentsExpanded ? "true" : "false");
+    }
+    var selectedViewId = getSelectedViewId();
+    var hierarchyStack = getHierarchyStack();
+    var inDepartmentView =
+      (selectedViewId && selectedViewId !== "self") ||
+      (Array.isArray(hierarchyStack) && hierarchyStack.length > 1);
+    if (levelBackBtn) {
+      levelBackBtn.hidden = !(Array.isArray(hierarchyStack) && hierarchyStack.length > 1);
+    }
+    setSidebarButtonSelected("dash-sidebar-home-btn", !departmentsExpanded && !structureOpen && !inDepartmentView);
+    setSidebarButtonSelected("dash-sidebar-level-back-btn", false);
+    setSidebarButtonSelected("dash-sidebar-departments-btn", !structureOpen && (departmentsExpanded || inDepartmentView));
+    setSidebarButtonSelected("dash-sidebar-structure-btn", structureOpen);
   }
 
   function normalizeSidebarSearchResults(result) {
@@ -417,10 +501,28 @@
       btn.setAttribute("role", "tab");
       btn.setAttribute("data-target-id", t.id);
       btn.setAttribute("aria-selected", isViewTargetActive(t, selectedViewId, hierarchyStack) ? "true" : "false");
-      var icon = document.createElement("span");
-      icon.className = "dash-view-tab-icon";
-      icon.setAttribute("aria-hidden", "true");
-      btn.appendChild(icon);
+      var iconSrc = departmentSideIcon([t.label, t.department, t.viewDepartment].join(" "));
+      if (iconSrc) {
+        var iconImg = document.createElement("span");
+        iconImg.className = "dash-view-tab-side-icon";
+        iconImg.style.backgroundImage = "url('" + iconSrc + "')";
+        iconImg.setAttribute("aria-hidden", "true");
+        btn.appendChild(iconImg);
+      } else {
+        var icon = document.createElement("span");
+        icon.className = "dash-view-tab-dot";
+        var fallbackText =
+          t.label != null && String(t.label).trim()
+            ? String(t.label).trim()
+            : t.department != null && String(t.department).trim()
+              ? String(t.department).trim()
+              : t.viewDepartment != null && String(t.viewDepartment).trim()
+                ? String(t.viewDepartment).trim()
+                : "?";
+        icon.setAttribute("data-letter", fallbackText.charAt(0).toLocaleUpperCase("ru-RU"));
+        icon.setAttribute("aria-hidden", "true");
+        btn.appendChild(icon);
+      }
       var span = document.createElement("span");
       span.className = "dash-view-tab-text";
       span.textContent =
@@ -591,6 +693,217 @@
     });
     nav.appendChild(inner);
     updateSidebarSearchEmptyState(hasVisible);
+  }
+
+  function hasStructureChildren(node) {
+    return node && typeof node === "object" && !Array.isArray(node) && Object.keys(node).length > 0;
+  }
+
+  function structureNodeIcon(name) {
+    var text = name != null ? String(name).toLocaleLowerCase("ru-RU") : "";
+    if (text.indexOf("отдел") !== -1) return "temp/icons/modern-house.png";
+    return "temp/icons/user.png";
+  }
+
+  function isCurrentStructureNode(name) {
+    var label = name != null ? String(name).trim() : "";
+    if (!label) return false;
+    var hierarchyStack = getHierarchyStack();
+    if (Array.isArray(hierarchyStack) && hierarchyStack.length) {
+      var last = hierarchyStack[hierarchyStack.length - 1];
+      return last != null && String(last).trim() === label;
+    }
+    var sessionUser = getSessionUser();
+    var dept = sessionUser && sessionUser.department != null ? String(sessionUser.department).trim() : "";
+    return !!dept && dept === label;
+  }
+
+  function getAllowedStructurePathIndex(path) {
+    var sessionUser = getSessionUser();
+    if (isBoardChairUser(sessionUser)) return 0;
+    var root = sessionUser && sessionUser.department != null ? normalizeDashboardRole(sessionUser.department) : "";
+    if (!root || !Array.isArray(path)) return -1;
+    for (var i = 0; i < path.length; i++) {
+      if (normalizeDashboardRole(path[i]) === root) return i;
+    }
+    return -1;
+  }
+
+  function canNavigateToStructurePath(path) {
+    var idx = getAllowedStructurePathIndex(path);
+    return idx >= 0 && Array.isArray(path) && path.length - 1 >= idx;
+  }
+
+  function encodedStructurePath(path) {
+    try {
+      return encodeURIComponent(JSON.stringify(path || []));
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function headcountForStructureName(name) {
+    var counts =
+      structureHeadcount &&
+      structureHeadcount.countsByDepartment &&
+      typeof structureHeadcount.countsByDepartment === "object"
+        ? structureHeadcount.countsByDepartment
+        : null;
+    if (!counts) return null;
+    var key = name != null ? String(name) : "";
+    if (!key || counts[key] == null) return null;
+    var value = parseInt(String(counts[key]), 10);
+    return isNaN(value) ? null : value;
+  }
+
+  function structureHeadcountWarningHtml() {
+    if (!structureHeadcount || typeof structureHeadcount !== "object") return "";
+    var quality = structureHeadcount.quality && typeof structureHeadcount.quality === "object" ? structureHeadcount.quality : {};
+    var warnings = Array.isArray(quality.warnings) ? quality.warnings : [];
+    if (!warnings.length) return "";
+    var first = warnings[0] || {};
+    var message =
+      first.code === "FIELD_NOT_AVAILABLE"
+        ? "Численность рассчитана по ветке подразделения: поле непосредственного руководителя не опубликовано в OData."
+        : first.message || first.code || "Численность рассчитана с ограничениями источника.";
+    return '<p class="dash-structure-warning">' + DashUi.escapeHtml(String(message)) + "</p>";
+  }
+
+  function buildStructureListHtml(tree, parentPath) {
+    var entries = tree && typeof tree === "object" && !Array.isArray(tree) ? Object.keys(tree) : [];
+    if (!entries.length) return '<p class="dash-structure-state">Структура пуста.</p>';
+    return (
+      '<ul class="dash-structure-list">' +
+      entries
+        .map(function (name) {
+          var child = tree[name];
+          var path = (parentPath || []).concat([name]);
+          var hasChildren = hasStructureChildren(child);
+          var current = isCurrentStructureNode(name);
+          var clickable = canNavigateToStructurePath(path);
+          var headcount = headcountForStructureName(name);
+          return (
+            '<li class="dash-structure-node' + (hasChildren ? "" : " is-leaf") + '">' +
+            '<div class="dash-structure-node-row' +
+            (current ? " is-current" : "") +
+            (clickable ? " is-clickable" : "") +
+            '"' +
+            (clickable ? ' data-structure-path="' + encodedStructurePath(path) + '"' : "") +
+            ">" +
+            (hasChildren
+              ? '<button type="button" class="dash-structure-toggle" aria-label="Свернуть/развернуть" aria-expanded="true"></button>'
+              : '<span class="dash-structure-toggle-placeholder" aria-hidden="true"></span>') +
+            '<img class="dash-structure-node-icon" src="' + DashUi.escapeHtml(structureNodeIcon(name)) + '" alt="" aria-hidden="true" />' +
+            '<span class="dash-structure-node-label">' + DashUi.escapeHtml(DashUi.capitalizeHeaderTitle(String(name))) + '</span>' +
+            (headcount !== null
+              ? '<span class="dash-structure-headcount" title="Работающие сотрудники">' +
+                DashUi.escapeHtml(String(headcount)) +
+                " чел.</span>"
+              : "") +
+            "</div>" +
+            (hasChildren ? buildStructureListHtml(child, path) : "") +
+            "</li>"
+          );
+        })
+        .join("") +
+      "</ul>"
+    );
+  }
+
+  function renderStructureTree() {
+    var treeEl = document.getElementById("dash-structure-tree");
+    if (!treeEl) return;
+    if (structureLoading) {
+      treeEl.innerHTML = '<p class="dash-structure-state">Загрузка структуры…</p>';
+      return;
+    }
+    if (structureError) {
+      treeEl.innerHTML = '<p class="dash-structure-state">' + DashUi.escapeHtml(structureError) + "</p>";
+      return;
+    }
+    treeEl.innerHTML = structureHeadcountWarningHtml() + buildStructureListHtml(structureCache || {});
+  }
+
+  function openStructurePanel() {
+    var overlay = document.getElementById("dash-structure-overlay");
+    if (!overlay) return;
+    structureOpen = true;
+    departmentsExpanded = false;
+    overlay.hidden = false;
+    renderSidebarNavState();
+    renderViewTabs();
+    if (structureCache) {
+      renderStructureTree();
+      return;
+    }
+    structureLoading = true;
+    structureError = "";
+    renderStructureTree();
+    fetchKpiStructure({ includeHeadcount: true }).then(function (result) {
+      structureLoading = false;
+      if (!result || result.unauthorized) {
+        structureError = "Требуется повторный вход.";
+        onUnauthorized();
+        renderStructureTree();
+        return;
+      }
+      if (!result.ok) {
+        structureError = result.error || "Не удалось загрузить структуру.";
+        renderStructureTree();
+        return;
+      }
+      structureCache = result.structure || {};
+      structureHeadcount = result.headcount || null;
+      renderStructureTree();
+    });
+  }
+
+  function closeStructurePanel() {
+    var overlay = document.getElementById("dash-structure-overlay");
+    structureOpen = false;
+    if (overlay) overlay.hidden = true;
+    renderSidebarNavState();
+  }
+
+  function decodeStructurePath(value) {
+    try {
+      var decoded = JSON.parse(decodeURIComponent(String(value || "")));
+      return Array.isArray(decoded)
+        ? decoded
+            .map(function (part) {
+              return part != null ? String(part).trim() : "";
+            })
+            .filter(Boolean)
+        : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function navigateToStructurePath(path) {
+    if (!canNavigateToStructurePath(path)) return;
+    var sessionUser = getSessionUser();
+    var allowedIndex = getAllowedStructurePathIndex(path);
+    var nextStack = isBoardChairUser(sessionUser) ? path.slice() : path.slice(allowedIndex);
+    var dept = nextStack.length ? nextStack[nextStack.length - 1] : "";
+    if (!dept) return;
+    closeStructurePanel();
+    clearSidebarSearchState();
+    departmentsExpanded = false;
+    if (isBoardChairUser(sessionUser)) {
+      setSelectedViewId(resolveChairmanSelectedViewIdFromHierarchy(nextStack));
+    } else if (nextStack.length <= 1) {
+      setSelectedViewId("self");
+    } else {
+      setSelectedViewId("dept:" + encodeURIComponent(dept));
+    }
+    setViewContextUser(sessionUser);
+    setHierarchyStack(nextStack);
+    renderViewTabs();
+    refreshSubordinateTabsFromApi().then(function () {
+      updateTopBarForView();
+      navigateAfterViewChange();
+    });
   }
 
   function filterSidebarViewTabs() {
@@ -800,6 +1113,32 @@
     });
   }
 
+  function navigateHomeFromSidebar() {
+    var sessionUser = getSessionUser();
+    var rootDept = sessionUser && sessionUser.department != null ? String(sessionUser.department).trim() : "";
+    departmentsExpanded = false;
+    closeStructurePanel();
+    clearSidebarSearchState();
+    clearRememberedChairmanCatalogId();
+    setSelectedViewId("self");
+    setViewContextUser(sessionUser);
+    setHierarchyStack(rootDept ? [rootDept] : []);
+    renderViewTabs();
+    updateTopBarForView();
+    navigateAfterViewChange();
+  }
+
+  function toggleDepartmentsPanel() {
+    departmentsExpanded = !departmentsExpanded;
+    if (departmentsExpanded) {
+      closeStructurePanel();
+      renderSidebarNavState();
+      refreshSubordinateTabsFromApi();
+      return;
+    }
+    renderViewTabs();
+  }
+
   function loadViewTargets() {
     return new Promise(function (resolve) {
       var sessionUser = getSessionUser();
@@ -864,11 +1203,18 @@
   function renderViewTabs() {
     var nav = document.getElementById("dashboard-view-tabs");
     var sessionUser = getSessionUser();
-    var viewTargets = getViewTargets();
+    var viewTargets = getDepartmentViewTargets();
     var selectedViewId = getSelectedViewId();
     if (!nav) return;
+    renderSidebarNavState();
     nav.innerHTML = "";
     renderChairmanDashboardTabs();
+    if (!departmentsExpanded && !normalizeSidebarSearchText(sidebarSearchQuery)) {
+      nav.hidden = true;
+      updateSidebarSearchEmptyState(false);
+      renderHierarchyBreadcrumb();
+      return;
+    }
     var onlySelf = viewTargets && viewTargets.length === 1 && viewTargets[0].id === "self";
     if (!viewTargets || viewTargets.length === 0 || onlySelf) {
       nav.hidden = true;
@@ -887,6 +1233,20 @@
       btn.setAttribute("role", "tab");
       btn.setAttribute("data-target-id", t.id);
       btn.setAttribute("aria-selected", isViewTargetActive(t, selectedViewId, hierarchyStack) ? "true" : "false");
+      var iconSrc = departmentSideIcon([t.label, t.department, t.viewDepartment].join(" "));
+      if (iconSrc) {
+        btn.setAttribute("data-side-icon", iconSrc);
+        var sideIcon = document.createElement("span");
+        sideIcon.className = "dash-view-tab-side-icon";
+        sideIcon.style.backgroundImage = "url('" + iconSrc + "')";
+        sideIcon.setAttribute("aria-hidden", "true");
+        btn.appendChild(sideIcon);
+      } else {
+        var icon = document.createElement("span");
+        icon.className = "dash-view-tab-dot";
+        icon.setAttribute("aria-hidden", "true");
+        btn.appendChild(icon);
+      }
       var span = document.createElement("span");
       span.className = "dash-view-tab-text";
       span.textContent =
@@ -930,6 +1290,60 @@
   function bind() {
     var dashSidebarSearchInputEl = document.getElementById("dash-sidebar-search-input");
     var dashSidebarBackBtnEl = document.getElementById("dash-sidebar-back-btn");
+    var dashSidebarHomeBtnEl = document.getElementById("dash-sidebar-home-btn");
+    var dashSidebarLevelBackBtnEl = document.getElementById("dash-sidebar-level-back-btn");
+    var dashSidebarDepartmentsBtnEl = document.getElementById("dash-sidebar-departments-btn");
+    var dashSidebarStructureBtnEl = document.getElementById("dash-sidebar-structure-btn");
+    var dashStructureCloseEl = document.getElementById("dash-structure-close");
+    var dashStructureOverlayEl = document.getElementById("dash-structure-overlay");
+    var dashStructureTreeEl = document.getElementById("dash-structure-tree");
+    if (dashSidebarHomeBtnEl && !dashSidebarHomeBtnEl.__dashboardHierarchyNavBound) {
+      dashSidebarHomeBtnEl.__dashboardHierarchyNavBound = true;
+      dashSidebarHomeBtnEl.addEventListener("click", navigateHomeFromSidebar);
+    }
+    if (dashSidebarLevelBackBtnEl && !dashSidebarLevelBackBtnEl.__dashboardHierarchyNavBound) {
+      dashSidebarLevelBackBtnEl.__dashboardHierarchyNavBound = true;
+      dashSidebarLevelBackBtnEl.addEventListener("click", function () {
+        var stack = getHierarchyStack();
+        if (!Array.isArray(stack) || stack.length <= 1) return;
+        departmentsExpanded = true;
+        navigateToHierarchyLevel(stack.length - 2);
+      });
+    }
+    if (dashSidebarDepartmentsBtnEl && !dashSidebarDepartmentsBtnEl.__dashboardHierarchyNavBound) {
+      dashSidebarDepartmentsBtnEl.__dashboardHierarchyNavBound = true;
+      dashSidebarDepartmentsBtnEl.addEventListener("click", toggleDepartmentsPanel);
+    }
+    if (dashSidebarStructureBtnEl && !dashSidebarStructureBtnEl.__dashboardHierarchyNavBound) {
+      dashSidebarStructureBtnEl.__dashboardHierarchyNavBound = true;
+      dashSidebarStructureBtnEl.addEventListener("click", openStructurePanel);
+    }
+    if (dashStructureCloseEl && !dashStructureCloseEl.__dashboardHierarchyNavBound) {
+      dashStructureCloseEl.__dashboardHierarchyNavBound = true;
+      dashStructureCloseEl.addEventListener("click", closeStructurePanel);
+    }
+    if (dashStructureOverlayEl && !dashStructureOverlayEl.__dashboardHierarchyNavBound) {
+      dashStructureOverlayEl.__dashboardHierarchyNavBound = true;
+      dashStructureOverlayEl.addEventListener("click", function (e) {
+        if (e.target === dashStructureOverlayEl) closeStructurePanel();
+      });
+    }
+    if (dashStructureTreeEl && !dashStructureTreeEl.__dashboardHierarchyNavBound) {
+      dashStructureTreeEl.__dashboardHierarchyNavBound = true;
+      dashStructureTreeEl.addEventListener("click", function (e) {
+        var btn = e.target && e.target.closest ? e.target.closest(".dash-structure-toggle") : null;
+        if (btn) {
+          var node = btn.closest(".dash-structure-node");
+          if (!node) return;
+          var collapsed = node.classList.toggle("is-collapsed");
+          btn.setAttribute("aria-expanded", collapsed ? "false" : "true");
+          return;
+        }
+        var row = e.target && e.target.closest ? e.target.closest(".dash-structure-node-row[data-structure-path]") : null;
+        if (!row) return;
+        navigateToStructurePath(decodeStructurePath(row.getAttribute("data-structure-path")));
+      });
+    }
     if (dashSidebarSearchInputEl && !dashSidebarSearchInputEl.__dashboardHierarchyNavBound) {
       dashSidebarSearchInputEl.__dashboardHierarchyNavBound = true;
       dashSidebarSearchInputEl.addEventListener("input", function (e) {
