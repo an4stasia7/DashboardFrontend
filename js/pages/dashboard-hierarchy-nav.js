@@ -11,6 +11,7 @@
   var structureLoading = false;
   var structureError = "";
   var structureCache = null;
+  var structureHeadcount = null;
 
   function rememberChairmanCatalogId(value) {
     rememberedChairmanCatalogId = value != null ? String(value).trim() : "";
@@ -118,10 +119,10 @@
       : Promise.resolve({ ok: false, items: [], error: "Каталог ПСД недоступен" });
   }
 
-  function fetchKpiStructure() {
+  function fetchKpiStructure(options) {
     var fn = getContext().fetchKpiStructure;
     return typeof fn === "function"
-      ? fn()
+      ? fn(options || {})
       : Promise.resolve({ ok: false, structure: {}, error: "Структура недоступна" });
   }
 
@@ -741,6 +742,33 @@
     }
   }
 
+  function headcountForStructureName(name) {
+    var counts =
+      structureHeadcount &&
+      structureHeadcount.countsByDepartment &&
+      typeof structureHeadcount.countsByDepartment === "object"
+        ? structureHeadcount.countsByDepartment
+        : null;
+    if (!counts) return null;
+    var key = name != null ? String(name) : "";
+    if (!key || counts[key] == null) return null;
+    var value = parseInt(String(counts[key]), 10);
+    return isNaN(value) ? null : value;
+  }
+
+  function structureHeadcountWarningHtml() {
+    if (!structureHeadcount || typeof structureHeadcount !== "object") return "";
+    var quality = structureHeadcount.quality && typeof structureHeadcount.quality === "object" ? structureHeadcount.quality : {};
+    var warnings = Array.isArray(quality.warnings) ? quality.warnings : [];
+    if (!warnings.length) return "";
+    var first = warnings[0] || {};
+    var message =
+      first.code === "FIELD_NOT_AVAILABLE"
+        ? "Численность рассчитана по ветке подразделения: поле непосредственного руководителя не опубликовано в OData."
+        : first.message || first.code || "Численность рассчитана с ограничениями источника.";
+    return '<p class="dash-structure-warning">' + DashUi.escapeHtml(String(message)) + "</p>";
+  }
+
   function buildStructureListHtml(tree, parentPath) {
     var entries = tree && typeof tree === "object" && !Array.isArray(tree) ? Object.keys(tree) : [];
     if (!entries.length) return '<p class="dash-structure-state">Структура пуста.</p>';
@@ -753,6 +781,7 @@
           var hasChildren = hasStructureChildren(child);
           var current = isCurrentStructureNode(name);
           var clickable = canNavigateToStructurePath(path);
+          var headcount = headcountForStructureName(name);
           return (
             '<li class="dash-structure-node' + (hasChildren ? "" : " is-leaf") + '">' +
             '<div class="dash-structure-node-row' +
@@ -766,6 +795,11 @@
               : '<span class="dash-structure-toggle-placeholder" aria-hidden="true"></span>') +
             '<img class="dash-structure-node-icon" src="' + DashUi.escapeHtml(structureNodeIcon(name)) + '" alt="" aria-hidden="true" />' +
             '<span class="dash-structure-node-label">' + DashUi.escapeHtml(DashUi.capitalizeHeaderTitle(String(name))) + '</span>' +
+            (headcount !== null
+              ? '<span class="dash-structure-headcount" title="Работающие сотрудники">' +
+                DashUi.escapeHtml(String(headcount)) +
+                " чел.</span>"
+              : "") +
             "</div>" +
             (hasChildren ? buildStructureListHtml(child, path) : "") +
             "</li>"
@@ -787,7 +821,7 @@
       treeEl.innerHTML = '<p class="dash-structure-state">' + DashUi.escapeHtml(structureError) + "</p>";
       return;
     }
-    treeEl.innerHTML = buildStructureListHtml(structureCache || {});
+    treeEl.innerHTML = structureHeadcountWarningHtml() + buildStructureListHtml(structureCache || {});
   }
 
   function openStructurePanel() {
@@ -805,7 +839,7 @@
     structureLoading = true;
     structureError = "";
     renderStructureTree();
-    fetchKpiStructure().then(function (result) {
+    fetchKpiStructure({ includeHeadcount: true }).then(function (result) {
       structureLoading = false;
       if (!result || result.unauthorized) {
         structureError = "Требуется повторный вход.";
@@ -819,6 +853,7 @@
         return;
       }
       structureCache = result.structure || {};
+      structureHeadcount = result.headcount || null;
       renderStructureTree();
     });
   }

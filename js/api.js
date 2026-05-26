@@ -528,7 +528,7 @@
       });
   }
 
-  function fetchKpiStructure() {
+  function fetchKpiStructure(options) {
     var cfg = global.AppConfig || {};
     if (cfg.isMockApi && cfg.isMockApi()) {
       return Promise.resolve({ ok: false, skipped: true });
@@ -541,7 +541,11 @@
     if (!authHeaders.Authorization) {
       return Promise.resolve({ ok: false, error: "Нет токена авторизации" });
     }
+    options = options || {};
     var url = kpiStructureUrl();
+    if (options.includeHeadcount) {
+      url += (url.indexOf("?") === -1 ? "?" : "&") + "include_headcount=1";
+    }
     var headers = Object.assign({ Accept: "application/json" }, authHeaders);
     return jsonFetch(url, { method: "GET", headers: headers }, "GET /api/kpi/structure/")
       .then(function (res) {
@@ -549,6 +553,7 @@
         return {
           ok: true,
           structure: res.data && res.data.structure && typeof res.data.structure === "object" ? res.data.structure : {},
+          headcount: res.data && res.data.headcount && typeof res.data.headcount === "object" ? res.data.headcount : null,
           data: res.data,
         };
       });

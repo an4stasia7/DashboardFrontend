@@ -1156,6 +1156,17 @@
   font-size: 0.9rem;
 }
 
+.dash-structure-warning {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border: 1px solid rgba(251, 191, 36, 0.28);
+  border-radius: 10px;
+  background: rgba(251, 191, 36, 0.1);
+  color: rgba(254, 243, 199, 0.92);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
 .dash-structure-list {
   list-style: none;
   margin: 0;
@@ -1237,10 +1248,24 @@
 
 .dash-structure-node-label {
   min-width: 0;
+  flex: 1 1 auto;
   overflow-wrap: anywhere;
   font-size: 0.86rem;
   line-height: 1.25;
   font-weight: 620;
+}
+
+.dash-structure-headcount {
+  flex: 0 0 auto;
+  margin-left: auto;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(59, 130, 246, 0.2);
+  color: #dbeafe;
+  font-size: 0.74rem;
+  font-weight: 700;
+  line-height: 1.35;
+  white-space: nowrap;
 }
 
 .dash-structure-node.is-collapsed > .dash-structure-list {

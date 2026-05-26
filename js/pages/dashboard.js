@@ -376,11 +376,11 @@
           }
           return Api.fetchChairmanDashboardCatalog();
         },
-        fetchKpiStructure: function () {
+        fetchKpiStructure: function (options) {
           if (typeof Api === "undefined" || typeof Api.fetchKpiStructure !== "function") {
             return Promise.resolve({ ok: false, structure: {}, error: "Структура недоступна" });
           }
-          return Api.fetchKpiStructure();
+          return Api.fetchKpiStructure(options || {});
         },
         searchDepartments: function (query) {
           if (typeof Api === "undefined" || typeof Api.searchDepartments !== "function") {
