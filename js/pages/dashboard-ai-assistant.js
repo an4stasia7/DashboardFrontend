@@ -5,6 +5,7 @@
   var analysis = null;
   var rooms = [];
   var activeRoomId = "";
+  var currentRefs = null;
 
   function $(id) {
     return document.getElementById(id);
@@ -50,8 +51,12 @@
   function setBusy(nextBusy) {
     busy = !!nextBusy;
     if (els.input) els.input.disabled = busy;
-    if (els.send) els.send.disabled = busy;
-    if (els.send) els.send.textContent = busy ? "…" : "➜";
+    if (els.send) els.send.disabled = !busy && !String((els.input && els.input.value) || "").trim();
+    if (els.send) {
+      els.send.textContent = busy ? "■" : "➜";
+      els.send.classList.toggle("is-stop", busy);
+      els.send.setAttribute("aria-label", busy ? "Остановить генерацию" : "Отправить");
+    }
     if (els.open) {
       els.open.classList.toggle("is-working", busy);
       els.open.setAttribute("aria-busy", busy ? "true" : "false");
@@ -87,11 +92,17 @@
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       messages: [],
+      activeJobId: "",
+      jobSeq: -1,
     };
   }
 
   function activeRoom() {
     return rooms.filter(function (room) { return room.id === activeRoomId; })[0] || rooms[0] || null;
+  }
+
+  function findRoom(roomId) {
+    return rooms.filter(function (room) { return room.id === roomId; })[0] || null;
   }
 
   function saveRooms() {
@@ -182,8 +193,8 @@
     scrollToBottom();
   }
 
-  function addRoomMessage(role, content) {
-    var room = activeRoom();
+  function addRoomMessage(role, content, roomId) {
+    var room = roomId ? findRoom(roomId) : activeRoom();
     if (!room) return;
     room.messages = Array.isArray(room.messages) ? room.messages : [];
     room.messages.push({
@@ -210,16 +221,16 @@
   }
 
   function switchRoom(roomId) {
-    if (busy) return;
     if (!rooms.some(function (room) { return room.id === roomId; })) return;
     activeRoomId = roomId;
     saveRooms();
     renderRoomTabs();
     renderActiveRoom();
+    resumeActiveJob();
   }
 
   function deleteRoom(roomId) {
-    if (busy || rooms.length <= 1) return;
+    if (rooms.length <= 1) return;
     rooms = rooms.filter(function (room) { return room.id !== roomId; });
     if (activeRoomId === roomId) activeRoomId = rooms[0].id;
     saveRooms();
@@ -241,6 +252,34 @@
     if (els.timeline) els.timeline.innerHTML = "";
     if (els.events) els.events.innerHTML = "";
     updateProgressSummary("Анализирует... · 0 шагов · 0 проанализировано · 0 прочитано");
+  }
+
+  function markRoomJob(jobId, roomId) {
+    var room = roomId ? findRoom(roomId) : activeRoom();
+    if (!room || !jobId) return;
+    room.activeJobId = String(jobId);
+    if (room.jobSeq == null) room.jobSeq = -1;
+    room.updatedAt = new Date().toISOString();
+    saveRooms();
+  }
+
+  function updateRoomSeq(seq, roomId) {
+    var room = roomId ? findRoom(roomId) : activeRoom();
+    if (!room || seq == null) return;
+    var nextSeq = parseInt(String(seq), 10);
+    if (isNaN(nextSeq)) return;
+    room.jobSeq = Math.max(Number(room.jobSeq || -1), nextSeq);
+    room.updatedAt = new Date().toISOString();
+    saveRooms();
+  }
+
+  function clearRoomJob(roomId) {
+    var room = roomId ? findRoom(roomId) : activeRoom();
+    if (!room) return;
+    room.activeJobId = "";
+    room.jobSeq = -1;
+    room.updatedAt = new Date().toISOString();
+    saveRooms();
   }
 
   function updateProgressSummary(text) {
@@ -625,6 +664,15 @@
 
   function handleEvent(event, refs) {
     var type = event && event.type ? String(event.type) : "raw";
+    var roomId = refs && refs.roomId ? refs.roomId : activeRoomId;
+    var isVisibleRoom = !roomId || roomId === activeRoomId;
+    if (event && event.seq != null) updateRoomSeq(event.seq, roomId);
+    if (type === "job" && event.job_id) {
+      markRoomJob(event.job_id, roomId);
+      if (isVisibleRoom) addTechnical("Задача", "AI job " + event.job_id + " запущен на сервере");
+      return;
+    }
+    if (!isVisibleRoom && ["answer", "error", "cancelled", "done"].indexOf(type) === -1) return;
     if (type === "status") {
       var msg = event.message || "";
       addTimelineStep(msg, "active");
@@ -659,21 +707,41 @@
       if (analysis) analysis.completed = true;
       addTimelineStep("Сформировал ответ", "done");
       renderTimeline();
-      refs.answer = renderAssistantAnswer(event.content || "");
-      addRoomMessage("assistant", event.content || "");
+      if (isVisibleRoom) refs.answer = renderAssistantAnswer(event.content || "");
+      addRoomMessage("assistant", event.content || "", roomId);
+      clearRoomJob(roomId);
       setStatus("Готов", "");
       return;
     }
     if (type === "error") {
       if (refs.loading && refs.loading.parentNode) refs.loading.remove();
-      renderError(event.message || "Ошибка AI-ассистента");
-      addRoomMessage("error", event.message || "Ошибка AI-ассистента");
+      if (isVisibleRoom) renderError(event.message || "Ошибка AI-ассистента");
+      addRoomMessage("error", event.message || "Ошибка AI-ассистента", roomId);
       addTechnical("Ошибка", event.message || "");
+      clearRoomJob(roomId);
       setStatus("Ошибка", "error");
+      return;
+    }
+    if (type === "cancelled") {
+      if (refs.loading && refs.loading.parentNode) refs.loading.remove();
+      var cancelText = event.message || "Запрос остановлен пользователем";
+      if (isVisibleRoom) renderError(cancelText);
+      addRoomMessage("error", cancelText, roomId);
+      addTechnical("Остановлено", cancelText);
+      clearRoomJob(roomId);
+      setStatus("Остановлено", "");
       return;
     }
     if (type === "ready") {
       addTechnical("Соединение", event.message || "готово");
+      return;
+    }
+    if (type === "done") {
+      clearRoomJob(roomId);
+      return;
+    }
+    if (type === "stream_timeout") {
+      setStatus("Фоновая задача ещё работает", "busy");
       return;
     }
     if (type !== "done") {
@@ -681,9 +749,51 @@
     }
   }
 
+  function finishStreaming(result, refs) {
+    if (!result || !result.ok) {
+      if (refs.loading && refs.loading.parentNode) refs.loading.remove();
+      var errorText = (result && result.error) || "Не удалось получить ответ AI-ассистента";
+      if (!refs.roomId || refs.roomId === activeRoomId) renderError(errorText);
+      addRoomMessage("error", errorText, refs.roomId);
+      clearRoomJob(refs.roomId);
+      setStatus("Ошибка", "error");
+    }
+  }
+
+  function startJobStream(jobId, after, refs) {
+    if (!jobId || !window.Api || typeof window.Api.streamAssistantJob !== "function") return;
+    currentRefs = refs || currentRefs || { loading: appendLoadingCard(), answer: null, roomId: activeRoomId };
+    setBusy(true);
+    window.Api.streamAssistantJob(jobId, after, {
+      onEvent: function (event) {
+        handleEvent(event, currentRefs);
+      },
+    }).then(function (result) {
+      finishStreaming(result, currentRefs);
+    }).finally(function () {
+      var room = activeRoom();
+      setBusy(!!(room && room.activeJobId));
+      if (els.input) els.input.focus();
+    });
+  }
+
+  function resumeActiveJob() {
+    var room = activeRoom();
+    if (!room || !room.activeJobId || !window.Api || typeof window.Api.streamAssistantJob !== "function") {
+      return;
+    }
+    resetAnalysis();
+    currentRefs = { loading: appendLoadingCard(), answer: null, roomId: room.id };
+    startJobStream(room.activeJobId, room.jobSeq == null ? -1 : room.jobSeq, currentRefs);
+  }
+
   function submitMessage(evt) {
     evt.preventDefault();
-    if (busy || !els.input || !window.Api || typeof window.Api.sendAssistantMessageStream !== "function") return;
+    if (busy) {
+      stopActiveJob();
+      return;
+    }
+    if (!els.input || !window.Api || typeof window.Api.sendAssistantMessageStream !== "function") return;
     var message = String(els.input.value || "").trim();
     if (!message) return;
     els.input.value = "";
@@ -691,27 +801,36 @@
     appendUserMessage(message);
     addRoomMessage("user", message);
     resetAnalysis();
-    var refs = { loading: appendLoadingCard(), answer: null };
+    var refs = { loading: appendLoadingCard(), answer: null, roomId: activeRoomId };
+    currentRefs = refs;
     setBusy(true);
     var context = currentDashboardContext();
     var payload = {
       message: context ? message + "\n\nКонтекст страницы:\n" + context : message,
+      room_id: activeRoomId,
     };
     window.Api.sendAssistantMessageStream(payload, {
       onEvent: function (event) {
         handleEvent(event, refs);
       },
     }).then(function (result) {
-      if (!result || !result.ok) {
-        if (refs.loading && refs.loading.parentNode) refs.loading.remove();
-        var errorText = (result && result.error) || "Не удалось получить ответ AI-ассистента";
-        renderError(errorText);
-        addRoomMessage("error", errorText);
-        setStatus("Ошибка", "error");
-      }
+      finishStreaming(result, refs);
     }).finally(function () {
-      setBusy(false);
+      var room = activeRoom();
+      setBusy(!!(room && room.activeJobId));
       if (els.input) els.input.focus();
+    });
+  }
+
+  function stopActiveJob() {
+    var room = activeRoom();
+    if (!room || !room.activeJobId || !window.Api || typeof window.Api.stopAssistantJob !== "function") return;
+    setStatus("Останавливаю...", "busy");
+    window.Api.stopAssistantJob(room.activeJobId).then(function (result) {
+      if (!result || !result.ok) {
+        renderError((result && result.error) || "Не удалось остановить запрос");
+        setStatus("Ошибка остановки", "error");
+      }
     });
   }
 
@@ -719,7 +838,7 @@
     if (!els.input) return;
     els.input.style.height = "auto";
     els.input.style.height = Math.min(120, Math.max(44, els.input.scrollHeight)) + "px";
-    if (els.send) els.send.disabled = busy || !String(els.input.value || "").trim();
+    if (els.send) els.send.disabled = !busy && !String(els.input.value || "").trim();
   }
 
   function fillSuggestion(text) {
@@ -814,6 +933,7 @@
     loadRooms();
     renderRoomTabs();
     renderActiveRoom();
+    resumeActiveJob();
     els.open.addEventListener("click", openPanel);
     if (els.roomAdd) els.roomAdd.addEventListener("click", addNewRoom);
     if (els.close) els.close.addEventListener("click", closePanel);
