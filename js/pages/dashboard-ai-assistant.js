@@ -612,46 +612,13 @@
     var tableInfo = extractMarkdownTables(text);
     var files = extractFiles(text);
     var summary = splitSentences(tableInfo.textWithoutTables || text, 4) || "Агент проанализировал проект и подготовил ответ по найденной логике.";
-    var steps = extractSteps(tableInfo.textWithoutTables || text);
-    var badges = detectBadges(text);
     var tablesHtml = renderMarkdownTables(tableInfo.tables);
     var node = document.createElement("article");
     node.className = "ai-assistant-answer";
     node.innerHTML =
       renderCard("Краткий ответ", "<p>" + escapeHtml(summary) + "</p>") +
       (tablesHtml ? renderCard("Таблицы из ответа", tablesHtml) : "") +
-      renderCard("Где находится логика", renderFileRows(files)) +
-      renderCard(
-        "Как считается показатель",
-        '<ul class="ai-step-list">' +
-          steps.map(function (step) { return "<li>" + escapeHtml(step) + "</li>"; }).join("") +
-          "</ul>" +
-          '<div class="ai-formula">KPI = факт / план × 100%, если в конкретном модуле не задана другая формула.</div>'
-      ) +
-      renderCard(
-        "Источники данных",
-        '<div class="ai-badges">' +
-          badges.map(function (badge) { return '<span class="ai-badge">' + escapeHtml(badge) + "</span>"; }).join("") +
-          "</div>"
-      ) +
-      renderCard(
-        "Что можно проверить",
-        '<ul class="ai-check-list">' +
-          "<li>Проверить исходный документ или регистр 1C.</li>" +
-          "<li>Проверить идентификатор KPI и фильтр по роли.</li>" +
-          "<li>Проверить период: неделя, месяц или итого.</li>" +
-          "<li>Проверить API-ответ и данные на фронтенде.</li>" +
-          "</ul>"
-      ) +
-      renderCard("Использованные источники", renderFileRows(files)) +
-      '<div class="ai-quick-actions">' +
-      '<button type="button" data-ai-copy-answer>Скопировать ответ</button>' +
-      '<button type="button" data-ai-open-files>Открыть файлы</button>' +
-      '<button type="button" data-ai-prompt="Сформируй ТЗ на изменение расчёта">Сформировать ТЗ</button>' +
-      '<button type="button" data-ai-prompt="Объясни проще">Объяснить проще</button>' +
-      '<button type="button" data-ai-show-tech>Показать технически</button>' +
-      '<button type="button" data-ai-prompt="Создай задачу разработчику">Создать задачу разработчику</button>' +
-      "</div>";
+      renderCard("Где находится логика", renderFileRows(files));
     node.setAttribute("data-answer-text", text || "");
     els.stream.appendChild(node);
     if (shouldScroll !== false) scrollToBottom();
@@ -754,7 +721,7 @@
       return;
     }
     if (type === "stream_timeout") {
-      setStatus("Фоновая задача ещё работает", "busy");
+      scheduleJobReconnect(refs, "stream timeout");
       return;
     }
     if (type !== "done") {
@@ -762,8 +729,31 @@
     }
   }
 
+  function scheduleJobReconnect(refs, reason) {
+    refs = refs || currentRefs || {};
+    var room = refs.roomId ? findRoom(refs.roomId) : activeRoom();
+    if (!room || !room.activeJobId || !window.Api || typeof window.Api.streamAssistantJob !== "function") {
+      return false;
+    }
+    if (refs.reconnectTimer) return true;
+    refs.reconnectAttempts = (refs.reconnectAttempts || 0) + 1;
+    if (refs.reconnectAttempts > 8) {
+      return false;
+    }
+    setStatus("Дочитываю ответ фоновой задачи...", "busy");
+    addTechnical("Соединение", (reason || "stream завершился") + ", подключаюсь к job " + room.activeJobId);
+    refs.reconnectTimer = setTimeout(function () {
+      refs.reconnectTimer = null;
+      startJobStream(room.activeJobId, room.jobSeq == null ? -1 : room.jobSeq, refs);
+    }, Math.min(5000, 700 * refs.reconnectAttempts));
+    return true;
+  }
+
   function finishStreaming(result, refs) {
     if (!result || !result.ok) {
+      if (!(result && result.unauthorized) && scheduleJobReconnect(refs, "network error")) {
+        return;
+      }
       if (refs.loading && refs.loading.parentNode) refs.loading.remove();
       var errorText = (result && result.error) || "Не удалось получить ответ AI-ассистента";
       if (!refs.roomId || refs.roomId === activeRoomId) renderError(errorText);
@@ -785,6 +775,9 @@
       finishStreaming(result, currentRefs);
     }).finally(function () {
       var room = activeRoom();
+      if (room && room.activeJobId && currentRefs && currentRefs.roomId === room.id) {
+        scheduleJobReconnect(currentRefs, "stream закрыт до финального ответа");
+      }
       setBusy(!!(room && room.activeJobId));
       if (els.input) els.input.focus();
     });
