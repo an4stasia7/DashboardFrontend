@@ -23,6 +23,7 @@
     API_KPI_STRUCTURE_PATH: "/api/kpi/structure/",
     API_KPI_CHAIRMAN_CATALOG_PATH: "/api/kpi/chairman/for-catalog/",
     API_SEARCH_PATH: "/api/search/",
+    API_ASSISTANT_CHAT_PATH: "/api/assistant/chat/",
     /** Список пользователей для входа (GET без авторизации) */
     API_KPI_USERS_PATH: "/api/kpi/users/",
     AUTH_SCHEME: "Bearer ",

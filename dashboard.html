@@ -627,6 +627,68 @@
       </aside>
     </div>
 
+    <button type="button" class="ai-assistant-fab" id="ai-assistant-open" aria-controls="ai-assistant-overlay">
+      AI-ассистент
+    </button>
+
+    <div class="ai-assistant-overlay" id="ai-assistant-overlay" hidden>
+      <aside class="ai-assistant-panel" id="ai-assistant-panel" role="dialog" aria-modal="true" aria-labelledby="ai-assistant-title">
+        <div class="ai-assistant-head">
+          <div class="ai-assistant-brand">
+            <span class="ai-assistant-logo" aria-hidden="true">AI</span>
+            <div>
+              <h2 id="ai-assistant-title">AI-ассистент</h2>
+              <p>Анализирует репозиторий и логику дашбордов</p>
+            </div>
+          </div>
+          <div class="ai-assistant-head-actions">
+            <button type="button" class="ai-assistant-icon-btn" id="ai-assistant-wide" aria-label="Открыть широко">↗</button>
+            <button type="button" class="ai-assistant-close" id="ai-assistant-close" aria-label="Закрыть AI-ассистента">×</button>
+          </div>
+        </div>
+        <div class="ai-assistant-context" aria-label="Контекст AI-ассистента">
+          <span class="ai-pill">Проект: dash</span>
+          <span class="ai-pill">MCP</span>
+          <span class="ai-pill">Код проекта</span>
+          <span class="ai-pill ai-pill--status" id="ai-assistant-status-pill">Готов</span>
+        </div>
+        <div class="ai-assistant-rooms" aria-label="Окна общения с AI-ассистентом">
+          <div class="ai-assistant-room-tabs" id="ai-assistant-room-tabs" role="tablist"></div>
+          <button type="button" class="ai-assistant-room-add" id="ai-assistant-room-add" aria-label="Новая комната">+</button>
+        </div>
+        <div class="ai-assistant-stream" id="ai-assistant-stream" aria-live="polite">
+          <section class="ai-assistant-empty" id="ai-assistant-empty">
+            <h3>Чем помочь по дашборду?</h3>
+            <p>Я могу найти KPI в коде, объяснить расчёт, показать связанные файлы и подготовить задачу для разработчика.</p>
+            <div class="ai-assistant-suggestions">
+              <button type="button" data-ai-suggestion="Где считается эта плитка?">Где считается эта плитка?</button>
+              <button type="button" data-ai-suggestion="Почему показатель отличается от плана?">Почему показатель отличается от плана?</button>
+              <button type="button" data-ai-suggestion="Какие файлы отвечают за этот KPI?">Какие файлы отвечают за этот KPI?</button>
+              <button type="button" data-ai-suggestion="Сформируй ТЗ на изменение расчёта">Сформируй ТЗ на изменение расчёта</button>
+            </div>
+          </section>
+        </div>
+        <details class="ai-assistant-progress" id="ai-assistant-progress">
+          <summary>
+            <span id="ai-assistant-progress-summary">Ход анализа · готов к вопросу</span>
+            <span class="ai-assistant-progress-caret" aria-hidden="true"></span>
+          </summary>
+          <div class="ai-assistant-timeline" id="ai-assistant-timeline"></div>
+          <details class="ai-assistant-tech" id="ai-assistant-tech">
+            <summary>Показать технические детали</summary>
+            <div class="ai-assistant-events" id="ai-assistant-events" aria-live="polite"></div>
+          </details>
+        </details>
+        <form class="ai-assistant-form" id="ai-assistant-form">
+          <div class="ai-assistant-input-shell">
+            <button type="button" class="ai-assistant-attach" aria-label="Прикрепить контекст" disabled>+</button>
+            <textarea id="ai-assistant-input" rows="1" placeholder="Спросите, где находится логика KPI, какие файлы отвечают за плитку, как считается показатель…" required></textarea>
+            <button type="submit" id="ai-assistant-send" aria-label="Отправить" disabled>➜</button>
+          </div>
+        </form>
+      </aside>
+    </div>
+
     <dialog id="kpi-thresholds-dialog" class="kpi-thresholds-dialog" aria-labelledby="kpi-thresholds-dialog-title">
       <div class="kpi-thresholds-dialog-panel">
         <h2 id="kpi-thresholds-dialog-title" class="kpi-thresholds-dialog-title"></h2>
@@ -682,6 +744,7 @@
     <script src="js/pages/dashboard-charts.js"></script>
     <script src="js/pages/dashboard-chairman-overview.js"></script>
     <script src="js/pages/dashboard-support.js"></script>
+    <script src="js/pages/dashboard-ai-assistant.js"></script>
     <script src="js/pages/dashboard.js"></script>
   </body>
 </html>
