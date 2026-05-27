@@ -1518,7 +1518,7 @@
     return key.indexOf("PROTOCOL-OVERDUE") !== -1;
   }
 
-  var QUALDIR_DEFECT_TABLE_KEYS = ["QD-T-M1", "QD-T-M5"];
+  var QUALDIR_DEFECT_TABLE_KEYS = ["QD-T-M1", "QD-T-M5", "QD-T-M8"];
 
   function isQualdirDefectTableTabKey(tabKey) {
     var key = tabKey != null ? String(tabKey).trim().toUpperCase() : "";

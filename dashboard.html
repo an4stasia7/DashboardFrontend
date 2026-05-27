@@ -374,6 +374,16 @@
               >
                 Суды
               </button>
+              <button
+                type="button"
+                class="claims-table-switcher-btn"
+                data-claims-view="process"
+                role="tab"
+                aria-selected="false"
+                hidden
+              >
+                Процессные несоответствия
+              </button>
             </nav>
             <span class="table-title-help-wrap" id="claims-table-help-wrap">
               <button
@@ -460,6 +470,24 @@
                   <th id="lawsuits-table-total-sum">0,00</th>
                 </tr>
               </tfoot>
+            </table>
+          </div>
+          <div
+            class="dashboard-table-wrap dashboard-table-wrap--claims dashboard-table-wrap--qualdir-process"
+            data-claims-view="process"
+            hidden
+          >
+            <table id="table-qualdir-process" class="dashboard-table" aria-label="Процессные несоответствия">
+              <thead>
+                <tr>
+                  <th>Документ</th>
+                  <th>Объект несоответствия</th>
+                  <th>Вид несоответствия</th>
+                  <th>Подразделение</th>
+                  <th>Значимость</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
             </table>
           </div>
         </section>

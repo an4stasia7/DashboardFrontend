@@ -243,6 +243,7 @@
   var LOGISTICS_SUPPLIER_DZ_TABLE_KEY = "LOG-T-SUPPLIER-DZ";
   var QUALDIR_EXTERNAL_DEFECT_TABLE_KEY = "QD-T-M5";
   var QUALDIR_INTERNAL_DEFECT_TABLE_KEY = "QD-T-M1";
+  var QUALDIR_PROCESS_DEFECT_TABLE_KEY = "QD-T-M8";
   var QUALDIR_DEFECT_TABLE_HEADERS = [
     "Документ",
     "Объект несоответствия",
@@ -259,6 +260,7 @@
   ];
   var activeQualdirExternalTableKey = QUALDIR_EXTERNAL_DEFECT_TABLE_KEY;
   var activeQualdirInternalTableKey = QUALDIR_INTERNAL_DEFECT_TABLE_KEY;
+  var activeQualdirProcessTableKey = QUALDIR_PROCESS_DEFECT_TABLE_KEY;
   var DEPT_PROTOCOL_OVERDUE_TABLE_KEY = "DEPT-T-PROTOCOL-OVERDUE";
   var technicalTablesMode = false;
   var qualdirDefectTablesMode = false;
@@ -529,8 +531,12 @@
     return qualdirDefectTableKey(item) === String(activeQualdirInternalTableKey || QUALDIR_INTERNAL_DEFECT_TABLE_KEY).trim().toUpperCase();
   }
 
+  function isQualdirProcessDefectRow(item) {
+    return qualdirDefectTableKey(item) === String(activeQualdirProcessTableKey || QUALDIR_PROCESS_DEFECT_TABLE_KEY).trim().toUpperCase();
+  }
+
   function isQualdirDefectRow(item) {
-    return isQualdirExternalDefectRow(item) || isQualdirInternalDefectRow(item);
+    return isQualdirExternalDefectRow(item) || isQualdirInternalDefectRow(item) || isQualdirProcessDefectRow(item);
   }
 
   function removeQualdirTableFooter(table) {
@@ -599,11 +605,14 @@
   function setQualdirDefectTableMode(enabled) {
     var topTable = document.getElementById("table-top-deviations");
     var secondTable = document.getElementById("table-lawsuits");
+    var processTable = document.getElementById("table-qualdir-process");
     if (topTable) topTable.classList.toggle("dashboard-table--qualdir-defects", !!enabled);
     if (secondTable) secondTable.classList.toggle("dashboard-table--qualdir-defects", !!enabled);
+    if (processTable) processTable.classList.toggle("dashboard-table--qualdir-defects", !!enabled);
     if (enabled) {
       removeQualdirTableFooter(topTable);
       removeQualdirTableFooter(secondTable);
+      removeQualdirTableFooter(processTable);
     } else {
       restoreQualdirClaimsTableFooters();
       if (topTable && topTable.tFoot) {
@@ -1409,6 +1418,10 @@
       setTableHeaders(
         "table-lawsuits",
         getQualdirTableHeadersFromRows(rows, activeQualdirInternalTableKey)
+      );
+      setTableHeaders(
+        "table-qualdir-process",
+        getQualdirTableHeadersFromRows(rows, activeQualdirProcessTableKey)
       );
     } else if (hrdLateVacanciesTableMode) {
       setTableHeaders("table-top-deviations", HRD_LATE_VACANCIES_HEADERS);
@@ -2705,6 +2718,7 @@
       "#table-top-deviations",
       "#table-overdue-debt",
       "#table-lawsuits",
+      "#table-qualdir-process",
       "#table-protocol-overdue",
     ].forEach(destroyClaimsTableInstance);
   }
@@ -2782,9 +2796,14 @@
         options.qualdirInternalTableKey != null && String(options.qualdirInternalTableKey).trim() !== ""
           ? String(options.qualdirInternalTableKey).trim().toUpperCase()
           : QUALDIR_INTERNAL_DEFECT_TABLE_KEY;
+      activeQualdirProcessTableKey =
+        options.qualdirProcessTableKey != null && String(options.qualdirProcessTableKey).trim() !== ""
+          ? String(options.qualdirProcessTableKey).trim().toUpperCase()
+          : QUALDIR_PROCESS_DEFECT_TABLE_KEY;
     } else {
       activeQualdirExternalTableKey = QUALDIR_EXTERNAL_DEFECT_TABLE_KEY;
       activeQualdirInternalTableKey = QUALDIR_INTERNAL_DEFECT_TABLE_KEY;
+      activeQualdirProcessTableKey = QUALDIR_PROCESS_DEFECT_TABLE_KEY;
     }
     protocolOverdueTableMode =
       !!options.protocolOverdueTableMode ||
@@ -2826,6 +2845,7 @@
     if (qualdirDefectTablesMode) {
       renderQualdirDefectTableRows(rows, activeQualdirExternalTableKey, "table-top-deviations");
       renderQualdirDefectTableRows(rows, activeQualdirInternalTableKey, "table-lawsuits");
+      renderQualdirDefectTableRows(rows, activeQualdirProcessTableKey, "table-qualdir-process");
       initQualdirDefectDataTable(
         "#table-top-deviations",
         ".dashboard-table-wrap--claims",
@@ -2835,6 +2855,11 @@
         "#table-lawsuits",
         ".dashboard-table-wrap--lawsuits",
         "qualdir-internal-defect-table-advanced"
+      );
+      initQualdirDefectDataTable(
+        "#table-qualdir-process",
+        ".dashboard-table-wrap--qualdir-process",
+        "qualdir-process-defect-table-advanced"
       );
       syncProtocolOverduePanel(rows, options);
       return;

@@ -1973,6 +1973,34 @@
     return "";
   }
 
+  function updateQualdirClaimsTableSwitcherButtons(useQualdirDefectTables) {
+    if (!claimsTableSwitcherEl) return;
+    var buttons = claimsTableSwitcherEl.querySelectorAll(".claims-table-switcher-btn");
+    if (!buttons || !buttons.length) return;
+    var processBtn = claimsTableSwitcherEl.querySelector('[data-claims-view="process"]');
+    var showProcessTab = !!useQualdirDefectTables;
+    if (processBtn) {
+      if (showProcessTab) {
+        processBtn.hidden = false;
+        processBtn.removeAttribute("hidden");
+      } else {
+        processBtn.hidden = true;
+        processBtn.setAttribute("hidden", "");
+        if (activeClaimsTableView === "process") {
+          applyClaimsTableView("claims");
+        }
+      }
+    }
+    if (buttons.length >= 2) {
+      buttons[0].textContent = useQualdirDefectTables
+        ? "Внешний брак"
+        : buttons[0].getAttribute("data-default-label") || buttons[0].textContent;
+      buttons[1].textContent = useQualdirDefectTables
+        ? "Внутренний брак"
+        : buttons[1].getAttribute("data-default-label") || buttons[1].textContent;
+    }
+  }
+
   function isSupDepartmentContext(value) {
     var normalized = normalizeDashboardRole(value);
     return normalized === "sup" || normalized === "служба управления персоналом";
@@ -3146,21 +3174,18 @@
       }
     }
 
-    if (claimsTableSwitcherEl) {
+    updateQualdirClaimsTableSwitcherButtons(useQualdirDefectTables);
+    if (claimsTableSwitcherEl && !useQualdirDefectTables) {
       var switchButtons = claimsTableSwitcherEl.querySelectorAll(".claims-table-switcher-btn");
       if (switchButtons && switchButtons.length >= 2) {
-        switchButtons[0].textContent = useQualdirDefectTables
-          ? "Внешний брак"
-          : useOpdirProjectTables
+        switchButtons[0].textContent = useOpdirProjectTables
           ? useProductionDirectorProjectTables
             ? "Отклонения"
             : "Проекты"
           : useTechnicalTables
             ? "Внешний заказ"
             : "Претензии";
-        switchButtons[1].textContent = useQualdirDefectTables
-          ? "Внутренний брак"
-          : useOpdirProjectTables
+        switchButtons[1].textContent = useOpdirProjectTables
           ? useProductionDirectorProjectTables
             ? "Проекты улучшений"
             : "Проекты"
@@ -3224,7 +3249,7 @@
   }
 
   function applyClaimsTableView(view) {
-    var nextView = view === "lawsuits" ? "lawsuits" : "claims";
+    var nextView = view === "lawsuits" ? "lawsuits" : view === "process" ? "process" : "claims";
     activeClaimsTableView = nextView;
 
     var wrappers = document.querySelectorAll('[data-claims-view]');
@@ -3248,10 +3273,15 @@
         : !document.getElementById("claims-table-switcher").hidden;
       claimsTableTitleTextEl.hidden = switcherVisible;
       if (shouldUseQualdirDefectTables()) {
-        claimsTableTitleTextEl.textContent =
-          nextView === "lawsuits"
-            ? getApiTableTitleFromRows(lastApiTableRows, "QD-T-M1") || "Внутренний брак"
-            : getApiTableTitleFromRows(lastApiTableRows, "QD-T-M5") || "Внешний брак";
+        if (nextView === "lawsuits") {
+          claimsTableTitleTextEl.textContent =
+            getApiTableTitleFromRows(lastApiTableRows, "QD-T-M1") || "Внутренний брак";
+        } else if (nextView === "process") {
+          claimsTableTitleTextEl.textContent = "Процессные несоответствия";
+        } else {
+          claimsTableTitleTextEl.textContent =
+            getApiTableTitleFromRows(lastApiTableRows, "QD-T-M5") || "Внешний брак";
+        }
       }
     }
 
@@ -3320,6 +3350,7 @@
         qualdirDefectTablesMode: shouldUseQualdirDefectTables(),
         qualdirExternalTableKey: "QD-T-M5",
         qualdirInternalTableKey: "QD-T-M1",
+        qualdirProcessTableKey: "QD-T-M8",
       });
     }
   }
