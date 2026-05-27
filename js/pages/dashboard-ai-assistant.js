@@ -374,8 +374,19 @@
     if (shouldScroll !== false) scrollToBottom();
   }
 
+  function appendAssistantSpacerIfNeeded() {
+    if (!els.stream) return;
+    var last = els.stream.lastElementChild;
+    if (!last || !last.classList || !last.classList.contains("ai-chat-row--user")) return;
+    var spacer = document.createElement("div");
+    spacer.className = "ai-message-spacer";
+    spacer.setAttribute("aria-hidden", "true");
+    els.stream.appendChild(spacer);
+  }
+
   function appendLoadingCard() {
     hideEmpty();
+    appendAssistantSpacerIfNeeded();
     var node = document.createElement("div");
     node.className = "ai-loading-card";
     node.innerHTML =
@@ -597,6 +608,7 @@
 
   function renderAssistantAnswer(text, shouldScroll) {
     hideEmpty();
+    appendAssistantSpacerIfNeeded();
     var tableInfo = extractMarkdownTables(text);
     var files = extractFiles(text);
     var summary = splitSentences(tableInfo.textWithoutTables || text, 4) || "Агент проанализировал проект и подготовил ответ по найденной логике.";
@@ -648,6 +660,7 @@
 
   function renderError(message, shouldScroll) {
     hideEmpty();
+    appendAssistantSpacerIfNeeded();
     var node = document.createElement("div");
     node.className = "ai-error-card";
     node.innerHTML =

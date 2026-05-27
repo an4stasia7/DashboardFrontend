@@ -398,6 +398,13 @@
   margin-top: 24px;
 }
 
+.ai-message-spacer {
+  height: 28px;
+  min-height: 28px;
+  flex: 0 0 28px;
+  pointer-events: none;
+}
+
 .ai-assistant-stream > .ai-loading-card,
 .ai-assistant-stream > .ai-assistant-answer,
 .ai-assistant-stream > .ai-error-card {
