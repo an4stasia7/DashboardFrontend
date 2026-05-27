@@ -248,6 +248,14 @@
     "Объект несоответствия",
     "Вид несоответствия",
     "Подразделение",
+    "Значимость",
+  ];
+  var QUALDIR_SIGNIFICANCE_RAW_KEYS = [
+    "\u0417\u043d\u0430\u0447\u0438\u043c\u043e\u0441\u0442\u044c",
+    "\u0417\u043d\u0430\u0447\u0438\u043c\u0430\u044f \u0444\u043e\u0440\u043c\u0430",
+    "significant_form",
+    "is_significant_form",
+    "significance",
   ];
   var activeQualdirExternalTableKey = QUALDIR_EXTERNAL_DEFECT_TABLE_KEY;
   var activeQualdirInternalTableKey = QUALDIR_INTERNAL_DEFECT_TABLE_KEY;
@@ -461,6 +469,28 @@
     return TECHNICAL_TABLE_HEADERS.slice();
   }
 
+  function normalizeQualdirTableHeaders(columns) {
+    var headers = Array.isArray(columns)
+      ? columns.map(function (header) {
+          return tableTextOrDash(header);
+        })
+      : [];
+    if (!headers.length) return QUALDIR_DEFECT_TABLE_HEADERS.slice();
+    var hasSignificance = headers.some(function (header) {
+      return /значим/i.test(String(header || ""));
+    });
+    if (!hasSignificance) {
+      headers.push("Значимость");
+    }
+    if (headers.length > QUALDIR_DEFECT_TABLE_HEADERS.length) {
+      return headers.slice(0, QUALDIR_DEFECT_TABLE_HEADERS.length);
+    }
+    if (headers.length < QUALDIR_DEFECT_TABLE_HEADERS.length) {
+      return QUALDIR_DEFECT_TABLE_HEADERS.slice();
+    }
+    return headers;
+  }
+
   function getQualdirTableHeadersFromRows(rows, tableKey) {
     if (!Array.isArray(rows) || !rows.length) return QUALDIR_DEFECT_TABLE_HEADERS.slice();
     for (var i = 0; i < rows.length; i++) {
@@ -468,13 +498,23 @@
       if (!item || String(item.tableKey || "").trim().toUpperCase() !== String(tableKey || "").trim().toUpperCase()) {
         continue;
       }
-      if (Array.isArray(item.tableColumns) && item.tableColumns.length === QUALDIR_DEFECT_TABLE_HEADERS.length) {
-        return item.tableColumns.map(function (header) {
-          return tableTextOrDash(header);
-        });
+      if (Array.isArray(item.tableColumns) && item.tableColumns.length) {
+        return normalizeQualdirTableHeaders(item.tableColumns);
       }
     }
     return QUALDIR_DEFECT_TABLE_HEADERS.slice();
+  }
+
+  function formatQualdirSignificanceValue(raw) {
+    var value = pickTableField(raw, QUALDIR_SIGNIFICANCE_RAW_KEYS);
+    if (value == null || value === "") return "нет";
+    if (typeof value === "boolean") return value ? "да" : "нет";
+    var text = String(value).trim();
+    if (!text) return "нет";
+    var lower = text.toLowerCase();
+    if (lower === "true" || lower === "1" || lower === "yes" || lower === "да") return "да";
+    if (lower === "false" || lower === "0" || lower === "no" || lower === "нет") return "нет";
+    return tableTextOrDash(text);
   }
 
   function qualdirDefectTableKey(item) {
@@ -605,6 +645,10 @@
         value: pickTableField(raw, ["\u041f\u043e\u0434\u0440\u0430\u0437\u0434\u0435\u043b\u0435\u043d\u0438\u0435", "department", "dept"]),
         className: "dashboard-table-cell--medium-text",
       },
+      {
+        value: formatQualdirSignificanceValue(raw),
+        className: "dashboard-table-cell--short-text",
+      },
     ];
     cells.forEach(function (cell) {
       appendClampedCell(tr, cell.value, cell.className);
@@ -681,13 +725,15 @@
         { index: 1, label: "Объект несоответствия", type: "filter", searchType: "text" },
         { index: 2, label: "Вид несоответствия", type: "filter", searchType: "text" },
         { index: 3, label: "Подразделение", type: "filter", searchType: "text" },
+        { index: 4, label: "Значимость", type: "filter", searchType: "text" },
       ],
       initialOrder: [[0, "desc"]],
       columnDefs: [
-        { targets: 0, width: "26%" },
-        { targets: 1, width: "18%" },
-        { targets: 2, width: "38%" },
-        { targets: 3, width: "18%" },
+        { targets: 0, width: "24%" },
+        { targets: 1, width: "16%" },
+        { targets: 2, width: "34%" },
+        { targets: 3, width: "16%" },
+        { targets: 4, width: "10%" },
         { targets: "_all", orderable: false },
       ],
       afterInit: function (api) {
