@@ -3,18 +3,35 @@
     "OD-M1": {
       backDeptAmounts: true,
     },
-    /** QD-M5: факт и количество по направлениям ОТК-1 / ОТК-2 из last_full_month_row.departments. */
+    /** QD-M5: plan/fact на лице; ОТК-1 / ОТК-2 на обороте (`defect_direction_departments`). */
     "QD-M5": {
-      defectDirectionsOverview: true,
-      hideKpiPercent: true,
       allowPartialPlanFact: true,
+      hidePlanOnTile: true,
+      hideKpiPercent: true,
+      periodLabelPrefix: "Период",
+      qualdirControlOverview: {
+        ariaLabel: "Формы",
+        rows: [
+          { label: "Всего форм", field: "plan", useUnits: true },
+          { label: "Значимые формы", field: "fact", useUnits: true },
+        ],
+      },
+      backDefectDirections: true,
     },
-    /** QD-M1 (qualdir): как обычная плитка (факт + спарклайн), без плана; оборот — `departments`. */
+    /** QD-M1: plan = всего форм, fact = значимые формы; оборот — `departments`. */
     "QD-M1": {
       allowPartialPlanFact: true,
       hidePlanOnTile: true,
       hideKpiPercent: true,
       backArticlesDeptCount: true,
+      periodLabelPrefix: "Период",
+      qualdirControlOverview: {
+        ariaLabel: "Формы",
+        rows: [
+          { label: "Всего форм", field: "plan", useUnits: true },
+          { label: "Значимые формы", field: "fact", useUnits: true },
+        ],
+      },
     },
     /** QD-M8: plan = всего форм, fact = значимые формы; оборот — `departments`. */
     "QD-M8": {

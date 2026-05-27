@@ -151,6 +151,11 @@
     return !!(rule && rule.backArticlesDeptCount);
   }
 
+  function shouldRenderKpiTileBackDefectDirections(tile) {
+    var rule = getKpiTileException(tile);
+    return !!(rule && rule.backDefectDirections);
+  }
+
   function buildKpiTileHelpButtonHtml() {
     return (
       '<button type="button" class="kpi-tile-help" aria-label="Справка: формула и цветовые пороги показателя" aria-haspopup="dialog" aria-controls="kpi-thresholds-dialog">' +
@@ -1268,6 +1273,30 @@
     return row.plan != null || row.fact != null;
   }
 
+  /** Оборот QD-M5: ОТК-1 / ОТК-2 из `defect_direction_departments`. */
+  function buildKpiTileDefectDirectionsBackHtml(tile) {
+    var breakdown = buildKpiTileBreakdownRows(tile);
+    var units = resolveKpiTileDisplayUnits(tile) || "шт.";
+    if (!breakdown.length) {
+      return '<div class="kpi-tile-back-message">Нет данных по направлениям ОТК.</div>';
+    }
+    return (
+      '<div class="kpi-tile-articles-list kpi-tile-articles-list--dept-count" role="list">' +
+      breakdown
+        .map(function (item) {
+          var line = item.label + " - " + formatKpiTileMetricValue(item.value, units);
+          return (
+            '<div class="kpi-tile-article-row kpi-tile-article-row--dept-count" role="listitem">' +
+            '<span class="kpi-tile-article-row-line">' +
+            DashUi.escapeHtml(line) +
+            "</span></div>"
+          );
+        })
+        .join("") +
+      "</div>"
+    );
+  }
+
   /** Оборот QD-M1: «Подразделение - кол-во» из API `departments`. */
   function buildKpiTileArticlesDeptCountHtml(tile) {
     var list = tile && Array.isArray(tile.departments) ? tile.departments : [];
@@ -1546,6 +1575,26 @@
         '<div class="kpi-tile-back-section kpi-tile-back-section--dual">' +
         '<div class="kpi-tile-back-section-title">Отгрузки за период</div>' +
         buildKpiTileYearCompareAmountsHtml(tile) +
+        "</div>" +
+        (hint ? '<p class="kpi-tile-back-hint">' + DashUi.escapeHtml(hint) + "</p>" : "")
+      );
+    }
+    if (shouldRenderKpiTileBackDefectDirections(tile)) {
+      return (
+        '<div class="kpi-tile-back-head">' +
+        '<div class="kpi-tile-back-head-copy">' +
+        (code ? '<span class="kpi-tile-back-badge">' + DashUi.escapeHtml(code) + "</span>" : "") +
+        '<h3 class="kpi-tile-back-title">' +
+        DashUi.escapeHtml(tile && tile.title ? tile.title : "Показатель") +
+        "</h3>" +
+        (period ? '<p class="kpi-tile-back-period">' + DashUi.escapeHtml(period) + "</p>" : "") +
+        "</div>" +
+        '<div class="kpi-tile-back-head-actions">' +
+        '<button type="button" class="kpi-tile-flip-action" aria-label="Вернуться к карточке">Назад</button>' +
+        "</div></div>" +
+        '<div class="kpi-tile-back-section kpi-tile-back-section--dual">' +
+        '<div class="kpi-tile-back-section-title">По направлениям ОТК</div>' +
+        buildKpiTileDefectDirectionsBackHtml(tile) +
         "</div>" +
         (hint ? '<p class="kpi-tile-back-hint">' + DashUi.escapeHtml(hint) + "</p>" : "")
       );
