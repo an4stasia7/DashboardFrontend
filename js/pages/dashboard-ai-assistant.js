@@ -94,6 +94,7 @@
       messages: [],
       activeJobId: "",
       jobSeq: -1,
+      analysisState: null,
     };
   }
 
@@ -167,6 +168,62 @@
     updateProgressSummary("Ход анализа · готов к вопросу");
   }
 
+  function clearPersistedAnalysis(roomId) {
+    var room = roomId ? findRoom(roomId) : activeRoom();
+    if (!room) return;
+    room.analysisState = null;
+    saveRooms();
+  }
+
+  function cloneAnalysisState() {
+    if (!analysis) return null;
+    return {
+      steps: (analysis.steps || []).slice(-30),
+      files: (analysis.files || []).slice(-80),
+      readFiles: (analysis.readFiles || []).slice(-80),
+      analyzedItems: (analysis.analyzedItems || []).slice(-120),
+      tools: (analysis.tools || []).slice(-80),
+      technical: (analysis.technical || []).slice(-120),
+      currentTool: analysis.currentTool || "",
+      completed: !!analysis.completed,
+    };
+  }
+
+  function persistAnalysisState(roomId) {
+    var room = roomId ? findRoom(roomId) : activeRoom();
+    if (!room || !analysis) return;
+    room.analysisState = cloneAnalysisState();
+    room.updatedAt = new Date().toISOString();
+    saveRooms();
+  }
+
+  function restoreAnalysisState(room) {
+    if (!room || !room.analysisState) {
+      clearProgress();
+      return;
+    }
+    analysis = Object.assign({
+      steps: [],
+      files: [],
+      readFiles: [],
+      analyzedItems: [],
+      tools: [],
+      technical: [],
+      currentTool: "",
+      completed: false,
+    }, room.analysisState || {});
+    if (els.timeline) els.timeline.innerHTML = "";
+    if (els.events) els.events.innerHTML = "";
+    (analysis.technical || []).slice(-60).forEach(function (item) {
+      if (!els.events) return;
+      var node = document.createElement("p");
+      node.className = "ai-assistant-event";
+      node.innerHTML = "<strong>" + escapeHtml(item.label || "Событие") + ":</strong> " + escapeHtml(item.text || "");
+      els.events.appendChild(node);
+    });
+    renderTimeline();
+  }
+
   function renderActiveRoom() {
     if (!els.stream) return;
     var room = activeRoom();
@@ -177,6 +234,7 @@
         els.stream.appendChild(els.empty);
       }
       clearProgress();
+      clearPersistedAnalysis(room && room.id);
       return;
     }
     if (els.empty) els.empty.hidden = true;
@@ -189,7 +247,7 @@
         renderError(message.content, false);
       }
     });
-    clearProgress();
+    restoreAnalysisState(room);
     scrollToBottom();
   }
 
@@ -252,6 +310,7 @@
     if (els.timeline) els.timeline.innerHTML = "";
     if (els.events) els.events.innerHTML = "";
     updateProgressSummary("Анализирует... · 0 шагов · 0 проанализировано · 0 прочитано");
+    persistAnalysisState();
   }
 
   function markRoomJob(jobId, roomId) {
@@ -306,11 +365,13 @@
       analysis.steps.push({ text: text, status: status || "done" });
     }
     renderTimeline();
+    persistAnalysisState();
   }
 
   function addTechnical(label, text) {
     if (!analysis) resetAnalysis();
     analysis.technical.push({ label: label, text: text });
+    persistAnalysisState();
     if (!els.events) return;
     var node = document.createElement("p");
     node.className = "ai-assistant-event";
@@ -323,6 +384,7 @@
     if (!analysis || !path) return;
     var clean = String(path).replace(/\s+\(сохранён в \.agentTurbo\)$/i, "");
     if (analysis.files.indexOf(clean) === -1) analysis.files.push(clean);
+    persistAnalysisState();
   }
 
   function rememberProgressFile(path) {
@@ -337,6 +399,7 @@
     if (analysisTools.indexOf(analysis.currentTool) !== -1 && analysis.analyzedItems.indexOf(clean) === -1) {
       analysis.analyzedItems.push(clean);
     }
+    persistAnalysisState();
   }
 
   function renderTimeline() {
@@ -401,6 +464,40 @@
     els.stream.appendChild(node);
     scrollToBottom();
     return node;
+  }
+
+  function appendWorkCard(refs) {
+    hideEmpty();
+    appendAssistantSpacerIfNeeded();
+    var node = document.createElement("section");
+    node.className = "ai-work-card";
+    node.innerHTML =
+      '<div class="ai-work-card__head">' +
+      '<span class="ai-work-dot"></span>' +
+      '<span>Ход работы агента</span>' +
+      "</div>" +
+      '<div class="ai-work-card__items"></div>';
+    els.stream.appendChild(node);
+    if (refs) refs.work = node;
+    scrollToBottom();
+    return node;
+  }
+
+  function appendWorkItem(text, refs) {
+    if (!text) return;
+    refs = refs || currentRefs || {};
+    var node = refs.work;
+    if (!node || !node.parentNode) node = appendWorkCard(refs);
+    var list = node.querySelector(".ai-work-card__items");
+    if (!list) return;
+    var item = document.createElement("div");
+    item.className = "ai-work-item";
+    item.textContent = text;
+    list.appendChild(item);
+    while (list.children.length > 8) {
+      list.removeChild(list.firstElementChild);
+    }
+    scrollToBottom();
   }
 
   function stripMarkdown(text) {
@@ -653,6 +750,11 @@
       return;
     }
     if (!isVisibleRoom && ["answer", "error", "cancelled", "done"].indexOf(type) === -1) return;
+    if (type === "progress") {
+      appendWorkItem(event.message || event.content || "", refs);
+      addTechnical("Ход работы", event.message || event.content || "");
+      return;
+    }
     if (type === "status") {
       var msg = event.message || "";
       addTimelineStep(msg, "active");
@@ -670,6 +772,7 @@
         var analyzedKey = "tool:" + analysis.currentTool + ":" + analysis.tools.length;
         if (analysis.analyzedItems.indexOf(analyzedKey) === -1) analysis.analyzedItems.push(analyzedKey);
       }
+      persistAnalysisState(roomId);
       addTimelineStep("MCP: " + (event.name || "tool"), "done");
       addTechnical("MCP", event.name || "tool");
       renderTimeline();
@@ -685,6 +788,7 @@
     if (type === "answer") {
       if (refs.loading && refs.loading.parentNode) refs.loading.remove();
       if (analysis) analysis.completed = true;
+      persistAnalysisState(roomId);
       addTimelineStep("Сформировал ответ", "done");
       renderTimeline();
       if (isVisibleRoom) refs.answer = renderAssistantAnswer(event.content || "");
