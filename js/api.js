@@ -1341,9 +1341,6 @@
       if (!point) return;
       if (point.plan !== undefined) tile.plan = point.plan;
       if (point.fact !== undefined) tile.fact = point.fact;
-      else if (String(tile.kpi_id || "").trim().toUpperCase() === "QD-M8") {
-        tile.fact = null;
-      }
       if (typeof point.kpi_pct === "number" && !isNaN(point.kpi_pct) && !isQualdirPieceCountKpiId(tile.kpi_id)) {
         tile.percent = point.kpi_pct;
         tile.kpi_pct = point.kpi_pct;

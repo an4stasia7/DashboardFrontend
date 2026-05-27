@@ -202,18 +202,28 @@
     var hidePlanOnTile = shouldHidePlanOnTile(tile);
     var isKpiPctOnly = !!(rule && rule.kpiPctOnly);
     var generatedFlag = tile.has_data === false ? buildKpiTileGeneratedFlagHtml() : "";
+    var periodPrefix =
+      rule && rule.periodLabelPrefix != null && String(rule.periodLabelPrefix).trim()
+        ? String(rule.periodLabelPrefix).trim() + ": "
+        : isFactOnly || hidePlanOnTile
+          ? "Факт: "
+          : isKpiPctOnly
+            ? "KPI: "
+            : "План/факт: ";
+    var periodTitle =
+      rule && rule.periodLabelPrefix != null && String(rule.periodLabelPrefix).trim()
+        ? "Период показателя"
+        : isFactOnly || hidePlanOnTile
+          ? "Период факта"
+          : isKpiPctOnly
+            ? "Период показателя KPI"
+            : KPI_TILE_TITLE_PLAN_FACT_PERIOD;
     var periodExtra =
       (hasPf || isFactOnly || hidePlanOnTile || isKpiPctOnly) && pfPeriod
         ? '<span class="kpi-tile-plan-fact-period" title="' +
-          DashUi.escapeHtml(
-            isFactOnly || hidePlanOnTile
-              ? "Период факта"
-              : isKpiPctOnly
-                ? "Период показателя KPI"
-                : KPI_TILE_TITLE_PLAN_FACT_PERIOD
-          ) +
+          DashUi.escapeHtml(periodTitle) +
           '">' +
-          (isFactOnly || hidePlanOnTile ? "Факт: " : isKpiPctOnly ? "KPI: " : "План/факт: ") +
+          DashUi.escapeHtml(periodPrefix) +
           DashUi.escapeHtml(pfPeriod) +
           "</span>"
         : "";
@@ -909,6 +919,8 @@
         if (value === undefined) return;
       } else if (row.field === "fact") {
         value = tile && tile.fact;
+      } else if (row.field === "plan") {
+        value = tile && tile.plan;
       } else {
         value = tile && tile[row.field];
       }

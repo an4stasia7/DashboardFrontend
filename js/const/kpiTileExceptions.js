@@ -16,12 +16,20 @@
       hideKpiPercent: true,
       backArticlesDeptCount: true,
     },
-    /** QD-M8: как QD-M1 (главное значение + спарклайн; при отсутствии fact — plan; оборот `departments`). */
+    /** QD-M8: plan = всего форм, fact = значимые формы; оборот — `departments`. */
     "QD-M8": {
       allowPartialPlanFact: true,
       hidePlanOnTile: true,
       hideKpiPercent: true,
       backArticlesDeptCount: true,
+      periodLabelPrefix: "Период",
+      qualdirControlOverview: {
+        ariaLabel: "Формы",
+        rows: [
+          { label: "Всего форм", field: "plan", useUnits: true },
+          { label: "Значимые формы", field: "fact", useUnits: true },
+        ],
+      },
     },
     /** QD-M6: входной контроль — документы, оставания, на сегодня (последний полный месяц). */
     "QD-M6": {
