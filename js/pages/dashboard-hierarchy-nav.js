@@ -535,8 +535,19 @@
         rememberChairmanCatalogId(t.catalogId);
         setSelectedViewId(t.id);
         setViewContextUser(t.user || sessionUser);
-        var effDept = sessionUser && sessionUser.department != null ? String(sessionUser.department).trim() : "";
-        setHierarchyStack(effDept ? [effDept] : []);
+        var catalogDept =
+          t.viewDepartment != null && String(t.viewDepartment).trim()
+            ? String(t.viewDepartment).trim()
+            : t.department != null && String(t.department).trim()
+              ? String(t.department).trim()
+              : "";
+        if (catalogDept) {
+          setHierarchyStack([catalogDept]);
+        } else {
+          var effDept =
+            sessionUser && sessionUser.department != null ? String(sessionUser.department).trim() : "";
+          setHierarchyStack(effDept ? [effDept] : []);
+        }
         if (getSessionApiMode() === "mock") {
           renderChairmanDashboardTabs();
           renderViewTabs();
@@ -1257,15 +1268,34 @@
       btn.addEventListener("click", function () {
         if (!isChairmanTarget(t) && getSelectedViewId() === t.id) return;
         setSelectedViewId(t.id);
-        setViewContextUser(t.user);
+        setViewContextUser(t.user || sessionUser);
         if (t.id === "self") {
           if (sessionUser && sessionUser.department) {
             setHierarchyStack([String(sessionUser.department).trim()]);
           } else {
             setHierarchyStack([]);
           }
+        } else if (isChairmanTarget(t)) {
+          var catalogDept =
+            t.viewDepartment != null && String(t.viewDepartment).trim()
+              ? String(t.viewDepartment).trim()
+              : t.department != null && String(t.department).trim()
+                ? String(t.department).trim()
+                : "";
+          setHierarchyStack(catalogDept ? [catalogDept] : []);
+          if (t.catalogId != null) rememberChairmanCatalogId(t.catalogId);
         } else {
-          setHierarchyStack(getHierarchyStack().concat([t.department]));
+          var deptName =
+            t.viewDepartment != null && String(t.viewDepartment).trim()
+              ? String(t.viewDepartment).trim()
+              : t.department != null && String(t.department).trim()
+                ? String(t.department).trim()
+                : "";
+          if (!deptName) return;
+          var stack = getHierarchyStack().slice();
+          if (!stack.length || stack[stack.length - 1] !== deptName) {
+            setHierarchyStack(stack.concat([deptName]));
+          }
         }
         if (getSessionApiMode() === "mock") {
           inner.querySelectorAll(".dash-view-tab").forEach(function (b) {
@@ -1370,6 +1400,7 @@
     clearSidebarSearchState: clearSidebarSearchState,
     filterSidebarViewTabs: filterSidebarViewTabs,
     getActiveChairmanCatalogId: getActiveChairmanCatalogId,
+    getActiveChairmanCatalogTarget: getActiveChairmanCatalogTarget,
     getCurrentViewTarget: getCurrentViewTarget,
     getDepartmentForCurrentKpiContext: getDepartmentForCurrentKpiContext,
     init: init,

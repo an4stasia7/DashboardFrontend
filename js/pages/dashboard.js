@@ -449,21 +449,13 @@
         onUnauthorized: handleUnauthorized,
         pushDashboardDebugNote: pushDashboardDebugNote,
         fetchKpis: function (opts) {
-          var nextOpts = attachActivePeriodToRequestOptions(opts);
-          var chairmanFor = getChairmanDashboardCatalogId();
-          if (chairmanFor && isChairmanRootHierarchy()) {
-            nextOpts.for = chairmanFor;
-          }
-          return Api.fetchKpis(nextOpts);
+          return Api.fetchKpis(attachChairmanCatalogForIfNeeded(opts));
         },
         fetchKpiAll: function (opts) {
-          var nextOpts = attachActivePeriodToRequestOptions(opts);
-          var chairmanFor = getChairmanDashboardCatalogId();
-          if (chairmanFor && isChairmanRootHierarchy()) {
-            nextOpts.for = chairmanFor;
-          }
-          return Api.fetchKpiAll(nextOpts);
+          return Api.fetchKpiAll(attachActivePeriodToRequestOptions(opts || {}));
         },
+        getActiveChairmanCatalogTarget: getActiveChairmanCatalogTarget,
+        shouldUseChairmanAggregatedTiles: shouldUseChairmanAggregatedTiles,
         getSessionApiMode: function () {
           return session.apiMode;
         },
@@ -537,9 +529,19 @@
         if (!target) return;
         selectedViewId = target.id || "self";
         viewContextUser = target.user || sessionUser;
-        var selfDeptRaw =
-          sessionUser && sessionUser.department != null ? String(sessionUser.department).trim() : "";
-        hierarchyStack = selfDeptRaw ? [selfDeptRaw] : [];
+        var viewDeptRaw =
+          target.viewDepartment != null && String(target.viewDepartment).trim()
+            ? String(target.viewDepartment).trim()
+            : target.department != null && String(target.department).trim()
+              ? String(target.department).trim()
+              : "";
+        if (viewDeptRaw) {
+          hierarchyStack = [viewDeptRaw];
+        } else {
+          var selfDeptRaw =
+            sessionUser && sessionUser.department != null ? String(sessionUser.department).trim() : "";
+          hierarchyStack = selfDeptRaw ? [selfDeptRaw] : [];
+        }
         if (
           typeof DashboardHierarchyNav !== "undefined" &&
           DashboardHierarchyNav &&
@@ -802,6 +804,30 @@
 
   function isChairmanRootHierarchy() {
     return Array.isArray(hierarchyStack) && hierarchyStack.length <= 1;
+  }
+
+  function getActiveChairmanCatalogTarget() {
+    return callHierarchyNav("getActiveChairmanCatalogTarget", [], null);
+  }
+
+  function isViewingChairmanCatalogDashboard() {
+    var sid = selectedViewId != null ? String(selectedViewId) : "";
+    return sid.indexOf("chairman:") === 0;
+  }
+
+  function shouldUseChairmanAggregatedTiles() {
+    return isBoardChairUser(sessionUser) && selectedViewId === "self";
+  }
+
+  function attachChairmanCatalogForIfNeeded(opts) {
+    var nextOpts = attachActivePeriodToRequestOptions(opts || {});
+    if (!isBoardChairUser(sessionUser) || !isChairmanRootHierarchy()) return nextOpts;
+    var chairmanFor = getChairmanDashboardCatalogId();
+    if (!chairmanFor || chairmanFor === "my_dashboard") return nextOpts;
+    if (selectedViewId === "self" || isViewingChairmanCatalogDashboard()) {
+      nextOpts.for = chairmanFor;
+    }
+    return nextOpts;
   }
 
   function isVirtualChairmanCatalog(catalogId) {
@@ -1940,7 +1966,6 @@
   }
 
   function shouldUseQualdirDefectTables() {
-    if (selectedViewId !== "self") return false;
     if (shouldUseTechnicalDeviationTables()) return false;
     var currentDepartment = getDepartmentForCurrentKpiContext();
     if (

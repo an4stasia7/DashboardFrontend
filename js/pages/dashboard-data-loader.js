@@ -36,6 +36,21 @@
     );
   }
 
+  function shouldUseChairmanAggregatedTiles() {
+    var fn = getContext().shouldUseChairmanAggregatedTiles;
+    return typeof fn === "function" ? !!fn() : false;
+  }
+
+  function getActiveChairmanCatalogTarget() {
+    var fn = getContext().getActiveChairmanCatalogTarget;
+    return typeof fn === "function" ? fn() : null;
+  }
+
+  function isViewingChairmanCatalogDashboard() {
+    var sid = getSelectedViewId() != null ? String(getSelectedViewId()) : "";
+    return sid.indexOf("chairman:") === 0;
+  }
+
   function getChairmanDashboardCatalogId() {
     var fn = getContext().getChairmanDashboardCatalogId;
     return typeof fn === "function" ? fn() : "";
@@ -355,7 +370,7 @@
     if (result.ok && result.tiles && result.tiles.length > 0) {
       var tilesToRender = result.tiles;
       if (
-        isChairmanViewContext() &&
+        shouldUseChairmanAggregatedTiles() &&
         typeof getContext().getChairmanAggregatedTilesFromRaw === "function"
       ) {
         var aggregated = getContext().getChairmanAggregatedTilesFromRaw(result.data || result.raw || null);
@@ -432,6 +447,31 @@
         pushDashboardDebugNote("UI (mock)", "Подчинённый вид — запросы KPI не выполняются");
         fallback();
         return;
+      }
+      if (isViewingChairmanCatalogDashboard()) {
+        var catalogTarget = getActiveChairmanCatalogTarget();
+        var catalogId =
+          catalogTarget && catalogTarget.catalogId != null ? String(catalogTarget.catalogId).trim() : "";
+        if (catalogId && catalogId !== "my_dashboard") {
+          var catalogOpts = { for: catalogId };
+          var catalogDept =
+            catalogTarget.viewDepartment != null && String(catalogTarget.viewDepartment).trim()
+              ? String(catalogTarget.viewDepartment).trim()
+              : catalogTarget.department != null && String(catalogTarget.department).trim()
+                ? String(catalogTarget.department).trim()
+                : "";
+          if (catalogDept) catalogOpts.department = catalogDept;
+          if (periodOpts.month != null) catalogOpts.month = periodOpts.month;
+          if (periodOpts.year != null) catalogOpts.year = periodOpts.year;
+          fetchKpis(catalogOpts)
+            .then(function (result) {
+              applyApiResult(result);
+            })
+            .catch(function () {
+              fallback();
+            });
+          return;
+        }
       }
       var subDept = getDepartmentForCurrentKpiContext();
       if (subDept) {
