@@ -591,38 +591,30 @@
         getLastKpiResponseDepartment() && String(getLastKpiResponseDepartment()).trim()
           ? String(getLastKpiResponseDepartment()).trim()
           : "";
-      var raw;
-      if (lastDep) {
-        raw = lastDep;
-      } else if (isBoardChairUser(sessionUser)) {
-        /* У ПСД в role с API часто логин (User5); для шапки — подразделение / должность */
-        var suDept =
-          sessionUser && sessionUser.department != null ? String(sessionUser.department).trim() : "";
-        var vcDept =
-          viewContextUser && viewContextUser.department != null
-            ? String(viewContextUser.department).trim()
-            : "";
-        var vcRole =
-          viewContextUser && viewContextUser.role != null ? String(viewContextUser.role).trim() : "";
-        raw = suDept || vcDept || vcRole || "—";
-      } else {
-        raw =
-          viewContextUser && viewContextUser.role != null
-            ? String(viewContextUser.role).trim()
-            : "—";
-      }
+      var suDept =
+        sessionUser && sessionUser.department != null ? String(sessionUser.department).trim() : "";
+      var vcDept =
+        viewContextUser && viewContextUser.department != null
+          ? String(viewContextUser.department).trim()
+          : "";
+      var vcRole =
+        viewContextUser && viewContextUser.role != null ? String(viewContextUser.role).trim() : "";
+      /* В role с API часто логин (User5); в шапке — подразделение сразу после входа */
+      var raw = lastDep || suDept || vcDept || vcRole || "—";
       titleEl.textContent = DashUi.capitalizeHeaderTitle(raw);
     }
     var elHint = document.getElementById("dash-user-hint");
     if (!elHint) return;
     elHint.removeAttribute("title");
     if (selectedViewId === "self") {
-      var hint = sessionUser && sessionUser.nickname ? sessionUser.nickname : "";
-      if (sessionUser && sessionUser.department) {
-        var depSelf = DashUi.capitalizeHeaderTitle(String(sessionUser.department).trim());
-        hint = hint ? hint + " · " + depSelf : depSelf;
-      }
-      elHint.textContent = hint || "—";
+      var depHint =
+        sessionUser && sessionUser.department != null && String(sessionUser.department).trim()
+          ? DashUi.capitalizeHeaderTitle(String(sessionUser.department).trim())
+          : "";
+      elHint.textContent =
+        depHint ||
+        (sessionUser && sessionUser.nickname ? String(sessionUser.nickname).trim() : "") ||
+        "—";
     } else {
       var viewLabel = "";
       if (hierarchyStack.length > 0) {

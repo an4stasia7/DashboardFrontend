@@ -524,8 +524,17 @@
       return;
     }
     var remember = document.getElementById("remember-me");
+    var selectedUser = null;
+    for (var ui = 0; ui < usersCache.length; ui++) {
+      if (usersCache[ui].nickname === nickname) {
+        selectedUser = usersCache[ui];
+        break;
+      }
+    }
+    var loginProfileExtras =
+      selectedUser && selectedUser.department ? { department: selectedUser.department } : null;
     setLoading(true);
-    Auth.login(nickname, password, remember && remember.checked)
+    Auth.login(nickname, password, remember && remember.checked, loginProfileExtras)
       .then(function (result) {
         if (result.ok) {
           window.location.href = "dashboard.html";

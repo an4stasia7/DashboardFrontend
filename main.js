@@ -1,6 +1,6 @@
 "use strict";
 
-const { app, BrowserWindow, screen, ipcMain, shell } = require("electron");
+const { app, BrowserWindow, screen, ipcMain, shell, Menu } = require("electron");
 const path = require("path");
 
 /** GPU process exit_code=34 на части Windows / RDP / VM. ELECTRON_ENABLE_GPU=1 — принудительно включить GPU. */
@@ -473,6 +473,7 @@ function createWindow() {
     height: defaultHeight,
     resizable: true,
     show: false,
+    autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -507,6 +508,7 @@ function createWindow() {
 }
 
 app.whenReady().then(function () {
+  Menu.setApplicationMenu(null);
   initializeReleaseUpdater();
   bindStaticServer(parsePreferredPort(), function () {
     createWindow();

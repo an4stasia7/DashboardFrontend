@@ -78,7 +78,7 @@
     }
   }
 
-  function login(nickname, password, remember) {
+  function login(nickname, password, remember, profileExtras) {
     if (!global.Api || typeof global.Api.login !== "function") {
       return Promise.resolve({ ok: false, error: "Модуль Api не загружен" });
     }
@@ -86,9 +86,15 @@
       if (!result.ok) {
         return result;
       }
+      var user = result.user && typeof result.user === "object" ? Object.assign({}, result.user) : {};
+      var extraDept =
+        profileExtras && profileExtras.department != null ? String(profileExtras.department).trim() : "";
+      if (extraDept && (!user.department || !String(user.department).trim())) {
+        user.department = extraDept;
+      }
       var session = {
         token: result.token,
-        user: result.user,
+        user: user,
         apiMode: global.AppConfig && global.AppConfig.getApiMode ? global.AppConfig.getApiMode() : "live",
       };
       var json = JSON.stringify(session);
@@ -112,8 +118,9 @@
       if (remember) {
         try {
           var nick = String(nickname || "").trim();
-          var u = result.user || {};
+          var u = user;
           var display =
+            (u.department != null && String(u.department).trim()) ||
             (u.nickname != null && String(u.nickname).trim()) ||
             (u.name != null && String(u.name).trim()) ||
             nick;
@@ -125,7 +132,7 @@
           /* ignore */
         }
       }
-      return { ok: true, user: result.user };
+      return { ok: true, user: user };
     });
   }
 
