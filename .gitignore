@@ -5,3 +5,4 @@ out/
 .DS_Store
 json.txt
 config.json
+js/config.js
