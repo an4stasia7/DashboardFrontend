@@ -25,6 +25,8 @@
 
 .dashboard-layout {
   min-height: 100vh;
+  width: 100%;
+  min-width: 0;
   display: grid;
   grid-template-columns: clamp(220px, 18vw, 304px) minmax(0, 1fr);
   background: transparent;
@@ -356,8 +358,10 @@
 .dash-workspace {
   min-height: 100vh;
   min-width: 0;
+  width: 100%;
   display: flex;
   flex-direction: column;
+  overflow-x: clip;
 }
 
 /* Хлебные крошки для спуска по иерархии подразделений */

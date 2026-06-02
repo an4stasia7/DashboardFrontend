@@ -466,11 +466,17 @@ async function performSelfUpdate() {
 }
 
 function createWindow() {
-  const defaultWidth = 1280;
-  const defaultHeight = 800;
+  const display = screen.getPrimaryDisplay();
+  const workArea = display && display.workArea ? display.workArea : { width: 1280, height: 800 };
+  const minWidth = 1024;
+  const minHeight = 680;
+  const defaultWidth = Math.max(minWidth, Math.min(1280, workArea.width));
+  const defaultHeight = Math.max(minHeight, Math.min(800, workArea.height));
   const win = new BrowserWindow({
     width: defaultWidth,
     height: defaultHeight,
+    minWidth: minWidth,
+    minHeight: minHeight,
     resizable: true,
     show: false,
     autoHideMenuBar: true,
@@ -484,20 +490,6 @@ function createWindow() {
 
   win.once("ready-to-show", function () {
     win.show();
-  });
-
-  win.on("will-resize", function (event) {
-    if (win.isMaximized() || win.isMinimized() || win.isFullScreen()) return;
-    event.preventDefault();
-  });
-
-  win.on("unmaximize", function () {
-    const display = screen.getDisplayMatching(win.getBounds());
-    const workArea = display && display.workArea ? display.workArea : null;
-    const nextWidth = workArea ? Math.min(defaultWidth, workArea.width) : defaultWidth;
-    const nextHeight = workArea ? Math.min(defaultHeight, workArea.height) : defaultHeight;
-    win.setSize(nextWidth, nextHeight);
-    win.center();
   });
 
   win.webContents.on("did-finish-load", function () {
