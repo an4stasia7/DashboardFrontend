@@ -896,7 +896,7 @@
     applyPlanFactFromJsonLastPeriodToTiles(body, tiles, qp.year, qp.month);
     return {
       tiles: tiles,
-      chartIndicators: buildChartIndicatorsFromApiResponse(body),
+      chartIndicators: buildChartIndicatorsFromApiResponse(body, qp.year, qp.month),
       tableRows: buildTableRowsFromApiResponse(body, qp.year, qp.month),
       unwrappedData: body,
     };
@@ -913,7 +913,7 @@
     applyMonthlyDataToTilesAtPeriod(tiles, year, month);
     return {
       tiles: tiles,
-      chartIndicators: buildChartIndicatorsFromApiResponse(body),
+      chartIndicators: buildChartIndicatorsFromApiResponse(body, year, month),
       tableRows: buildTableRowsFromApiResponse(body, year, month),
       unwrappedData: body,
     };
@@ -1553,6 +1553,152 @@
     if (typeof v === "string" && String(v).trim() === "") return null;
     var n = Number(v);
     return isFinite(n) ? n : null;
+  }
+
+  function isMonthlyColumnChartType(raw) {
+    if (raw == null) return false;
+    var s = String(raw).toLowerCase();
+    return s.indexOf("column") !== -1 && s.indexOf("monthly") !== -1;
+  }
+
+  function resolveChartFilterYearMonth(chart, filterYear, filterMonth) {
+    var y = parseIntLoose(filterYear);
+    var m = parseIntLoose(filterMonth);
+    if (!isNaN(y) && !isNaN(m) && m >= 1 && m <= 12) {
+      return { year: y, month: m };
+    }
+    var period = chart && chart.period && typeof chart.period === "object" ? chart.period : null;
+    if (period) {
+      y = parseIntLoose(period.year);
+      m = parseIntLoose(period.month);
+      if (!isNaN(y) && !isNaN(m) && m >= 1 && m <= 12) {
+        return { year: y, month: m };
+      }
+    }
+    return null;
+  }
+
+  function findMonthlySeriesDataIndex(series, year, month) {
+    var points = getSeriesPointsList(series);
+    var y = parseIntLoose(year);
+    var m = parseIntLoose(month);
+    if (isNaN(y) || isNaN(m)) return -1;
+
+    for (var i = 0; i < points.length; i++) {
+      var p = points[i];
+      if (!p || typeof p !== "object") continue;
+      if (parseIntLoose(p.year) === y && parseIntLoose(p.month) === m) return i;
+    }
+
+    var categories = Array.isArray(series.categories) ? series.categories : [];
+    var monthNames = [null, "январ", "феврал", "март", "апрел", "май", "июн", "июл", "август", "сентябр", "октябр", "ноябр", "декабр"];
+    var monthToken = monthNames[m] || "";
+    for (var c = 0; c < categories.length; c++) {
+      var cat = categories[c] != null ? String(categories[c]).trim().toLowerCase() : "";
+      if (!cat) continue;
+      if (monthToken && cat.indexOf(monthToken) === 0) return c;
+    }
+
+    var idx = m - 1;
+    if (idx >= 0 && idx < categories.length) return idx;
+    return -1;
+  }
+
+  /**
+   * column_plan_fact_monthly: на оси X — формы/показатели, значения plan/fact только за выбранный месяц.
+   */
+  function buildMonthlyColumnBarIndicatorFromChart(chart, chartKey, filterYear, filterMonth) {
+    var seriesList = getChartSeriesList(chart);
+    if (!seriesList.length) return null;
+
+    var period = resolveChartFilterYearMonth(chart, filterYear, filterMonth);
+    if (!period) return null;
+
+    var usableSeries = seriesList.filter(function (s) {
+      if (!s) return false;
+      var label = s.form || s.name || s.kpi_id || "KPI";
+      if (isAggregateKpiTile(s, label)) return false;
+      return findMonthlySeriesDataIndex(s, period.year, period.month) >= 0;
+    });
+    if (!usableSeries.length) return null;
+
+    var multiSeries = usableSeries.length > 1;
+    var categories = [];
+    var plan = [];
+    var fact = [];
+    var points = [];
+
+    usableSeries.forEach(function (s) {
+      var idx = findMonthlySeriesDataIndex(s, period.year, period.month);
+      if (idx < 0) return;
+
+      var explicitCategories = Array.isArray(s.categories) ? s.categories : [];
+      var explicitPlan = Array.isArray(s.plan) ? s.plan : [];
+      var explicitFact = Array.isArray(s.fact) ? s.fact : [];
+      var seriesPoints = getSeriesPointsList(s);
+      var srcPoint = seriesPoints[idx] && typeof seriesPoints[idx] === "object" ? seriesPoints[idx] : null;
+      var point = srcPoint ? Object.assign({}, srcPoint) : {};
+
+      var categoryLabel;
+      if (multiSeries) {
+        categoryLabel =
+          s.form != null && String(s.form).trim() !== ""
+            ? String(s.form).trim()
+            : s.name != null && String(s.name).trim() !== ""
+              ? String(s.name).trim()
+              : s.kpi_id != null
+                ? String(s.kpi_id).trim()
+                : "KPI";
+      } else if (srcPoint && srcPoint.month_name != null && String(srcPoint.month_name).trim() !== "") {
+        categoryLabel = capitalizeRuMonthToken(srcPoint.month_name);
+      } else if (chart.period && chart.period.month_name != null && String(chart.period.month_name).trim() !== "") {
+        categoryLabel = capitalizeRuMonthToken(chart.period.month_name);
+      } else if (explicitCategories[idx] != null && String(explicitCategories[idx]).trim() !== "") {
+        categoryLabel = capitalizeRuMonthToken(explicitCategories[idx]);
+      } else {
+        categoryLabel =
+          s.form != null && String(s.form).trim() !== ""
+            ? String(s.form).trim()
+            : s.name != null && String(s.name).trim() !== ""
+              ? String(s.name).trim()
+              : capitalizeRuMonthToken(MONTH_SHORT[period.month - 1] || String(period.month));
+      }
+
+      var planValue = explicitPlan[idx];
+      var factValue = explicitFact[idx];
+      if (point.name == null) point.name = categoryLabel;
+      if (point.plan == null && planValue !== undefined) point.plan = planValue;
+      if (point.fact == null && factValue !== undefined) point.fact = factValue;
+
+      categories.push(categoryLabel);
+      plan.push(numberOrNull(planValue !== undefined ? planValue : point.plan));
+      fact.push(numberOrNull(factValue !== undefined ? factValue : point.fact));
+      points.push(point);
+    });
+
+    if (!categories.length) return null;
+
+    var chartName =
+      chart.name != null && String(chart.name).trim() !== ""
+        ? String(chart.name).trim()
+        : chart.kpi_id != null
+          ? String(chart.kpi_id).trim()
+          : chartKey != null
+            ? String(chartKey).trim()
+            : "KPI";
+
+    return {
+      id: chart.kpi_id || chartKey || chartName,
+      optionLabel: chartName,
+      title: chartName,
+      xAxisTitle: chart.x_axis_title || chart.xAxisTitle || (multiSeries ? "Форма" : "Период"),
+      yAxisTitle: chart.y_axis_title || chart.yAxisTitle || "Значение",
+      categories: categories,
+      points: points,
+      plan: plan,
+      fact: fact,
+      disableAllOption: true,
+    };
   }
 
   function buildBarIndicatorsFromSeries(chart, series, name) {
@@ -2286,10 +2432,10 @@
 
   /**
    * Из body["Графики"] строит индикаторы для графиков.
-   * chart_type: "multi_line_plan_fact_monthly" → line, "column_plan_fact_waterfall_quarterly" → bar.
-   * Каждый series внутри графика = отдельный переключаемый показатель.
+   * chart_type: "multi_line_plan_fact_monthly" → line, "column_plan_fact_monthly" → bar (один месяц из period).
+   * Каждый series внутри графика = отдельный переключаемый показатель (кроме column_plan_fact_monthly).
    */
-  function buildChartIndicatorsFromApiResponse(body) {
+  function buildChartIndicatorsFromApiResponse(body, filterYear, filterMonth) {
     var out = { line: [], bar: [], donut: [] };
     if (!body) return out;
     var charts = body[KPI_JSON_KEY_CHARTS];
@@ -2301,6 +2447,12 @@
       if (!chart || !chart.chart_type || !seriesList.length) return;
       var target = classifyChartType(chart.chart_type);
       if (!target) return;
+
+      if (target === "bar" && isMonthlyColumnChartType(chart.chart_type)) {
+        var monthlyBar = buildMonthlyColumnBarIndicatorFromChart(chart, key, filterYear, filterMonth);
+        if (monthlyBar) out.bar.push(monthlyBar);
+        return;
+      }
 
       seriesList.forEach(function (s) {
         var points = getSeriesPointsList(s);
