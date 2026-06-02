@@ -267,6 +267,16 @@
       </nav>
 
       <div class="dash-kpi-tiles-block">
+        <div class="kpi-tiles-reorder-banner" id="kpi-tiles-reorder-banner" aria-live="polite">
+          <span class="kpi-tiles-reorder-banner-icon" aria-hidden="true">
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+              <path d="M3 6h12M3 9h12M3 12h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+              <path d="M6 3v12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="2 3" opacity="0.55"/>
+            </svg>
+          </span>
+          <span class="kpi-tiles-reorder-banner-text">Потяните плитку за ⋮⋮ и отпустите на нужном месте</span>
+          <span class="kpi-tiles-reorder-banner-hint" id="kpi-tiles-reorder-banner-hint">У края экрана страница перелистнётся автоматически · между страницами плитки меняются местами</span>
+        </div>
         <div id="kpi-container"></div>
         <nav class="kpi-tiles-pager" id="kpi-tiles-pager" hidden aria-label="Страницы плиток KPI">
           <button type="button" class="kpi-tiles-pager-btn" id="kpi-tiles-page-prev" aria-label="Предыдущая страница плиток">
@@ -766,6 +776,7 @@
     <script src="js/pages/dashboard-request-builder.js"></script>
     <script src="js/pages/dashboard-data-loader.js"></script>
     <script src="js/pages/dashboard-month-nav.js"></script>
+    <script src="js/pages/dashboard-kpi-tile-order.js"></script>
     <script src="js/pages/dashboard-kpi-tiles.js"></script>
     <script src="js/pages/dashboard-kpi-drilldown.js"></script>
     <script src="js/pages/dashboard-claims-table.js"></script>

@@ -2,6 +2,13 @@
   var KPI_TILES_PER_PAGE = 6;
   var kpiTilesPageIndex = 0;
   var pagerBound = false;
+  var dragBound = false;
+  var dragFromIndex = null;
+  var reorderModeActive = false;
+  var pageFlipTimer = null;
+  var pageFlipDirection = 0;
+  var PAGE_FLIP_EDGE_MS = 420;
+  var PAGE_FLIP_PAGER_MS = 220;
   var latestContext = {};
 
   var KPI_TILE_MSG_GENERATED_DATA = "Данные были сгенерированы";
@@ -156,6 +163,21 @@
     return !!(rule && rule.backDefectDirections);
   }
 
+  function buildKpiTileDragHandleHtml() {
+    return (
+      '<span role="button" tabindex="0" class="kpi-tile-drag-handle" draggable="true" aria-label="Перетащите для изменения порядка плиток" title="Перетащите для изменения порядка">' +
+      '<svg class="kpi-tile-drag-handle-icon" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">' +
+      '<circle cx="5.5" cy="4" r="1.15" fill="currentColor"/>' +
+      '<circle cx="10.5" cy="4" r="1.15" fill="currentColor"/>' +
+      '<circle cx="5.5" cy="8" r="1.15" fill="currentColor"/>' +
+      '<circle cx="10.5" cy="8" r="1.15" fill="currentColor"/>' +
+      '<circle cx="5.5" cy="12" r="1.15" fill="currentColor"/>' +
+      '<circle cx="10.5" cy="12" r="1.15" fill="currentColor"/>' +
+      "</svg>" +
+      "</span>"
+    );
+  }
+
   function buildKpiTileHelpButtonHtml() {
     return (
       '<button type="button" class="kpi-tile-help" aria-label="Справка: формула и цветовые пороги показателя" aria-haspopup="dialog" aria-controls="kpi-thresholds-dialog">' +
@@ -172,6 +194,7 @@
       DashUi.escapeHtml(tile.badge) +
       "</span>" +
       helpHtml +
+      buildKpiTileDragHandleHtml() +
       "</div>"
     );
   }
@@ -1763,6 +1786,118 @@
     });
   }
 
+  function isKpiTilesReorderMode() {
+    return reorderModeActive;
+  }
+
+  function getKpiTilesPageCount() {
+    return Math.max(1, Math.ceil(getKpiTilesCount() / KPI_TILES_PER_PAGE));
+  }
+
+  function getTilePageIndex(tileIndex) {
+    return Math.floor(Number(tileIndex) / KPI_TILES_PER_PAGE);
+  }
+
+  function clearPageFlipTimer() {
+    if (pageFlipTimer) {
+      clearTimeout(pageFlipTimer);
+      pageFlipTimer = null;
+    }
+    pageFlipDirection = 0;
+    var block = document.querySelector(".dash-kpi-tiles-block");
+    if (block) {
+      block.classList.remove("kpi-tiles-block--flip-hint-prev");
+      block.classList.remove("kpi-tiles-block--flip-hint-next");
+    }
+  }
+
+  function setPageFlipHint(direction) {
+    var block = document.querySelector(".dash-kpi-tiles-block");
+    if (!block) return;
+    block.classList.toggle("kpi-tiles-block--flip-hint-prev", direction < 0);
+    block.classList.toggle("kpi-tiles-block--flip-hint-next", direction > 0);
+  }
+
+  function flipPageWhileDragging(direction) {
+    if (dragFromIndex == null || !direction) return;
+    var pages = getKpiTilesPageCount();
+    var nextPage = kpiTilesPageIndex + direction;
+    if (nextPage < 0 || nextPage >= pages) return;
+    kpiTilesPageIndex = nextPage;
+    applyKpiTilesPageVisibility();
+    updatePagerUI();
+  }
+
+  function schedulePageFlipWhileDragging(direction, delayMs) {
+    if (dragFromIndex == null || !direction) {
+      clearPageFlipTimer();
+      return;
+    }
+    var pages = getKpiTilesPageCount();
+    var nextPage = kpiTilesPageIndex + direction;
+    if (nextPage < 0 || nextPage >= pages) {
+      clearPageFlipTimer();
+      return;
+    }
+    if (pageFlipDirection === direction && pageFlipTimer) return;
+    clearPageFlipTimer();
+    pageFlipDirection = direction;
+    setPageFlipHint(direction);
+    pageFlipTimer = setTimeout(function () {
+      pageFlipTimer = null;
+      pageFlipDirection = 0;
+      flipPageWhileDragging(direction);
+      clearPageFlipTimer();
+    }, delayMs);
+  }
+
+  function handleDragAutoPageFlip(e) {
+    if (dragFromIndex == null) return;
+    var block = document.querySelector(".dash-kpi-tiles-block");
+    if (!block) return;
+    var rect = block.getBoundingClientRect();
+    var edge = 88;
+    if (e.clientX >= rect.right - edge) {
+      schedulePageFlipWhileDragging(1, PAGE_FLIP_EDGE_MS);
+      return;
+    }
+    if (e.clientX <= rect.left + edge) {
+      schedulePageFlipWhileDragging(-1, PAGE_FLIP_EDGE_MS);
+      return;
+    }
+    clearPageFlipTimer();
+  }
+
+  function updateReorderBanner() {
+    var hint = document.getElementById("kpi-tiles-reorder-banner-hint");
+    var text = document.querySelector(".kpi-tiles-reorder-banner-text");
+    var hasMultiplePages = getKpiTilesCount() > KPI_TILES_PER_PAGE;
+    if (text) text.textContent = "Потяните плитку за ⋮⋮ и отпустите на нужном месте";
+    if (hint) {
+      hint.textContent = hasMultiplePages
+        ? "У края экрана страница перелистнётся автоматически · между страницами плитки меняются местами"
+        : "Порядок сохранится автоматически";
+    }
+  }
+
+  function setKpiTilesReorderMode(active) {
+    reorderModeActive = !!active;
+    var block = document.querySelector(".dash-kpi-tiles-block");
+    var hasMultiplePages = getKpiTilesCount() > KPI_TILES_PER_PAGE;
+    if (!active) clearPageFlipTimer();
+    if (block) block.classList.toggle("kpi-tiles-block--reorder", reorderModeActive);
+    if (block) block.classList.toggle("kpi-tiles-block--reorder-multipage", reorderModeActive && hasMultiplePages);
+    updateReorderBanner();
+    applyKpiTilesPageVisibility();
+  }
+
+  function getKpiTilesCount() {
+    var container = document.getElementById("kpi-container");
+    var nDom = container ? container.querySelectorAll("article.kpi-tile").length : 0;
+    var tiles = getTiles();
+    return nDom > 0 ? nDom : tiles.length;
+  }
+
   function applyKpiTilesPageVisibility() {
     var container = document.getElementById("kpi-container");
     if (!container) return;
@@ -1771,13 +1906,19 @@
     if (n <= KPI_TILES_PER_PAGE) {
       articles.forEach(function (art) {
         art.classList.remove("kpi-tile--page-hidden");
+        art.classList.remove("kpi-tile--source-reserved");
       });
       return;
     }
+
     var start = kpiTilesPageIndex * KPI_TILES_PER_PAGE;
-    var end = start + KPI_TILES_PER_PAGE;
+    var end = Math.min(n, start + KPI_TILES_PER_PAGE);
+    var dragging = dragFromIndex != null ? dragFromIndex : -1;
+
     articles.forEach(function (art, idx) {
-      art.classList.toggle("kpi-tile--page-hidden", idx < start || idx >= end);
+      var onPage = idx >= start && idx < end;
+      var isDragging = idx === dragging;
+      art.classList.toggle("kpi-tile--page-hidden", !onPage && !isDragging);
     });
   }
 
@@ -1812,13 +1953,162 @@
     if (nextBtn) nextBtn.disabled = kpiTilesPageIndex >= pages - 1;
   }
 
+  function clearDropTargetMarks(container) {
+    if (!container) return;
+    container.querySelectorAll("article.kpi-tile.kpi-tile--drop-target").forEach(function (art) {
+      art.classList.remove("kpi-tile--drop-target");
+    });
+  }
+
+  function clearPagerDropTargetMarks() {
+    ["kpi-tiles-page-prev", "kpi-tiles-page-next"].forEach(function (id) {
+      var btn = document.getElementById(id);
+      if (btn) btn.classList.remove("kpi-tiles-pager-btn--drop-target");
+    });
+  }
+
+  function finishDragVisuals(container) {
+    if (container) {
+      container.querySelectorAll("article.kpi-tile.kpi-tile--dragging").forEach(function (art) {
+        art.classList.remove("kpi-tile--dragging");
+      });
+      clearDropTargetMarks(container);
+    }
+    clearPagerDropTargetMarks();
+    clearPageFlipTimer();
+    dragFromIndex = null;
+  }
+
+  function finishKpiTileDrag(container) {
+    finishDragVisuals(container);
+    setKpiTilesReorderMode(false);
+  }
+
+  function commitKpiTileReorder(fromIndex, toIndex) {
+    if (fromIndex == null || toIndex == null || fromIndex === toIndex) return;
+    var swap = getTilePageIndex(fromIndex) !== getTilePageIndex(toIndex);
+    var fn = getContext().onTilesReordered;
+    if (typeof fn === "function") fn(fromIndex, toIndex, { swap: swap });
+  }
+
+  function bindPagerAutoFlipWhileDragging(btn, direction) {
+    if (!btn) return;
+    btn.addEventListener("dragover", function (e) {
+      if (dragFromIndex == null || btn.disabled) return;
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+      clearPagerDropTargetMarks();
+      btn.classList.add("kpi-tiles-pager-btn--drop-target");
+      schedulePageFlipWhileDragging(direction, PAGE_FLIP_PAGER_MS);
+    });
+    btn.addEventListener("dragleave", function (e) {
+      if (btn.contains(e.relatedTarget)) return;
+      btn.classList.remove("kpi-tiles-pager-btn--drop-target");
+    });
+  }
+
+  function ensureDragBound() {
+    if (dragBound) return;
+    var container = document.getElementById("kpi-container");
+    if (!container) return;
+    dragBound = true;
+
+    bindPagerAutoFlipWhileDragging(document.getElementById("kpi-tiles-page-prev"), -1);
+    bindPagerAutoFlipWhileDragging(document.getElementById("kpi-tiles-page-next"), 1);
+
+    container.addEventListener("dragstart", function (e) {
+      var handle = e.target.closest(".kpi-tile-drag-handle");
+      if (!handle || !container.contains(handle)) return;
+      var article = handle.closest("article.kpi-tile");
+      if (!article || article.classList.contains("kpi-tile--page-hidden")) {
+        e.preventDefault();
+        return;
+      }
+      var from = article.getAttribute("data-kpi-tile-index");
+      if (from == null) {
+        e.preventDefault();
+        return;
+      }
+      dragFromIndex = +from;
+      kpiTilesPageIndex = getTilePageIndex(dragFromIndex);
+      setKpiTilesReorderMode(true);
+      updatePagerUI();
+      article.classList.add("kpi-tile--dragging");
+      if (e.dataTransfer) {
+        e.dataTransfer.effectAllowed = "move";
+        try {
+          e.dataTransfer.setData("text/plain", String(from));
+        } catch (err) {
+          /* ignore */
+        }
+      }
+      e.stopPropagation();
+    });
+
+    container.addEventListener("mousedown", function (e) {
+      if (e.target.closest(".kpi-tile-drag-handle")) {
+        e.stopPropagation();
+      }
+    });
+
+    container.addEventListener("dragend", function () {
+      if (dragFromIndex == null) return;
+      finishKpiTileDrag(container);
+    });
+
+    container.addEventListener("dragover", function (e) {
+      if (dragFromIndex == null) return;
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+      handleDragAutoPageFlip(e);
+      var article = e.target.closest("article.kpi-tile");
+      clearDropTargetMarks(container);
+      clearPagerDropTargetMarks();
+      if (!article || !container.contains(article) || article.classList.contains("kpi-tile--page-hidden")) {
+        return;
+      }
+      if (+article.getAttribute("data-kpi-tile-index") === dragFromIndex) return;
+      article.classList.add("kpi-tile--drop-target");
+    });
+
+    container.addEventListener("dragleave", function (e) {
+      var article = e.target.closest("article.kpi-tile");
+      if (!article || !container.contains(article)) return;
+      if (!article.contains(e.relatedTarget)) {
+        article.classList.remove("kpi-tile--drop-target");
+      }
+    });
+
+    container.addEventListener("drop", function (e) {
+      if (dragFromIndex == null) return;
+      var article = e.target.closest("article.kpi-tile");
+      if (!article || !container.contains(article) || article.classList.contains("kpi-tile--page-hidden")) return;
+      e.preventDefault();
+      e.stopPropagation();
+      var toIndex = article.getAttribute("data-kpi-tile-index");
+      if (toIndex == null) return;
+      var fromIndex = dragFromIndex;
+      if (+toIndex === fromIndex) {
+        finishKpiTileDrag(container);
+        return;
+      }
+      finishKpiTileDrag(container);
+      commitKpiTileReorder(fromIndex, +toIndex);
+    });
+  }
+
   function ensurePagerBound() {
     if (pagerBound) return;
     pagerBound = true;
     var prevBtn = document.getElementById("kpi-tiles-page-prev");
     var nextBtn = document.getElementById("kpi-tiles-page-next");
     if (prevBtn) {
-      prevBtn.addEventListener("click", function () {
+      prevBtn.addEventListener("click", function (e) {
+        if (reorderModeActive) {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
         if (kpiTilesPageIndex <= 0) return;
         beforePageChange();
         kpiTilesPageIndex--;
@@ -1826,7 +2116,12 @@
       });
     }
     if (nextBtn) {
-      nextBtn.addEventListener("click", function () {
+      nextBtn.addEventListener("click", function (e) {
+        if (reorderModeActive) {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
         var n = getTiles().length;
         var pages = Math.max(1, Math.ceil(n / KPI_TILES_PER_PAGE));
         if (kpiTilesPageIndex >= pages - 1) return;
@@ -1916,6 +2211,8 @@
         "</div>";
       container.appendChild(el);
     });
+
+    ensureDragBound();
 
     if (pendingFocus) {
       clearPendingFocus();

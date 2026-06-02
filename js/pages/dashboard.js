@@ -85,8 +85,71 @@
   var lastProductionDeputyRawChartIndicators = null;
 
   function handleUnauthorized() {
+    persistCurrentKpiTileOrder();
     Auth.logout();
     window.location.href = "login.html";
+  }
+
+  function getKpiTileOrderScopeKey() {
+    if (typeof DashboardKpiTileOrder === "undefined" || !DashboardKpiTileOrder) return "";
+    return DashboardKpiTileOrder.buildScopeKey({
+      nickname: sessionUser && sessionUser.nickname,
+      viewId: selectedViewId,
+      department: getDepartmentForCurrentKpiContext(),
+    });
+  }
+
+  function applyKpiTileOrderPreference(tiles) {
+    if (!tiles || !tiles.length || typeof DashboardKpiTileOrder === "undefined" || !DashboardKpiTileOrder) {
+      return tiles;
+    }
+    var scopeKey = getKpiTileOrderScopeKey();
+    if (!scopeKey) return tiles;
+    return DashboardKpiTileOrder.applySavedOrder(tiles, scopeKey);
+  }
+
+  function persistCurrentKpiTileOrder() {
+    if (!lastKpiTiles || !lastKpiTiles.length || typeof DashboardKpiTileOrder === "undefined" || !DashboardKpiTileOrder) {
+      return;
+    }
+    var scopeKey = getKpiTileOrderScopeKey();
+    if (!scopeKey) return;
+    DashboardKpiTileOrder.saveOrder(scopeKey, DashboardKpiTileOrder.extractOrderIds(lastKpiTiles));
+  }
+
+  function renderKpiTilesAsIs(tiles) {
+    lastKpiTiles = tiles && tiles.length ? tiles.slice() : null;
+    flippedTileIndices.clear();
+    if (typeof DashboardKpiDrilldown !== "undefined" && DashboardKpiDrilldown) {
+      if (typeof DashboardKpiDrilldown.resetState === "function") {
+        DashboardKpiDrilldown.resetState();
+      }
+    }
+    if (typeof DashboardKpiTiles === "undefined" || !DashboardKpiTiles) return;
+    if (typeof DashboardKpiTiles.render === "function") {
+      DashboardKpiTiles.render({
+        tiles: lastKpiTiles,
+        flippedTileIndices: flippedTileIndices,
+        pendingFocus: pendingKpiTileFocus,
+        matchFocusTarget: tileMatchesFocusTarget,
+        clearPendingFocus: function () {
+          pendingKpiTileFocus = null;
+        },
+      });
+    }
+  }
+
+  function handleKpiTilesReordered(fromIndex, toIndex, options) {
+    if (!lastKpiTiles || fromIndex === toIndex || typeof DashboardKpiTileOrder === "undefined" || !DashboardKpiTileOrder) {
+      return;
+    }
+    options = options || {};
+    var nextTiles = options.swap
+      ? DashboardKpiTileOrder.swapArray(lastKpiTiles, fromIndex, toIndex)
+      : DashboardKpiTileOrder.reorderArray(lastKpiTiles, fromIndex, toIndex);
+    lastKpiTiles = nextTiles;
+    persistCurrentKpiTileOrder();
+    renderKpiTilesAsIs(nextTiles);
   }
 
   function callMonthNav(methodName, args, fallbackValue) {
@@ -292,6 +355,7 @@
         flippedTileIndices: flippedTileIndices,
         getTileDetailsState: getKpiTileDetailsState,
         onBeforePageChange: closeKpiTileDrilldown,
+        onTilesReordered: handleKpiTilesReordered,
       });
     }
   })();
@@ -899,7 +963,7 @@
       }
       var art = e.target.closest("article.kpi-tile");
       if (!art || !kpiContainerEl.contains(art)) return;
-      if (e.target.closest("button, a, input, select, textarea")) return;
+      if (e.target.closest("button, a, input, select, textarea, .kpi-tile-drag-handle")) return;
       hideKpiHelpPopover();
       var ix = art.getAttribute("data-kpi-tile-index");
       if (ix == null || !lastKpiTiles || lastKpiTiles[+ix] == null) return;
@@ -909,7 +973,7 @@
       if (e.key !== "Enter" && e.key !== " ") return;
       var art = e.target.closest("article.kpi-tile");
       if (!art || !kpiContainerEl.contains(art)) return;
-      if (e.target.closest(".kpi-tile-child-link, .kpi-tile-help, .kpi-tile-flip-action")) return;
+      if (e.target.closest(".kpi-tile-child-link, .kpi-tile-help, .kpi-tile-flip-action, .kpi-tile-drag-handle")) return;
       e.preventDefault();
       var ix = art.getAttribute("data-kpi-tile-index");
       if (ix == null || !lastKpiTiles || lastKpiTiles[+ix] == null) return;
@@ -1855,6 +1919,7 @@
     );
     sourceTiles = applyTdM5PeriodAggregateForCurrentSelection(sourceTiles);
     tiles = applyPriorMonthFactForFotTurnoverTiles(sourceTiles);
+    tiles = applyKpiTileOrderPreference(tiles);
     lastKpiTiles = tiles && tiles.length ? tiles : null;
     flippedTileIndices.clear();
     if (typeof DashboardKpiDrilldown !== "undefined" && DashboardKpiDrilldown) {
