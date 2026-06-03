@@ -54,6 +54,17 @@
     if (typeof fn === "function") fn();
   }
 
+  function resetKpiTilesPager() {
+    kpiTilesPageIndex = 0;
+    dragFromIndex = null;
+    clearPageFlipTimer();
+    setKpiTilesReorderMode(false);
+    var container = document.getElementById("kpi-container");
+    if (container) {
+      finishDragVisuals(container);
+    }
+  }
+
   function getKpiTileException(tile) {
     var cfg = global.KPI_TILE_EXCEPTIONS || null;
     if (!cfg || !tile) return null;
@@ -1924,6 +1935,9 @@
 
   function updatePagerUI(options) {
     mergeContext(options);
+    if (options && options.resetPage) {
+      kpiTilesPageIndex = 0;
+    }
     var container = document.getElementById("kpi-container");
     var pager = document.getElementById("kpi-tiles-pager");
     var prevBtn = document.getElementById("kpi-tiles-page-prev");
@@ -2122,7 +2136,7 @@
           e.stopPropagation();
           return;
         }
-        var n = getTiles().length;
+        var n = getKpiTilesCount();
         var pages = Math.max(1, Math.ceil(n / KPI_TILES_PER_PAGE));
         if (kpiTilesPageIndex >= pages - 1) return;
         beforePageChange();
@@ -2134,6 +2148,7 @@
 
   function render(options) {
     mergeContext(options);
+    resetKpiTilesPager();
     var tiles = getTiles();
     var container = document.getElementById("kpi-container");
     var pendingFocus = getContext().pendingFocus || null;
@@ -2228,8 +2243,7 @@
       }
     }
 
-    kpiTilesPageIndex = 0;
-    updatePagerUI();
+    updatePagerUI({ resetPage: true });
   }
 
   function init(options) {
@@ -2241,6 +2255,7 @@
   global.DashboardKpiTiles = {
     init: init,
     render: render,
+    resetPager: resetKpiTilesPager,
     renderBackFace: renderBackFace,
     syncFlipState: syncFlipState,
     updatePagerUI: updatePagerUI,

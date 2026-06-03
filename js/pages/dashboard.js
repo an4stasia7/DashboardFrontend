@@ -660,6 +660,10 @@
           return viewContextUser;
         },
         onPeriodChange: function () {
+          if (typeof DashboardKpiTiles !== "undefined" && DashboardKpiTiles && typeof DashboardKpiTiles.resetPager === "function") {
+            DashboardKpiTiles.resetPager();
+          }
+          donutChartsPageIndex = 0;
           if (isChairmanOverviewVisible()) {
             callChairmanOverview("reload", []);
             return;
@@ -690,6 +694,10 @@
           loadKpiTilesAndChartsForView();
         },
         onAggregationModeChange: function (mode) {
+          if (typeof DashboardKpiTiles !== "undefined" && DashboardKpiTiles && typeof DashboardKpiTiles.resetPager === "function") {
+            DashboardKpiTiles.resetPager();
+          }
+          donutChartsPageIndex = 0;
           chairmanAggregationMode = mode || "current";
           callChairmanOverview("reloadCommercialSummary", []);
           if (rerenderChairmanTilesFromRaw()) return;
@@ -1424,11 +1432,12 @@
     return false;
   }
 
-  function updateKpiTilesPagerUI() {
+  function updateKpiTilesPagerUI(resetPage) {
     if (typeof DashboardKpiTiles === "undefined" || !DashboardKpiTiles) return;
     if (typeof DashboardKpiTiles.updatePagerUI === "function") {
       DashboardKpiTiles.updatePagerUI({
         tiles: lastKpiTiles,
+        resetPage: !!resetPage,
       });
     }
   }
