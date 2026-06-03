@@ -34,9 +34,16 @@ html.app-electron-shell body {
   background-color: inherit;
 }
 
-html.app-electron-shell body.dashboard-body,
-html.app-electron-shell body.auth-login-body {
+html.app-electron-shell body.dashboard-body {
   min-height: 100%;
+}
+
+html.app-electron-shell body.auth-login-body {
+  width: 100%;
+  max-width: 100%;
+  height: 100%;
+  min-height: 100%;
+  overflow: hidden;
 }
 
 html.app-electron-shell .dashboard-layout {
@@ -44,8 +51,17 @@ html.app-electron-shell .dashboard-layout {
   min-height: 100%;
 }
 
+html.app-electron-shell .dash-sidebar {
+  height: 100dvh;
+  max-height: 100dvh;
+}
+
 html.app-electron-shell .auth-login-shell {
   width: 100%;
-  min-height: 100%;
+  max-width: 100%;
+  height: 100%;
+  min-height: 0;
+  max-height: 100%;
   box-sizing: border-box;
+  overflow: hidden;
 }
