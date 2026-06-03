@@ -103,9 +103,15 @@
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  padding: 4px 2px 0;
+  padding: 4px 2px 12px;
+  scrollbar-gutter: stable;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.35) rgba(0, 0, 0, 0.12);
+}
+
+.dash-sidebar-title,
+.dash-sidebar-nav {
+  flex: 0 0 auto;
 }
 
 .dash-sidebar-head::-webkit-scrollbar {
@@ -316,12 +322,12 @@
 
 .dash-sidebar-departments-panel {
   display: flex;
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   flex-direction: column;
   gap: 8px;
   min-height: 0;
   margin: 4px 0 6px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .dash-sidebar-departments-panel[hidden] {
@@ -469,17 +475,14 @@
   display: block;
 }
 
-/* Вкладки: свой дашборд / подчинённые */
+/* Вкладки: свой дашборд / подчинённые — прокрутка у .dash-sidebar-head, не здесь */
 .dash-view-tabs {
   display: block;
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   min-height: 0;
   max-height: none;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: visible;
   padding-right: 4px;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.38) rgba(0, 0, 0, 0.12);
 }
 
 .dash-view-tabs[hidden] {
@@ -855,6 +858,7 @@
 
 .dash-sidebar-service {
   flex: 0 0 auto;
+  flex-shrink: 0;
   margin-top: 0;
   padding-top: 16px;
   border-top: 1px solid rgba(147, 197, 253, 0.1);
@@ -970,6 +974,7 @@
 
 .dash-sidebar-collapse-btn {
   flex: 0 0 auto;
+  flex-shrink: 0;
   margin-top: 8px;
   min-height: 42px;
   border-color: transparent;
@@ -2315,6 +2320,8 @@
   .dash-view-tabs {
     flex: none;
     max-height: 260px;
+    overflow-y: auto;
+    overflow-x: hidden;
   }
 
   .dash-topbar {
