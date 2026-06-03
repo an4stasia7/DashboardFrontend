@@ -79,5 +79,16 @@ if (-not (Test-Path -LiteralPath $builder)) {
 
 Prepare-NsisBuildEnvironment -RepoRoot $repoRoot
 
-& $builder @("--win", "--publish", "always")
-exit $LASTEXITCODE
+$prepareConfig = Join-Path $repoRoot "scripts\prepare-release-config.ps1"
+$restoreConfig = Join-Path $repoRoot "scripts\restore-dev-config.ps1"
+& $prepareConfig
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+try {
+  & $builder @("--win", "--publish", "always")
+  $code = $LASTEXITCODE
+} finally {
+  & $restoreConfig
+}
+
+exit $code

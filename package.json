@@ -6,10 +6,12 @@
   "author": "Dashboard",
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder --win",
-    "dist:dir": "electron-builder --win --dir",
+    "prepare-release-config": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-release-config.ps1",
+    "restore-dev-config": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/restore-dev-config.ps1",
+    "dist": "npm run prepare-release-config && electron-builder --win && npm run restore-dev-config",
+    "dist:dir": "npm run prepare-release-config && electron-builder --win --dir && npm run restore-dev-config",
     "dist:publish": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/run-dist-publish.ps1",
-    "dist:publish:raw": "electron-builder --win --publish always"
+    "dist:publish:raw": "npm run prepare-release-config && electron-builder --win --publish always && npm run restore-dev-config"
   },
   "build": {
     "appId": "ru.dashboard.desktop",
