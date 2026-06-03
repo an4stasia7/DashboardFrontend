@@ -536,6 +536,11 @@ async function performSelfUpdate() {
   win.on("will-resize", function () {
     if (win.isDestroyed()) return;
     syncWindowBackgroundFromUrl(win);
+    try {
+      win.webContents.send("app:window-will-resize");
+    } catch (e) {
+      /* ignore */
+    }
   });
 
   win.on("resize", function () {

@@ -45,4 +45,14 @@ contextBridge.exposeInMainWorld("electronApp", {
       ipcRenderer.removeListener("app:window-resized", wrapped);
     };
   },
+  onWindowWillResize: function (listener) {
+    if (typeof listener !== "function") return function () {};
+    var wrapped = function () {
+      listener();
+    };
+    ipcRenderer.on("app:window-will-resize", wrapped);
+    return function () {
+      ipcRenderer.removeListener("app:window-will-resize", wrapped);
+    };
+  },
 });

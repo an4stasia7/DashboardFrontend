@@ -92,7 +92,13 @@
   function resizeAllDashboardChartsNow() {
     if (typeof Highcharts === "undefined" || !Highcharts.charts) return;
     Highcharts.charts.forEach(function (chart) {
-      if (!chart || typeof chart.setSize !== "function" || !isDashboardChartContainer(chart.renderTo)) {
+      if (!chart || !isDashboardChartContainer(chart.renderTo)) {
+        return;
+      }
+      if (typeof chart.reflow === "function") {
+        chart.reflow();
+      }
+      if (typeof chart.setSize !== "function") {
         return;
       }
       var container = chart.renderTo;
@@ -147,6 +153,9 @@
     ["chart-line", "chart-bar", "donuts-grid"].forEach(function (id) {
       var el = document.getElementById(id);
       if (el) dashboardChartsResizeObserver.observe(el);
+    });
+    document.querySelectorAll(".charts-row, .chart-card, .donut-chart-container").forEach(function (el) {
+      dashboardChartsResizeObserver.observe(el);
     });
   }
 
