@@ -1,0 +1,51 @@
+/**
+ * Electron: html/body совпадают с окном (меньше артефактов по краям при resize).
+ */
+html.app-electron-shell {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: var(--bg-page, #f4f7fb);
+}
+
+html.app-electron-shell::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-color: inherit;
+  pointer-events: none;
+}
+
+html.app-electron-shell.app-electron-shell--login {
+  background-color: #061936;
+}
+
+html.app-electron-shell body {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  background-color: inherit;
+}
+
+html.app-electron-shell body.dashboard-body,
+html.app-electron-shell body.auth-login-body {
+  min-height: 100%;
+}
+
+html.app-electron-shell .dashboard-layout {
+  width: 100%;
+  min-height: 100%;
+}
+
+html.app-electron-shell .auth-login-shell {
+  width: 100%;
+  min-height: 100%;
+  box-sizing: border-box;
+}

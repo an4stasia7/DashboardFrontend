@@ -97,11 +97,14 @@
       }
       var container = chart.renderTo;
       var width = container && container.clientWidth ? container.clientWidth : null;
-      chart.setSize(width, null, false);
+      if (width != null && width > 0) {
+        chart.setSize(width, null, false);
+      }
     });
   }
 
   function scheduleDashboardChartsResize() {
+    resizeAllDashboardChartsNow();
     if (dashboardChartsResizeFrame != null) {
       if (typeof window.cancelAnimationFrame === "function") {
         window.cancelAnimationFrame(dashboardChartsResizeFrame);
@@ -122,10 +125,17 @@
     }, 0);
   }
 
+  function handleViewportResize() {
+    resizeAllDashboardChartsNow();
+    scheduleDashboardChartsResize();
+  }
+
   function ensureDashboardChartsResizeObserver() {
     if (typeof window === "undefined") return;
     if (!dashboardChartsResizeBound) {
-      window.addEventListener("resize", scheduleDashboardChartsResize, { passive: true });
+      if (!global.DashboardViewport) {
+        window.addEventListener("resize", handleViewportResize);
+      }
       dashboardChartsResizeBound = true;
     }
     if (typeof window.ResizeObserver !== "function") return;
@@ -637,7 +647,7 @@
 
     var accentColor = getLineIndicatorAccentColor(indicator);
     lineChartInstance = Highcharts.chart(elLine, {
-      chart: { type: "line", backgroundColor: "transparent", height: 300, animation: false, reflow: false },
+      chart: { type: "line", backgroundColor: "transparent", height: 300, animation: false, reflow: true },
       title: { text: null },
       credits: { enabled: false },
       xAxis: {
@@ -696,7 +706,7 @@
 
     var baseIndicator = indicators[0];
     lineChartInstance = Highcharts.chart(elLine, {
-      chart: { type: "line", backgroundColor: "transparent", height: 300, animation: false, reflow: false },
+      chart: { type: "line", backgroundColor: "transparent", height: 300, animation: false, reflow: true },
       title: { text: null },
       credits: { enabled: false },
       xAxis: {
@@ -888,7 +898,7 @@
     };
 
     waterfallChartInstance = Highcharts.chart(elBar, {
-      chart: { type: "column", backgroundColor: "transparent", height: 300, animation: false, reflow: false },
+      chart: { type: "column", backgroundColor: "transparent", height: 300, animation: false, reflow: true },
       title: { text: null },
       credits: { enabled: false },
       xAxis: buildBarChartXAxis(cats.slice(), indicator.xAxisTitle || "Показатель"),
@@ -938,7 +948,7 @@
     });
 
     waterfallChartInstance = Highcharts.chart(elBar, {
-      chart: { type: "column", backgroundColor: "transparent", height: 300, animation: false, reflow: false },
+      chart: { type: "column", backgroundColor: "transparent", height: 300, animation: false, reflow: true },
       title: { text: null },
       credits: { enabled: false },
       xAxis: buildBarChartXAxis(categories, "Показатели"),
@@ -1631,6 +1641,7 @@
       chart: {
         style: { fontFamily: "Segoe UI, system-ui, sans-serif" },
         animation: false,
+        reflow: true,
       },
       plotOptions: {
         series: {
@@ -1662,5 +1673,6 @@
     initCharts: initCharts,
     destroyAllDashboardCharts: destroyAllDashboardCharts,
     renderDonutCharts: renderDonutCharts,
+    handleViewportResize: handleViewportResize,
   };
 })(typeof window !== "undefined" ? window : globalThis);

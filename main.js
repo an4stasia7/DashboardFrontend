@@ -3,12 +3,18 @@
 const { app, BrowserWindow, screen, ipcMain, shell, Menu } = require("electron");
 const path = require("path");
 
-/** GPU process exit_code=34 на части Windows / RDP / VM. ELECTRON_ENABLE_GPU=1 — принудительно включить GPU. */
-if (process.env.ELECTRON_ENABLE_GPU !== "1" && (process.env.ELECTRON_DISABLE_GPU === "1" || process.platform === "win32")) {
+/** GPU: отключать только при ELECTRON_DISABLE_GPU=1 (RDP/VM). Раньше win32 всегда без GPU — чёрные полосы при resize. */
+if (process.env.ELECTRON_DISABLE_GPU === "1") {
   app.disableHardwareAcceleration();
   app.commandLine.appendSwitch("disable-gpu");
   app.commandLine.appendSwitch("disable-gpu-sandbox");
 }
+
+/** Win: реже чёрные полосы при resize — Chromium не откладывает отрисовку из‑за occlusion. */
+if (process.platform === "win32") {
+  app.commandLine.appendSwitch("disable-features", "CalculateNativeWinOcclusion");
+}
+
 const http = require("http");
 const fs = require("fs");
 const url = require("url");
@@ -465,13 +471,30 @@ async function performSelfUpdate() {
   return updatePromise;
 }
 
-function createWindow() {
+  function createWindow() {
   const display = screen.getPrimaryDisplay();
   const workArea = display && display.workArea ? display.workArea : { width: 1280, height: 800 };
   const minWidth = 1024;
   const minHeight = 680;
   const defaultWidth = Math.max(minWidth, Math.min(1280, workArea.width));
   const defaultHeight = Math.max(minHeight, Math.min(800, workArea.height));
+  const pageBackground = "#f4f7fb";
+  const loginBackground = "#061936";
+
+  function syncWindowBackgroundFromUrl(targetWin) {
+    if (!targetWin || targetWin.isDestroyed() || typeof targetWin.setBackgroundColor !== "function") {
+      return;
+    }
+    var pageUrl = "";
+    try {
+      pageUrl = targetWin.webContents.getURL();
+    } catch (e) {
+      pageUrl = "";
+    }
+    var bg = pageUrl.indexOf("login.html") !== -1 ? loginBackground : pageBackground;
+    targetWin.setBackgroundColor(bg);
+  }
+
   const win = new BrowserWindow({
     width: defaultWidth,
     height: defaultHeight,
@@ -480,20 +503,45 @@ function createWindow() {
     resizable: true,
     show: false,
     autoHideMenuBar: true,
+    backgroundColor: pageBackground,
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      backgroundThrottling: false,
     },
   });
 
   win.once("ready-to-show", function () {
+    if (typeof win.setBackgroundColor === "function") {
+      win.setBackgroundColor(pageBackground);
+    }
     win.show();
   });
 
   win.webContents.on("did-finish-load", function () {
+    syncWindowBackgroundFromUrl(win);
     win.webContents.send("app:release-update-state", getReleaseUpdateStateSnapshot());
+  });
+
+  win.webContents.on("did-navigate-in-page", function () {
+    syncWindowBackgroundFromUrl(win);
+  });
+
+  win.webContents.on("did-navigate", function () {
+    syncWindowBackgroundFromUrl(win);
+  });
+
+  win.on("will-resize", function () {
+    if (win.isDestroyed()) return;
+    syncWindowBackgroundFromUrl(win);
+  });
+
+  win.on("resize", function () {
+    if (win.isDestroyed()) return;
+    syncWindowBackgroundFromUrl(win);
+    win.webContents.send("app:window-resized");
   });
 
   win.loadURL(getLoadUrl());

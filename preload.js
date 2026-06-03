@@ -35,4 +35,14 @@ contextBridge.exposeInMainWorld("electronApp", {
   runSelfUpdate: function () {
     return ipcRenderer.invoke("app:run-self-update");
   },
+  onWindowResize: function (listener) {
+    if (typeof listener !== "function") return function () {};
+    var wrapped = function () {
+      listener();
+    };
+    ipcRenderer.on("app:window-resized", wrapped);
+    return function () {
+      ipcRenderer.removeListener("app:window-resized", wrapped);
+    };
+  },
 });
