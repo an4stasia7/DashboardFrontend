@@ -6,6 +6,7 @@
   var rooms = [];
   var activeRoomId = "";
   var currentRefs = null;
+  var pageScrollLock = null;
 
   function $(id) {
     return document.getElementById(id);
@@ -22,6 +23,7 @@
 
   function openPanel() {
     if (!els.overlay) return;
+    lockPageScroll();
     els.overlay.hidden = false;
     setTimeout(function () {
       if (els.input) els.input.focus();
@@ -31,6 +33,31 @@
   function closePanel() {
     if (!els.overlay) return;
     els.overlay.hidden = true;
+    unlockPageScroll();
+  }
+
+  function lockPageScroll() {
+    if (pageScrollLock || !document.body) return;
+    pageScrollLock = {
+      y: window.scrollY || document.documentElement.scrollTop || 0,
+      bodyOverflow: document.body.style.overflow,
+      htmlOverflow: document.documentElement.style.overflow,
+    };
+    document.documentElement.classList.add("ai-assistant-page-locked");
+    document.body.classList.add("ai-assistant-page-locked");
+    document.documentElement.style.overflow = "hidden";
+    document.body.style.overflow = "hidden";
+  }
+
+  function unlockPageScroll() {
+    if (!pageScrollLock || !document.body) return;
+    var y = pageScrollLock.y || 0;
+    document.documentElement.classList.remove("ai-assistant-page-locked");
+    document.body.classList.remove("ai-assistant-page-locked");
+    document.documentElement.style.overflow = pageScrollLock.htmlOverflow || "";
+    document.body.style.overflow = pageScrollLock.bodyOverflow || "";
+    pageScrollLock = null;
+    window.scrollTo(0, y);
   }
 
   function scrollToBottom() {
@@ -53,7 +80,11 @@
     if (els.input) els.input.disabled = busy;
     if (els.send) els.send.disabled = !busy && !String((els.input && els.input.value) || "").trim();
     if (els.send) {
-      els.send.textContent = busy ? "■" : "➜";
+      if (busy) {
+        els.send.innerHTML = '<img class="ai-assistant-stop-icon" src="temp/iconsside/stop.png" alt="">';
+      } else {
+        els.send.textContent = "➜";
+      }
       els.send.classList.toggle("is-stop", busy);
       els.send.setAttribute("aria-label", busy ? "Остановить генерацию" : "Отправить");
     }
@@ -68,16 +99,46 @@
   function currentDashboardContext() {
     var title = $("dash-role-title");
     var month = $("month-nav-label");
+    var user = currentUserContext();
     return [
+      user.nickname || user.role || user.department
+        ? [
+            "Текущий пользователь:",
+            user.nickname ? "  - Логин: " + user.nickname : "",
+            user.role ? "  - Роль: " + user.role : "",
+            user.department ? "  - Подразделение: " + user.department : "",
+            user.is_admin != null ? "  - Администратор: " + (user.is_admin ? "да" : "нет") : "",
+          ].filter(Boolean).join("\n")
+        : "",
       title && title.textContent ? "Текущий дашборд: " + title.textContent.trim() : "",
       month && month.textContent ? "Период: " + month.textContent.trim() : "",
     ].filter(Boolean).join("\n");
   }
 
-  function currentUserKey() {
+  function currentUserContext() {
     var A = window.Auth;
     var session = A && typeof A.getSession === "function" ? A.getSession() : null;
-    var user = session && session.user ? session.user : null;
+    var user = session && session.user ? session.user : {};
+    return {
+      id: user && user.id != null ? user.id : null,
+      nickname: user && user.nickname != null ? String(user.nickname).trim() : "",
+      role: user && user.role != null ? String(user.role).trim() : "",
+      department: user && user.department != null ? String(user.department).trim() : "",
+      is_admin: !!(user && user.is_admin),
+    };
+  }
+
+  function isSimpleGreeting(text) {
+    var clean = String(text || "")
+      .toLowerCase()
+      .replace(/[!?,.。]+/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
+    return /^(привет|здравствуй|здравствуйте|добрый день|доброе утро|добрый вечер|хай|hello|hi)$/.test(clean);
+  }
+
+  function currentUserKey() {
+    var user = currentUserContext();
     return String((user && (user.nickname || user.id || user.department)) || "anonymous").trim() || "anonymous";
   }
 
@@ -144,6 +205,7 @@
         return (
           '<button type="button" class="ai-room-tab' +
           (room.id === activeRoomId ? " is-active" : "") +
+          (room.activeJobId ? " is-working" : "") +
           '" data-ai-room-id="' +
           escapeHtml(room.id) +
           '" role="tab" title="' +
@@ -165,6 +227,9 @@
     analysis = null;
     if (els.timeline) els.timeline.innerHTML = "";
     if (els.events) els.events.innerHTML = "";
+    if (els.foundDockList) els.foundDockList.innerHTML = "";
+    if (els.foundSummary) els.foundSummary.textContent = "0 Files";
+    if (els.foundDock) els.foundDock.hidden = true;
     updateProgressSummary("Ход анализа · готов к вопросу");
   }
 
@@ -222,6 +287,7 @@
       els.events.appendChild(node);
     });
     renderTimeline();
+    renderFoundDock();
   }
 
   function renderActiveRoom() {
@@ -241,6 +307,8 @@
     room.messages.forEach(function (message) {
       if (message.role === "user") {
         appendUserMessage(message.content, false);
+      } else if (message.role === "work") {
+        renderPersistedWorkBoard(message.content, false);
       } else if (message.role === "assistant") {
         renderAssistantAnswer(message.content, false);
       } else if (message.role === "error") {
@@ -266,6 +334,65 @@
     room.updatedAt = new Date().toISOString();
     saveRooms();
     renderRoomTabs();
+  }
+
+  function createWorkState(question) {
+    return {
+      id: "work-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8),
+      question: question || "Новый запрос",
+      planInitialized: false,
+      planSteps: [],
+      tools: [],
+      currentTool: "Ожидаю первый инструмент…",
+      completed: false,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
+  function latestWorkMessage(room) {
+    var messages = room && Array.isArray(room.messages) ? room.messages : [];
+    for (var i = messages.length - 1; i >= 0; i -= 1) {
+      if (messages[i].role === "work" && messages[i].content) return messages[i];
+    }
+    return null;
+  }
+
+  function findWorkMessage(room, workId) {
+    var messages = room && Array.isArray(room.messages) ? room.messages : [];
+    return messages.filter(function (message) {
+      return message.role === "work" && message.content && message.content.id === workId;
+    })[0] || null;
+  }
+
+  function addWorkMessage(state, roomId) {
+    var room = roomId ? findRoom(roomId) : activeRoom();
+    if (!room || !state) return;
+    room.messages = Array.isArray(room.messages) ? room.messages : [];
+    room.messages.push({ role: "work", content: state, createdAt: new Date().toISOString() });
+    room.updatedAt = new Date().toISOString();
+    saveRooms();
+  }
+
+  function persistWorkStateFromBoard(board, roomId) {
+    var room = roomId ? findRoom(roomId) : activeRoom();
+    if (!room || !board || !board.__workId) return;
+    var message = findWorkMessage(room, board.__workId);
+    if (!message) return;
+    var current = board.querySelector("[data-ai-agent-current-tool]");
+    message.content = {
+      id: board.__workId,
+      question: board.__question || "",
+      planInitialized: !!board.__planInitialized,
+      planSteps: (board.__planSteps || []).map(function (step) { return Object.assign({}, step); }),
+      tools: (board.__tools || []).slice(),
+      currentTool: current ? current.textContent : board.__currentTool || "",
+      completed: !!board.__completed,
+      createdAt: message.content.createdAt || message.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    room.updatedAt = new Date().toISOString();
+    saveRooms();
   }
 
   function addNewRoom() {
@@ -309,6 +436,9 @@
     };
     if (els.timeline) els.timeline.innerHTML = "";
     if (els.events) els.events.innerHTML = "";
+    if (els.foundDockList) els.foundDockList.innerHTML = "";
+    if (els.foundSummary) els.foundSummary.textContent = "0 Files";
+    if (els.foundDock) els.foundDock.hidden = true;
     updateProgressSummary("Анализирует... · 0 шагов · 0 проанализировано · 0 прочитано");
     persistAnalysisState();
   }
@@ -440,6 +570,7 @@
   function appendAssistantSpacerIfNeeded() {
     if (!els.stream) return;
     var last = els.stream.lastElementChild;
+    while (last && last.hidden) last = last.previousElementSibling;
     if (!last || !last.classList || !last.classList.contains("ai-chat-row--user")) return;
     var spacer = document.createElement("div");
     spacer.className = "ai-message-spacer";
@@ -447,23 +578,223 @@
     els.stream.appendChild(spacer);
   }
 
-  function appendLoadingCard() {
+  function renderWorkBoard(state, shouldScroll) {
     hideEmpty();
     appendAssistantSpacerIfNeeded();
-    var node = document.createElement("div");
-    node.className = "ai-loading-card";
+    state = state || createWorkState("Новый запрос");
+    var question = state.question || "Новый запрос";
+    var node = document.createElement("section");
+    node.className = "ai-agent-board";
+    node.setAttribute("data-ai-work-id", state.id || "");
     node.innerHTML =
-      '<p class="ai-loading-title">Анализирую репозиторий…</p>' +
-      '<p class="ai-loading-subtitle">Ищу KPI, связанные файлы и источники данных</p>' +
-      '<div class="ai-loading-steps">' +
-      '<span class="is-active">◌ Поиск по названию плитки</span>' +
-      "<span>◌ Анализ backend</span>" +
-      "<span>◌ Анализ источников</span>" +
-      "<span>◌ Подготовка ответа</span>" +
-      "</div>";
+      '<div class="ai-agent-section ai-agent-task">' +
+      '<div class="ai-agent-section-num">1.</div>' +
+      '<div class="ai-agent-section-main">' +
+      '<div class="ai-agent-section-title">Текущая задача</div>' +
+      '<div class="ai-agent-task-card">' + escapeHtml(question) + "</div>" +
+      '<div class="ai-agent-scope"><span>Frontend</span><span>Backend</span><span>API</span><span>KPI</span></div>' +
+      "</div></div>" +
+      '<div class="ai-agent-section ai-agent-plan-section" hidden>' +
+      '<div class="ai-agent-section-num">2.</div>' +
+      '<div class="ai-agent-section-main">' +
+      '<div class="ai-agent-section-title">План выполнения</div>' +
+      '<div class="ai-agent-plan" data-ai-agent-plan></div>' +
+      "</div></div>" +
+      '<div class="ai-agent-section">' +
+      '<div class="ai-agent-section-num">3.</div>' +
+      '<div class="ai-agent-section-main">' +
+      '<div class="ai-agent-section-title">Используемые инструменты</div>' +
+      '<div class="ai-agent-tools" data-ai-agent-tools></div>' +
+      '<div class="ai-agent-current-tool" data-ai-agent-current-tool>Ожидаю первый инструмент…</div>' +
+      "</div></div>";
+    node.__workId = state.id || "";
+    node.__question = question;
+    node.__planInitialized = !!state.planInitialized;
+    node.__planSteps = Array.isArray(state.planSteps) ? state.planSteps.map(function (step) { return Object.assign({}, step); }) : [];
+    node.__tools = Array.isArray(state.tools) ? state.tools.slice() : [];
+    node.__files = [];
+    node.__completed = !!state.completed;
     els.stream.appendChild(node);
-    scrollToBottom();
+    renderAgentPlan(node);
+    renderAgentTools(node);
+    var current = node.querySelector("[data-ai-agent-current-tool]");
+    if (current && state.currentTool) current.textContent = state.currentTool;
+    if (shouldScroll !== false) scrollToBottom();
     return node;
+  }
+
+  function renderPersistedWorkBoard(state, shouldScroll) {
+    if (!state) return null;
+    return renderWorkBoard(state, shouldScroll);
+  }
+
+  function appendLoadingCard() {
+    var room = activeRoom();
+    var lastUser = room && room.messages ? room.messages.filter(function (m) { return m.role === "user"; }).slice(-1)[0] : null;
+    var question = lastUser && lastUser.content ? lastUser.content : "Новый запрос";
+    var state = createWorkState(question);
+    addWorkMessage(state);
+    return renderWorkBoard(state);
+  }
+
+  function activeBoard(refs) {
+    refs = refs || currentRefs || {};
+    var node = refs.loading;
+    if (node && node.classList && node.classList.contains("ai-agent-board") && node.parentNode) return node;
+    return null;
+  }
+
+  function boardNodeByWorkId(workId) {
+    if (!els.stream || !workId) return null;
+    return els.stream.querySelector('[data-ai-work-id="' + String(workId).replace(/"/g, '\\"') + '"]');
+  }
+
+  function parsePlanItems(content) {
+    return String(content || "")
+      .split(/\r?\n/)
+      .map(function (line) {
+        var match = line.match(/^\s*(?:\[([x>! ])\])?\s*\d+[.)]\s*(.+?)\s*$/i);
+        if (!match) return null;
+        var mark = match[1] || "";
+        return {
+          status: mark.toLowerCase() === "x" ? "done" : mark === ">" ? "active" : "pending",
+          text: match[2].trim(),
+          startedAt: Date.now(),
+        };
+      })
+      .filter(Boolean);
+  }
+
+  function renderAgentPlan(board) {
+    if (!board) return;
+    var section = board.querySelector(".ai-agent-plan-section");
+    var wrap = board.querySelector("[data-ai-agent-plan]");
+    if (!wrap) return;
+    var steps = board.__planSteps || [];
+    if (section) section.hidden = !steps.length;
+    if (!steps.length) return;
+    wrap.innerHTML = steps.map(function (step) {
+      var elapsed = step.doneAt && step.startedAt ? Math.max(1, Math.round((step.doneAt - step.startedAt) / 1000)) : null;
+      return (
+        '<div class="ai-agent-plan-step is-' + escapeHtml(step.status || "pending") + '">' +
+        '<span class="ai-agent-plan-marker"></span>' +
+        '<span class="ai-agent-plan-text">' + escapeHtml(step.text || "") + "</span>" +
+        '<span class="ai-agent-plan-state">' +
+        (step.status === "done" ? "Готово" : step.status === "active" ? "Выполняется" : "Ожидает") +
+        "</span>" +
+        '<span class="ai-agent-plan-time">' + (elapsed ? elapsed + " сек" : "") + "</span>" +
+        "</div>"
+      );
+    }).join("");
+  }
+
+  function renderAgentTools(board) {
+    if (!board) return;
+    var wrap = board.querySelector("[data-ai-agent-tools]");
+    if (!wrap) return;
+    wrap.innerHTML = (board.__tools || []).slice(-8).map(function (tool) {
+      return '<span class="ai-agent-tool-chip">' + escapeHtml(tool) + "</span>";
+    }).join("");
+  }
+
+  function updateAgentPlan(content, refs) {
+    var board = activeBoard(refs);
+    if (!board) return;
+    var parsed = parsePlanItems(content);
+    if (!parsed.length) return;
+    if (!board.__planInitialized) {
+      board.__planSteps = parsed;
+      board.__planInitialized = true;
+    } else {
+      board.__planSteps.forEach(function (step, idx) {
+        var next = parsed[idx];
+        if (!next) return;
+        if (step.status !== "done" && next.status === "done") step.doneAt = Date.now();
+        step.status = next.status || step.status;
+      });
+    }
+    renderAgentPlan(board);
+    persistWorkStateFromBoard(board, refs && refs.roomId);
+  }
+
+  function progressAgentPlan(refs) {
+    var board = activeBoard(refs);
+    if (!board || !board.__planSteps || !board.__planSteps.length) return;
+    var steps = board.__planSteps;
+    var activeIdx = steps.findIndex(function (step) { return step.status === "active"; });
+    if (activeIdx === -1) activeIdx = steps.findIndex(function (step) { return step.status !== "done"; });
+    if (activeIdx < 0) return;
+    steps[activeIdx].status = "done";
+    steps[activeIdx].doneAt = Date.now();
+    if (steps[activeIdx + 1] && steps[activeIdx + 1].status !== "done") {
+      steps[activeIdx + 1].status = "active";
+      steps[activeIdx + 1].startedAt = Date.now();
+    }
+    renderAgentPlan(board);
+    board.__completed = true;
+    persistWorkStateFromBoard(board, refs && refs.roomId);
+  }
+
+  function fileIconSrc(path) {
+    var ext = String(path || "").split(".").pop().toLowerCase();
+    var name = "";
+    if (ext === "js" || ext === "ts" || ext === "tsx") name = "JS.jpg";
+    else if (ext === "py") name = "Python.jpg";
+    else if (ext === "html") name = "HTML.jpg";
+    else if (ext === "css") name = "css.jpg";
+    else if (ext === "xls" || ext === "xlsx") name = "excel.jpg";
+    return name ? "temp/files/" + name : "";
+  }
+
+  function addAgentTool(name, refs) {
+    var board = activeBoard(refs);
+    if (!board || !name) return;
+    board.__tools = board.__tools || [];
+    if (board.__tools.indexOf(name) === -1) board.__tools.push(name);
+    var wrap = board.querySelector("[data-ai-agent-tools]");
+    var current = board.querySelector("[data-ai-agent-current-tool]");
+    renderAgentTools(board);
+    if (current) current.textContent = "Сейчас выполняется: " + name;
+    board.__currentTool = "Сейчас выполняется: " + name;
+    persistWorkStateFromBoard(board, refs && refs.roomId);
+  }
+
+  function addAgentProgress(text, refs) {
+    var board = activeBoard(refs);
+    if (!board || !text) return false;
+    var current = board.querySelector("[data-ai-agent-current-tool]");
+    if (current) current.textContent = String(text);
+    board.__currentTool = String(text);
+    persistWorkStateFromBoard(board, refs && refs.roomId);
+    return true;
+  }
+
+  function renderFoundDock() {
+    if (!els.foundDockList || !analysis) return;
+    if (els.foundDock) els.foundDock.hidden = !analysis.files.length;
+    if (els.foundSummary) els.foundSummary.textContent = analysis.files.length + " Files";
+    els.foundDockList.innerHTML = analysis.files.slice(0, 12).map(function (file) {
+      var icon = fileIconSrc(file);
+      return (
+        '<div class="ai-agent-found-file" title="' + escapeHtml(file) + '" data-ai-open-file="' + escapeHtml(file) + '">' +
+        '<span class="ai-agent-found-icon">' +
+        (icon ? '<img src="' + escapeHtml(icon) + '" alt="">' : escapeHtml(fileKind(file))) +
+        "</span>" +
+        '<span class="ai-agent-found-main">' +
+        '<span class="ai-agent-found-path">' + escapeHtml(middleEllipsis(file, 64)) + "</span>" +
+        '<span class="ai-agent-found-desc">' + escapeHtml(fileDescription(file)) + "</span>" +
+        "</span>" +
+        "</div>"
+      );
+    }).join("");
+  }
+
+  function addAgentFoundFile(path, refs) {
+    if (!path) return;
+    var clean = String(path).replace(/\s+\(сохранён в \.agentTurbo\)$/i, "");
+    if (!analysis) resetAnalysis();
+    if (analysis.files.indexOf(clean) === -1) analysis.files.push(clean);
+    renderFoundDock();
   }
 
   function appendWorkCard(refs) {
@@ -640,9 +971,12 @@
       '<ul class="ai-file-list">' +
       files
         .map(function (path) {
+          var icon = fileIconSrc(path);
           return (
             '<li class="ai-file-item">' +
-            '<span class="ai-file-icon">' + escapeHtml(fileKind(path)) + "</span>" +
+            '<span class="ai-file-icon">' +
+            (icon ? '<img src="' + escapeHtml(icon) + '" alt="">' : escapeHtml(fileKind(path))) +
+            "</span>" +
             '<span class="ai-file-main">' +
             '<span class="ai-file-path" title="' + escapeHtml(path) + '">' + escapeHtml(middleEllipsis(path, 68)) + "</span>" +
             '<span class="ai-file-desc">' + escapeHtml(fileDescription(path)) + "</span>" +
@@ -703,19 +1037,59 @@
     );
   }
 
+  function renderRichAnswerHtml(text, tablesHtml) {
+    var source = extractMarkdownTables(text).textWithoutTables || String(text || "");
+    var lines = source.split(/\r?\n/).map(function (line) { return line.trim(); });
+    var html = [];
+    var list = [];
+    var listKind = "ol";
+
+    function flushList() {
+      if (!list.length) return;
+      html.push('<' + listKind + ' class="ai-answer-list ai-answer-list--' + listKind + '">' + list.map(function (item) {
+        return "<li>" + inlineMarkdownToHtml(item) + "</li>";
+      }).join("") + "</" + listKind + ">");
+      list = [];
+      listKind = "ol";
+    }
+
+    lines.forEach(function (line) {
+      if (!line) {
+        flushList();
+        return;
+      }
+      var listMatch = line.match(/^([-•*]|\d+[.)]|[a-zа-я][.)])\s+(.+)$/i);
+      if (listMatch) {
+        var nextKind = /^[-•*]$/.test(listMatch[1]) ? "ul" : "ol";
+        if (list.length && listKind !== nextKind) flushList();
+        listKind = nextKind;
+        list.push(listMatch[2]);
+        return;
+      }
+      flushList();
+      html.push("<p>" + inlineMarkdownToHtml(line.replace(/^#{1,6}\s+/, "")) + "</p>");
+    });
+    flushList();
+    if (tablesHtml) html.push(tablesHtml);
+    return html.join("") || "<p>" + escapeHtml(text || "") + "</p>";
+  }
+
   function renderAssistantAnswer(text, shouldScroll) {
     hideEmpty();
     appendAssistantSpacerIfNeeded();
     var tableInfo = extractMarkdownTables(text);
     var files = extractFiles(text);
-    var summary = splitSentences(tableInfo.textWithoutTables || text, 4) || "Агент проанализировал проект и подготовил ответ по найденной логике.";
     var tablesHtml = renderMarkdownTables(tableInfo.tables);
+    if (!analysis) resetAnalysis();
+    files.forEach(function (path) {
+      if (analysis.files.indexOf(path) === -1) analysis.files.push(path);
+    });
+    renderFoundDock();
+    persistAnalysisState();
     var node = document.createElement("article");
     node.className = "ai-assistant-answer";
     node.innerHTML =
-      renderCard("Краткий ответ", "<p>" + escapeHtml(summary) + "</p>") +
-      (tablesHtml ? renderCard("Таблицы из ответа", tablesHtml) : "") +
-      renderCard("Где находится логика", renderFileRows(files));
+      renderCard("Краткий ответ", renderRichAnswerHtml(text, tablesHtml));
     node.setAttribute("data-answer-text", text || "");
     els.stream.appendChild(node);
     if (shouldScroll !== false) scrollToBottom();
@@ -751,7 +1125,9 @@
     }
     if (!isVisibleRoom && ["answer", "error", "cancelled", "done"].indexOf(type) === -1) return;
     if (type === "progress") {
-      appendWorkItem(event.message || event.content || "", refs);
+      if (!addAgentProgress(event.message || event.content || "", refs)) {
+        appendWorkItem(event.message || event.content || "", refs);
+      }
       addTechnical("Ход работы", event.message || event.content || "");
       return;
     }
@@ -762,6 +1138,7 @@
       return;
     }
     if (type === "plan") {
+      updateAgentPlan(event.content || "", refs);
       addTechnical("План", event.content || "");
       return;
     }
@@ -773,6 +1150,7 @@
         if (analysis.analyzedItems.indexOf(analyzedKey) === -1) analysis.analyzedItems.push(analyzedKey);
       }
       persistAnalysisState(roomId);
+      addAgentTool(event.name || "tool", refs);
       addTimelineStep("MCP: " + (event.name || "tool"), "done");
       addTechnical("MCP", event.name || "tool");
       renderTimeline();
@@ -781,12 +1159,13 @@
     if (type === "file") {
       rememberFile(event.path || "");
       rememberProgressFile(event.path || "");
+      addAgentFoundFile(event.path || "", refs);
       addTechnical("Файл", event.path || "");
       renderTimeline();
       return;
     }
     if (type === "answer") {
-      if (refs.loading && refs.loading.parentNode) refs.loading.remove();
+      progressAgentPlan(refs);
       if (analysis) analysis.completed = true;
       persistAnalysisState(roomId);
       addTimelineStep("Сформировал ответ", "done");
@@ -798,7 +1177,12 @@
       return;
     }
     if (type === "error") {
-      if (refs.loading && refs.loading.parentNode) refs.loading.remove();
+      if (refs.loading && refs.loading.parentNode && !refs.loading.classList.contains("ai-agent-board")) refs.loading.remove();
+      if (refs.loading && refs.loading.classList && refs.loading.classList.contains("ai-agent-board")) {
+        refs.loading.__completed = true;
+        refs.loading.__currentTool = "Завершено с ошибкой";
+        persistWorkStateFromBoard(refs.loading, roomId);
+      }
       if (isVisibleRoom) renderError(event.message || "Ошибка AI-ассистента");
       addRoomMessage("error", event.message || "Ошибка AI-ассистента", roomId);
       addTechnical("Ошибка", event.message || "");
@@ -807,8 +1191,13 @@
       return;
     }
     if (type === "cancelled") {
-      if (refs.loading && refs.loading.parentNode) refs.loading.remove();
+      if (refs.loading && refs.loading.parentNode && !refs.loading.classList.contains("ai-agent-board")) refs.loading.remove();
       var cancelText = event.message || "Запрос остановлен пользователем";
+      if (refs.loading && refs.loading.classList && refs.loading.classList.contains("ai-agent-board")) {
+        refs.loading.__completed = true;
+        refs.loading.__currentTool = cancelText;
+        persistWorkStateFromBoard(refs.loading, roomId);
+      }
       if (isVisibleRoom) renderError(cancelText);
       addRoomMessage("error", cancelText, roomId);
       addTechnical("Остановлено", cancelText);
@@ -858,7 +1247,7 @@
       if (!(result && result.unauthorized) && scheduleJobReconnect(refs, "network error")) {
         return;
       }
-      if (refs.loading && refs.loading.parentNode) refs.loading.remove();
+      if (refs.loading && refs.loading.parentNode && !refs.loading.classList.contains("ai-agent-board")) refs.loading.remove();
       var errorText = (result && result.error) || "Не удалось получить ответ AI-ассистента";
       if (!refs.roomId || refs.roomId === activeRoomId) renderError(errorText);
       addRoomMessage("error", errorText, refs.roomId);
@@ -893,7 +1282,12 @@
       return;
     }
     resetAnalysis();
-    currentRefs = { loading: appendLoadingCard(), answer: null, roomId: room.id };
+    var workMessage = latestWorkMessage(room);
+    var board = workMessage && workMessage.content ? boardNodeByWorkId(workMessage.content.id) : null;
+    if (!board) {
+      board = workMessage && workMessage.content ? renderPersistedWorkBoard(workMessage.content, false) : appendLoadingCard();
+    }
+    currentRefs = { loading: board, answer: null, roomId: room.id };
     startJobStream(room.activeJobId, room.jobSeq == null ? -1 : room.jobSeq, currentRefs);
   }
 
@@ -911,13 +1305,16 @@
     appendUserMessage(message);
     addRoomMessage("user", message);
     resetAnalysis();
-    var refs = { loading: appendLoadingCard(), answer: null, roomId: activeRoomId };
+    var casualMessage = isSimpleGreeting(message);
+    var refs = { loading: casualMessage ? null : appendLoadingCard(), answer: null, roomId: activeRoomId };
     currentRefs = refs;
     setBusy(true);
     var context = currentDashboardContext();
+    var userContext = currentUserContext();
     var payload = {
-      message: context ? message + "\n\nКонтекст страницы:\n" + context : message,
+      message: !casualMessage && context ? message + "\n\nКонтекст страницы:\n" + context : message,
       room_id: activeRoomId,
+      user_context: userContext,
     };
     window.Api.sendAssistantMessageStream(payload, {
       onEvent: function (event) {
@@ -1039,6 +1436,9 @@
     els.tech = $("ai-assistant-tech");
     els.roomTabs = $("ai-assistant-room-tabs");
     els.roomAdd = $("ai-assistant-room-add");
+    els.foundDock = $("ai-agent-found-dock");
+    els.foundSummary = $("ai-agent-found-summary");
+    els.foundDockList = $("ai-agent-found-dock-list");
     if (!els.open || !els.overlay) return;
     loadRooms();
     renderRoomTabs();

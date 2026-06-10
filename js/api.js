@@ -1652,6 +1652,38 @@
     return planFactLookup;
   }
 
+  function getClientAggregationMode() {
+    if (
+      typeof DashboardMonthNav !== "undefined" &&
+      DashboardMonthNav &&
+      typeof DashboardMonthNav.getPeriodState === "function"
+    ) {
+      var ps = DashboardMonthNav.getPeriodState();
+      if (ps && ps.aggregationMode != null && String(ps.aggregationMode).trim()) {
+        return String(ps.aggregationMode).trim();
+      }
+    }
+    return "current";
+  }
+
+  function resolvePlanFactFromMonthlyPoint(point) {
+    if (!point || typeof point !== "object") {
+      return { plan: null, fact: null, kpi_pct: null };
+    }
+    var plan = point.plan;
+    var fact = point.fact;
+    var kpiPct = typeof point.kpi_pct === "number" && !isNaN(point.kpi_pct) ? point.kpi_pct : null;
+    if (getClientAggregationMode() === "month" && point.plan_full != null) {
+      plan = point.plan_full;
+      var planNum = Number(plan);
+      var factNum = Number(fact);
+      if (isFinite(planNum) && !isNaN(planNum) && isFinite(factNum) && !isNaN(factNum) && Math.abs(planNum) > 0.000001) {
+        kpiPct = (factNum / planNum) * 100;
+      }
+    }
+    return { plan: plan, fact: fact, kpi_pct: kpiPct };
+  }
+
   function buildPlanFactLookupFromTileMonthlyData(tiles, filterYear, filterMonth) {
     var out = {};
     if (!Array.isArray(tiles) || !tiles.length) return out;
@@ -1669,11 +1701,13 @@
         : pickLatestMonthlyPointWithPlanAndFact(tile.monthly_data);
       if (!point) return;
       var isWeightedDeviation = point.aggregation === "weighted_delta_amount_div_project_amount";
+      var resolved = resolvePlanFactFromMonthlyPoint(point);
       out[String(tile.kpi_id)] = {
-        plan: isWeightedDeviation && point.display_plan !== undefined ? point.display_plan : point.plan,
-        fact: isWeightedDeviation && point.display_fact !== undefined ? point.display_fact : point.fact,
+        plan:
+          isWeightedDeviation && point.display_plan !== undefined ? point.display_plan : resolved.plan,
+        fact: isWeightedDeviation && point.display_fact !== undefined ? point.display_fact : resolved.fact,
         expected_plan: point.expected_plan,
-        kpi_pct: typeof point.kpi_pct === "number" && !isNaN(point.kpi_pct) ? point.kpi_pct : null,
+        kpi_pct: resolved.kpi_pct,
         plan_fact_rows: Array.isArray(point.plan_fact_rows) ? point.plan_fact_rows : [],
         project_deviation_rows: Array.isArray(point.project_deviation_rows) ? point.project_deviation_rows : [],
         max_allowed_delay_workdays:
@@ -1710,6 +1744,32 @@
     if (factValue < planValue) return "green";
     if (Math.abs(factValue - planValue) < 0.000001) return "yellow";
     return "red";
+  }
+
+  /** KD-M1 Деньги, KD-M2 Отгрузки, KD-M3 Договоры — чем выше факт относительно плана, тем лучше. */
+  function isCommercialHigherIsBetterPlanFactKpiId(kpiId) {
+    var id = kpiId != null ? String(kpiId).trim().toUpperCase() : "";
+    return id === "KD-M1" || id === "KD-M2" || id === "KD-M3";
+  }
+
+  function higherBetterRagFromPct(pct) {
+    var value = Number(pct);
+    if (!isFinite(value) || isNaN(value)) return null;
+    if (value >= 100) return "green";
+    if (value >= 90) return "yellow";
+    return "red";
+  }
+
+  function higherBetterRagFromPlanFact(plan, fact) {
+    var planValue = Number(plan);
+    var factValue = Number(fact);
+    if (!isFinite(planValue) || isNaN(planValue) || !isFinite(factValue) || isNaN(factValue)) return null;
+    if (factValue > planValue) return "green";
+    if (Math.abs(factValue - planValue) < 0.000001) {
+      return planValue > 0 ? "green" : "yellow";
+    }
+    if (planValue <= 0) return "red";
+    return higherBetterRagFromPct((factValue / planValue) * 100);
   }
 
   function turnoverLimitRagFromPct(pct) {
@@ -1787,6 +1847,11 @@
         if (isBudgetFotLimitKpiId(id)) {
           var pfRag = planFactLimitRag(ownMonthly.plan, ownMonthly.fact);
           if (pfRag) tile.rag = pfRag;
+        } else if (isCommercialHigherIsBetterPlanFactKpiId(id)) {
+          var commercialRag =
+            higherBetterRagFromPlanFact(ownMonthly.plan, ownMonthly.fact) ||
+            (ownMonthly.kpi_pct != null ? higherBetterRagFromPct(ownMonthly.kpi_pct) : null);
+          if (commercialRag) tile.rag = commercialRag;
         } else if (ownMonthly.color != null) {
           tile.rag = String(ownMonthly.color).toLowerCase().trim();
         }
@@ -1807,7 +1872,14 @@
           }
         }
         if (ownMonthly.plan_fact_period_label) tile.plan_fact_period_label = String(ownMonthly.plan_fact_period_label);
-        applyHasDataFromSource(tile, ownMonthly);
+        if (
+          isCommercialHigherIsBetterPlanFactKpiId(id) &&
+          (planFactValuePresent(ownMonthly.plan) || planFactValuePresent(ownMonthly.fact))
+        ) {
+          tile.has_data = true;
+        } else {
+          applyHasDataFromSource(tile, ownMonthly);
+        }
         return;
       }
       var chartBoth =

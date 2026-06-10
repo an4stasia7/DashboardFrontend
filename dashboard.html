@@ -250,6 +250,7 @@
             hidden
           >
             <option value="current">На текущий момент</option>
+            <option value="month">За месяц</option>
             <option value="quarter">За квартал</option>
             <option value="ytd">С начала года</option>
           </select>
@@ -610,7 +611,9 @@
       <aside class="ai-assistant-panel" id="ai-assistant-panel" role="dialog" aria-modal="true" aria-labelledby="ai-assistant-title">
         <div class="ai-assistant-head">
           <div class="ai-assistant-brand">
-            <span class="ai-assistant-logo" aria-hidden="true">AI</span>
+            <span class="ai-assistant-logo" aria-hidden="true">
+              <img src="temp/files/Preview.jpg" alt="">
+            </span>
             <div>
               <h2 id="ai-assistant-title">AI-ассистент</h2>
               <p>Анализирует репозиторий и логику дашбордов</p>
@@ -653,6 +656,14 @@
             <summary>Показать технические детали</summary>
             <div class="ai-assistant-events" id="ai-assistant-events" aria-live="polite"></div>
           </details>
+        </details>
+        <details class="ai-agent-found-dock" id="ai-agent-found-dock" hidden>
+          <summary>
+            <span id="ai-agent-found-summary">0 Files</span>
+            <span class="ai-agent-found-used">Используемые</span>
+            <span class="ai-assistant-progress-caret" aria-hidden="true"></span>
+          </summary>
+          <div class="ai-agent-found-dock-list" id="ai-agent-found-dock-list"></div>
         </details>
         <form class="ai-assistant-form" id="ai-assistant-form">
           <div class="ai-assistant-input-shell">

@@ -492,6 +492,7 @@
           return chairmanAggregationMode;
         },
         getChairmanAggregatedTilesFromRaw: getChairmanAggregatedTilesFromRaw,
+        getCommercialFotTurnoverAggregatedTilesFromRaw: getCommercialFotTurnoverAggregatedTilesFromRaw,
         maybeAugmentCommercialDeptTilesWithPriorMonthFetch: maybeAugmentCommercialDeptTilesWithPriorMonthFetch,
       });
     }
@@ -1395,7 +1396,7 @@
     }
     var periodState = DashboardMonthNav.getPeriodState();
     var aggregationMode = periodState && periodState.aggregationMode != null ? String(periodState.aggregationMode).trim() : "current";
-    if (aggregationMode === "quarter" || aggregationMode === "ytd") return tiles;
+    if (aggregationMode === "quarter" || aggregationMode === "ytd" || aggregationMode === "month") return tiles;
     var selY = periodState.currentPeriodYear;
     var selM = periodState.currentPeriodMonth;
     if (selY == null || selM == null) return tiles;
@@ -1767,7 +1768,7 @@
       showProductionShopSwitch || showChiefAccountantSwitch,
       showChiefAccountantSwitch ? "chief-accountant" : "production"
     );
-    tiles = applyPriorMonthFactForFotTurnoverTiles(sourceTiles);
+    tiles = normalizeCommercialHigherIsBetterPlanFactTiles(applyPriorMonthFactForFotTurnoverTiles(sourceTiles));
     lastKpiTiles = tiles && tiles.length ? tiles : null;
     flippedTileIndices.clear();
     if (typeof DashboardKpiDrilldown !== "undefined" && DashboardKpiDrilldown) {
@@ -1863,9 +1864,24 @@
   }
 
   function chairmanAggregationModeLabel(mode) {
+    if (mode === "month") return "За месяц";
     if (mode === "quarter") return "За квартал";
     if (mode === "ytd") return "С начала года";
     return "На текущий момент";
+  }
+
+  function applyFullMonthPlanToPoint(point) {
+    if (!point || typeof point !== "object") return point;
+    var fullPlan = parseNumberLoose(point.plan_full);
+    if (fullPlan == null) fullPlan = parseNumberLoose(point.plan);
+    var fact = parseNumberLoose(point.fact);
+    if (fullPlan == null) return point;
+    var next = Object.assign({}, point);
+    next.plan = fullPlan;
+    if (fact != null && Math.abs(fullPlan) > 0.000001) {
+      next.kpi_pct = (fact / fullPlan) * 100;
+    }
+    return next;
   }
 
   function parseNumberLoose(value) {
@@ -1961,7 +1977,7 @@
     }
     var ps = DashboardMonthNav.getPeriodState();
     var aggregationMode = ps && ps.aggregationMode != null ? String(ps.aggregationMode).trim() : "current";
-    if (aggregationMode === "quarter" || aggregationMode === "ytd") {
+    if (aggregationMode === "quarter" || aggregationMode === "ytd" || aggregationMode === "month") {
       done(tilesToRender);
       return;
     }
@@ -2043,6 +2059,21 @@
     if (mode === "ytd") {
       return "Накопительно с начала " + y + " г. (янв.–" + getMonthShortRu(m) + ")";
     }
+    if (mode === "month") {
+      if (Array.isArray(points)) {
+        for (var mi = 0; mi < points.length; mi++) {
+          var mp = points[mi];
+          if (!mp) continue;
+          if (Number(mp.year) === y && Number(mp.month) === m) {
+            var mname = mp.month_name != null ? String(mp.month_name).trim() : "";
+            if (mname) {
+              return "За месяц: " + mname.charAt(0).toUpperCase() + mname.slice(1) + " " + y;
+            }
+          }
+        }
+      }
+      return "За месяц: " + getMonthShortRu(m) + " " + y;
+    }
     if (Array.isArray(points)) {
       for (var i = 0; i < points.length; i++) {
         var point = points[i];
@@ -2100,6 +2131,53 @@
     if (factValue < planValue) return "green";
     if (Math.abs(factValue - planValue) < 0.000001) return "yellow";
     return "red";
+  }
+
+  function isCommercialHigherIsBetterPlanFactKpiItem(item) {
+    if (!item || typeof item !== "object") return false;
+    var id = item.kpi_id != null ? String(item.kpi_id).trim().toUpperCase() : "";
+    return id === "KD-M1" || id === "KD-M2" || id === "KD-M3";
+  }
+
+  function higherBetterRagFromPct(pct) {
+    var value = parseNumberLoose(pct);
+    if (value == null) return null;
+    if (value >= 100) return "green";
+    if (value >= 90) return "yellow";
+    return "red";
+  }
+
+  function higherBetterRagFromPlanFact(plan, fact) {
+    var planValue = parseNumberLoose(plan);
+    var factValue = parseNumberLoose(fact);
+    if (planValue == null || factValue == null) return null;
+    if (factValue > planValue) return "green";
+    if (Math.abs(factValue - planValue) < 0.000001) {
+      return planValue > 0 ? "green" : "yellow";
+    }
+    if (planValue <= 0) return "red";
+    return higherBetterRagFromPct((factValue / planValue) * 100);
+  }
+
+  function normalizeCommercialHigherIsBetterPlanFactTiles(tiles) {
+    if (!Array.isArray(tiles) || !tiles.length) return tiles;
+    return tiles.map(function (tile) {
+      if (!tile || !isCommercialHigherIsBetterPlanFactKpiItem(tile)) return tile;
+      var next = Object.assign({}, tile);
+      var plan = parseNumberLoose(tile.plan);
+      var fact = parseNumberLoose(tile.fact);
+      var rag =
+        higherBetterRagFromPlanFact(tile.plan, tile.fact) ||
+        higherBetterRagFromPct(tile.kpi_pct != null ? tile.kpi_pct : tile.percent);
+      if (rag) {
+        next.rag = rag;
+        next.color = rag;
+      }
+      if (plan != null || fact != null) {
+        next.has_data = true;
+      }
+      return next;
+    });
   }
 
   function isTurnoverKpiItem(item) {
@@ -2168,7 +2246,10 @@
 
     if (mode !== "quarter" && mode !== "ytd") {
       for (var ci = 0; ci < filtered.length; ci++) {
-        if (Number(filtered[ci].month) === m) return filtered[ci];
+        if (Number(filtered[ci].month) === m) {
+          var row = filtered[ci];
+          return mode === "month" ? applyFullMonthPlanToPoint(row) : row;
+        }
       }
       return null;
     }
@@ -2316,6 +2397,10 @@
     var limitRag = isBudgetFotLimitKpiItem(item) ? planFactLimitRag(plan, fact) : null;
     var turnoverRag = isTurnoverKpiItem(item) ? turnoverLimitRagFromPct(kpiPct) : null;
     var shareRag = isMrk06ShareKpiItem(item) ? mrk06ShareRagFromPct(kpiPct) : null;
+    var commercialPlanFactRag = isCommercialHigherIsBetterPlanFactKpiItem(item)
+      ? higherBetterRagFromPlanFact(hasPlan ? plan : null, hasFact ? fact : null) ||
+        higherBetterRagFromPct(kpiPct)
+      : null;
 
     return {
       year: y,
@@ -2330,7 +2415,7 @@
       color:
         weightedDisplay && kpiPct != null && displayPlan != null
           ? (kpiPct < displayPlan ? "green" : (Math.abs(kpiPct - displayPlan) < 0.000001 ? "yellow" : "red"))
-          : (shareRag || turnoverRag || limitRag),
+          : (shareRag || turnoverRag || limitRag || commercialPlanFactRag),
       expected_plan: extraHas.expected_plan ? extraSums.expected_plan : null,
       found: extraHas.found ? extraSums.found : null,
       won: extraHas.won ? extraSums.won : null,
@@ -2349,7 +2434,11 @@
       plan_by_dept: Object.keys(planByDept).length ? planByDept : null,
       fact_by_dept: Object.keys(factByDept).length ? factByDept : null,
       kpi_pct: kpiPct,
-      has_data: hasExplicitHasDataFlag ? hasData : (hasPlan || hasFact),
+      has_data: isCommercialHigherIsBetterPlanFactKpiItem(item)
+        ? hasPlan || hasFact
+        : hasExplicitHasDataFlag
+          ? hasData
+          : hasPlan || hasFact,
     };
   }
 
@@ -2410,7 +2499,7 @@
     // и будет давать неверный RAG для агрегированного значения. В этих
     // режимах отдаём решение по цвету порогам (`green_threshold` и т.д.).
     var preserveBackendRag =
-      mode !== "quarter" && mode !== "ytd";
+      mode !== "quarter" && mode !== "ytd" && mode !== "month";
 
     var outPlan =
       point && point.display_plan != null
@@ -2631,14 +2720,20 @@
 
   function getCommercialFotTurnoverAggregatedTilesFromRaw(rawBody, baseTiles) {
     if (!rawBody || typeof rawBody !== "object" || !Array.isArray(baseTiles) || !baseTiles.length) return null;
-    if (!isCommercialDirectorDashboardContext() && !isChiefMetrologDashboardContext()) return null;
 
     var periodState =
       typeof DashboardMonthNav !== "undefined" && DashboardMonthNav && typeof DashboardMonthNav.getPeriodState === "function"
         ? DashboardMonthNav.getPeriodState()
         : null;
     var mode = periodState && periodState.aggregationMode != null ? String(periodState.aggregationMode).trim() : "current";
-    if (mode !== "quarter" && mode !== "ytd") return null;
+    if (mode !== "quarter" && mode !== "ytd" && mode !== "month") return null;
+    if (
+      mode !== "month" &&
+      !isCommercialDirectorDashboardContext() &&
+      !isChiefMetrologDashboardContext()
+    ) {
+      return null;
+    }
 
     var year = periodState && periodState.currentPeriodYear != null ? Number(periodState.currentPeriodYear) : null;
     var month = periodState && periodState.currentPeriodMonth != null ? Number(periodState.currentPeriodMonth) : null;
@@ -2657,8 +2752,10 @@
     var touched = false;
     var nextTiles = baseTiles.map(function (tile) {
       var id = tile && tile.kpi_id != null ? String(tile.kpi_id).trim() : "";
-      if (isCommercialDirectorDashboardContext()) {
-        if (id !== "KD-M8" && id !== "KD-M11") return tile;
+      if (mode === "month") {
+        if (!byId[id] || !Array.isArray(byId[id].monthly_data) || !byId[id].monthly_data.length) return tile;
+      } else if (isCommercialDirectorDashboardContext()) {
+        if (id !== "KD-M1" && id !== "KD-M2" && id !== "KD-M3" && id !== "KD-M8" && id !== "KD-M11") return tile;
       } else if (!isChiefMetrologRatioKpiId(id)) {
         return tile;
       }

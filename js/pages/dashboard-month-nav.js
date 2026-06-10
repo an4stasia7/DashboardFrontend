@@ -466,7 +466,8 @@
     options = options || {};
     currentPeriodMonth = month;
     currentPeriodYear = year;
-    if ((aggregationMode || "current") === "current" && !options.preserveCurrentModeSnapshot) {
+    var agg = aggregationMode || "current";
+    if ((agg === "current" || agg === "month") && !options.preserveCurrentModeSnapshot) {
       rememberCurrentModePeriod();
     }
     updateMonthNavigatorUI();
@@ -497,8 +498,9 @@
     if (Object.prototype.hasOwnProperty.call(nextState, "currentPeriodYear")) {
       currentPeriodYear = nextState.currentPeriodYear;
     }
+    var aggOnSet = aggregationMode || "current";
     if (
-      (aggregationMode || "current") === "current" &&
+      (aggOnSet === "current" || aggOnSet === "month") &&
       currentPeriodMonth != null &&
       currentPeriodYear != null &&
       !isNaN(Number(currentPeriodMonth)) &&
@@ -555,8 +557,8 @@
       aggregationSelect.addEventListener("change", function () {
         var prevMode = aggregationMode || "current";
         var nextMode = aggregationSelect.value || "current";
-        if (nextMode !== "quarter" && nextMode !== "ytd") nextMode = "current";
-        if (prevMode !== "current" && nextMode === "current") {
+        if (nextMode !== "quarter" && nextMode !== "ytd" && nextMode !== "month") nextMode = "current";
+        if ((prevMode === "quarter" || prevMode === "ytd") && (nextMode === "current" || nextMode === "month")) {
           restoreCurrentModePeriod();
         }
         aggregationMode = nextMode;
