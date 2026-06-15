@@ -82,11 +82,19 @@ Prepare-NsisBuildEnvironment -RepoRoot $repoRoot
 $prepareConfig = Join-Path $repoRoot "scripts\prepare-release-config.ps1"
 $restoreConfig = Join-Path $repoRoot "scripts\restore-dev-config.ps1"
 & $prepareConfig
-if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+if (-not $?) {
+  exit 1
+}
 
+$code = 1
 try {
+  Write-Host "Starting electron-builder (win, publish always)..."
   & $builder @("--win", "--publish", "always")
-  $code = $LASTEXITCODE
+  if ($?) {
+    $code = 0
+  } elseif ($null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0) {
+    $code = $LASTEXITCODE
+  }
 } finally {
   & $restoreConfig
 }

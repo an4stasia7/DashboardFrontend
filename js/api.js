@@ -1025,14 +1025,6 @@
               : null;
         var color = item.color != null ? String(item.color).toLowerCase().trim() : null;
         var th = item.thresholds && typeof item.thresholds === "object" ? item.thresholds : {};
-        var hint =
-          item.description != null
-            ? String(item.description)
-            : item.hint != null
-              ? String(item.hint)
-              : item.comment != null
-                ? String(item.comment)
-                : "";
         function thStr(obj, key, flatKey) {
           if (obj[key] != null) return String(obj[key]);
           if (flatKey != null && item[flatKey] != null) return String(item[flatKey]);
@@ -1047,6 +1039,36 @@
           }
           return "";
         }
+        var hintFields =
+          global.DashUi && typeof global.DashUi.normalizeKpiTileHintFields === "function"
+            ? global.DashUi.normalizeKpiTileHintFields(item)
+            : {
+                description:
+                  item.description != null
+                    ? String(item.description)
+                    : "",
+                hint:
+                  item.description != null
+                    ? String(item.description)
+                    : item.hint != null
+                      ? String(item.hint)
+                      : item.comment != null
+                        ? String(item.comment)
+                        : "",
+                source: firstStringValue(["source", "data_source", "kpi_source", "info_source", "hint_source"]),
+                plan_description: firstStringValue([
+                  "plan_description",
+                  "description_plan",
+                  "hint_plan",
+                  "plan_hint",
+                ]),
+                fact_description: firstStringValue([
+                  "fact_description",
+                  "description_fact",
+                  "hint_fact",
+                  "fact_hint",
+                ]),
+              };
         function normalizeUnits(kpiId, value) {
           var kid = kpiId != null ? String(kpiId).trim().toUpperCase() : "";
           if (kid === "OD-M1" || kid === "OD-M3.1" || kid === "OD-M3.2") return "руб.";
@@ -1149,7 +1171,11 @@
           pct_supplier: item.pct_supplier != null ? item.pct_supplier : null,
           pct_total: item.pct_total != null ? item.pct_total : null,
           has_data: hasData,
-          hint: hint,
+          description: hintFields.description,
+          hint: hintFields.description,
+          source: hintFields.source,
+          plan_description: hintFields.plan_description,
+          fact_description: hintFields.fact_description,
           rag: color,
           green_threshold: thStr(th, "green", "green_threshold"),
           yellow_threshold: thStr(th, "yellow", "yellow_threshold"),

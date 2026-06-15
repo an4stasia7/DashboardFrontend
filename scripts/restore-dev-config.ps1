@@ -12,3 +12,4 @@ if (-not (Test-Path -LiteralPath $devBackup)) {
 Copy-Item -LiteralPath $devBackup -Destination $activeConfig -Force
 Remove-Item -LiteralPath $devBackup -Force
 Write-Host "Restored local js/config.js from .dev.bak"
+exit 0

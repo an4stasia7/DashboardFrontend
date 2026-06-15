@@ -1505,7 +1505,7 @@
     var state = getTileDetailsState(tileIndex);
     var pres = MockData.getKpiTilePresentation(tile);
     var percentLabel = MockData.formatKpiPercentLabel(pres.percent) + "%";
-    var hint = tile && tile.hint != null ? String(tile.hint).trim() : "";
+    var hint = "";
     var period = tile && tile.period != null ? String(tile.period).trim() : "";
     var code = tile && (tile.badge || tile.kpi_id) ? String(tile.badge || tile.kpi_id).trim() : "";
     var rule = getKpiTileException(tile);

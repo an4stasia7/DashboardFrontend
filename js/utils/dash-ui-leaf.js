@@ -175,6 +175,245 @@
     });
   }
 
+  function getKpiTileHintSource(tile) {
+    if (!tile || typeof tile !== "object") return "";
+    var keys = ["source", "data_source", "kpi_source", "info_source", "hint_source"];
+    for (var i = 0; i < keys.length; i++) {
+      var value = tile[keys[i]];
+      if (value != null && String(value).trim()) return String(value).trim();
+    }
+    return "";
+  }
+
+  function firstNonEmptyStringValue(obj, keys) {
+    if (!obj || typeof obj !== "object") return "";
+    for (var i = 0; i < keys.length; i++) {
+      var value = obj[keys[i]];
+      if (value != null && String(value).trim()) return String(value).trim();
+    }
+    return "";
+  }
+
+  var KPI_HINT_SOURCE_KEYS = ["source", "data_source", "kpi_source", "info_source", "hint_source", "источник"];
+  var KPI_HINT_PLAN_KEYS = [
+    "plan_description",
+    "description_plan",
+    "hint_plan",
+    "plan_hint",
+    "plan_info",
+    "plan_text",
+    "plan_definition",
+    "plan_desc",
+    "plan_source_text",
+    "описание_плана",
+  ];
+  var KPI_HINT_FACT_KEYS = [
+    "fact_description",
+    "description_fact",
+    "hint_fact",
+    "fact_hint",
+    "fact_info",
+    "fact_text",
+    "fact_definition",
+    "fact_desc",
+    "fact_source_text",
+    "описание_факта",
+  ];
+
+  function readHintStringField(obj, keys) {
+    if (!obj || typeof obj !== "object") return "";
+    for (var i = 0; i < keys.length; i++) {
+      var value = obj[keys[i]];
+      if (value == null) continue;
+      if (typeof value === "object") continue;
+      var text = String(value).trim();
+      if (text && text !== "[object Object]") return text;
+    }
+    return "";
+  }
+
+  function findHintLabel(text, label) {
+    var re = new RegExp("(?:^|\\s)(" + label + "\\s*:)", "i");
+    var match = re.exec(text);
+    if (!match) return null;
+    var labelStart = match.index + match[0].indexOf(match[1]);
+    return {
+      index: labelStart,
+      length: match[1].length,
+    };
+  }
+
+  function parseKpiTileHintDescription(raw) {
+    var text = raw != null ? String(raw).trim() : "";
+    var result = { source: "", plan: "", fact: "", plain: "" };
+    if (!text || text === "[object Object]") return result;
+
+    var sourceMatch = findHintLabel(text, "Источник");
+    var planMatch = findHintLabel(text, "План");
+    var factMatch = findHintLabel(text, "Факт");
+
+    if (planMatch && factMatch && factMatch.index > planMatch.index) {
+      var prefixEnd = planMatch.index;
+      if (sourceMatch && sourceMatch.index < planMatch.index) {
+        result.source = text.slice(sourceMatch.index + sourceMatch.length, planMatch.index).trim();
+      } else {
+        var prefix = text.slice(0, prefixEnd).trim();
+        prefix = prefix.replace(/^Источник\s*:\s*/i, "").trim();
+        result.source = prefix;
+      }
+      result.plan = text.slice(planMatch.index + planMatch.length, factMatch.index).trim();
+      result.fact = text.slice(factMatch.index + factMatch.length).trim();
+      return result;
+    }
+
+    if (planMatch && !factMatch) {
+      var prefixOnlyPlan = text.slice(0, planMatch.index).trim();
+      prefixOnlyPlan = prefixOnlyPlan.replace(/^Источник\s*:\s*/i, "").trim();
+      result.source = prefixOnlyPlan;
+      result.plan = text.slice(planMatch.index + planMatch.length).trim();
+      return result;
+    }
+
+    if (sourceMatch) {
+      var sourceEnd = planMatch ? planMatch.index : text.length;
+      result.source = text.slice(sourceMatch.index + sourceMatch.length, sourceEnd).trim();
+      if (planMatch || factMatch) return result;
+    }
+
+    var sourceOnlyMatch = text.match(/^Источник\s*:\s*([\s\S]+)$/i);
+    if (sourceOnlyMatch) {
+      result.source = sourceOnlyMatch[1].trim();
+      return result;
+    }
+
+    result.plain = text;
+    return result;
+  }
+
+  function getKpiTileDescriptionText(raw) {
+    if (!raw || typeof raw !== "object") return "";
+    var desc = raw.description;
+    if (desc && typeof desc === "object") {
+      var objectText = readHintStringField(desc, ["text", "value", "hint", "description"]);
+      if (objectText) return objectText;
+      return "";
+    }
+    if (desc != null) {
+      var descText = String(desc).trim();
+      if (descText && descText !== "[object Object]") return descText;
+    }
+    return "";
+  }
+
+  function normalizeKpiTileHintFields(raw) {
+    var result = {
+      description: "",
+      hint: "",
+      source: "",
+      plan_description: "",
+      fact_description: "",
+    };
+    if (!raw || typeof raw !== "object") return result;
+
+    result.source = readHintStringField(raw, KPI_HINT_SOURCE_KEYS);
+    result.plan_description = readHintStringField(raw, KPI_HINT_PLAN_KEYS);
+    result.fact_description = readHintStringField(raw, KPI_HINT_FACT_KEYS);
+    result.description = getKpiTileDescriptionText(raw);
+
+    var desc = raw.description;
+    if (desc && typeof desc === "object") {
+      if (!result.source) result.source = readHintStringField(desc, KPI_HINT_SOURCE_KEYS);
+      if (!result.plan_description) {
+        result.plan_description = readHintStringField(desc, KPI_HINT_PLAN_KEYS.concat(["plan", "план"]));
+      }
+      if (!result.fact_description) {
+        result.fact_description = readHintStringField(desc, KPI_HINT_FACT_KEYS.concat(["fact", "факт"]));
+      }
+    }
+
+    if (result.description) {
+      var parsed = parseKpiTileHintDescription(result.description);
+      if (!result.plan_description && parsed.plan) result.plan_description = parsed.plan;
+      if (!result.fact_description && parsed.fact) result.fact_description = parsed.fact;
+      if (!result.source && parsed.source) result.source = parsed.source;
+    }
+
+    result.hint = result.description;
+    return result;
+  }
+
+  function extractKpiTileHintParts(tile) {
+    if (!tile || typeof tile !== "object") {
+      return { source: "", plan: "", fact: "", plain: "" };
+    }
+
+    var source = getKpiTileHintSource(tile);
+    var plan = firstNonEmptyStringValue(tile, KPI_HINT_PLAN_KEYS) || (tile.plan_description != null ? String(tile.plan_description).trim() : "");
+    var fact = firstNonEmptyStringValue(tile, KPI_HINT_FACT_KEYS) || (tile.fact_description != null ? String(tile.fact_description).trim() : "");
+    var descriptionText = getKpiTileDescriptionText(tile);
+
+    if (tile.description && typeof tile.description === "object") {
+      if (!plan) {
+        plan = readHintStringField(tile.description, KPI_HINT_PLAN_KEYS.concat(["plan", "план"]));
+      }
+      if (!fact) {
+        fact = readHintStringField(tile.description, KPI_HINT_FACT_KEYS.concat(["fact", "факт"]));
+      }
+    }
+
+    if (descriptionText) {
+      var parsed = parseKpiTileHintDescription(descriptionText);
+      if (!plan && parsed.plan) plan = parsed.plan;
+      if (!fact && parsed.fact) fact = parsed.fact;
+      if (!source && parsed.source) source = parsed.source;
+      if (!source && !plan && !fact && parsed.plain) {
+        return { source: "", plan: "", fact: "", plain: parsed.plain };
+      }
+    }
+
+    return { source: source, plan: plan, fact: fact, plain: "" };
+  }
+
+  function buildKpiTileHintHtml(tile) {
+    if (!tile || typeof tile !== "object") return "";
+
+    var partsData = extractKpiTileHintParts(tile);
+    if (partsData.plain) return escapeHtml(partsData.plain);
+
+    var source = partsData.source;
+    var plan = partsData.plan;
+    var fact = partsData.fact;
+
+    if (!source && !plan && !fact) return "";
+
+    var parts = [];
+    if (source) {
+      parts.push(
+        '<span class="kpi-tile-hint-block">' +
+          '<strong class="kpi-tile-hint-label">Источник:</strong><br>' +
+          escapeHtml(source) +
+          "</span>"
+      );
+    }
+    if (plan) {
+      parts.push(
+        '<span class="kpi-tile-hint-block">' +
+          '<strong class="kpi-tile-hint-label">План:</strong><br>' +
+          escapeHtml(plan) +
+          "</span>"
+      );
+    }
+    if (fact) {
+      parts.push(
+        '<span class="kpi-tile-hint-block">' +
+          '<strong class="kpi-tile-hint-label">Факт:</strong><br>' +
+          escapeHtml(fact) +
+          "</span>"
+      );
+    }
+    return parts.join("");
+  }
+
   global.DashUi = {
     escapeHtml: escapeHtml,
     formatNumber: formatNumber,
@@ -191,5 +430,11 @@
     kpiTilePlanFactValuePresent: kpiTilePlanFactValuePresent,
     kpiTileHasPlanAndFact: kpiTileHasPlanAndFact,
     scrollElementIntoViewCentered: scrollElementIntoViewCentered,
+    getKpiTileHintSource: getKpiTileHintSource,
+    getKpiTileDescriptionText: getKpiTileDescriptionText,
+    parseKpiTileHintDescription: parseKpiTileHintDescription,
+    normalizeKpiTileHintFields: normalizeKpiTileHintFields,
+    extractKpiTileHintParts: extractKpiTileHintParts,
+    buildKpiTileHintHtml: buildKpiTileHintHtml,
   };
 })(typeof window !== "undefined" ? window : globalThis);

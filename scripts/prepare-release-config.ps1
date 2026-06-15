@@ -16,3 +16,4 @@ if (Test-Path -LiteralPath $activeConfig) {
 
 Copy-Item -LiteralPath $distConfig -Destination $activeConfig -Force
 Write-Host "Release build uses js/config.dist.js as js/config.js"
+exit 0

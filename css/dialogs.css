@@ -39,6 +39,20 @@
   color: var(--muted);
 }
 
+.kpi-tile-hint-block {
+  display: block;
+  margin-bottom: 12px;
+}
+
+.kpi-tile-hint-block:last-child {
+  margin-bottom: 0;
+}
+
+.kpi-tile-hint-label {
+  font-weight: 700;
+  color: var(--text);
+}
+
 .kpi-thresholds-dialog-formula-wrap {
   margin: 0 0 14px;
 }

@@ -1343,11 +1343,12 @@
       }
     }
     if (hintEl) {
-      var hint = tile.hint != null ? String(tile.hint).trim() : "";
-      if (hint) {
-        hintEl.textContent = hint;
+      var hintHtml = typeof DashUi.buildKpiTileHintHtml === "function" ? DashUi.buildKpiTileHintHtml(tile) : "";
+      if (hintHtml) {
+        hintEl.innerHTML = hintHtml;
         hintEl.hidden = false;
       } else {
+        hintEl.innerHTML = "";
         hintEl.hidden = true;
       }
     }
@@ -2756,6 +2757,38 @@
       }
       return "";
     }
+    var hintFields =
+      typeof DashUi !== "undefined" &&
+      DashUi &&
+      typeof DashUi.normalizeKpiTileHintFields === "function"
+        ? DashUi.normalizeKpiTileHintFields(rawItem)
+        : {
+            description:
+              rawItem.description != null
+                ? String(rawItem.description)
+                : "",
+            hint:
+              rawItem.description != null
+                ? String(rawItem.description)
+                : rawItem.hint != null
+                  ? String(rawItem.hint)
+                  : rawItem.comment != null
+                    ? String(rawItem.comment)
+                    : "",
+            source: firstStringValue(["source", "data_source", "kpi_source", "info_source", "hint_source"]),
+            plan_description: firstStringValue([
+              "plan_description",
+              "description_plan",
+              "hint_plan",
+              "plan_hint",
+            ]),
+            fact_description: firstStringValue([
+              "fact_description",
+              "description_fact",
+              "hint_fact",
+              "fact_hint",
+            ]),
+          };
     function normalizeUnits(kpiId, value) {
       var kid = kpiId != null ? String(kpiId).trim().toUpperCase() : "";
       if (kid === "OD-M1" || kid === "OD-M3.1" || kid === "OD-M3.2") return "руб.";
@@ -2929,14 +2962,11 @@
           : typeof rawItem.has_data === "boolean"
             ? rawItem.has_data
             : undefined,
-      hint:
-        rawItem.description != null
-          ? String(rawItem.description)
-          : rawItem.hint != null
-            ? String(rawItem.hint)
-            : rawItem.comment != null
-              ? String(rawItem.comment)
-              : "",
+      hint: hintFields.description,
+      description: hintFields.description,
+      source: hintFields.source,
+      plan_description: hintFields.plan_description,
+      fact_description: hintFields.fact_description,
       rag: point && point.color != null
         ? String(point.color).toLowerCase().trim()
         : preserveBackendRag && rawItem.color != null
@@ -3138,6 +3168,13 @@
     if (!isBoardChairUser(sessionUser)) return false;
     var chairmanFor = getChairmanDashboardCatalogId();
     return isVirtualChairmanCatalog(chairmanFor) && String(chairmanFor).trim() === "commerce";
+  }
+
+  function isBoardChairRevisionBlockContext() {
+    if (!isBoardChairUser(sessionUser)) return false;
+    var chairmanFor = getChairmanDashboardCatalogId();
+    var id = chairmanFor != null ? String(chairmanFor).trim().toLowerCase() : "";
+    return isVirtualChairmanCatalog(chairmanFor) && (id === "revision" || id.indexOf("revision") !== -1);
   }
 
   function shouldUseGsppTechnicalTables() {
