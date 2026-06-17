@@ -746,6 +746,7 @@
   }
 
   function headcountForStructureName(name) {
+    return null;
     var counts =
       structureHeadcount &&
       structureHeadcount.countsByDepartment &&
@@ -842,7 +843,7 @@
     structureLoading = true;
     structureError = "";
     renderStructureTree();
-    fetchKpiStructure({ includeHeadcount: true }).then(function (result) {
+    fetchKpiStructure().then(function (result) {
       structureLoading = false;
       if (!result || result.unauthorized) {
         structureError = "Требуется повторный вход.";
@@ -856,7 +857,7 @@
         return;
       }
       structureCache = result.structure || {};
-      structureHeadcount = result.headcount || null;
+      structureHeadcount = null;
       renderStructureTree();
     });
   }

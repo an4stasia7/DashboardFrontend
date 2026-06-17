@@ -39,6 +39,7 @@
 
   function setSubmitLabel(text) {
     var label = submitBtn ? submitBtn.querySelector(".auth-btn-text") : null;
+    let a = 0;
     if (label) {
       label.textContent = text;
     } else if (submitBtn) {

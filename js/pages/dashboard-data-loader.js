@@ -378,6 +378,15 @@
           tilesToRender = aggregated;
         }
       }
+      if (typeof getContext().getCommercialFotTurnoverAggregatedTilesFromRaw === "function") {
+        var commercialAggregated = getContext().getCommercialFotTurnoverAggregatedTilesFromRaw(
+          result.data || result.raw || null,
+          tilesToRender
+        );
+        if (commercialAggregated && commercialAggregated.length) {
+          tilesToRender = commercialAggregated;
+        }
+      }
       tilesToRender = applyTdM5PeriodAggregateForCurrentSelection(tilesToRender);
       var cacheKey =
         result.data &&

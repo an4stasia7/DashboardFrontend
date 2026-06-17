@@ -1427,7 +1427,11 @@
     var quantity = 0;
     var ordersCount = 0;
     keep.forEach(function (m) {
-      plan += Number(m && m.plan) || 0;
+      var planValue =
+        mode === "month" && m && m.plan_full != null
+          ? Number(m.plan_full)
+          : Number(m && m.plan);
+      plan += planValue || 0;
       fact += Number(m && m.fact) || 0;
       quantity += Number(m && m.quantity) || 0;
       ordersCount += Number(m && m.orders_count) || 0;
@@ -1447,6 +1451,9 @@
     if (mode === "quarter") {
       var q = Math.ceil(rm / 3);
       return q + " кв. " + ry;
+    }
+    if (mode === "month") {
+      return "За месяц: " + (monthName ? monthName.charAt(0).toUpperCase() + monthName.slice(1) : "") + " " + ry;
     }
     return (monthName ? monthName.charAt(0).toUpperCase() + monthName.slice(1) : "") + " " + ry;
   }
