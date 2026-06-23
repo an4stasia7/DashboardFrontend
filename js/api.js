@@ -2806,6 +2806,11 @@
       (row["\u041f\u043e\u0434\u0440\u0430\u0437\u0434\u0435\u043b\u0435\u043d\u0438\u0435"] != null &&
         String(row["\u041f\u043e\u0434\u0440\u0430\u0437\u0434\u0435\u043b\u0435\u043d\u0438\u0435"]).trim() !== "") ||
       (row.order_num != null && String(row.order_num).trim() !== "") ||
+      (row["Этап"] != null && String(row["Этап"]).trim() !== "") ||
+      (row["Начало"] != null && String(row["Начало"]).trim() !== "") ||
+      (row["Окончание"] != null && String(row["Окончание"]).trim() !== "") ||
+      (row["ЭтапФактическоеОкончание"] != null && String(row["ЭтапФактическоеОкончание"]).trim() !== "") ||
+      (row["ЗаказНаПроизводствоТД_ОпросныйЛист"] != null && String(row["ЗаказНаПроизводствоТД_ОпросныйЛист"]).trim() !== "") ||
       (row.milestone_planned_finish_date != null && String(row.milestone_planned_finish_date).trim() !== "") ||
       (row.deviation_date != null && String(row.deviation_date).trim() !== "") ||
       row.otklonenie_summarnoe !== undefined ||

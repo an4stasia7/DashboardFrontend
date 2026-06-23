@@ -3363,7 +3363,7 @@
         : useDevserviceProjectTables
           ? "Проекты с отклонениями по вехам"
           : useChiefMetrologTables
-            ? "Проекты с отклонениями по вехам >10 р.д."
+            ? "Просроченные этапы метрологической службы"
             : useChiefConstructorTables
               ? "Проекты КБ с отклонениями до 10 р.д."
               : shouldUseGsppTechnicalTables()
@@ -3404,7 +3404,7 @@
     if (claimsTableTitleTextEl && claimsTableTitleTextEl.closest) {
       var claimsPanel = claimsTableTitleTextEl.closest(".table-panel");
       if (claimsPanel) {
-        claimsPanel.hidden = useChiefMetrologTables;
+        claimsPanel.hidden = false;
       }
     }
 
@@ -3580,6 +3580,7 @@
         productionClaimsTableMode: isProductionDeputyDashboardContext(),
         productionClaimsShop: normalizeProductionShopKey(productionDeputySelectedShop),
         constructorProjectTableMode: isChiefConstructorDashboardContext(),
+        metrologLateStagesTableMode: isChiefMetrologDashboardContext(),
         logisticsSupplierDebtTableMode: isLogisticsDashboardContext(),
         qualdirDefectTablesMode: shouldUseQualdirDefectTables(),
         qualdirExternalTableKey: "QD-T-M5",

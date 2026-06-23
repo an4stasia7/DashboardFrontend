@@ -216,6 +216,13 @@
   ];
   var OPDIR_PROJECT_TABLE_HEADERS = ["№ 1С", "Название", "РП", "Сроки", "Отклонение", "Статус", "Прогресс"];
   var CONSTRUCTOR_PROJECT_TABLE_HEADERS = ["№ 1С", "Название", "РП", "Сроки", "Отклонение", "Статус", "Прогресс"];
+  var METROLOG_LATE_STAGE_HEADERS = [
+    "Этап",
+    "Начало",
+    "Окончание",
+    "Фактическое окончание",
+    "Опросный лист",
+  ];
   var PRODUCTION_IMPROVEMENT_TABLE_HEADERS = ["№ 1С", "Название", "РП", "Куратор", "Сроки", "Статус", "Прогресс"];
   var PRODUCTION_CLAIMS_HEADERS = ["Номер", "Дата", "Подразделение-виновник", "Статус", "Номенклатура", "Описание", "Расчетное кол-во брака"];
   var TECHNICAL_EXTERNAL_TABLE_KEY = "TD-T-M1-DEVIATIONS";
@@ -239,6 +246,7 @@
   var PRODUCTION_CLAIMS_TABLE_KEY = "PD-T-PROD-CLAIMS";
   var CONSTRUCTOR_PROJECT_TABLE_KEY = "GK-T-M1-DEVIATIONS";
   var METROLOG_PROJECT_TABLE_KEY = "METD-T-Q1-DEVIATIONS";
+  var METROLOG_LATE_STAGE_TABLE_KEY = "METD-T-M1-LATE-STAGES";
   var LOGISTICS_CLAIMS_TABLE_KEY = "LOG-T-CLAIMS";
   var LOGISTICS_SUPPLIER_DZ_TABLE_KEY = "LOG-T-SUPPLIER-DZ";
   var QUALDIR_EXTERNAL_DEFECT_TABLE_KEY = "QD-T-M5";
@@ -272,6 +280,7 @@
   var constructorProjectTableMode = false;
   var hrdLateVacanciesTableMode = false;
   var protocolOverdueTableMode = false;
+  var metrologLateStagesTableMode = false;
   var logisticsSupplierDebtTableMode = false;
 
   function pickTableField(raw, keys) {
@@ -832,6 +841,17 @@
       if (enabled) {
         secondTable.tFoot.innerHTML =
           '<tr><th colspan="6">Итого</th><th id="lawsuits-table-total-sum">—</th></tr>';
+      }
+    }
+  }
+
+  function setMetrologLateStagesTableMode(enabled) {
+    var topTable = document.getElementById("table-top-deviations");
+    if (topTable && topTable.tFoot) {
+      topTable.tFoot.hidden = !!enabled;
+      if (enabled) {
+        topTable.tFoot.innerHTML =
+          '<tr><th colspan="5">Итого</th></tr>';
       }
     }
   }
@@ -1480,6 +1500,8 @@
       );
     } else if (hrdLateVacanciesTableMode) {
       setTableHeaders("table-top-deviations", HRD_LATE_VACANCIES_HEADERS);
+    } else if (metrologLateStagesTableMode) {
+      setTableHeaders("table-top-deviations", METROLOG_LATE_STAGE_HEADERS);
     } else if (productionClaimsTableMode) {
       setTableHeaders("table-top-deviations", PRODUCTION_CLAIMS_HEADERS);
       setTableHeaders("table-lawsuits", OPDIR_PROJECT_TABLE_HEADERS);
@@ -1594,6 +1616,22 @@
     tbody.innerHTML = "";
 
     if (!Array.isArray(rows) || !rows.length) return;
+
+    if (metrologLateStagesTableMode) {
+      setTableHeaders("table-top-deviations", METROLOG_LATE_STAGE_HEADERS);
+      rows.filter(isMetrologLateStageRow).forEach(function (item) {
+        var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
+        if (!raw) return;
+        var tr = document.createElement("tr");
+        appendClampedCell(tr, raw["Этап"], "dashboard-table-cell--compact");
+        appendClampedCell(tr, raw["Начало"], "dashboard-table-cell--date");
+        appendClampedCell(tr, raw["Окончание"], "dashboard-table-cell--date");
+        appendClampedCell(tr, raw["ЭтапФактическоеОкончание"], "dashboard-table-cell--date");
+        appendClampedCell(tr, raw["ЗаказНаПроизводствоТД_ОпросныйЛист"], "dashboard-table-cell--wide-text");
+        tbody.appendChild(tr);
+      });
+      return;
+    }
 
     if (productionClaimsTableMode) {
       setTableHeaders("table-top-deviations", PRODUCTION_CLAIMS_HEADERS);
@@ -1734,6 +1772,11 @@
   function isProductionClaimsRow(item) {
     var key = item && item.tableKey != null ? String(item.tableKey).trim().toLocaleUpperCase("ru-RU") : "";
     return key === PRODUCTION_CLAIMS_TABLE_KEY;
+  }
+
+  function isMetrologLateStageRow(item) {
+    var key = item && item.tableKey != null ? String(item.tableKey).trim().toLocaleUpperCase("ru-RU") : "";
+    return key === METROLOG_LATE_STAGE_TABLE_KEY;
   }
 
   function isOverdueDebtRow(item) {
@@ -2586,6 +2629,26 @@
     });
   }
 
+  function initMetrologLateStagesDataTable() {
+    return initInteractiveDashboardTable({
+      tableSelector: "#table-top-deviations",
+      wrapperSelector: ".dashboard-table-wrap--claims",
+      advancedSearchKey: "metrolog-late-stages-table-advanced",
+      columnConfigs: [
+        { index: 0, label: "Этап", type: "filter", searchType: "text" },
+        { index: 1, label: "Начало", type: "filter", searchType: "date" },
+        { index: 2, label: "Окончание", type: "filter", searchType: "date" },
+        { index: 3, label: "Фактическое окончание", type: "filter", searchType: "date" },
+        { index: 4, label: "Опросный лист", type: "filter", searchType: "text" },
+      ],
+      initialOrder: [[2, "asc"], [0, "asc"]],
+      columnDefs: [
+        { targets: "_all", orderable: false },
+        { targets: [1, 2, 3], type: "date", orderable: true },
+      ],
+    });
+  }
+
   function initLawsuitsDataTable() {
     return initInteractiveDashboardTable({
       tableSelector: "#table-lawsuits",
@@ -2864,6 +2927,7 @@
       !!options.protocolOverdueTableMode ||
       !!options.protocolOverdueTableInBody ||
       hasProtocolOverdueTableRows(rows);
+    metrologLateStagesTableMode = !!options.metrologLateStagesTableMode;
     logisticsSupplierDebtTableMode = !!options.logisticsSupplierDebtTableMode;
     if (technicalTablesMode) {
       activeTechnicalExternalTableKey =
@@ -2925,10 +2989,18 @@
       syncProtocolOverduePanel(rows, options);
       return;
     }
+    setMetrologLateStagesTableMode(metrologLateStagesTableMode);
     if (productionClaimsTableMode) {
       renderClaimsTableRows(rows);
       initProductionClaimsDataTable();
       syncProtocolOverduePanel(rows, options);
+      return;
+    }
+    if (metrologLateStagesTableMode) {
+      renderClaimsTableRows(rows);
+      renderOverdueDebtTableRows(rows);
+      initMetrologLateStagesDataTable();
+      initOverdueDebtDataTable();
       return;
     }
     if (constructorProjectTableMode) {
