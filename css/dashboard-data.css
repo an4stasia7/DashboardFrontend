@@ -1130,30 +1130,36 @@
 
 .table-panel table.dataTable.dashboard-table--qualdir-defects thead th:nth-child(1),
 .table-panel table.dataTable.dashboard-table--qualdir-defects tbody td:nth-child(1) {
-  width: 24% !important;
+  width: 22% !important;
   min-width: 0;
 }
 
 .table-panel table.dataTable.dashboard-table--qualdir-defects thead th:nth-child(2),
 .table-panel table.dataTable.dashboard-table--qualdir-defects tbody td:nth-child(2) {
-  width: 16% !important;
+  width: 14% !important;
   min-width: 0;
 }
 
 .table-panel table.dataTable.dashboard-table--qualdir-defects thead th:nth-child(3),
 .table-panel table.dataTable.dashboard-table--qualdir-defects tbody td:nth-child(3) {
-  width: 34% !important;
+  width: 28% !important;
   min-width: 0;
 }
 
 .table-panel table.dataTable.dashboard-table--qualdir-defects thead th:nth-child(4),
 .table-panel table.dataTable.dashboard-table--qualdir-defects tbody td:nth-child(4) {
-  width: 16% !important;
+  width: 14% !important;
   min-width: 0;
 }
 
 .table-panel table.dataTable.dashboard-table--qualdir-defects thead th:nth-child(5),
 .table-panel table.dataTable.dashboard-table--qualdir-defects tbody td:nth-child(5) {
+  width: 12% !important;
+  min-width: 0;
+}
+
+.table-panel table.dataTable.dashboard-table--qualdir-defects thead th:nth-child(6),
+.table-panel table.dataTable.dashboard-table--qualdir-defects tbody td:nth-child(6) {
   width: 10% !important;
   min-width: 0;
   text-align: center;

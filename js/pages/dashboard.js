@@ -3010,11 +3010,11 @@
           : rawItem.deviation_count != null
             ? rawItem.deviation_count
             : null,
-      delay_count:
-        point && point.delay_count !== undefined
-          ? point.delay_count
-          : rawItem.delay_count !== undefined
-            ? rawItem.delay_count
+      rejected_items_count:
+        point && point.rejected_items_count !== undefined
+          ? point.rejected_items_count
+          : rawItem.rejected_items_count !== undefined
+            ? rawItem.rejected_items_count
             : null,
       plan_by_dept:
         point && point.plan_by_dept && typeof point.plan_by_dept === "object"
@@ -3648,6 +3648,14 @@
    * Графики["KS-RAZVITIE"] (если он есть, именно он подменяет KPI-донаты
    * в том же #donuts-grid) и режим агрегации.
    */
+  function getDonutChartTiles(tiles) {
+    if (!tiles || !tiles.length) return [];
+    if (typeof MockData !== "undefined" && MockData && typeof MockData.buildKpiDonutTiles === "function") {
+      return MockData.buildKpiDonutTiles(tiles);
+    }
+    return tiles.slice();
+  }
+
   function buildDonutRenderContext() {
     var ksChart = null;
     var refMonth = null;
@@ -3665,7 +3673,7 @@
       ksChart = null;
     }
     return {
-      currentTiles: lastKpiTiles,
+      currentTiles: getDonutChartTiles(lastKpiTiles),
       getVisibleDonutTiles: getVisibleDonutTiles,
       updateDonutChartsPagerUI: updateDonutChartsPagerUI,
       ksRazvitieChart: ksChart,
@@ -3694,7 +3702,7 @@
     DashboardCharts.initCharts({
       role: viewContextUser.role,
       apiChartIndicators: lastApiChartIndicators,
-      currentTiles: lastKpiTiles,
+      currentTiles: donutCtx.currentTiles,
       chartSelectAllValue: CHART_SELECT_ALL_VALUE,
       getVisibleDonutTiles: getVisibleDonutTiles,
       updateDonutChartsPagerUI: updateDonutChartsPagerUI,

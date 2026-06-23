@@ -586,7 +586,7 @@
       rule &&
       (rule.hidePlanOnTile ||
         rule.hideKpiPercent ||
-        rule.qualdirControlOverview ||
+        (rule.qualdirControlOverview && !rule.qualdirControlOverviewOnBack) ||
         rule.backArticlesDeptCount)
     );
   }
@@ -792,10 +792,73 @@
     ];
   }
 
+  function computeRejectedItemsSharePercent(tile) {
+    if (!tile) return null;
+    var plan = finiteNumber(tile.plan);
+    var rejected = finiteNumber(tile.rejected_items_count);
+    if (rejected == null) rejected = 0;
+    if (plan == null || plan <= 0) return null;
+    return Math.round(1000 * rejected / plan) / 10;
+  }
+
+  function buildRejectedItemsDonutTile(sourceTile) {
+    if (!sourceTile) return null;
+    var kpiId = sourceTile.kpi_id != null ? String(sourceTile.kpi_id).trim().toUpperCase() : "";
+    if (kpiId !== "QD-M6") return null;
+    var pct = computeRejectedItemsSharePercent(sourceTile);
+    if (pct == null) return null;
+
+    var cfg = typeof global !== "undefined" && global.KPI_TILE_EXCEPTIONS ? global.KPI_TILE_EXCEPTIONS : null;
+    var rule = cfg && cfg["QD-M6"] ? cfg["QD-M6"] : null;
+    var donutRule = rule && rule.donutRejectedItemsShare ? rule.donutRejectedItemsShare : null;
+    var title =
+      donutRule && donutRule.title != null && String(donutRule.title).trim()
+        ? String(donutRule.title).trim()
+        : "Забракованные наименования";
+
+    var synthetic = {
+      kpi_id: "QD-M6-REJECTED",
+      title: title,
+      badge: sourceTile.badge,
+      kpi_pct: pct,
+      percent: pct,
+      plan: sourceTile.plan,
+      rejected_items_count: sourceTile.rejected_items_count,
+      isDonutSupplement: true,
+      green_threshold:
+        donutRule && donutRule.green_threshold != null
+          ? String(donutRule.green_threshold)
+          : "≤5%",
+      yellow_threshold:
+        donutRule && donutRule.yellow_threshold != null
+          ? String(donutRule.yellow_threshold)
+          : "5,1–15%",
+      red_threshold:
+        donutRule && donutRule.red_threshold != null ? String(donutRule.red_threshold) : ">15%",
+    };
+    var pres = getKpiTilePresentation(synthetic);
+    synthetic.rag = pres.rag;
+    synthetic.color = pres.rag;
+    return synthetic;
+  }
+
+  /** KPI-донаты + доп. круг «Забракованные наименования» для QD-M6. */
+  function buildKpiDonutTiles(tiles) {
+    if (!tiles || !tiles.length) return [];
+    var out = [];
+    tiles.forEach(function (tile) {
+      out.push(tile);
+      var supplement = buildRejectedItemsDonutTile(tile);
+      if (supplement) out.push(supplement);
+    });
+    return out;
+  }
+
   /** Одна круговая диаграмма на каждую KPI-плитка: доля = показатель %, цвет по RAG. */
   function getDonutChartsForTiles(tiles) {
-    if (!tiles || !tiles.length) return [];
-    return tiles.map(function (t) {
+    var donutTiles = buildKpiDonutTiles(tiles);
+    if (!donutTiles.length) return [];
+    return donutTiles.map(function (t) {
       var pres = getKpiTilePresentation(t);
       return {
         title: shortenTileTitle(t.title),
@@ -897,6 +960,8 @@
       return KPI_TILES_BY_ROLE[key] || KPI_TILES_BY_ROLE["Технический директор"];
     },
     getDonutChartsForTiles,
+    buildKpiDonutTiles,
+    computeRejectedItemsSharePercent,
     getKpiTilePresentation,
     formatKpiPercentLabel,
     kpiRagFromPercentStub,

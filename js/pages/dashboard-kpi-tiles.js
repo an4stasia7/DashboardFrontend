@@ -144,7 +144,13 @@
   function resolveKpiTileDisplayUnits(tile) {
     var rule = getKpiTileException(tile);
     var usesPieceCount =
-      !!(rule && (rule.hidePlanOnTile || rule.defectDirectionsOverview || rule.qualdirControlOverview || rule.backArticlesDeptCount));
+      !!(
+        rule &&
+        (rule.hidePlanOnTile ||
+          rule.defectDirectionsOverview ||
+          (rule.qualdirControlOverview && !rule.qualdirControlOverviewOnBack) ||
+          rule.backArticlesDeptCount)
+      );
     var raw = tile && (tile.units != null ? tile.units : tile.unit);
     var unitText = raw != null ? String(raw).trim() : "";
     if (usesPieceCount) {
@@ -172,6 +178,46 @@
   function shouldRenderKpiTileBackDefectDirections(tile) {
     var rule = getKpiTileException(tile);
     return !!(rule && rule.backDefectDirections);
+  }
+
+  function shouldRenderQualdirControlOverviewOnBack(tile) {
+    var rule = getKpiTileException(tile);
+    return !!(rule && rule.qualdirControlOverviewOnBack && rule.qualdirControlOverview);
+  }
+
+  function buildKpiTileBackQualdirControlSectionHtml(tile) {
+    var rule = getKpiTileException(tile);
+    if (!shouldRenderQualdirControlOverviewOnBack(tile)) return "";
+    var overview = rule.qualdirControlOverview;
+    var sectionTitle =
+      overview.ariaLabel != null && String(overview.ariaLabel).trim()
+        ? String(overview.ariaLabel).trim()
+        : "Показатель контроля";
+    return (
+      '<div class="kpi-tile-back-section kpi-tile-back-section--dual kpi-tile-back-section--qualdir">' +
+      '<div class="kpi-tile-back-section-title">' +
+      DashUi.escapeHtml(sectionTitle) +
+      "</div>" +
+      '<div class="kpi-tile-metrics kpi-tile-metrics--tender kpi-tile-metrics--back-overview">' +
+      buildKpiTileQualdirControlOverviewHtml(tile, overview) +
+      "</div></div>"
+    );
+  }
+
+  function buildKpiTileBackHeadHtml(tile, code, period) {
+    return (
+      '<div class="kpi-tile-back-head">' +
+      '<div class="kpi-tile-back-head-copy">' +
+      (code ? '<span class="kpi-tile-back-badge">' + DashUi.escapeHtml(code) + "</span>" : "") +
+      '<h3 class="kpi-tile-back-title">' +
+      DashUi.escapeHtml(tile && tile.title ? tile.title : "Показатель") +
+      "</h3>" +
+      (period ? '<p class="kpi-tile-back-period">' + DashUi.escapeHtml(period) + "</p>" : "") +
+      "</div>" +
+      '<div class="kpi-tile-back-head-actions">' +
+      '<button type="button" class="kpi-tile-flip-action" aria-label="Вернуться к карточке">Назад</button>' +
+      "</div></div>"
+    );
   }
 
   function buildKpiTileDragHandleHtml() {
@@ -235,6 +281,31 @@
     );
   }
 
+  function normalizeKpiTileLabelForCompare(value) {
+    return String(value == null ? "" : value)
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLocaleLowerCase("ru-RU");
+  }
+
+  function kpiTileLabelsMatch(left, right) {
+    var a = normalizeKpiTileLabelForCompare(left);
+    var b = normalizeKpiTileLabelForCompare(right);
+    return !!(a && b && a === b);
+  }
+
+  function shouldShowKpiTilePlanFactPeriodLabel(tile, pfPeriod) {
+    if (!pfPeriod || !String(pfPeriod).trim()) return false;
+    if (kpiTileLabelsMatch(pfPeriod, tile && tile.title)) return false;
+    if (tile && Array.isArray(tile.plan_fact_rows) && tile.plan_fact_rows.length) {
+      for (var i = 0; i < tile.plan_fact_rows.length; i++) {
+        var row = tile.plan_fact_rows[i];
+        if (row && kpiTileLabelsMatch(pfPeriod, row.label)) return false;
+      }
+    }
+    return true;
+  }
+
   function buildKpiTileBodyHtml(tile, hasPf, pfPeriod) {
     var rule = getKpiTileException(tile);
     var isFactOnly = !!(rule && rule.factOnly);
@@ -257,15 +328,17 @@
           : isKpiPctOnly
             ? "Период показателя KPI"
             : KPI_TILE_TITLE_PLAN_FACT_PERIOD;
-    var periodExtra =
-      (hasPf || isFactOnly || hidePlanOnTile || isKpiPctOnly) && pfPeriod
-        ? '<span class="kpi-tile-plan-fact-period" title="' +
-          DashUi.escapeHtml(periodTitle) +
-          '">' +
-          DashUi.escapeHtml(periodPrefix) +
-          DashUi.escapeHtml(pfPeriod) +
-          "</span>"
-        : "";
+    var showPfPeriod =
+      (hasPf || isFactOnly || hidePlanOnTile || isKpiPctOnly) &&
+      shouldShowKpiTilePlanFactPeriodLabel(tile, pfPeriod);
+    var periodExtra = showPfPeriod
+      ? '<span class="kpi-tile-plan-fact-period" title="' +
+        DashUi.escapeHtml(periodTitle) +
+        '">' +
+        DashUi.escapeHtml(periodPrefix) +
+        DashUi.escapeHtml(pfPeriod) +
+        "</span>"
+      : "";
     var titleText = String(tile.title || "");
     var longTitleClass = titleText.length > 24 ? " is-long-title" : "";
     return (
@@ -549,11 +622,14 @@
           var unit = row && (row.unit || row.units) ? String(row.unit || row.units) : tile.units;
           var metrics = getKpiTileSplitRowMetrics(row, unit, tile);
           var metricsClass = metrics.length >= 3 ? " kpi-tile-pf-value-number--triple" : "";
+          var rowLabel = row && row.label != null ? String(row.label) : "";
+          var rowLabelHtml = kpiTileLabelsMatch(rowLabel, tile && tile.title)
+            ? ""
+            : '<span class="kpi-tile-pf-value-label">' + DashUi.escapeHtml(rowLabel) + "</span>";
           return (
             '<div class="kpi-tile-pf-value-row kpi-tile-pf-value-row--split">' +
-            '<span class="kpi-tile-pf-value-label">' +
-            DashUi.escapeHtml(row && row.label != null ? String(row.label) : "") +
-            '</span><span class="kpi-tile-pf-value-number kpi-tile-pf-value-number--split' +
+            rowLabelHtml +
+            '<span class="kpi-tile-pf-value-number kpi-tile-pf-value-number--split' +
             metricsClass +
             '">' +
             metrics
@@ -1186,7 +1262,7 @@
         "</div>"
       );
     }
-    if (rule && rule.qualdirControlOverview) {
+    if (rule && rule.qualdirControlOverview && !rule.qualdirControlOverviewOnBack) {
       return (
         '<div class="kpi-tile-metrics kpi-tile-metrics--tender" aria-label="' +
         DashUi.escapeHtml(
@@ -1615,17 +1691,8 @@
     }
     if (shouldRenderKpiTileBackDefectDirections(tile)) {
       return (
-        '<div class="kpi-tile-back-head">' +
-        '<div class="kpi-tile-back-head-copy">' +
-        (code ? '<span class="kpi-tile-back-badge">' + DashUi.escapeHtml(code) + "</span>" : "") +
-        '<h3 class="kpi-tile-back-title">' +
-        DashUi.escapeHtml(tile && tile.title ? tile.title : "Показатель") +
-        "</h3>" +
-        (period ? '<p class="kpi-tile-back-period">' + DashUi.escapeHtml(period) + "</p>" : "") +
-        "</div>" +
-        '<div class="kpi-tile-back-head-actions">' +
-        '<button type="button" class="kpi-tile-flip-action" aria-label="Вернуться к карточке">Назад</button>' +
-        "</div></div>" +
+        buildKpiTileBackHeadHtml(tile, code, period) +
+        buildKpiTileBackQualdirControlSectionHtml(tile) +
         '<div class="kpi-tile-back-section kpi-tile-back-section--dual">' +
         '<div class="kpi-tile-back-section-title">По направлениям ОТК</div>' +
         buildKpiTileDefectDirectionsBackHtml(tile) +
@@ -1635,21 +1702,19 @@
     }
     if (shouldRenderKpiTileBackArticlesDeptCount(tile)) {
       return (
-        '<div class="kpi-tile-back-head">' +
-        '<div class="kpi-tile-back-head-copy">' +
-        (code ? '<span class="kpi-tile-back-badge">' + DashUi.escapeHtml(code) + "</span>" : "") +
-        '<h3 class="kpi-tile-back-title">' +
-        DashUi.escapeHtml(tile && tile.title ? tile.title : "Показатель") +
-        "</h3>" +
-        (period ? '<p class="kpi-tile-back-period">' + DashUi.escapeHtml(period) + "</p>" : "") +
-        "</div>" +
-        '<div class="kpi-tile-back-head-actions">' +
-        '<button type="button" class="kpi-tile-flip-action" aria-label="Вернуться к карточке">Назад</button>' +
-        "</div></div>" +
+        buildKpiTileBackHeadHtml(tile, code, period) +
+        buildKpiTileBackQualdirControlSectionHtml(tile) +
         '<div class="kpi-tile-back-section kpi-tile-back-section--dual">' +
         '<div class="kpi-tile-back-section-title">По подразделениям</div>' +
         buildKpiTileArticlesDeptCountHtml(tile) +
         "</div>" +
+        (hint ? '<p class="kpi-tile-back-hint">' + DashUi.escapeHtml(hint) + "</p>" : "")
+      );
+    }
+    if (shouldRenderQualdirControlOverviewOnBack(tile)) {
+      return (
+        buildKpiTileBackHeadHtml(tile, code, period) +
+        buildKpiTileBackQualdirControlSectionHtml(tile) +
         (hint ? '<p class="kpi-tile-back-hint">' + DashUi.escapeHtml(hint) + "</p>" : "")
       );
     }

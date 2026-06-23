@@ -3,62 +3,64 @@
     "OD-M1": {
       backDeptAmounts: true,
     },
-    /** QD-M5: plan/fact на лице; ОТК-1 / ОТК-2 на обороте (`defect_direction_departments`). */
+    /** QD-M5: plan/fact на лице; детализация форм и ОТК-1 / ОТК-2 на обороте. */
     "QD-M5": {
       allowPartialPlanFact: true,
-      hidePlanOnTile: true,
-      hideKpiPercent: true,
       periodLabelPrefix: "Период",
+      qualdirControlOverviewOnBack: true,
       qualdirControlOverview: {
         ariaLabel: "Формы",
         rows: [
           { label: "Всего форм", field: "plan", useUnits: true },
-          { label: "Значимые формы", field: "fact", useUnits: true },
+          { label: "Значимые формы", field: "significant", useUnits: true },
         ],
       },
       backDefectDirections: true,
     },
-    /** QD-M1: plan = всего форм, fact = значимые формы; оборот — `departments`. */
+    /** QD-M1: plan/fact на лице; детализация форм и подразделения на обороте. */
     "QD-M1": {
       allowPartialPlanFact: true,
-      hidePlanOnTile: true,
-      hideKpiPercent: true,
       backArticlesDeptCount: true,
       periodLabelPrefix: "Период",
+      qualdirControlOverviewOnBack: true,
       qualdirControlOverview: {
         ariaLabel: "Формы",
         rows: [
           { label: "Всего форм", field: "plan", useUnits: true },
-          { label: "Значимые формы", field: "fact", useUnits: true },
+          { label: "Значимые формы", field: "significant", useUnits: true },
         ],
       },
     },
-    /** QD-M8: plan = всего форм, fact = значимые формы; оборот — `departments`. */
+    /** QD-M8: plan/fact на лице; детализация форм и подразделения на обороте. */
     "QD-M8": {
       allowPartialPlanFact: true,
-      hidePlanOnTile: true,
-      hideKpiPercent: true,
       backArticlesDeptCount: true,
       periodLabelPrefix: "Период",
+      qualdirControlOverviewOnBack: true,
       qualdirControlOverview: {
         ariaLabel: "Формы",
         rows: [
           { label: "Всего форм", field: "plan", useUnits: true },
-          { label: "Значимые формы", field: "fact", useUnits: true },
+          { label: "Значимые формы", field: "significant", useUnits: true },
         ],
       },
     },
-    /** QD-M6: входной контроль — документы, оставания, на сегодня (последний полный месяц). */
+    /** QD-M6: plan/fact на лице; входной контроль на обороте. */
     "QD-M6": {
       allowPartialPlanFact: true,
-      hidePlanOnTile: true,
-      hideKpiPercent: true,
-      disableBack: true,
+      periodLabelPrefix: "Период",
+      donutRejectedItemsShare: {
+        title: "Забракованные наименования",
+        green_threshold: "≤5%",
+        yellow_threshold: "5,1–15%",
+        red_threshold: ">15%",
+      },
+      qualdirControlOverviewOnBack: true,
       qualdirControlOverview: {
         ariaLabel: "Предъявление продукции по входному контролю",
         rows: [
           { label: "Количество документов", field: "fact", useUnits: true },
-          { label: "Оставания в днях", field: "delay_count" },
+          { label: "Забраковано, наименований", field: "rejected_items_count", useUnits: true },
           { label: "Количество на сегодня", field: "in_work_today", lastFullMonthOnly: true, useUnits: true },
         ],
       },

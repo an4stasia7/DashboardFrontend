@@ -249,6 +249,7 @@
     "Объект несоответствия",
     "Вид несоответствия",
     "Подразделение",
+    "Статус",
     "Значимость",
   ];
   var QUALDIR_SIGNIFICANCE_RAW_KEYS = [
@@ -478,6 +479,19 @@
         })
       : [];
     if (!headers.length) return QUALDIR_DEFECT_TABLE_HEADERS.slice();
+    var hasStatus = headers.some(function (header) {
+      return /статус/i.test(String(header || ""));
+    });
+    if (!hasStatus) {
+      var significanceIndex = headers.findIndex(function (header) {
+        return /значим/i.test(String(header || ""));
+      });
+      if (significanceIndex >= 0) {
+        headers.splice(significanceIndex, 0, "Статус");
+      } else {
+        headers.push("Статус");
+      }
+    }
     var hasSignificance = headers.some(function (header) {
       return /значим/i.test(String(header || ""));
     });
@@ -628,39 +642,78 @@
     }
   }
 
-  function appendQualdirDefectTableRow(tbody, raw) {
-    var tr = document.createElement("tr");
-    var cells = [
-      {
-        value: pickTableField(raw, ["\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442", "document"]),
+  function getQualdirHeaderCellMeta(header) {
+    var text = String(header || "").trim();
+    var lower = text.toLowerCase();
+    if (/документ/i.test(lower)) {
+      return {
+        value: function (raw) {
+          return pickTableField(raw, ["\u0414\u043e\u043a\u0443\u043c\u0435\u043d\u0442", "document"]);
+        },
         className: "dashboard-table-cell--medium-text",
-      },
-      {
-        value: pickTableField(raw, [
-          "\u041e\u0431\u044a\u0435\u043a\u0442 \u043d\u0435\u0441\u043e\u043e\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u044f",
-          "object",
-        ]),
+      };
+    }
+    if (/объект/i.test(lower)) {
+      return {
+        value: function (raw) {
+          return pickTableField(raw, [
+            "\u041e\u0431\u044a\u0435\u043a\u0442 \u043d\u0435\u0441\u043e\u043e\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u044f",
+            "object",
+          ]);
+        },
         className: "dashboard-table-cell--medium-text",
-      },
-      {
-        value: pickTableField(raw, [
-          "\u0412\u0438\u0434 \u043d\u0435\u0441\u043e\u043e\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u044f",
-          "defect_type",
-          "violation_type",
-        ]),
+      };
+    }
+    if (/вид/i.test(lower)) {
+      return {
+        value: function (raw) {
+          return pickTableField(raw, [
+            "\u0412\u0438\u0434 \u043d\u0435\u0441\u043e\u043e\u0442\u0432\u0435\u0442\u0441\u0442\u0432\u0438\u044f",
+            "defect_type",
+            "violation_type",
+          ]);
+        },
         className: "dashboard-table-cell--wide-text",
-      },
-      {
-        value: pickTableField(raw, ["\u041f\u043e\u0434\u0440\u0430\u0437\u0434\u0435\u043b\u0435\u043d\u0438\u0435", "department", "dept"]),
+      };
+    }
+    if (/подраздел/i.test(lower)) {
+      return {
+        value: function (raw) {
+          return pickTableField(raw, ["\u041f\u043e\u0434\u0440\u0430\u0437\u0434\u0435\u043b\u0435\u043d\u0438\u0435", "department", "dept"]);
+        },
         className: "dashboard-table-cell--medium-text",
-      },
-      {
-        value: formatQualdirSignificanceValue(raw),
+      };
+    }
+    if (/статус/i.test(lower)) {
+      return {
+        value: function (raw) {
+          return pickTableField(raw, ["\u0421\u0442\u0430\u0442\u0443\u0441", "status", "state", "stage"]);
+        },
+        className: "dashboard-table-cell--status",
+      };
+    }
+    if (/значим/i.test(lower)) {
+      return {
+        value: function (raw) {
+          return formatQualdirSignificanceValue(raw);
+        },
         className: "dashboard-table-cell--short-text",
+      };
+    }
+    return {
+      value: function (raw) {
+        return pickTableField(raw, [text]) || tableTextOrDash(raw[text]);
       },
-    ];
-    cells.forEach(function (cell) {
-      appendClampedCell(tr, cell.value, cell.className);
+      className: "dashboard-table-cell--medium-text",
+    };
+  }
+
+  function appendQualdirDefectTableRow(tbody, raw, headers) {
+    var tr = document.createElement("tr");
+    var columnHeaders = Array.isArray(headers) && headers.length ? headers : QUALDIR_DEFECT_TABLE_HEADERS;
+    columnHeaders.forEach(function (header) {
+      var meta = getQualdirHeaderCellMeta(header);
+      appendClampedCell(tr, meta.value(raw), meta.className);
     });
     tbody.appendChild(tr);
   }
@@ -691,7 +744,7 @@
         if (qualdirDefectTableKey(item) !== wanted) return;
         var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
         if (!raw) return;
-        appendQualdirDefectTableRow(tbody, raw);
+        appendQualdirDefectTableRow(tbody, raw, headers);
       });
     }
     table.appendChild(tbody);
@@ -734,15 +787,17 @@
         { index: 1, label: "Объект несоответствия", type: "filter", searchType: "text" },
         { index: 2, label: "Вид несоответствия", type: "filter", searchType: "text" },
         { index: 3, label: "Подразделение", type: "filter", searchType: "text" },
-        { index: 4, label: "Значимость", type: "filter", searchType: "text" },
+        { index: 4, label: "Статус", type: "filter", searchType: "text" },
+        { index: 5, label: "Значимость", type: "filter", searchType: "text" },
       ],
       initialOrder: [[0, "desc"]],
       columnDefs: [
-        { targets: 0, width: "24%" },
-        { targets: 1, width: "16%" },
-        { targets: 2, width: "34%" },
-        { targets: 3, width: "16%" },
-        { targets: 4, width: "10%" },
+        { targets: 0, width: "22%" },
+        { targets: 1, width: "14%" },
+        { targets: 2, width: "28%" },
+        { targets: 3, width: "14%" },
+        { targets: 4, width: "12%" },
+        { targets: 5, width: "10%" },
         { targets: "_all", orderable: false },
       ],
       afterInit: function (api) {

@@ -1153,7 +1153,8 @@
           kz_total: item.kz_total != null ? item.kz_total : null,
           portfolio_count: item.portfolio_count != null ? item.portfolio_count : null,
           deviation_count: item.deviation_count != null ? item.deviation_count : null,
-          delay_count: item.delay_count !== undefined ? item.delay_count : null,
+          rejected_items_count:
+            item.rejected_items_count !== undefined ? item.rejected_items_count : null,
           plan_by_dept:
             item.plan_by_dept && typeof item.plan_by_dept === "object"
               ? item.plan_by_dept
