@@ -2152,6 +2152,11 @@
       (row.counterparty != null && String(row.counterparty).trim() !== "") ||
       (row.partner_name != null && String(row.partner_name).trim() !== "") ||
       (row.order_num != null && String(row.order_num).trim() !== "") ||
+      (row["Этап"] != null && String(row["Этап"]).trim() !== "") ||
+      (row["Начало"] != null && String(row["Начало"]).trim() !== "") ||
+      (row["Окончание"] != null && String(row["Окончание"]).trim() !== "") ||
+      (row["ЭтапФактическоеОкончание"] != null && String(row["ЭтапФактическоеОкончание"]).trim() !== "") ||
+      (row["ЗаказНаПроизводствоТД_ОпросныйЛист"] != null && String(row["ЗаказНаПроизводствоТД_ОпросныйЛист"]).trim() !== "") ||
       (row.milestone_planned_finish_date != null && String(row.milestone_planned_finish_date).trim() !== "") ||
       (row.deviation_date != null && String(row.deviation_date).trim() !== "") ||
       row.delay_days !== undefined ||
