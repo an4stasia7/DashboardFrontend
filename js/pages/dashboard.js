@@ -682,6 +682,7 @@
             isOperationalDirectorUser(viewContextUser) ||
             isProductionDeputyUser(viewContextUser) ||
             isLogisticsDashboardContext() ||
+            shouldUseServheadClientsTable() ||
             isChiefConstructorDashboardContext() ||
             isChiefMetrologDashboardContext() ||
             isChiefAccountantDashboardContext()
@@ -1655,6 +1656,67 @@
       responseDepartment === "начальник службы логистики" ||
       (selectedViewId === "self" &&
         (role === "начальник службы логистики" || department === "начальник службы логистики"))
+    );
+  }
+
+  function isServheadDepartmentContext(value) {
+    var normalized = normalizeDashboardRole(value);
+    if (!normalized) return false;
+    return (
+      normalized === "servhead" ||
+      normalized === "сервисная служба" ||
+      normalized === "начальник службы сервиса" ||
+      normalized === "начальник сервиса" ||
+      normalized === "начальник сервисной службы" ||
+      (normalized.indexOf("сервис") !== -1 && normalized.indexOf("служб") !== -1)
+    );
+  }
+
+  function isServheadUser(user) {
+    if (!user || typeof user !== "object") return false;
+    var role = normalizeDashboardRole(user.role);
+    var department = normalizeDashboardRole(user.department);
+    return isServheadDepartmentContext(role) || isServheadDepartmentContext(department);
+  }
+
+  function isServheadDashboardContext() {
+    var currentDepartment = normalizeDashboardRole(getDepartmentForCurrentKpiContext());
+    var responseDepartment = normalizeDashboardRole(lastKpiResponseDepartment);
+    return (
+      isServheadUser(sessionUser) ||
+      isServheadUser(viewContextUser) ||
+      isServheadDepartmentContext(currentDepartment) ||
+      isServheadDepartmentContext(responseDepartment)
+    );
+  }
+
+  function hasServheadDashboardTiles(tiles) {
+    if (!Array.isArray(tiles)) return false;
+    for (var i = 0; i < tiles.length; i++) {
+      var id = tiles[i] && tiles[i].kpi_id != null ? String(tiles[i].kpi_id).trim().toUpperCase() : "";
+      if (id.indexOf("SH-M") === 0) return true;
+    }
+    return false;
+  }
+
+  function hasServheadClientsTableRows(rows) {
+    if (!Array.isArray(rows)) return false;
+    for (var i = 0; i < rows.length; i++) {
+      var key = rows[i] && rows[i].tableKey != null ? String(rows[i].tableKey).trim().toUpperCase() : "";
+      if (key === "SH-T1" || key.indexOf("SH-T") === 0) return true;
+    }
+    return false;
+  }
+
+  function shouldUseServheadClientsTable() {
+    if (isServheadDashboardContext()) return true;
+    if (hasServheadDashboardTiles(lastKpiTiles)) return true;
+    if (hasServheadClientsTableRows(lastApiTableRows)) return true;
+    return (
+      typeof Api !== "undefined" &&
+      Api &&
+      typeof Api.hasServheadDashboardInBody === "function" &&
+      Api.hasServheadDashboardInBody(lastRawKpiResponse)
     );
   }
 
@@ -2888,6 +2950,11 @@
         if (!unitText || unitText === "%") return "шт.";
         return unitText;
       }
+      if (/^SH-M\d+$/.test(kid)) {
+        var shUnit = value != null ? String(value).trim() : "";
+        if (!shUnit || shUnit === "%") return "шт.";
+        return shUnit;
+      }
       if (kid === "METD-M1" || kid === "МЕТ-M1") return "шт.";
       return value;
     }
@@ -3062,6 +3129,7 @@
         : preserveBackendRag && rawItem.color != null
           ? String(rawItem.color).toLowerCase().trim()
           : null,
+      pct_lower_is_better: rawItem.pct_lower_is_better === true,
       green_threshold: thStr(thresholds, "green", "green_threshold"),
       yellow_threshold: thStr(thresholds, "yellow", "yellow_threshold"),
       red_threshold: thStr(thresholds, "red", "red_threshold"),
@@ -3338,6 +3406,7 @@
     var useProductionDirectorProjectTables = isProductionDirectorDashboardContext();
     var useProductionDeputyProjectTables = isProductionDeputyDashboardContext();
     var useHrdLateVacanciesTable = shouldUseHrdLateVacanciesTable();
+    var useServheadClientsTable = shouldUseServheadClientsTable();
     var useQualdirDefectTables = shouldUseQualdirDefectTables();
     if (useTechnicalTables) {
       activeClaimsTableView = "claims";
@@ -3349,6 +3418,9 @@
       activeClaimsTableView = "claims";
     }
     if (useHrdLateVacanciesTable) {
+      activeClaimsTableView = "claims";
+    }
+    if (useServheadClientsTable) {
       activeClaimsTableView = "claims";
     }
     if (claimsTableTitleTextEl) {
@@ -3370,7 +3442,9 @@
                 ? "Отклонения по проекту развития номенклатуры"
                 : useHrdLateVacanciesTable
                   ? "Вакансии, закрытые не в срок"
-                  : useTechnicalTables
+                  : useServheadClientsTable
+                    ? getApiTableTitleFromRows(lastApiTableRows, "SH-T1") || "Ситуация по клиентам"
+                    : useTechnicalTables
                     ? "Отклонения по вехам"
                     : isBoardChairOwnDashboard
                       ? "ТОП-10 отклонений"
@@ -3396,6 +3470,7 @@
       claimsTableHelpWrapEl.hidden =
         useQualdirDefectTables ||
         useHrdLateVacanciesTable ||
+        useServheadClientsTable ||
         useTechnicalTables ||
         useProjectMilestonesTables ||
         activeClaimsTableView === "lawsuits";
@@ -3435,6 +3510,7 @@
         overduePanel.hidden =
           useQualdirDefectTables ||
           useHrdLateVacanciesTable ||
+          useServheadClientsTable ||
           useTechnicalTables ||
           useOpdirProjectTables ||
           useProjectMilestonesTables ||
@@ -3526,6 +3602,7 @@
         shouldUseOpdirProjectTables() ||
         shouldUseDevserviceProjectDeviationsTables() ||
         shouldUseHrdLateVacanciesTable() ||
+        shouldUseServheadClientsTable() ||
         nextView === "lawsuits";
     }
     if (nextView === "lawsuits") {
@@ -3572,6 +3649,7 @@
         filterRowsMinAmountRub: psdTableMinRub,
         technicalTablesMode: shouldUseTechnicalDeviationTables(),
         hrdLateVacanciesTableMode: shouldUseHrdLateVacanciesTable(),
+        servheadClientsTableMode: shouldUseServheadClientsTable(),
         technicalExternalTableKey: shouldUseGsppTechnicalTables() ? "GSPP-T-Q4-DEVIATIONS" : undefined,
         technicalDevelopmentTableKey: shouldUseGsppTechnicalTables() ? "GSPP-T-Q4-DEVIATIONS" : undefined,
         technicalDeviationsSinglePanel: shouldUseGsppTechnicalTables(),

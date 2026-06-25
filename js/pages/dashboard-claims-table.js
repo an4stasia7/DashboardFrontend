@@ -249,6 +249,20 @@
   var METROLOG_LATE_STAGE_TABLE_KEY = "METD-T-M1-LATE-STAGES";
   var LOGISTICS_CLAIMS_TABLE_KEY = "LOG-T-CLAIMS";
   var LOGISTICS_SUPPLIER_DZ_TABLE_KEY = "LOG-T-SUPPLIER-DZ";
+  var SERVHEAD_CLIENTS_TABLE_KEY = "SH-T1";
+  var SERVHEAD_CLIENTS_TABLE_KEYS = [
+    "SH-T1",
+    "SERV-T-CLIENTS",
+    "SERVHEAD-T-CLIENTS",
+    "SERV-T-CUSTOMER-SITUATION",
+  ];
+  var SERVHEAD_CLIENTS_HEADERS = [
+    "Клиент",
+    "Всего обращений",
+    "В срок",
+    "Не в срок",
+  ];
+  var activeServheadClientsTableKey = SERVHEAD_CLIENTS_TABLE_KEY;
   var QUALDIR_EXTERNAL_DEFECT_TABLE_KEY = "QD-T-M5";
   var QUALDIR_INTERNAL_DEFECT_TABLE_KEY = "QD-T-M1";
   var QUALDIR_PROCESS_DEFECT_TABLE_KEY = "QD-T-M8";
@@ -282,6 +296,7 @@
   var protocolOverdueTableMode = false;
   var metrologLateStagesTableMode = false;
   var logisticsSupplierDebtTableMode = false;
+  var servheadClientsTableMode = false;
 
   function pickTableField(raw, keys) {
     if (!raw || typeof raw !== "object") return null;
@@ -1484,6 +1499,7 @@
     if (topTable) {
       topTable.classList.remove("dashboard-table--logistics-claims");
       topTable.classList.remove("dashboard-table--hrd-late-vacancies");
+      topTable.classList.remove("dashboard-table--servhead-clients");
     }
     if (qualdirDefectTablesMode) {
       setTableHeaders(
@@ -1500,6 +1516,8 @@
       );
     } else if (hrdLateVacanciesTableMode) {
       setTableHeaders("table-top-deviations", HRD_LATE_VACANCIES_HEADERS);
+    } else if (servheadClientsTableMode) {
+      setTableHeaders("table-top-deviations", getServheadClientsHeadersFromRows(rows));
     } else if (metrologLateStagesTableMode) {
       setTableHeaders("table-top-deviations", METROLOG_LATE_STAGE_HEADERS);
     } else if (productionClaimsTableMode) {
@@ -1525,6 +1543,134 @@
   function isHrdLateVacancyRow(item) {
     var key = item && item.tableKey != null ? String(item.tableKey).trim().toUpperCase() : "";
     return key === HRD_LATE_VACANCIES_TABLE_KEY;
+  }
+
+  function resolveServheadClientsTableKey(rows) {
+    if (!Array.isArray(rows)) return SERVHEAD_CLIENTS_TABLE_KEY;
+    for (var i = 0; i < rows.length; i++) {
+      var key = rows[i] && rows[i].tableKey != null ? String(rows[i].tableKey).trim().toUpperCase() : "";
+      if (!key) continue;
+      for (var j = 0; j < SERVHEAD_CLIENTS_TABLE_KEYS.length; j++) {
+        if (key === SERVHEAD_CLIENTS_TABLE_KEYS[j]) return key;
+      }
+      if (key.indexOf("SERV") !== -1 && (key.indexOf("CLIENT") !== -1 || key.indexOf("CUSTOMER") !== -1)) {
+        return key;
+      }
+      if (key.indexOf("SH-T") === 0) return key;
+    }
+    return SERVHEAD_CLIENTS_TABLE_KEY;
+  }
+
+  function servheadClientsTableKey(item) {
+    return item && item.tableKey != null ? String(item.tableKey).trim().toUpperCase() : "";
+  }
+
+  function isServheadClientsRow(item) {
+    var key = servheadClientsTableKey(item);
+    var wanted = String(activeServheadClientsTableKey || SERVHEAD_CLIENTS_TABLE_KEY).trim().toUpperCase();
+    if (key === wanted) return true;
+    for (var i = 0; i < SERVHEAD_CLIENTS_TABLE_KEYS.length; i++) {
+      if (key === SERVHEAD_CLIENTS_TABLE_KEYS[i]) return true;
+    }
+    return key.indexOf("SERV") !== -1 && (key.indexOf("CLIENT") !== -1 || key.indexOf("CUSTOMER") !== -1)
+      ? true
+      : key.indexOf("SH-T") === 0;
+  }
+
+  function getServheadClientsHeadersFromRows(rows) {
+    var wanted = resolveServheadClientsTableKey(rows);
+    if (!Array.isArray(rows) || !rows.length) return SERVHEAD_CLIENTS_HEADERS.slice();
+    for (var i = 0; i < rows.length; i++) {
+      var item = rows[i];
+      if (!item || servheadClientsTableKey(item) !== wanted) continue;
+      if (Array.isArray(item.tableColumns) && item.tableColumns.length) {
+        return item.tableColumns.map(function (header) {
+          return tableTextOrDash(header);
+        });
+      }
+    }
+    return SERVHEAD_CLIENTS_HEADERS.slice();
+  }
+
+  function getServheadHeaderCellMeta(header) {
+    var h = String(header || "")
+      .trim()
+      .toLocaleLowerCase("ru-RU");
+    if (/клиент|контрагент|partner|counterparty/.test(h)) {
+      return {
+        className: "dashboard-table-cell--medium-text",
+        value: function (raw) {
+          return pickTableField(raw, [
+            "client",
+            "client_name",
+            "Клиент",
+            "клиент",
+            "partner",
+            "partner_name",
+            "counterparty",
+            "контрагент",
+          ]);
+        },
+      };
+    }
+    if (/всего.*обращ|количество.*обращ|обращений|appeals|requests/.test(h)) {
+      return {
+        className: "dt-center",
+        value: function (raw) {
+          return pickTableField(raw, [
+            "Всего обращений",
+            "requests_count",
+            "appeals_count",
+            "total_requests",
+            "appeals_total",
+            "КоличествоОбращений",
+            "количество_обращений",
+            "count",
+          ]);
+        },
+      };
+    }
+    if (/^в\s*срок$|on.?time|in_time/.test(h) || (/в\s*срок/.test(h) && !/не\s*в\s*срок|not/.test(h))) {
+      return {
+        className: "dt-center",
+        value: function (raw) {
+          return pickTableField(raw, [
+            "В срок",
+            "processed_on_time",
+            "on_time_count",
+            "in_time",
+            "on_time",
+            "ОбработаноВСрок",
+            "processed_in_time",
+            "in_time_count",
+          ]);
+        },
+      };
+    }
+    if (/^не\s*в\s*срок$|не\s*в\s*срок|просроч|late|overdue/.test(h)) {
+      return {
+        className: "dt-center",
+        value: function (raw) {
+          return pickTableField(raw, [
+            "Не в срок",
+            "processed_late",
+            "not_in_time_count",
+            "overdue",
+            "late_count",
+            "ОбработаноНеВСрок",
+            "processed_not_in_time",
+            "not_in_time",
+          ]);
+        },
+      };
+    }
+    return {
+      className: "",
+      value: function (raw) {
+        if (raw && header in raw) return raw[header];
+        return pickTableField(raw, [header]);
+      },
+    };
   }
 
   function renderProtocolOverdueTableRows(rows) {
@@ -1606,6 +1752,55 @@
         appendClampedCell(tr, value, cellIndex === 2 ? "dashboard-table-cell--wide-text" : "");
       });
       tbody.appendChild(tr);
+    });
+  }
+
+  function renderServheadClientsTableRows(rows) {
+    activeServheadClientsTableKey = resolveServheadClientsTableKey(rows);
+    var table = document.getElementById("table-top-deviations");
+    var tbody = table ? table.querySelector("tbody") : null;
+    if (!table || !tbody) return;
+    tbody.innerHTML = "";
+    table.classList.add("dashboard-table--servhead-clients");
+    var headers = getServheadClientsHeadersFromRows(rows);
+    setTableHeaders("table-top-deviations", headers);
+    if (table.tFoot) {
+      table.tFoot.hidden = true;
+      table.tFoot.innerHTML = '<tr><th colspan="' + String(headers.length) + '"></th></tr>';
+    }
+    table.setAttribute("aria-label", "Ситуация по клиентам");
+
+    rows.filter(isServheadClientsRow).forEach(function (item) {
+      var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
+      if (!raw) return;
+      var tr = document.createElement("tr");
+      headers.forEach(function (header) {
+        var meta = getServheadHeaderCellMeta(header);
+        appendClampedCell(tr, meta.value(raw), meta.className);
+      });
+      tbody.appendChild(tr);
+    });
+  }
+
+  function initServheadClientsDataTable() {
+    return initInteractiveDashboardTable({
+      tableSelector: "#table-top-deviations",
+      wrapperSelector: ".dashboard-table-wrap--claims",
+      advancedSearchKey: "servhead-clients-table-advanced",
+      columnConfigs: [
+        { index: 0, label: "Клиент", type: "filter", searchType: "text" },
+        { index: 1, label: "Всего обращений", type: "sort", searchType: "number" },
+        { index: 2, label: "В срок", type: "sort", searchType: "number" },
+        { index: 3, label: "Не в срок", type: "sort", searchType: "number" },
+      ],
+      initialOrder: [[3, "desc"], [1, "desc"]],
+      columnDefs: [
+        { targets: "_all", orderable: false },
+        { targets: 0, className: "dt-left" },
+        { targets: 1, width: "10%", orderable: true, className: "dt-center" },
+        { targets: 2, width: "10%", orderable: true, className: "dt-center" },
+        { targets: 3, width: "10%", orderable: true, className: "dt-center" },
+      ],
     });
   }
 
@@ -1741,7 +1936,7 @@
 
   function isClaimsTableRow(item) {
     var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
-    if (!raw || isOverdueDebtRow(item) || isLawsuitsRow(item) || isProtocolOverdueRow(item) || isQualdirDefectRow(item)) {
+    if (!raw || isOverdueDebtRow(item) || isLawsuitsRow(item) || isProtocolOverdueRow(item) || isQualdirDefectRow(item) || isServheadClientsRow(item) || isHrdLateVacancyRow(item)) {
       return false;
     }
     return (
@@ -2910,6 +3105,7 @@
     productionClaimsShop = normalizeProductionClaimsShop(options.productionClaimsShop);
     constructorProjectTableMode = !!options.constructorProjectTableMode;
     hrdLateVacanciesTableMode = !!options.hrdLateVacanciesTableMode;
+    servheadClientsTableMode = !!options.servheadClientsTableMode;
     qualdirDefectTablesMode = !!options.qualdirDefectTablesMode;
     if (qualdirDefectTablesMode) {
       activeQualdirExternalTableKey =
@@ -2986,6 +3182,12 @@
         ".dashboard-table-wrap--qualdir-process",
         "qualdir-process-defect-table-advanced"
       );
+      syncProtocolOverduePanel(rows, options);
+      return;
+    }
+    if (servheadClientsTableMode) {
+      renderServheadClientsTableRows(rows);
+      initServheadClientsDataTable();
       syncProtocolOverduePanel(rows, options);
       return;
     }

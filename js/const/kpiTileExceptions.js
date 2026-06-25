@@ -207,5 +207,14 @@
       kpiPctOnly: true,
       showBackPlanFact: true,
     },
+    "SH-M2": {
+      pctLowerIsBetter: true,
+    },
+    "SH-M3": {
+      pctLowerIsBetter: true,
+    },
+    "SH-M5": {
+      pctLowerIsBetter: true,
+    },
   };
 })(typeof window !== "undefined" ? window : globalThis);

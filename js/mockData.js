@@ -685,6 +685,15 @@
    * Парсит green_threshold / yellow_threshold / red_threshold и определяет RAG.
    * Поддерживает: "≥100%", "≤70%", "90–99,9%", ">75%".
    */
+  function lowerIsBetterPctRagFromPercent(percent) {
+    if (percent == null || isNaN(percent)) return null;
+    var p = Number(percent);
+    if (!isFinite(p)) return null;
+    if (p <= 5) return "green";
+    if (p <= 10) return "yellow";
+    return "red";
+  }
+
   function deriveRagFromThresholds(tile, percent) {
     if (tile == null || percent == null || isNaN(percent)) return null;
     var gs = tile.green_threshold != null ? String(tile.green_threshold) : "";
@@ -727,6 +736,12 @@
    */
   function getKpiTilePresentation(tile) {
     var percent = parseTilePercent(tile);
+    var cfg = typeof global !== "undefined" && global.KPI_TILE_EXCEPTIONS ? global.KPI_TILE_EXCEPTIONS : null;
+    var tileKey = tile && tile.kpi_id != null ? String(tile.kpi_id).trim() : "";
+    var tileRule = tileKey && cfg && cfg[tileKey] ? cfg[tileKey] : null;
+    function tileUsesLowerIsBetter() {
+      return tile.pct_lower_is_better === true || !!(tileRule && tileRule.pctLowerIsBetter);
+    }
     var ragFromApi =
       normalizeRagFromApi(tile.color) ||
       normalizeRagFromApi(tile.rag) ||
@@ -734,7 +749,10 @@
       normalizeRagFromApi(tile.ragStatus);
     if (ragFromApi) {
       if (ragFromApi === "gray" && percent != null) {
-        var ragFallback = deriveRagFromThresholds(tile, percent) || kpiRagFromPercentStub(percent).rag;
+        var ragFallback =
+          deriveRagFromThresholds(tile, percent) ||
+          (tileUsesLowerIsBetter() ? lowerIsBetterPctRagFromPercent(percent) : null) ||
+          kpiRagFromPercentStub(percent).rag;
         return {
           percent: percent,
           rag: ragFallback,
@@ -757,6 +775,17 @@
         fillColor: KPI_RAG_FILL[ragFromThresholds],
         ragFromApi: true,
       };
+    }
+    if (tileUsesLowerIsBetter() && percent != null) {
+      var lowerRag = lowerIsBetterPctRagFromPercent(percent);
+      if (lowerRag) {
+        return {
+          percent: percent,
+          rag: lowerRag,
+          fillColor: KPI_RAG_FILL[lowerRag],
+          ragFromApi: false,
+        };
+      }
     }
     var stub = kpiRagFromPercentStub(percent);
     return {

@@ -1078,6 +1078,11 @@
             if (!unitText || unitText === "%") return "шт.";
             return unitText;
           }
+          if (/^SH-M\d+$/i.test(kid)) {
+            var shUnit = value != null ? String(value).trim() : "";
+            if (!shUnit || shUnit === "%") return "шт.";
+            return shUnit;
+          }
           if (kid === "METD-M1" || kid === "МЕТ-M1") return "шт.";
           return value;
         }
@@ -1178,6 +1183,7 @@
           plan_description: hintFields.plan_description,
           fact_description: hintFields.fact_description,
           rag: color,
+          pct_lower_is_better: item.pct_lower_is_better === true,
           green_threshold: thStr(th, "green", "green_threshold"),
           yellow_threshold: thStr(th, "yellow", "yellow_threshold"),
           red_threshold: thStr(th, "red", "red_threshold"),
@@ -1553,6 +1559,35 @@
       if (key === QUALDIR_DEFECT_TABLE_KEYS[i]) return true;
     }
     return false;
+  }
+
+  function isServheadClientsTableTabKey(tabKey) {
+    var key = tabKey != null ? String(tabKey).trim().toUpperCase() : "";
+    return key === "SH-T1" || key.indexOf("SH-T") === 0;
+  }
+
+  function hasServheadClientsTableInBody(body) {
+    var tables = getTablesMapFromBody(body);
+    if (!tables || typeof tables !== "object") return false;
+    var keys = Object.keys(tables);
+    for (var i = 0; i < keys.length; i++) {
+      if (isServheadClientsTableTabKey(keys[i])) return true;
+    }
+    return false;
+  }
+
+  function hasServheadDashboardTilesInBody(body) {
+    var tiles = body && body[KPI_JSON_KEY_TILES] && body[KPI_JSON_KEY_TILES].items;
+    if (!Array.isArray(tiles)) return false;
+    for (var i = 0; i < tiles.length; i++) {
+      var id = tiles[i] && tiles[i].kpi_id != null ? String(tiles[i].kpi_id).trim().toUpperCase() : "";
+      if (id.indexOf("SH-M") === 0) return true;
+    }
+    return false;
+  }
+
+  function hasServheadDashboardInBody(body) {
+    return hasServheadClientsTableInBody(body) || hasServheadDashboardTilesInBody(body);
   }
 
   function hasQualdirDefectTablesInBody(body) {
@@ -2765,6 +2800,12 @@
     if (row && row.nomer_proekta != null && String(row.nomer_proekta).trim() !== "") return "project-number:" + String(row.nomer_proekta).trim();
     if (row && row.number != null && String(row.number).trim() !== "") return "number:" + String(row.number).trim();
     if (row && row.counterparty != null && String(row.counterparty).trim() !== "") return "counterparty:" + String(row.counterparty).trim();
+    if (row && row.client_key != null && String(row.client_key).trim() !== "") {
+      return "client:" + String(row.client_key).trim();
+    }
+    if (row && row["\u041a\u043b\u0438\u0435\u043d\u0442"] != null && String(row["\u041a\u043b\u0438\u0435\u043d\u0442"]).trim() !== "") {
+      return "client-name:" + String(row["\u041a\u043b\u0438\u0435\u043d\u0442"]).trim();
+    }
     return String(tabKey || "table") + ":" + String(index);
   }
 
@@ -2783,6 +2824,13 @@
       (row.nomer_proekta != null && String(row.nomer_proekta).trim() !== "") ||
       (row.number != null && String(row.number).trim() !== "") ||
       (row.counterparty != null && String(row.counterparty).trim() !== "") ||
+      (row["\u041a\u043b\u0438\u0435\u043d\u0442"] != null && String(row["\u041a\u043b\u0438\u0435\u043d\u0442"]).trim() !== "") ||
+      (row["\u0412\u0441\u0435\u0433\u043e \u043e\u0431\u0440\u0430\u0449\u0435\u043d\u0438\u0439"] !== undefined &&
+        row["\u0412\u0441\u0435\u0433\u043e \u043e\u0431\u0440\u0430\u0449\u0435\u043d\u0438\u0439"] !== null &&
+        String(row["\u0412\u0441\u0435\u0433\u043e \u043e\u0431\u0440\u0430\u0449\u0435\u043d\u0438\u0439"]).trim() !== "") ||
+      (row["\u0412 \u0441\u0440\u043e\u043a"] !== undefined && row["\u0412 \u0441\u0440\u043e\u043a"] !== null) ||
+      (row["\u041d\u0435 \u0432 \u0441\u0440\u043e\u043a"] !== undefined && row["\u041d\u0435 \u0432 \u0441\u0440\u043e\u043a"] !== null) ||
+      (row.client_key != null && String(row.client_key).trim() !== "") ||
       (row.partner_name != null && String(row.partner_name).trim() !== "") ||
       (row.company != null && String(row.company).trim() !== "") ||
       (row.department != null && String(row.department).trim() !== "") ||
@@ -3430,5 +3478,8 @@
     hasProtocolOverdueTableInBody: hasProtocolOverdueTableInBody,
     hasQualdirDefectTablesInBody: hasQualdirDefectTablesInBody,
     isQualdirDefectTableTabKey: isQualdirDefectTableTabKey,
+    hasServheadDashboardInBody: hasServheadDashboardInBody,
+    hasServheadClientsTableInBody: hasServheadClientsTableInBody,
+    isServheadClientsTableTabKey: isServheadClientsTableTabKey,
   };
 })(typeof window !== "undefined" ? window : globalThis);
