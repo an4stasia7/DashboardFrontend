@@ -1905,6 +1905,43 @@
 
     if (!Array.isArray(rows) || !rows.length) return;
 
+    var overdueRows = rows.filter(isOverdueDebtRow);
+    if (overdueRows.length) {
+      setTableHeaders("table-overdue-debt", DEFAULT_OVERDUE_DEBT_HEADERS);
+      if (table.tFoot) {
+        table.tFoot.hidden = false;
+      }
+      overdueRows.forEach(function (item) {
+        var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
+        if (!raw) return;
+        var counterparty = raw.counterparty != null && String(raw.counterparty).trim() !== ""
+          ? raw.counterparty
+          : raw.partner_name;
+        var orderNum = raw.order_num != null && String(raw.order_num).trim() !== ""
+          ? raw.order_num
+          : raw.order_number;
+        var tr = document.createElement("tr");
+        [
+          tableTextOrDash(orderNum),
+          tableTextOrDash(counterparty),
+          raw.days_overdue != null && raw.days_overdue !== "" ? tableTextOrDash(raw.days_overdue) : "—",
+          tableTextOrDash(raw.liquidated_dept_name || raw["Ликвидированное подразделение"]),
+          tableTextOrDash(raw.reason),
+          tableTextOrDash(raw.action),
+          formatClaimsOrderSum(raw.amount),
+        ].forEach(function (value, cellIndex) {
+          var td = document.createElement("td");
+          td.textContent = value;
+          if (cellIndex === 6) {
+            td.setAttribute("data-order", getClaimsOrderSumSortValue(raw.amount));
+          }
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+      return;
+    }
+
     var protocolRows = rows.filter(isDepartmentProtocolOverdueRow);
     if (protocolRows.length) {
       setTableHeaders("table-overdue-debt", DEPT_PROTOCOL_OVERDUE_HEADERS);
@@ -1935,37 +1972,6 @@
       });
       return;
     }
-
-    rows
-      .filter(isOverdueDebtRow)
-      .forEach(function (item) {
-        var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
-        if (!raw) return;
-        var counterparty = raw.counterparty != null && String(raw.counterparty).trim() !== ""
-          ? raw.counterparty
-          : raw.partner_name;
-        var orderNum = raw.order_num != null && String(raw.order_num).trim() !== ""
-          ? raw.order_num
-          : raw.order_number;
-        var tr = document.createElement("tr");
-        [
-          tableTextOrDash(orderNum),
-          tableTextOrDash(counterparty),
-          raw.days_overdue != null && raw.days_overdue !== "" ? tableTextOrDash(raw.days_overdue) : "—",
-          tableTextOrDash(raw.liquidated_dept_name || raw["Ликвидированное подразделение"]),
-          tableTextOrDash(raw.reason),
-          tableTextOrDash(raw.action),
-          formatClaimsOrderSum(raw.amount),
-        ].forEach(function (value, cellIndex) {
-          var td = document.createElement("td");
-          td.textContent = value;
-          if (cellIndex === 6) {
-            td.setAttribute("data-order", getClaimsOrderSumSortValue(raw.amount));
-          }
-          tr.appendChild(td);
-        });
-        tbody.appendChild(tr);
-      });
   }
 
   function initInteractiveDashboardTable(options) {
