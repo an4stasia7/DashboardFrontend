@@ -750,6 +750,8 @@
     }
     var ragFromApi =
       normalizeRagFromApi(tile.color) ||
+      normalizeRagFromApi(tile.backend_color) ||
+      normalizeRagFromApi(tile.status_color) ||
       normalizeRagFromApi(tile.rag) ||
       normalizeRagFromApi(tile.status) ||
       normalizeRagFromApi(tile.ragStatus);

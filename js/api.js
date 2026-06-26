@@ -1182,6 +1182,12 @@
           source: hintFields.source,
           plan_description: hintFields.plan_description,
           fact_description: hintFields.fact_description,
+          color: color,
+          backend_color: color,
+          status_color:
+            item.status_color != null
+              ? normalizeBackendTileColor(item.status_color)
+              : color,
           rag: color,
           pct_lower_is_better: item.pct_lower_is_better === true,
           pct_higher_is_better: item.pct_higher_is_better === true,
@@ -2385,6 +2391,38 @@
     return "red";
   }
 
+  function normalizeBackendTileColor(value) {
+    if (value == null) return null;
+    var normalized = String(value).toLowerCase().trim();
+    return normalized ? normalized : null;
+  }
+
+  function resolveBackendTileColor(tile, ownMonthly) {
+    if (ownMonthly && ownMonthly.color != null) {
+      return normalizeBackendTileColor(ownMonthly.color);
+    }
+    if (tile && tile.backend_color != null) {
+      return normalizeBackendTileColor(tile.backend_color);
+    }
+    if (tile && tile.color != null) {
+      return normalizeBackendTileColor(tile.color);
+    }
+    if (tile && tile.status_color != null) {
+      return normalizeBackendTileColor(tile.status_color);
+    }
+    if (tile && tile.rag != null) {
+      return normalizeBackendTileColor(tile.rag);
+    }
+    return null;
+  }
+
+  function applyBackendTileColor(tile, color) {
+    var normalized = normalizeBackendTileColor(color);
+    if (!normalized || !tile) return;
+    tile.color = normalized;
+    tile.rag = normalized;
+  }
+
   /** KD-M1 Деньги, KD-M2 Отгрузки, KD-M3 Договоры — чем выше факт относительно плана, тем лучше. */
   function isCommercialHigherIsBetterPlanFactKpiId(kpiId) {
     var id = kpiId != null ? String(kpiId).trim().toUpperCase() : "";
@@ -2501,16 +2539,17 @@
           tile.unit = ownMonthly.display_unit;
         }
         ensureQualdirPieceCountUnits(tile);
-        if (isBudgetFotLimitKpiId(id, tile) && !isHigherIsBetterKpiItem(tile)) {
-          var pfRag = planFactLimitRag(ownMonthly.plan, ownMonthly.fact);
-          if (pfRag) tile.rag = pfRag;
-        } else if (isCommercialHigherIsBetterPlanFactKpiId(id)) {
-          var commercialRag =
-            higherBetterRagFromPlanFact(ownMonthly.plan, ownMonthly.fact) ||
-            (ownMonthly.kpi_pct != null ? higherBetterRagFromPct(ownMonthly.kpi_pct) : null);
-          if (commercialRag) tile.rag = commercialRag;
-        } else if (ownMonthly.color != null) {
-          tile.rag = String(ownMonthly.color).toLowerCase().trim();
+        var backendColor = resolveBackendTileColor(tile, ownMonthly);
+        if (!backendColor) {
+          if (isBudgetFotLimitKpiId(id, tile) && !isHigherIsBetterKpiItem(tile)) {
+            var pfRag = planFactLimitRag(ownMonthly.plan, ownMonthly.fact);
+            if (pfRag) tile.rag = pfRag;
+          } else if (isCommercialHigherIsBetterPlanFactKpiId(id)) {
+            var commercialRag =
+              higherBetterRagFromPlanFact(ownMonthly.plan, ownMonthly.fact) ||
+              (ownMonthly.kpi_pct != null ? higherBetterRagFromPct(ownMonthly.kpi_pct) : null);
+            if (commercialRag) tile.rag = commercialRag;
+          }
         }
         if (ownMonthly.expected_plan !== undefined) tile.expected_plan = ownMonthly.expected_plan;
         if (Array.isArray(ownMonthly.plan_fact_rows)) tile.plan_fact_rows = ownMonthly.plan_fact_rows;
@@ -2523,10 +2562,13 @@
         if (ownMonthly.kpi_pct != null && !isQualdirPieceCountKpiId(id)) {
           tile.percent = ownMonthly.kpi_pct;
           tile.kpi_pct = ownMonthly.kpi_pct;
-          if (isTurnoverKpiTile(tile)) {
+          if (!backendColor && isTurnoverKpiTile(tile)) {
             var turnoverRag = turnoverLimitRagFromPct(ownMonthly.kpi_pct);
             if (turnoverRag) tile.rag = turnoverRag;
           }
+        }
+        if (backendColor) {
+          applyBackendTileColor(tile, backendColor);
         }
         if (ownMonthly.plan_fact_period_label) tile.plan_fact_period_label = String(ownMonthly.plan_fact_period_label);
         if (
