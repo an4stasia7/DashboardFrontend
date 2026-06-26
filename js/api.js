@@ -1184,6 +1184,8 @@
           fact_description: hintFields.fact_description,
           rag: color,
           pct_lower_is_better: item.pct_lower_is_better === true,
+          pct_higher_is_better: item.pct_higher_is_better === true,
+          rag_direction: item.rag_direction != null ? String(item.rag_direction) : "",
           green_threshold: thStr(th, "green", "green_threshold"),
           yellow_threshold: thStr(th, "yellow", "yellow_threshold"),
           red_threshold: thStr(th, "red", "red_threshold"),
@@ -2427,13 +2429,30 @@
     return id.slice(-3) === "-Q5";
   }
 
-  function isBudgetFotLimitKpiId(kpiId) {
+  function isBudgetFotLimitKpiId(kpiId, item) {
     var id = kpiId != null ? String(kpiId).trim().toUpperCase() : "";
     if (!id) return false;
     if (id === "LOG-M3.B" || id === "LOG-M3.F" || id === "OD-M3.1" || id === "OD-M3.2") return true;
     if (id === "METD-M3.B" || id === "METD-M3.F") return true;
     if (id.indexOf("PD-M3.B") === 0 || id.indexOf("PD-M3.F") === 0) return true;
-    return /-M3-[12]$/.test(id) || /M3\.[12]$/.test(id);
+    if (/-M3-[12]$/.test(id) || /M3\.[12]$/.test(id)) {
+      var title =
+        item && item.title != null
+          ? String(item.title)
+          : item && item.name != null
+            ? String(item.name)
+            : "";
+      title = title.trim().toLocaleLowerCase("ru-RU");
+      return title.indexOf("фот") !== -1 || title.indexOf("бюджет") !== -1;
+    }
+    return false;
+  }
+
+  function isHigherIsBetterKpiItem(item) {
+    if (!item || typeof item !== "object") return false;
+    if (item.pct_higher_is_better === true) return true;
+    var dir = item.rag_direction != null ? String(item.rag_direction).trim().toLowerCase() : "";
+    return dir === "higher_better" || dir === "higher_is_better";
   }
 
   /**
@@ -2482,7 +2501,7 @@
           tile.unit = ownMonthly.display_unit;
         }
         ensureQualdirPieceCountUnits(tile);
-        if (isBudgetFotLimitKpiId(id)) {
+        if (isBudgetFotLimitKpiId(id, tile) && !isHigherIsBetterKpiItem(tile)) {
           var pfRag = planFactLimitRag(ownMonthly.plan, ownMonthly.fact);
           if (pfRag) tile.rag = pfRag;
         } else if (isCommercialHigherIsBetterPlanFactKpiId(id)) {

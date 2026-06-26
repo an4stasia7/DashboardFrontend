@@ -701,33 +701,39 @@
     var rs = tile.red_threshold != null ? String(tile.red_threshold) : "";
     if (!gs && !ys && !rs) return null;
 
-    var leMatch = gs.match(/[≤<]=?\s*([\d]+(?:[.,]\d+)?)/);
-    if (leMatch) {
-      var greenMax = parseFloat(leMatch[1].replace(",", "."));
-      if (percent <= greenMax) return "green";
-    }
+    var greenMin = null;
+    var greenMax = null;
+    var yellowLo = null;
+    var yellowHi = null;
+    var redLt = null;
+    var redGt = null;
 
+    var leMatchGs = gs.match(/[≤<]=?\s*([\d]+(?:[.,]\d+)?)/);
+    if (leMatchGs) greenMax = parseFloat(leMatchGs[1].replace(",", "."));
     var gMatch = gs.match(/[≥>=]\s*([\d]+(?:[.,]\d+)?)\s*%?/);
-    if (gMatch) {
-      var greenMin = parseFloat(gMatch[1].replace(",", "."));
-      if (percent >= greenMin) return "green";
-    }
-
+    if (gMatch) greenMin = parseFloat(gMatch[1].replace(",", "."));
     var range = ys.match(/([\d]+(?:[.,]\d+)?)\s*[\u2013\-–]\s*([\d]+(?:[.,]\d+)?)\s*%?/);
     if (range) {
-      var lo = parseFloat(String(range[1]).replace(",", "."));
-      var hi = parseFloat(String(range[2]).replace(",", "."));
-      if (percent >= lo && percent <= hi) return "yellow";
+      yellowLo = parseFloat(String(range[1]).replace(",", "."));
+      yellowHi = parseFloat(String(range[2]).replace(",", "."));
     }
+    var ltMatchRs = rs.match(/[<≤]\s*([\d]+(?:[.,]\d+)?)/);
+    if (ltMatchRs) redLt = parseFloat(ltMatchRs[1].replace(",", "."));
+    var gtMatchRs = rs.match(/>\s*([\d]+(?:[.,]\d+)?)/);
+    if (gtMatchRs) redGt = parseFloat(gtMatchRs[1].replace(",", "."));
 
-    var gtMatch = rs.match(/>\s*([\d]+(?:[.,]\d+)?)/);
-    if (gtMatch) {
-      var redMin = parseFloat(gtMatch[1].replace(",", "."));
-      if (percent > redMin) return "red";
-    }
+    if (greenMin != null && percent >= greenMin) return "green";
+    if (greenMax != null && percent <= greenMax) return "green";
+    if (yellowLo != null && yellowHi != null && percent >= yellowLo && percent <= yellowHi) return "yellow";
+    if (redLt != null && percent < redLt) return "red";
+    if (redGt != null && percent > redGt) return "red";
 
-    if (leMatch || gMatch || range || gtMatch) return "red";
-    return null;
+    var hasRules =
+      greenMin != null || greenMax != null || yellowLo != null || redLt != null || redGt != null;
+    if (!hasRules) return null;
+
+    if (greenMin != null && yellowHi != null && percent > yellowHi) return "green";
+    return "red";
   }
 
   /**
