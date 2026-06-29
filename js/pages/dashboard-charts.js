@@ -9,8 +9,10 @@
   var dashboardChartsResizeObserver = null;
   var dashboardChartsResizeFrame = null;
   var dashboardChartsResizeBound = false;
+  var dashboardChartsResizeObserved = false;
   var chartPreviewDialogBound = false;
   var latestContext = {};
+  var DASHBOARD_MAIN_CHART_HEIGHT = 300;
 
   function mergeContext(nextContext) {
     latestContext = Object.assign({}, latestContext || {}, nextContext || {});
@@ -89,22 +91,36 @@
     return !!(renderTo.classList && renderTo.classList.contains("donut-chart-container"));
   }
 
+  function getDashboardMainChartHeight(chart) {
+    if (chart && chart.options && chart.options.chart && chart.options.chart.height != null) {
+      var configured = Number(chart.options.chart.height);
+      if (isFinite(configured) && configured > 0) return configured;
+    }
+    if (chart && chart.chartHeight != null) {
+      var current = Number(chart.chartHeight);
+      if (isFinite(current) && current > 0 && current <= DASHBOARD_MAIN_CHART_HEIGHT + 40) {
+        return current;
+      }
+    }
+    return DASHBOARD_MAIN_CHART_HEIGHT;
+  }
+
   function resizeAllDashboardChartsNow() {
     if (typeof Highcharts === "undefined" || !Highcharts.charts) return;
     Highcharts.charts.forEach(function (chart) {
       if (!chart || !isDashboardChartContainer(chart.renderTo)) {
         return;
       }
-      if (typeof chart.reflow === "function") {
-        chart.reflow();
-      }
-      if (typeof chart.setSize !== "function") {
-        return;
-      }
       var container = chart.renderTo;
       var width = container && container.clientWidth ? container.clientWidth : null;
-      if (width != null && width > 0) {
-        chart.setSize(width, null, false);
+      if (width == null || width <= 0) return;
+      var isMainChart =
+        container && (container.id === "chart-line" || container.id === "chart-bar");
+      var height = isMainChart ? DASHBOARD_MAIN_CHART_HEIGHT : getDashboardMainChartHeight(chart);
+      if (typeof chart.setSize === "function") {
+        chart.setSize(width, height, false);
+      } else if (typeof chart.reflow === "function") {
+        chart.reflow();
       }
     });
   }
@@ -150,13 +166,14 @@
         scheduleDashboardChartsResize();
       });
     }
+    if (dashboardChartsResizeObserved) return;
+    dashboardChartsResizeObserved = true;
     ["chart-line", "chart-bar", "donuts-grid"].forEach(function (id) {
       var el = document.getElementById(id);
       if (el) dashboardChartsResizeObserver.observe(el);
     });
-    document.querySelectorAll(".charts-row, .chart-card, .donut-chart-container").forEach(function (el) {
-      dashboardChartsResizeObserver.observe(el);
-    });
+    var chartsRow = document.querySelector(".charts-row");
+    if (chartsRow) dashboardChartsResizeObserver.observe(chartsRow);
   }
 
   function destroyChartPreviewCharts() {
@@ -1624,6 +1641,20 @@
     return true;
   }
 
+  function scheduleDashboardChartsAfterLayout() {
+    scheduleDashboardChartsResize();
+    if (typeof window.requestAnimationFrame === "function") {
+      window.requestAnimationFrame(function () {
+        scheduleDashboardChartsResize();
+        window.requestAnimationFrame(function () {
+          scheduleDashboardChartsResize();
+        });
+      });
+      return;
+    }
+    setTimeout(scheduleDashboardChartsResize, 50);
+  }
+
   function initCharts(context) {
     var ctx = mergeContext(context);
     destroyAllDashboardCharts();
@@ -1682,7 +1713,7 @@
 
     renderDonutCharts();
 
-    setTimeout(scheduleDashboardChartsResize, 100);
+    scheduleDashboardChartsAfterLayout();
   }
 
   global.DashboardCharts = {

@@ -345,14 +345,24 @@
   margin: 0 auto;
 }
 
-/* Highcharts: полная ширина контейнера, без contain (иначе при resize — чёрные полосы в Chromium) */
+/* Highcharts: фиксированная высота линейного/столбчатого графика — без flex-растягивания при смене отдела */
 #chart-line,
 #chart-bar,
 #chart-heatmap {
   width: 100%;
+  height: 300px;
   min-height: 300px;
-  flex: 1 1 auto;
+  max-height: 300px;
+  flex: 0 0 300px;
   position: relative;
+  overflow: hidden;
+}
+
+.chart-panel #chart-line .highcharts-container,
+.chart-panel #chart-bar .highcharts-container,
+.chart-panel #chart-line svg,
+.chart-panel #chart-bar svg {
+  max-height: 300px !important;
 }
 
 .chart-panel .highcharts-container,
