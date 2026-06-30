@@ -48,6 +48,9 @@
   var CHART_SELECT_ALL_VALUE = "__all__";
   /** Плитки KPI последней отрисовки — для синхронизации круговых с 6 плитками */
   var lastKpiTiles = null;
+  var kpiTileCacheRefreshState = Object.create(null);
+  var kpiTileCacheRefreshPollTimers = Object.create(null);
+  var kpiTileCooldownTickTimer = null;
 
   /** Индикаторы для графиков, полученные от API (null = данных нет, использовать MockData) */
   var lastApiChartIndicators = null;
@@ -354,6 +357,7 @@
         tiles: lastKpiTiles,
         flippedTileIndices: flippedTileIndices,
         getTileDetailsState: getKpiTileDetailsState,
+        getTileCacheRefreshState: getKpiTileCacheRefreshState,
         onBeforePageChange: closeKpiTileDrilldown,
         onTilesReordered: handleKpiTilesReordered,
       });
@@ -917,6 +921,180 @@
     return callHierarchyNav("getDepartmentForCurrentKpiContext", [], "");
   }
 
+  function getKpiTileRefreshPeriod() {
+    var ps =
+      typeof DashboardMonthNav !== "undefined" &&
+      DashboardMonthNav &&
+      typeof DashboardMonthNav.getPeriodState === "function"
+        ? DashboardMonthNav.getPeriodState()
+        : null;
+    return {
+      month: ps && ps.currentPeriodMonth != null ? Number(ps.currentPeriodMonth) : null,
+      year: ps && ps.currentPeriodYear != null ? Number(ps.currentPeriodYear) : null,
+    };
+  }
+
+  function getKpiTileRefreshKpiId(tile) {
+    if (!tile) return "";
+    return tile.kpi_id != null && String(tile.kpi_id).trim()
+      ? String(tile.kpi_id).trim()
+      : tile.badge != null
+        ? String(tile.badge).trim()
+        : "";
+  }
+
+  function buildKpiTileCacheRefreshOptions(tile) {
+    var period = getKpiTileRefreshPeriod();
+    var opts = {
+      department: getDepartmentForCurrentKpiContext() || (sessionUser && sessionUser.department) || "",
+      kpi_id: getKpiTileRefreshKpiId(tile),
+    };
+    if (period.month != null && !isNaN(period.month)) opts.month = period.month;
+    if (period.year != null && !isNaN(period.year)) opts.year = period.year;
+    return opts;
+  }
+
+  function kpiTileCacheRefreshKeyFromOptions(opts) {
+    return [
+      opts && opts.department != null ? String(opts.department).trim().toLocaleLowerCase("ru-RU") : "",
+      opts && opts.kpi_id != null ? String(opts.kpi_id).trim().toUpperCase() : "",
+      opts && opts.year != null ? String(opts.year) : "",
+      opts && opts.month != null ? String(opts.month) : "",
+    ].join("|");
+  }
+
+  function getKpiTileCacheRefreshState(tile) {
+    return kpiTileCacheRefreshState[kpiTileCacheRefreshKeyFromOptions(buildKpiTileCacheRefreshOptions(tile))] || null;
+  }
+
+  function getCacheRefreshStateForKpiId(kpiId) {
+    if (kpiId == null || String(kpiId).trim() === "") return null;
+    return kpiTileCacheRefreshState[
+      kpiTileCacheRefreshKeyFromOptions(buildKpiTileCacheRefreshOptions({ kpi_id: String(kpiId).trim() }))
+    ] || null;
+  }
+
+  function rerenderKpiTilesForCacheRefreshState() {
+    if (lastProductionDeputyRawTiles && lastProductionDeputyRawTiles.length) {
+      renderKpiTiles(lastProductionDeputyRawTiles, { preservePage: true });
+    } else if (lastKpiTiles && lastKpiTiles.length) {
+      renderKpiTiles(lastKpiTiles, { preservePage: true });
+    }
+  }
+
+  function setKpiTileCacheRefreshState(key, nextState) {
+    kpiTileCacheRefreshState[key] = Object.assign({}, kpiTileCacheRefreshState[key] || {}, nextState || {});
+    rerenderKpiTilesForCacheRefreshState();
+    initTables();
+    ensureKpiTileCooldownTick();
+  }
+
+  function hasActiveKpiTileCooldown() {
+    var keys = Object.keys(kpiTileCacheRefreshState || {});
+    for (var i = 0; i < keys.length; i++) {
+      var state = kpiTileCacheRefreshState[keys[i]] || {};
+      if (state.status !== "running" && state.status !== "failed" && state.next_allowed_at) {
+        var ts = Date.parse(String(state.next_allowed_at));
+        if (isFinite(ts) && !isNaN(ts) && ts > Date.now()) return true;
+      }
+    }
+    return false;
+  }
+
+  function refreshKpiTileCooldownLabels() {
+    rerenderKpiTilesForCacheRefreshState();
+    initTables();
+    if (!hasActiveKpiTileCooldown() && kpiTileCooldownTickTimer) {
+      clearInterval(kpiTileCooldownTickTimer);
+      kpiTileCooldownTickTimer = null;
+    }
+  }
+
+  function ensureKpiTileCooldownTick() {
+    if (!hasActiveKpiTileCooldown()) return;
+    if (kpiTileCooldownTickTimer) return;
+    kpiTileCooldownTickTimer = setInterval(refreshKpiTileCooldownLabels, 60000);
+  }
+
+  function scheduleKpiTileCooldownReset(key, state) {
+    if (!state || !state.next_allowed_at || state.status === "running" || state.status === "failed") return;
+    var ts = Date.parse(String(state.next_allowed_at));
+    if (!isFinite(ts) || isNaN(ts)) return;
+    if (ts <= Date.now()) return;
+    var delay = Math.max(1000, ts - Date.now());
+    if (kpiTileCacheRefreshPollTimers[key]) {
+      clearTimeout(kpiTileCacheRefreshPollTimers[key]);
+    }
+    kpiTileCacheRefreshPollTimers[key] = setTimeout(function () {
+      delete kpiTileCacheRefreshPollTimers[key];
+      setKpiTileCacheRefreshState(key, { status: "idle" });
+    }, delay);
+  }
+
+  function pollKpiTileCacheRefreshStatus(key, opts) {
+    if (kpiTileCacheRefreshPollTimers[key]) {
+      clearTimeout(kpiTileCacheRefreshPollTimers[key]);
+      delete kpiTileCacheRefreshPollTimers[key];
+    }
+    if (!Api || typeof Api.fetchKpiTileCacheRefreshStatus !== "function") return;
+    kpiTileCacheRefreshPollTimers[key] = setTimeout(function () {
+      Api.fetchKpiTileCacheRefreshStatus(opts).then(function (res) {
+        if (!res || !res.ok) {
+          setKpiTileCacheRefreshState(key, { status: "failed", error: res && res.error ? res.error : "Ошибка проверки статуса" });
+          return;
+        }
+        var prev = kpiTileCacheRefreshState[key] || {};
+        setKpiTileCacheRefreshState(key, res);
+        scheduleKpiTileCooldownReset(key, res);
+        if (res.status === "running") {
+          pollKpiTileCacheRefreshStatus(key, opts);
+          return;
+        }
+        if (res.status === "succeeded" || prev.status === "running") {
+          if (Api && typeof Api.clearKpiGetMemoryCache === "function") {
+            Api.clearKpiGetMemoryCache();
+          }
+          callDataLoader("loadKpiTilesAndChartsForView", [{ preserveViewState: true }]);
+        }
+      }).catch(function () {
+        setKpiTileCacheRefreshState(key, { status: "failed", error: "Ошибка проверки статуса" });
+      });
+    }, 10000);
+  }
+
+  function handleKpiTileCacheRefresh(tile) {
+    if (!tile || !Api || typeof Api.refreshKpiTileCache !== "function") return;
+    var opts = buildKpiTileCacheRefreshOptions(tile);
+    if (!opts.department || !opts.kpi_id) return;
+    var key = kpiTileCacheRefreshKeyFromOptions(opts);
+    setKpiTileCacheRefreshState(key, { status: "running" });
+    Api.refreshKpiTileCache(opts).then(function (res) {
+      if (!res || !res.ok) {
+        setKpiTileCacheRefreshState(key, { status: "failed", error: res && res.error ? res.error : "Ошибка запуска пересчёта" });
+        return;
+      }
+      setKpiTileCacheRefreshState(key, res);
+      scheduleKpiTileCooldownReset(key, res);
+      if (res.status === "running") {
+        pollKpiTileCacheRefreshStatus(key, opts);
+      }
+    }).catch(function () {
+      setKpiTileCacheRefreshState(key, { status: "failed", error: "Ошибка запуска пересчёта" });
+    });
+  }
+
+  function watchAutoRefreshingKpiTiles(tiles) {
+    if (!Array.isArray(tiles) || !tiles.length) return;
+    tiles.forEach(function (tile) {
+      if (!tile || tile.cache_refresh_status !== "running") return;
+      var opts = buildKpiTileCacheRefreshOptions(tile);
+      if (!opts.department || !opts.kpi_id) return;
+      var key = kpiTileCacheRefreshKeyFromOptions(opts);
+      if (kpiTileCacheRefreshPollTimers[key]) return;
+      pollKpiTileCacheRefreshStatus(key, opts);
+    });
+  }
+
   /** Заголовок страницы и подсказка пользователя в зависимости от выбранной вкладки / крошек. */
   function updateTopBarForView() {
     callHierarchyNav("updateTopBarForView");
@@ -928,6 +1106,17 @@
   var kpiContainerEl = document.getElementById("kpi-container");
   if (kpiContainerEl) {
     kpiContainerEl.addEventListener("click", function (e) {
+      var refreshBtn = e.target.closest(".kpi-tile-cache-refresh");
+      if (refreshBtn && kpiContainerEl.contains(refreshBtn)) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (refreshBtn.disabled) return;
+        var artRefresh = refreshBtn.closest("article.kpi-tile");
+        var ixRefresh = artRefresh && artRefresh.getAttribute("data-kpi-tile-index");
+        if (ixRefresh == null || !lastKpiTiles || lastKpiTiles[+ixRefresh] == null) return;
+        handleKpiTileCacheRefresh(lastKpiTiles[+ixRefresh]);
+        return;
+      }
       var childBtn = e.target.closest(".kpi-tile-child-link");
       if (childBtn && kpiContainerEl.contains(childBtn)) {
         e.preventDefault();
@@ -983,7 +1172,7 @@
       if (e.key !== "Enter" && e.key !== " ") return;
       var art = e.target.closest("article.kpi-tile");
       if (!art || !kpiContainerEl.contains(art)) return;
-      if (e.target.closest(".kpi-tile-child-link, .kpi-tile-help, .kpi-tile-flip-action, .kpi-tile-drag-handle")) return;
+      if (e.target.closest(".kpi-tile-child-link, .kpi-tile-help, .kpi-tile-flip-action, .kpi-tile-drag-handle, .kpi-tile-cache-refresh")) return;
       e.preventDefault();
       var ix = art.getAttribute("data-kpi-tile-index");
       if (ix == null || !lastKpiTiles || lastKpiTiles[+ix] == null) return;
@@ -1010,6 +1199,19 @@
       { passive: false }
     );
   }
+
+  document.addEventListener("click", function (e) {
+    var tableRefreshBtn = e.target && e.target.closest
+      ? e.target.closest(".table-cache-refresh-button")
+      : null;
+    if (!tableRefreshBtn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (tableRefreshBtn.disabled) return;
+    var kpiId = tableRefreshBtn.getAttribute("data-kpi-id") || "";
+    if (!kpiId) return;
+    handleKpiTileCacheRefresh({ kpi_id: kpiId });
+  });
 
   /* ---------- KPI: нормализация названий и сопоставление плиток (drilldown) ---------- */
 
@@ -1513,6 +1715,7 @@
     return tiles.map(function (tile) {
       if (!tile || !isFotOrPersonnelTurnoverKpiTitle(tile.title)) return tile;
       var kpiId = tile.kpi_id != null ? String(tile.kpi_id).trim() : "";
+      if (kpiId === "PD-M3.F1" || kpiId === "PD-M3.F2") return tile;
       if (kpiId === "OD-M3.2" || kpiId === "LOG-M3.F" || kpiId === "TD-M6") return tile;
       if (tile.__priorMonthMergedFromKpiAll) return tile;
       var monthly = tile.monthly_data;
@@ -1972,7 +2175,8 @@
    * Более 6 плиток — постраничный показ (3×2) и навигатор `#kpi-tiles-pager`.
    * @param {object[]} tiles
    */
-  function renderKpiTiles(tiles) {
+  function renderKpiTiles(tiles, options) {
+    options = options || {};
     var sourceTiles = tiles && tiles.length ? tiles : [];
     var showProductionShopSwitch =
       isProductionDeputyDashboardContext() && hasProductionDeputyShopTiles(sourceTiles);
@@ -2008,11 +2212,14 @@
         tiles: lastKpiTiles,
         flippedTileIndices: flippedTileIndices,
         pendingFocus: pendingKpiTileFocus,
+        preservePage: !!options.preservePage,
+        getTileCacheRefreshState: getKpiTileCacheRefreshState,
         matchFocusTarget: tileMatchesFocusTarget,
         clearPendingFocus: function () {
           pendingKpiTileFocus = null;
         },
       });
+      watchAutoRefreshingKpiTiles(lastKpiTiles);
     }
   }
 
@@ -3664,6 +3871,7 @@
         qualdirExternalTableKey: "QD-T-M5",
         qualdirInternalTableKey: "QD-T-M1",
         qualdirProcessTableKey: "QD-T-M8",
+        getCacheRefreshStateForKpi: getCacheRefreshStateForKpiId,
       });
     }
   }

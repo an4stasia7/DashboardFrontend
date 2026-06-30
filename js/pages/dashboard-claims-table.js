@@ -3088,6 +3088,161 @@
     return out;
   }
 
+  function isTableCacheStatusMarker(item) {
+    return item && item.__tableCacheStatusMarker === true;
+  }
+
+  function isTableCacheRunning(item) {
+    if (!item) return false;
+    var status = item.cache_refresh_status;
+    if (!status && item.raw && typeof item.raw === "object") {
+      status = item.raw.cache_refresh_status;
+    }
+    return String(status || "").trim().toLocaleLowerCase("ru-RU") === "running";
+  }
+
+  function isOverduePanelCacheRow(item) {
+    return (
+      isOverdueDebtRow(item) ||
+      isDepartmentProtocolOverdueRow(item) ||
+      isLogisticsSupplierDzRow(item)
+    );
+  }
+
+  function isPrimaryPanelCacheRow(item) {
+    return !isOverduePanelCacheRow(item);
+  }
+
+  function formatTableCacheUpdatedAt(value) {
+    if (!value) return "";
+    var parsed = new Date(String(value));
+    if (isNaN(parsed.getTime())) return String(value);
+    return parsed.toLocaleString("ru-RU", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
+  function formatCacheCooldownRemaining(nextAllowedAt) {
+    if (!nextAllowedAt) return "";
+    var ts = Date.parse(String(nextAllowedAt));
+    if (!isFinite(ts) || isNaN(ts)) return "";
+    var remainingMs = ts - Date.now();
+    if (remainingMs <= 0) return "";
+    var totalMinutes = Math.max(1, Math.ceil(remainingMs / 60000));
+    var hours = Math.floor(totalMinutes / 60);
+    var minutes = totalMinutes % 60;
+    if (hours > 0 && minutes > 0) return hours + " ч " + minutes + " мин";
+    if (hours > 0) return hours + " ч";
+    return minutes + " мин";
+  }
+
+  function isCacheRefreshCooldownMeta(meta) {
+    if (!meta || meta.running || meta.status === "failed") return false;
+    if (meta.status === "cooldown") return true;
+    return !!formatCacheCooldownRemaining(meta.nextAllowedAt);
+  }
+
+  function tableCacheMetaForRows(rows, predicate, getStateForKpi) {
+    var meta = {
+      running: false,
+      kpiId: "",
+      updatedAt: "",
+      status: "",
+      nextAllowedAt: "",
+    };
+    rows = Array.isArray(rows) ? rows : [];
+    for (var i = 0; i < rows.length; i++) {
+      var item = rows[i];
+      if (!item || !predicate(item)) continue;
+      var kpiId = item.cache_refresh_kpi_id || (item.raw && item.raw.cache_refresh_kpi_id) || "";
+      if (!meta.kpiId && kpiId) meta.kpiId = String(kpiId).trim();
+      var updatedAt = item.cache_updated_at || (item.raw && item.raw.cache_updated_at) || "";
+      if (!meta.updatedAt && updatedAt) meta.updatedAt = String(updatedAt);
+      if (isTableCacheRunning(item)) meta.running = true;
+    }
+    if (meta.kpiId && typeof getStateForKpi === "function") {
+      var state = getStateForKpi(meta.kpiId) || {};
+      if (state.status) meta.status = String(state.status);
+      if (state.status === "running") meta.running = true;
+      if (state.next_allowed_at) meta.nextAllowedAt = String(state.next_allowed_at);
+    }
+    return meta;
+  }
+
+  function ensureTableCacheControls(anchorId, group, meta) {
+    var anchor = document.getElementById(anchorId);
+    var title = anchor && anchor.closest ? anchor.closest(".table-panel-title") : null;
+    if (!title) return;
+    meta = meta || {};
+    var selector = '.table-cache-refresh-controls[data-table-cache-group="' + group + '"]';
+    var controls = title.querySelector(selector);
+    if (!meta.kpiId && !meta.updatedAt && !meta.running) {
+      if (controls) controls.remove();
+      return;
+    }
+    if (!controls) {
+      controls = document.createElement("span");
+      controls.className = "table-cache-refresh-controls";
+      controls.setAttribute("data-table-cache-group", group);
+      controls.innerHTML =
+        '<span class="table-cache-updated-at"></span>' +
+        '<span class="table-cache-cooldown"></span>' +
+        '<button type="button" class="table-cache-refresh-button" aria-label="Перекэшировать таблицу">' +
+        '<svg viewBox="0 0 24 24" fill="none" aria-hidden="true">' +
+        '<path d="M20 12a8 8 0 1 1-2.34-5.66" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>' +
+        '<path d="M20 5v5h-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>' +
+        "</svg></button>";
+      title.appendChild(controls);
+    }
+    var label = controls.querySelector(".table-cache-updated-at");
+    var cooldownLabel = controls.querySelector(".table-cache-cooldown");
+    var btn = controls.querySelector(".table-cache-refresh-button");
+    var running = !!meta.running;
+    var isCooldown = isCacheRefreshCooldownMeta(meta);
+    var cooldownRemaining = isCooldown ? formatCacheCooldownRemaining(meta.nextAllowedAt) : "";
+    if (label) {
+      var formatted = formatTableCacheUpdatedAt(meta.updatedAt);
+      label.textContent = formatted ? "Кэш: " + formatted : "";
+      label.hidden = !formatted;
+    }
+    if (cooldownLabel) {
+      cooldownLabel.textContent = cooldownRemaining ? "Доступно через " + cooldownRemaining : "";
+      cooldownLabel.hidden = !cooldownRemaining;
+    }
+    if (btn) {
+      btn.hidden = !meta.kpiId;
+      btn.disabled = running || isCooldown;
+      btn.classList.toggle("is-running", running);
+      btn.classList.toggle("is-cooldown", isCooldown);
+      btn.setAttribute("data-kpi-id", meta.kpiId || "");
+      btn.title = running
+        ? "Таблица кэшируется"
+        : isCooldown
+          ? cooldownRemaining
+            ? "Повторное обновление будет доступно через " + cooldownRemaining
+            : "Повторное обновление будет доступно позже"
+          : "Перекэшировать таблицу";
+    }
+  }
+
+  function updateTableCacheRefreshIndicators(rows, getStateForKpi) {
+    rows = Array.isArray(rows) ? rows : [];
+    ensureTableCacheControls(
+      "claims-table-title-text",
+      "primary",
+      tableCacheMetaForRows(rows, isPrimaryPanelCacheRow, getStateForKpi)
+    );
+    ensureTableCacheControls(
+      "overdue-debt-table-title",
+      "overdue",
+      tableCacheMetaForRows(rows, isOverduePanelCacheRow, getStateForKpi)
+    );
+  }
+
   function init(options) {
     options = options || {};
     var rows = Array.isArray(options.rows) ? options.rows.slice() : [];
@@ -3095,6 +3250,10 @@
     if (typeof minRub === "number" && minRub > 0 && !isNaN(minRub)) {
       rows = filterRowsByMinAmountRub(rows, minRub);
     }
+    updateTableCacheRefreshIndicators(rows, options.getCacheRefreshStateForKpi);
+    rows = rows.filter(function (item) {
+      return !isTableCacheStatusMarker(item);
+    });
     var executiveMode = !!options.executiveMode;
     var enhanceOverdueDebtTable = !!options.enhanceOverdueDebtTable;
     var enableLawsuitsTable = !!options.enableLawsuitsTable;
