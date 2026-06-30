@@ -331,9 +331,13 @@
       '<span class="badge">' +
       DashUi.escapeHtml(tile.badge) +
       "</span>" +
+      '<div class="kpi-tile-badge-controls">' +
+      '<div class="kpi-tile-badge-actions">' +
       buildKpiTileRefreshButtonHtml(tile) +
       helpHtml +
+      "</div>" +
       buildKpiTileDragHandleHtml() +
+      "</div>" +
       "</div>"
     );
   }
@@ -1389,6 +1393,23 @@
         return (
           '<div class="kpi-tile-metrics kpi-tile-metrics--pf-only kpi-tile-metrics--no-data" aria-label="Нет данных">' +
           buildKpiTileNoDataHtml(tile) +
+          "</div>"
+        );
+      }
+      var hasPrimaryMetric =
+        (typeof DashUi !== "undefined" &&
+          DashUi &&
+          typeof DashUi.kpiTilePlanFactValuePresent === "function" &&
+          (DashUi.kpiTilePlanFactValuePresent(tile && tile.plan) ||
+            DashUi.kpiTilePlanFactValuePresent(tile && tile.fact))) ||
+        (tile && typeof tile.kpi_pct === "number" && !isNaN(tile.kpi_pct)) ||
+        (tile && typeof tile.percent === "number" && !isNaN(tile.percent));
+      if (hasPrimaryMetric) {
+        return (
+          '<div class="kpi-tile-metrics kpi-tile-metrics--pf-only" aria-label="' +
+          DashUi.escapeHtml(KPI_TILE_ARIA_METRICS_PF) +
+          '">' +
+          buildKpiTilePlanFactStackHtml(tile) +
           "</div>"
         );
       }

@@ -674,6 +674,9 @@
             return;
           }
           callChairmanOverview("reloadCommercialSummary", []);
+          if (applyCurrentPeriodFromLastRawResponse()) {
+            return;
+          }
           if (
             isBoardChairUser(viewContextUser) ||
             isCommercialDirectorUser(viewContextUser) ||
@@ -692,9 +695,6 @@
             isChiefAccountantDashboardContext()
           ) {
             loadKpiTilesAndChartsForView();
-            return;
-          }
-          if (applyCurrentPeriodFromLastRawResponse()) {
             return;
           }
           loadKpiTilesAndChartsForView();

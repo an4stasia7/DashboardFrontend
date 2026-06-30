@@ -344,6 +344,37 @@
       onUnauthorized();
       return;
     }
+    if (
+      result.fromLocalKpiCache &&
+      result.raw &&
+      typeof Api !== "undefined" &&
+      Api &&
+      typeof Api.processKpiResponseBodyAtPeriod === "function"
+    ) {
+      var cachePeriodState = getPeriodState();
+      var cacheMonth =
+        cachePeriodState.currentPeriodMonth != null ? Number(cachePeriodState.currentPeriodMonth) : null;
+      var cacheYear =
+        cachePeriodState.currentPeriodYear != null ? Number(cachePeriodState.currentPeriodYear) : null;
+      if (
+        cacheMonth != null &&
+        cacheYear != null &&
+        !isNaN(cacheMonth) &&
+        !isNaN(cacheYear) &&
+        cacheMonth >= 1 &&
+        cacheMonth <= 12
+      ) {
+        var reprocessed = Api.processKpiResponseBodyAtPeriod(result.raw, cacheYear, cacheMonth);
+        if (reprocessed && Array.isArray(reprocessed.tiles) && reprocessed.tiles.length) {
+          result.tiles = reprocessed.tiles;
+          result.chartIndicators = reprocessed.chartIndicators || result.chartIndicators || null;
+          result.tableRows = reprocessed.tableRows || result.tableRows || null;
+          if (reprocessed.unwrappedData) {
+            result.data = reprocessed.unwrappedData;
+          }
+        }
+      }
+    }
     if (result.ok && result.data) {
       var dep = result.data.department;
       setLastKpiResponseDepartment(dep != null && String(dep).trim() ? String(dep).trim() : null);
