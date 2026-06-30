@@ -278,6 +278,14 @@
     return baseUrl() + p;
   }
 
+  function kpiCacheRefreshUrl() {
+    return kpiUrl().replace(/\/+$/, "") + "/cache-refresh/";
+  }
+
+  function clearKpiGetMemoryCache() {
+    kpiGetMemoryCache = Object.create(null);
+  }
+
   /**
    * Добавляет к URL query `department=`, если в options передано непустое подразделение.
    * @param {string} url
@@ -1601,7 +1609,7 @@
   /**
    * Обход строк body["Таблицы"]: значение по ключу — { rows: [...] } или сразу массив строк.
    * @param {object|null|undefined} tables
-   * @param {function(string tabKey, object row): void} fn
+   * @param {function(string tabKey, object row, object|Array): void} fn
    */
   function forEachTablesRow(tables, fn) {
     if (!tables || typeof tables !== "object") return;
@@ -1610,7 +1618,7 @@
       var rows = getTableRowsList(tab);
       if (!rows || !rows.length) return;
       for (var i = 0; i < rows.length; i++) {
-        fn(tk, rows[i]);
+        fn(tk, rows[i], tab);
       }
     });
   }
@@ -2194,10 +2202,41 @@
     if (!tables || typeof tables !== "object") return [];
 
     var collected = [];
-    forEachTablesRow(tables, function (tk, row, _unused) {
+    forEachTablesRow(tables, function (tk, row, tableMeta) {
       if (!row || typeof row !== "object") return;
       if (!tableRowHasDisplayableData(row)) return;
-      collected.push({ tk: tk, row: row, index: collected.length });
+      collected.push({ tk: tk, row: row, tableMeta: tableMeta, index: collected.length });
+    });
+    Object.keys(tables).forEach(function (tk) {
+      var tableMeta = tables[tk];
+      var status = tableMeta && typeof tableMeta === "object" && !Array.isArray(tableMeta)
+        ? tableMeta.cache_refresh_status
+        : "";
+      var refreshKpiId = tableMeta && typeof tableMeta === "object" && !Array.isArray(tableMeta)
+        ? tableMeta.cache_refresh_kpi_id
+        : "";
+      var updatedAt = tableMeta && typeof tableMeta === "object" && !Array.isArray(tableMeta)
+        ? tableMeta.cache_updated_at
+        : "";
+      if (!status && !refreshKpiId && !updatedAt) return;
+      var hasRowsForTable = collected.some(function (item) {
+        return item && item.tk === tk;
+      });
+      if (!hasRowsForTable) {
+        collected.push({
+          tk: tk,
+          row: {
+            __tableCacheStatusMarker: true,
+            cache_refresh_status: status != null ? String(status) : "",
+            cache_refresh_kpi_id:
+              refreshKpiId != null ? String(refreshKpiId) : "",
+            cache_updated_at:
+              updatedAt != null ? String(updatedAt) : "",
+          },
+          tableMeta: tableMeta,
+          index: collected.length,
+        });
+      }
     });
     if (!collected.length) return [];
 
@@ -2216,6 +2255,9 @@
       .map(function (item) {
         var row = item.row;
         var tk = item.tk;
+        var tableMeta = item.tableMeta && typeof item.tableMeta === "object" && !Array.isArray(item.tableMeta)
+          ? item.tableMeta
+          : null;
         var id = tableRowIdentity(row, tk, item.index);
         var kpiId = tableRowKpiKey(row);
         var fromTiles = kpiId && nameLookup[kpiId] != null ? String(nameLookup[kpiId]).trim() : "";
@@ -2294,6 +2336,25 @@
           deviation: devStr,
           comment: tableRowComment(row, tk),
           tableKey: tk != null ? String(tk).trim() : "",
+          cache_refresh_kpi_id:
+            row.cache_refresh_kpi_id != null
+              ? String(row.cache_refresh_kpi_id)
+              : tableMeta && tableMeta.cache_refresh_kpi_id != null
+                ? String(tableMeta.cache_refresh_kpi_id)
+                : "",
+          cache_refresh_status:
+            row.cache_refresh_status != null
+              ? String(row.cache_refresh_status)
+              : tableMeta && tableMeta.cache_refresh_status != null
+                ? String(tableMeta.cache_refresh_status)
+                : "",
+          cache_updated_at:
+            row.cache_updated_at != null
+              ? String(row.cache_updated_at)
+              : tableMeta && tableMeta.cache_updated_at != null
+                ? String(tableMeta.cache_updated_at)
+                : "",
+          __tableCacheStatusMarker: row.__tableCacheStatusMarker === true,
           raw: row,
         };
       })
@@ -2326,6 +2387,68 @@
     }
     var url = buildKpiAllUrlWithQuery(options);
     return performKpiGet(url);
+  }
+
+  function performKpiCacheRefreshRequest(url, options, debugLabel) {
+    var A = global.Auth;
+    if (!A || typeof A.getAuthHeaders !== "function") {
+      return Promise.resolve({ ok: false, error: "Модуль Auth не загружен" });
+    }
+    var authHeaders = A.getAuthHeaders();
+    if (!authHeaders.Authorization) {
+      return Promise.resolve({ ok: false, error: "Нет токена авторизации" });
+    }
+    var headers = Object.assign({ Accept: "application/json" }, authHeaders);
+    var fetchOpts = options || { method: "GET" };
+    fetchOpts.headers = Object.assign(headers, fetchOpts.headers || {});
+    return fetch(url, fetchOpts)
+      .then(function (res) {
+        return res.text().then(function (text) {
+          var data = null;
+          try {
+            data = text ? JSON.parse(text) : null;
+          } catch (e) {
+            data = null;
+          }
+          pushApiDebug(debugLabel || "KPI cache refresh", fetchOpts.method || "GET", url, res.status, data || {});
+          if (res.status === 401) {
+            return { ok: false, status: 401, unauthorized: true, error: "Требуется повторный вход" };
+          }
+          var payload = data && typeof data === "object" ? data : {};
+          return Object.assign(
+            {
+              ok: res.ok || res.status === 202 || res.status === 429,
+              status: res.status,
+              error: res.ok || res.status === 202 || res.status === 429
+                ? ""
+                : parseErrorBody(text) || "Ошибка обновления кэша (" + res.status + ")",
+            },
+            payload
+          );
+        });
+      })
+      .catch(function (err) {
+        var m = err && err.message ? err.message : String(err);
+        pushApiDebug(debugLabel || "KPI cache refresh", (options && options.method) || "GET", url, 0, { _networkError: m });
+        return { ok: false, error: m || "Ошибка запроса обновления кэша" };
+      });
+  }
+
+  function refreshKpiTileCache(options) {
+    var payload = Object.assign({}, options || {});
+    return performKpiCacheRefreshRequest(kpiCacheRefreshUrl(), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    }, "POST /api/kpi/cache-refresh/");
+  }
+
+  function fetchKpiTileCacheRefreshStatus(options) {
+    var url = appendQueryParams(kpiCacheRefreshUrl(), options || {});
+    if (options && options.kpi_id != null && String(options.kpi_id).trim() !== "") {
+      url += (url.indexOf("?") === -1 ? "?" : "&") + "kpi_id=" + encodeURIComponent(String(options.kpi_id).trim());
+    }
+    return performKpiCacheRefreshRequest(url, { method: "GET" }, "GET /api/kpi/cache-refresh/");
   }
 
   function normalizeSearchResultEntry(item, index) {
@@ -2735,6 +2858,9 @@
     fetchKpiUsers: fetchKpiUsers,
     fetchKpis: fetchKpis,
     fetchKpiAll: fetchKpiAll,
+    refreshKpiTileCache: refreshKpiTileCache,
+    fetchKpiTileCacheRefreshStatus: fetchKpiTileCacheRefreshStatus,
+    clearKpiGetMemoryCache: clearKpiGetMemoryCache,
     fetchImmediateSubordinates: fetchImmediateSubordinates,
     fetchKpiStructure: fetchKpiStructure,
     fetchChairmanDashboardCatalog: fetchChairmanDashboardCatalog,

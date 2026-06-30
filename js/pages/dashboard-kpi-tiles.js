@@ -32,6 +32,36 @@
     return typeof fn === "function" ? fn(tileIndex) : null;
   }
 
+  function getTileCacheRefreshState(tile) {
+    var fn = getContext().getTileCacheRefreshState;
+    var state = typeof fn === "function" ? fn(tile) : null;
+    if (state) return state;
+    if (tile && tile.cache_refresh_status) {
+      return { status: String(tile.cache_refresh_status) };
+    }
+    return null;
+  }
+
+  function formatCacheCooldownRemaining(nextAllowedAt) {
+    if (!nextAllowedAt) return "";
+    var ts = Date.parse(String(nextAllowedAt));
+    if (!isFinite(ts) || isNaN(ts)) return "";
+    var remainingMs = ts - Date.now();
+    if (remainingMs <= 0) return "";
+    var totalMinutes = Math.max(1, Math.ceil(remainingMs / 60000));
+    var hours = Math.floor(totalMinutes / 60);
+    var minutes = totalMinutes % 60;
+    if (hours > 0 && minutes > 0) return hours + " ч " + minutes + " мин";
+    if (hours > 0) return hours + " ч";
+    return minutes + " мин";
+  }
+
+  function isCacheRefreshCooldownState(state) {
+    if (!state || state.status === "running" || state.status === "failed") return false;
+    if (String(state.status || "") === "cooldown") return true;
+    return !!formatCacheCooldownRemaining(state.next_allowed_at);
+  }
+
   function shouldMatchFocus(tile, focus) {
     var fn = getContext().matchFocusTarget;
     return typeof fn === "function" ? !!fn(tile, focus) : false;
@@ -116,6 +146,57 @@
     );
   }
 
+  function buildKpiTileRefreshButtonHtml(tile) {
+    var state = getTileCacheRefreshState(tile) || {};
+    var status = state.status != null ? String(state.status) : "";
+    var isRunning = status === "running";
+    var isCooldown = isCacheRefreshCooldownState(state);
+    var isFailed = status === "failed";
+    var cooldownRemaining = isCooldown ? formatCacheCooldownRemaining(state.next_allowed_at) : "";
+    var disabled = isRunning || isCooldown;
+    var title = isRunning
+      ? "Кэш этой плитки пересчитывается"
+      : isCooldown
+        ? cooldownRemaining
+          ? "Повторный пересчёт будет доступен через " + cooldownRemaining
+          : "Повторный пересчёт доступен раз в 6 часов"
+        : isFailed
+          ? "Повторить пересчёт кэша плитки"
+          : "Пересчитать кэш этой плитки";
+    return (
+      '<button type="button" class="kpi-tile-cache-refresh' +
+      (isRunning ? " is-running" : "") +
+      (isCooldown ? " is-cooldown" : "") +
+      (isFailed ? " is-failed" : "") +
+      '" aria-label="' +
+      DashUi.escapeHtml(title) +
+      '" title="' +
+      DashUi.escapeHtml(title) +
+      '"' +
+      (disabled ? ' disabled aria-disabled="true"' : "") +
+      ">" +
+      '<svg viewBox="0 0 24 24" focusable="false" aria-hidden="true">' +
+      '<path d="M20 6v5h-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>' +
+      '<path d="M4 18v-5h5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>' +
+      '<path d="M19 11a7 7 0 0 0-12.1-4.8L4 9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>' +
+      '<path d="M5 13a7 7 0 0 0 12.1 4.8L20 15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>' +
+      "</svg>" +
+      "</button>"
+    );
+  }
+
+  function buildKpiTileCooldownHtml(tile) {
+    var state = getTileCacheRefreshState(tile) || {};
+    if (!isCacheRefreshCooldownState(state)) return "";
+    var remaining = formatCacheCooldownRemaining(state.next_allowed_at);
+    if (!remaining) return "";
+    return (
+      '<p class="kpi-tile-cache-cooldown">' +
+      DashUi.escapeHtml("Перекэширование через " + remaining) +
+      "</p>"
+    );
+  }
+
   function buildKpiTileBadgeRowHtml(tile) {
     var helpHtml = shouldShowKpiTileHelp(tile) ? buildKpiTileHelpButtonHtml() : "";
     return (
@@ -123,6 +204,7 @@
       '<span class="badge">' +
       DashUi.escapeHtml(tile.badge) +
       "</span>" +
+      buildKpiTileRefreshButtonHtml(tile) +
       helpHtml +
       "</div>"
     );
@@ -184,6 +266,7 @@
       periodExtra +
       "</p>" +
       buildKpiTileUpdatedAtHtml(tile) +
+      buildKpiTileCooldownHtml(tile) +
       "</div>"
     );
   }
@@ -1394,6 +1477,7 @@
   }
 
   function render(options) {
+    var preservePage = !!(options && options.preservePage);
     mergeContext(options);
     var tiles = getTiles();
     var container = document.getElementById("kpi-container");
@@ -1487,7 +1571,9 @@
       }
     }
 
-    kpiTilesPageIndex = 0;
+    if (!preservePage) {
+      kpiTilesPageIndex = 0;
+    }
     updatePagerUI();
   }
 

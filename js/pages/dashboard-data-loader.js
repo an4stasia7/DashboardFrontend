@@ -88,9 +88,9 @@
     if (typeof fn === "function") fn();
   }
 
-  function renderKpiTiles(tiles) {
+  function renderKpiTiles(tiles, options) {
     var fn = getContext().renderKpiTiles;
-    if (typeof fn === "function") fn(tiles);
+    if (typeof fn === "function") fn(tiles, options);
   }
 
   function updateTopBarForView() {
@@ -182,6 +182,53 @@
     if (content) content.hidden = false;
   }
 
+  function kpiLocalCacheKey() {
+    var ps = getPeriodState();
+    var dept = getDepartmentForCurrentKpiContext() || "";
+    var user = getViewContextUser() || {};
+    if (!dept && user.department != null) dept = String(user.department);
+    return [
+      "dashboard:last-kpi-result:v1",
+      getSelectedViewId() || "self",
+      String(dept || "").trim().toLocaleLowerCase("ru-RU"),
+      ps.currentPeriodYear != null ? String(ps.currentPeriodYear) : "",
+      ps.currentPeriodMonth != null ? String(ps.currentPeriodMonth) : "",
+    ].join("|");
+  }
+
+  function saveLastKpiResult(result) {
+    if (!result || !result.ok || !result.data || !Array.isArray(result.tiles) || !result.tiles.length) return;
+    try {
+      localStorage.setItem(kpiLocalCacheKey(), JSON.stringify({
+        savedAt: new Date().toISOString(),
+        result: {
+          ok: true,
+          data: result.data,
+          raw: result.raw || result.data,
+          tiles: result.tiles,
+          chartIndicators: result.chartIndicators || [],
+          tableRows: result.tableRows || [],
+        },
+      }));
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  function loadLastKpiResult() {
+    try {
+      var raw = localStorage.getItem(kpiLocalCacheKey());
+      if (!raw) return null;
+      var parsed = JSON.parse(raw);
+      var result = parsed && parsed.result;
+      if (!result || !result.ok || !Array.isArray(result.tiles) || !result.tiles.length) return null;
+      result.fromLocalKpiCache = true;
+      return result;
+    } catch (e) {
+      return null;
+    }
+  }
+
   function cancelDeferredChartsAndTablesBoot() {
     deferredChartsAndTablesBootToken++;
   }
@@ -208,7 +255,9 @@
 
   function applyApiResult(result, _source, options) {
     mergeContext(options);
-    closeKpiTileDrilldown();
+    if (!options || !options.preserveViewState) {
+      closeKpiTileDrilldown();
+    }
     var elHint = document.getElementById("dash-user-hint");
     if (elHint) elHint.removeAttribute("title");
     if (result.unauthorized) {
@@ -218,6 +267,9 @@
     if (result.ok && result.data) {
       var dep = result.data.department;
       setLastKpiResponseDepartment(dep != null && String(dep).trim() ? String(dep).trim() : null);
+      if (!result.fromLocalKpiCache) {
+        saveLastKpiResult(result);
+      }
     }
     setLastRawKpiResponse(result && result.data ? result.data : result && result.raw ? result.raw : null);
     setLastApiChartIndicators(result.chartIndicators || null);
@@ -287,6 +339,9 @@
     updateMonthNavigatorUI();
 
     var role = getViewContextUser().role;
+    var renderOptions = {
+      preservePage: !!(options && options.preserveViewState),
+    };
     if (result.ok && result.tiles && result.tiles.length > 0) {
       var tilesToRender = result.tiles;
       if (
@@ -318,7 +373,7 @@
         augment(result, tilesToRender, function (finalTiles) {
           var t = finalTiles && finalTiles.length ? finalTiles : tilesToRender;
           if (cacheKey) rememberDrilldownKpiTiles(cacheKey, t.slice());
-          renderKpiTiles(t);
+          renderKpiTiles(t, renderOptions);
           updateTopBarForView();
           hideLoading();
           bootChartsAndTablesDeferred();
@@ -326,9 +381,9 @@
         return;
       }
       if (cacheKey) rememberDrilldownKpiTiles(cacheKey, tilesToRender.slice());
-      renderKpiTiles(tilesToRender);
+      renderKpiTiles(tilesToRender, renderOptions);
     } else {
-      renderKpiTiles(getMockKpiTilesForRole(role));
+      renderKpiTiles(getMockKpiTilesForRole(role), renderOptions);
     }
     updateTopBarForView();
     hideLoading();
@@ -337,9 +392,16 @@
 
   function loadKpiTilesAndChartsForView(options) {
     mergeContext(options);
-    closeKpiTileDrilldown();
+    if (!options || !options.preserveViewState) {
+      closeKpiTileDrilldown();
+    }
     cancelDeferredChartsAndTablesBoot();
-    showLoading();
+    var staleResult = loadLastKpiResult();
+    if (staleResult) {
+      applyApiResult(staleResult, "local-cache");
+    } else {
+      showLoading();
+    }
 
     var selectedViewId = getSelectedViewId();
     var viewContextUser = getViewContextUser();
