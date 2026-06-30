@@ -118,7 +118,6 @@
     },
     "KD-M4": {
       factOnly: true,
-      hideHelp: true,
       hideKpiPercent: true,
       backDepartmentsOnly: true,
       frontAccentColor: "#374e6f",
@@ -126,7 +125,6 @@
     "FND-T3": {
       // Три процентные пилюли: общее, клиенты и поставщики.
       dualRatioOverview: true,
-      hideHelp: true,
       hideKpiPercent: true,
       // На обратной стороне показываем ДЗ/КЗ для клиентов, поставщиков и общий итог.
       backDualRatioAmounts: true,
@@ -134,26 +132,22 @@
     },
     "FND-T4": {
       kpiPctOnly: true,
-      hideHelp: true,
       showBackPlanFact: true,
       frontAccentColor: "#374e6f",
     },
     "FND-T5": {
       kpiPctOnly: true,
-      hideHelp: true,
       showBackPlanFact: true,
       frontAccentColor: "#374e6f",
     },
     "FND-T6": {
       kpiPctOnly: true,
-      hideHelp: true,
       hideKpiPercent: true,
       backPortfolioAmounts: true,
       frontAccentColor: "#374e6f",
     },
     "FND-T7": {
       factOnly: true,
-      hideHelp: true,
       hideKpiPercent: true,
       backDepartmentsOnly: true,
       drilldownRootDept: "Коммерческий директор",
@@ -162,7 +156,6 @@
       frontAccentColor: "#374e6f",
     },
     "FND-T9": {
-      hideHelp: true,
       hideKpiPercent: true,
       showBackPlanFact: true,
     },
@@ -183,7 +176,6 @@
     "MRK-09": {
       tenderStatusOverview: true,
       tenderDepartmentsBreakdown: true,
-      hideHelp: true,
       hideKpiPercent: true,
     },
     "METD-M1": {

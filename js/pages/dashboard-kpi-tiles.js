@@ -112,8 +112,7 @@
   }
 
   function shouldShowKpiTileHelp(tile) {
-    var rule = getKpiTileException(tile);
-    return !(rule && rule.hideHelp);
+    return !!tile;
   }
 
   function shouldShowKpiTilePercent(tile) {
