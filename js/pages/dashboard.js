@@ -1678,6 +1678,18 @@
     return false;
   }
 
+  function isGsppFotKpiId(kpiId) {
+    var id = kpiId != null ? String(kpiId).trim().toUpperCase() : "";
+    return (
+      id === "GSP-M3" ||
+      id === "GSPP-M3" ||
+      id === "ГСП-M3" ||
+      id === "ГCП-M3" ||
+      id === "ГСПП-M3" ||
+      id === "ГCПП-M3"
+    );
+  }
+
   function planFactPeriodLabelFromMonthlyPoint(point, year) {
     if (!point) return "";
     var y = Number(year);
@@ -1717,6 +1729,7 @@
       var kpiId = tile.kpi_id != null ? String(tile.kpi_id).trim() : "";
       if (kpiId === "PD-M3.F1" || kpiId === "PD-M3.F2") return tile;
       if (kpiId === "OD-M3.2" || kpiId === "LOG-M3.F" || kpiId === "TD-M6") return tile;
+      if (isGsppFotKpiId(kpiId)) return tile;
       if (tile.__priorMonthMergedFromKpiAll) return tile;
       var monthly = tile.monthly_data;
       if (!Array.isArray(monthly) || !monthly.length) return tile;
