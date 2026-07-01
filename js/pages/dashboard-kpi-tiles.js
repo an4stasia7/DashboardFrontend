@@ -236,6 +236,11 @@
     return false;
   }
 
+  function isKpiTileGeneratedData(tile) {
+    if (!tile) return false;
+    return tile.generated_data === true || tile.is_generated === true || tile.synthetic_data === true;
+  }
+
   function buildKpiTileUpdatedAtHtml(tile) {
     var formatted =
       typeof DashUi !== "undefined" && DashUi && typeof DashUi.formatKpiTileUpdatedAt === "function"
@@ -256,7 +261,7 @@
     var isFactOnly = !!(rule && rule.factOnly);
     var isKpiPctOnly = !!(rule && rule.kpiPctOnly);
     var generatedFlag =
-      tile.has_data === false && !hasKpiTileDisplayableMetricValue(tile)
+      isKpiTileGeneratedData(tile) || (tile.has_data === false && !hasKpiTileDisplayableMetricValue(tile))
         ? buildKpiTileGeneratedFlagHtml()
         : "";
     var periodExtra =
