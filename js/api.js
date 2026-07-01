@@ -1390,7 +1390,7 @@
       if (!point) return;
       if (point.plan !== undefined) tile.plan = point.plan;
       if (point.fact !== undefined) tile.fact = point.fact;
-      if (typeof point.kpi_pct === "number" && !isNaN(point.kpi_pct) && !isQualdirPieceCountKpiId(tile.kpi_id)) {
+      if (typeof point.kpi_pct === "number" && !isNaN(point.kpi_pct)) {
         tile.percent = point.kpi_pct;
         tile.kpi_pct = point.kpi_pct;
       }
@@ -2567,7 +2567,7 @@
         if (ownMonthly.max_allowed_delay_workdays != null) {
           tile.max_allowed_delay_workdays = ownMonthly.max_allowed_delay_workdays;
         }
-        if (ownMonthly.kpi_pct != null && !isQualdirPieceCountKpiId(id)) {
+        if (ownMonthly.kpi_pct != null) {
           tile.percent = ownMonthly.kpi_pct;
           tile.kpi_pct = ownMonthly.kpi_pct;
           if (!backendColor && isTurnoverKpiTile(tile)) {

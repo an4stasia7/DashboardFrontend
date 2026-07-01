@@ -249,6 +249,20 @@
     );
   }
 
+  function buildKpiTileBackKpiPctSummaryHtml(tile, pres, showHelp, showPercent) {
+    if (!showPercent) return "";
+    var percentLabel = MockData.formatKpiPercentLabel(pres && pres.percent != null ? pres.percent : null) + "%";
+    return (
+      '<div class="kpi-tile-back-summary">' +
+      '<div class="kpi-tile-back-summary-item kpi-tile-back-summary-item--kpi">' +
+      (showHelp ? buildKpiTileHelpButtonHtml() : "") +
+      '<span class="kpi-tile-back-summary-label">KPI</span>' +
+      '<strong class="kpi-tile-back-kpi-pct">' +
+      DashUi.escapeHtml(percentLabel) +
+      "</strong></div></div>"
+    );
+  }
+
   function buildKpiTileDragHandleHtml() {
     return (
       '<span role="button" tabindex="0" class="kpi-tile-drag-handle" draggable="true" aria-label="Перетащите для изменения порядка плиток" title="Перетащите для изменения порядка">' +
@@ -1702,7 +1716,6 @@
   function buildKpiTileBackFaceHtml(tile, tileIndex) {
     var state = getTileDetailsState(tileIndex);
     var pres = MockData.getKpiTilePresentation(tile);
-    var percentLabel = MockData.formatKpiPercentLabel(pres.percent) + "%";
     var hint = "";
     var period = tile && tile.period != null ? String(tile.period).trim() : "";
     var code = tile && (tile.badge || tile.kpi_id) ? String(tile.badge || tile.kpi_id).trim() : "";
@@ -1814,6 +1827,7 @@
     if (shouldRenderKpiTileBackDefectDirections(tile)) {
       return (
         buildKpiTileBackHeadHtml(tile, code, period) +
+        buildKpiTileBackKpiPctSummaryHtml(tile, pres, showHelp, showPercent) +
         buildKpiTileBackQualdirControlSectionHtml(tile) +
         '<div class="kpi-tile-back-section kpi-tile-back-section--dual">' +
         '<div class="kpi-tile-back-section-title">По направлениям ОТК</div>' +
@@ -1825,6 +1839,7 @@
     if (shouldRenderKpiTileBackArticlesDeptCount(tile)) {
       return (
         buildKpiTileBackHeadHtml(tile, code, period) +
+        buildKpiTileBackKpiPctSummaryHtml(tile, pres, showHelp, showPercent) +
         buildKpiTileBackQualdirControlSectionHtml(tile) +
         '<div class="kpi-tile-back-section kpi-tile-back-section--dual">' +
         '<div class="kpi-tile-back-section-title">По подразделениям</div>' +
@@ -1836,6 +1851,7 @@
     if (shouldRenderQualdirControlOverviewOnBack(tile)) {
       return (
         buildKpiTileBackHeadHtml(tile, code, period) +
+        buildKpiTileBackKpiPctSummaryHtml(tile, pres, showHelp, showPercent) +
         buildKpiTileBackQualdirControlSectionHtml(tile) +
         (hint ? '<p class="kpi-tile-back-hint">' + DashUi.escapeHtml(hint) + "</p>" : "")
       );
@@ -1925,26 +1941,19 @@
       '<div class="kpi-tile-back-head-actions">' +
       '<button type="button" class="kpi-tile-flip-action" aria-label="Вернуться к карточке">Назад</button>' +
       "</div></div>" +
-      '<div class="kpi-tile-back-summary">' +
-      (showPercent
-        ? '<div class="kpi-tile-back-summary-item kpi-tile-back-summary-item--kpi">' +
-          (showHelp ? buildKpiTileHelpButtonHtml() : "") +
-          '<span class="kpi-tile-back-summary-label">KPI</span>' +
-          '<strong class="kpi-tile-back-kpi-pct">' +
-          DashUi.escapeHtml(percentLabel) +
-          "</strong></div>"
-        : "") +
+      buildKpiTileBackKpiPctSummaryHtml(tile, pres, showHelp, showPercent) +
       (hasPf && shouldRenderKpiTileBack(tile) && forceBackPlanOnly
-        ? '<div class="kpi-tile-back-summary-item"><span class="kpi-tile-back-summary-label">План</span><strong>' +
+        ? '<div class="kpi-tile-back-summary">' +
+          '<div class="kpi-tile-back-summary-item"><span class="kpi-tile-back-summary-label">План</span><strong>' +
           DashUi.escapeHtml(planShown) +
-          "</strong></div>"
+          "</strong></div></div>"
         : "") +
       (hasPf && shouldRenderKpiTileBack(tile) && !forceBackPlanOnly && (!isKpiPctOnlyTile(tile) || forceBackPlanFact)
-        ? '<div class="kpi-tile-back-summary-item"><span class="kpi-tile-back-summary-label">План / факт</span><strong>' +
+        ? '<div class="kpi-tile-back-summary">' +
+          '<div class="kpi-tile-back-summary-item"><span class="kpi-tile-back-summary-label">План / факт</span><strong>' +
           DashUi.escapeHtml(planFactShown) +
-          "</strong></div>"
+          "</strong></div></div>"
         : "") +
-      "</div>" +
       (hint ? '<p class="kpi-tile-back-hint">' + DashUi.escapeHtml(hint) + "</p>" : "") +
       '<div class="kpi-tile-back-section">' +
       '<div class="kpi-tile-back-section-title">Информация по отделам</div>' +
