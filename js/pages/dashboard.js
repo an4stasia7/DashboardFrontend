@@ -616,13 +616,13 @@
             isChiefMetrologDashboardContext() ||
             isChiefAccountantDashboardContext()
           ) {
-            loadKpiTilesAndChartsForView();
+            loadKpiTilesAndChartsForView({ preserveViewState: true });
             return;
           }
           if (applyCurrentPeriodFromLastRawResponse()) {
             return;
           }
-          loadKpiTilesAndChartsForView();
+          loadKpiTilesAndChartsForView({ preserveViewState: true });
         },
         onAggregationModeChange: function (mode) {
           chairmanAggregationMode = mode || "current";
@@ -1598,70 +1598,8 @@
     return "";
   }
 
-  /**
-   * Для выбранного текущего календарного месяца (ещё не закончившегося) на плитках с «ФОТ» / «текучестью» в названии
-   * показываем план/факт за предыдущий месяц (из monthly_data).
-   */
   function applyPriorMonthFactForFotTurnoverTiles(tiles) {
-    if (!Array.isArray(tiles) || !tiles.length) return tiles;
-
-    if (typeof DashboardMonthNav === "undefined" || !DashboardMonthNav || typeof DashboardMonthNav.getPeriodState !== "function") {
-      return tiles;
-    }
-    var periodState = DashboardMonthNav.getPeriodState();
-    var aggregationMode = periodState && periodState.aggregationMode != null ? String(periodState.aggregationMode).trim() : "current";
-    if (aggregationMode === "quarter" || aggregationMode === "ytd" || aggregationMode === "month") return tiles;
-    var selY = periodState.currentPeriodYear;
-    var selM = periodState.currentPeriodMonth;
-    if (selY == null || selM == null) return tiles;
-    if (!isSelectedPeriodCurrentCalendarMonth(selY, selM)) return tiles;
-
-    var prevYm = prevCalendarMonthYear(selY, selM);
-    if (!prevYm) return tiles;
-
-    return tiles.map(function (tile) {
-      if (!tile || !isFotOrPersonnelTurnoverKpiTitle(tile.title)) return tile;
-      var kpiId = tile.kpi_id != null ? String(tile.kpi_id).trim() : "";
-      if (kpiId === "PD-M3.F1" || kpiId === "PD-M3.F2") return tile;
-      if (kpiId === "OD-M3.2" || kpiId === "LOG-M3.F") return tile;
-      if (isGsppFotKpiId(kpiId)) return tile;
-      if (tile.__priorMonthMergedFromKpiAll) return tile;
-      var monthly = tile.monthly_data;
-      if (!Array.isArray(monthly) || !monthly.length) return tile;
-      var prevPoint = findMonthlyDataPoint(monthly, prevYm.year, prevYm.month);
-      if (!prevPoint) return tile;
-
-      var next = Object.assign({}, tile);
-      if (prevPoint.plan !== undefined) next.plan = prevPoint.plan;
-      if (prevPoint.fact !== undefined) next.fact = prevPoint.fact;
-      if (typeof prevPoint.has_data === "boolean") next.has_data = prevPoint.has_data;
-      if (typeof prevPoint.kpi_pct === "number" && !isNaN(prevPoint.kpi_pct)) {
-        next.kpi_pct = prevPoint.kpi_pct;
-        next.kpi_pst = prevPoint.kpi_pct;
-        next.percent = prevPoint.kpi_pct;
-      }
-      if (isTurnoverKpiItem(next)) {
-        var turnoverPct = parseNumberLoose(prevPoint.kpi_pct);
-        if (turnoverPct == null) {
-          var prevPlan = parseNumberLoose(prevPoint.plan);
-          var prevFact = parseNumberLoose(prevPoint.fact);
-          if (prevPlan != null && Math.abs(prevPlan) > 0.000001 && prevFact != null) {
-            turnoverPct = (prevFact / prevPlan) * 100;
-            next.kpi_pct = turnoverPct;
-            next.kpi_pst = turnoverPct;
-            next.percent = turnoverPct;
-          }
-        }
-        var turnoverRag = turnoverLimitRagFromPct(turnoverPct);
-        if (turnoverRag) {
-          next.rag = turnoverRag;
-          next.color = turnoverRag;
-        }
-      }
-      var pl = planFactPeriodLabelFromMonthlyPoint(prevPoint, prevYm.year);
-      if (pl) next.plan_fact_period_label = pl;
-      return next;
-    });
+    return tiles;
   }
 
   var PRODUCTION_DEPUTY_SHOP_TILE_IDS = {
@@ -2117,9 +2055,8 @@
     return index >= 0 && index < names.length ? names[index] : "";
   }
 
-  /** Первый сегмент крошек — коммерческий директор / коммерция (подчинённые отделы с помесячным KPI). */
   function isCommercialHierarchyRootForPriorMonthRule() {
-    return Array.isArray(hierarchyStack) && hierarchyStack.length > 0 && isCommercialDepartmentContext(hierarchyStack[0]);
+    return false;
   }
 
   function mergeFotTurnoverTilesWithPriorKpiAllResponse(currentTiles, priorTiles, prevYear, prevMonth) {
@@ -2177,82 +2114,8 @@
     });
   }
 
-  /**
-   * Для подразделений под коммерческим директором: факт ФОТ/текучести за прошлый месяц — второй запрос
-   * GET /api/kpi/all/?department=…&month=N-1&year=… при просмотре незавершённого месяца N.
-   * @param {function(object[])} done — передать итоговый массив плиток
-   */
   function maybeAugmentCommercialDeptTilesWithPriorMonthFetch(result, tilesToRender, done) {
-    if (!result || !result.ok || !Array.isArray(tilesToRender) || !tilesToRender.length) {
-      done(tilesToRender);
-      return;
-    }
-    if (!isCommercialHierarchyRootForPriorMonthRule()) {
-      done(tilesToRender);
-      return;
-    }
-    if (typeof DashboardMonthNav === "undefined" || !DashboardMonthNav || typeof DashboardMonthNav.getPeriodState !== "function") {
-      done(tilesToRender);
-      return;
-    }
-    var ps = DashboardMonthNav.getPeriodState();
-    var aggregationMode = ps && ps.aggregationMode != null ? String(ps.aggregationMode).trim() : "current";
-    if (aggregationMode === "quarter" || aggregationMode === "ytd" || aggregationMode === "month") {
-      done(tilesToRender);
-      return;
-    }
-    var selY = ps.currentPeriodYear;
-    var selM = ps.currentPeriodMonth;
-    if (selY == null || selM == null || !isSelectedPeriodCurrentCalendarMonth(selY, selM)) {
-      done(tilesToRender);
-      return;
-    }
-    var hasFot = false;
-    for (var f = 0; f < tilesToRender.length; f++) {
-      var tt = tilesToRender[f];
-      if (tt && isFotOrPersonnelTurnoverKpiTitle(tt.title)) {
-        hasFot = true;
-        break;
-      }
-    }
-    if (!hasFot) {
-      done(tilesToRender);
-      return;
-    }
-    var dept = getDepartmentForCurrentKpiContext();
-    if (!dept || !String(dept).trim()) {
-      done(tilesToRender);
-      return;
-    }
-    var prevYm = prevCalendarMonthYear(selY, selM);
-    if (!prevYm) {
-      done(tilesToRender);
-      return;
-    }
-    if (typeof Api === "undefined" || typeof Api.fetchKpiAll !== "function") {
-      done(tilesToRender);
-      return;
-    }
-    var opts = {
-      department: String(dept).trim(),
-      month: prevYm.month,
-      year: prevYm.year,
-    };
-    var chairmanFor = getChairmanDashboardCatalogId();
-    if (chairmanFor && isChairmanRootHierarchy()) {
-      opts.for = chairmanFor;
-    }
-    Api.fetchKpiAll(opts)
-      .then(function (prevResult) {
-        if (!prevResult || !prevResult.ok || !Array.isArray(prevResult.tiles) || !prevResult.tiles.length) {
-          done(tilesToRender);
-          return;
-        }
-        done(mergeFotTurnoverTilesWithPriorKpiAllResponse(tilesToRender, prevResult.tiles, prevYm.year, prevYm.month));
-      })
-      .catch(function () {
-        done(tilesToRender);
-      });
+    done(tilesToRender);
   }
 
   function buildChairmanAggregationPeriodLabel(mode, year, month, points, selectedQuarters) {
@@ -3400,8 +3263,8 @@
    * @param {object} result — как от `Api.fetchKpis` / `fetchKpiAll`
    * @param {string} [_source] — зарезервировано для логирования источника вызова
    */
-  function applyApiResult(result, _source) {
-    callDataLoader("applyApiResult", [result, _source]);
+  function applyApiResult(result, _source, options) {
+    callDataLoader("applyApiResult", [result, _source, options]);
   }
 
   /**
@@ -3437,7 +3300,7 @@
     result.data = result.unwrappedData || lastRawKpiResponse;
     result.raw = lastRawKpiResponse;
     delete result.unwrappedData;
-    callDataLoader("applyApiResult", [result, "client-period"]);
+    callDataLoader("applyApiResult", [result, "client-period", { preserveViewState: true }]);
     return true;
   }
 
@@ -3445,12 +3308,12 @@
    * Главная загрузка данных экрана: «свой» дашборд (`fetchKpis`) или подразделение (`fetchKpiAll`).
    * При ошибке или mock — fallback на `MockData`.
    */
-  function loadKpiTilesAndChartsForView() {
+  function loadKpiTilesAndChartsForView(options) {
     /* Уход с корня иерархии: скрыть обзор ПСД, иначе isChairmanOverviewVisible остаётся true и данные не грузятся */
     callChairmanOverview("leaveOverviewIfNotAtRoot", []);
     // Если мы на обзорном экране ПСД (карточки каталогов), полный дашборд НЕ должен появляться ниже.
     if (isChairmanOverviewVisible()) return;
-    callDataLoader("loadKpiTilesAndChartsForView");
+    callDataLoader("loadKpiTilesAndChartsForView", [options]);
   }
 
   viewTargets = [{ id: "self", label: "Мой дашборд", user: sessionUser }];

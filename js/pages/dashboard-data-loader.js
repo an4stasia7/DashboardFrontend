@@ -311,7 +311,16 @@
         periodState.availableMonths
       );
 
-    if (curInSlots) {
+    if (
+      (!options || !options.preserveViewState) &&
+      periodState.availableMonths.length
+    ) {
+      var latestSlot = periodState.availableMonths[periodState.availableMonths.length - 1];
+      setPeriodState({
+        currentPeriodMonth: latestSlot.month,
+        currentPeriodYear: latestSlot.year,
+      });
+    } else if (curInSlots) {
       /* оставляем выбор пользователя после смены месяца стрелками */
     } else if (respInSlots) {
       setPeriodState({
@@ -396,9 +405,9 @@
       closeKpiTileDrilldown();
     }
     cancelDeferredChartsAndTablesBoot();
-    var staleResult = loadLastKpiResult();
+    var staleResult = options && options.preserveViewState ? loadLastKpiResult() : null;
     if (staleResult) {
-      applyApiResult(staleResult, "local-cache");
+      applyApiResult(staleResult, "local-cache", options);
     } else {
       showLoading();
     }
@@ -428,8 +437,10 @@
 
     var periodState = getPeriodState();
     var periodOpts = {};
-    if (periodState.currentPeriodMonth != null) periodOpts.month = periodState.currentPeriodMonth;
-    if (periodState.currentPeriodYear != null) periodOpts.year = periodState.currentPeriodYear;
+    if (options && options.preserveViewState) {
+      if (periodState.currentPeriodMonth != null) periodOpts.month = periodState.currentPeriodMonth;
+      if (periodState.currentPeriodYear != null) periodOpts.year = periodState.currentPeriodYear;
+    }
 
     if (!isSelf) {
       if (getSessionApiMode() === "mock") {
@@ -445,7 +456,7 @@
         fetchKpiAll(allOpts)
           .then(function (result) {
             if (result.unauthorized) {
-              applyApiResult(result);
+              applyApiResult(result, undefined, options);
               return;
             }
             if (!result.ok) {
@@ -459,7 +470,7 @@
               fallback();
               return;
             }
-            applyApiResult(result);
+            applyApiResult(result, undefined, options);
           })
           .catch(function () {
             fallback();
@@ -490,7 +501,7 @@
 
     fetchSelf()
       .then(function (result) {
-        applyApiResult(result);
+        applyApiResult(result, undefined, options);
       })
       .catch(function () {
         fallback();
