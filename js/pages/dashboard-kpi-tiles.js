@@ -351,6 +351,22 @@
     );
   }
 
+  function hasKpiTileDisplayableMetricValue(tile) {
+    if (!tile) return false;
+    var keys = ["fact", "plan", "kpi_pct", "kpi_pst", "percent"];
+    for (var i = 0; i < keys.length; i++) {
+      var value = tile[keys[i]];
+      if (value === null || value === undefined || value === "") continue;
+      if (typeof value === "number") {
+        if (!isNaN(value) && isFinite(value)) return true;
+        continue;
+      }
+      var text = String(value).trim();
+      if (text && text !== "—" && text.toLowerCase() !== "nan") return true;
+    }
+    return false;
+  }
+
   function buildKpiTileUpdatedAtHtml(tile) {
     var formatted =
       typeof DashUi !== "undefined" && DashUi && typeof DashUi.formatKpiTileUpdatedAt === "function"
@@ -396,7 +412,10 @@
     var isFactOnly = !!(rule && rule.factOnly);
     var hidePlanOnTile = shouldHidePlanOnTile(tile);
     var isKpiPctOnly = !!(rule && rule.kpiPctOnly);
-    var generatedFlag = tile.has_data === false ? buildKpiTileGeneratedFlagHtml() : "";
+    var generatedFlag =
+      tile.has_data === false && !hasKpiTileDisplayableMetricValue(tile)
+        ? buildKpiTileGeneratedFlagHtml()
+        : "";
     var periodPrefix =
       rule && rule.periodLabelPrefix != null && String(rule.periodLabelPrefix).trim()
         ? String(rule.periodLabelPrefix).trim() + ": "
@@ -1388,7 +1407,7 @@
           "</div>"
         );
       }
-      if (tile && tile.has_data === false) {
+      if (tile && tile.has_data === false && !hasKpiTileDisplayableMetricValue(tile)) {
         return (
           '<div class="kpi-tile-metrics kpi-tile-metrics--pf-only kpi-tile-metrics--no-data" aria-label="Нет данных">' +
           buildKpiTileNoDataHtml(tile) +

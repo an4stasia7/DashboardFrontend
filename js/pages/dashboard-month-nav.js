@@ -305,6 +305,19 @@
     return merged;
   }
 
+  function ensureCurrentCalendarMonthSlot(slots) {
+    var now = new Date();
+    var month = now.getMonth() + 1;
+    var year = now.getFullYear();
+    var key = monthYearKey(year, month);
+    if (key < 0) return slots;
+    return mergeAvailableMonthSlots(slots, [{
+      month: month,
+      year: year,
+      key: key,
+    }]);
+  }
+
   function getMonthNavigatorContextKey() {
     var viewId = getSelectedViewId() != null ? String(getSelectedViewId()) : "";
     var dept = getDepartmentForCurrentKpiContext();
@@ -386,6 +399,7 @@
       ? mergeAvailableMonthSlots(cachedMonths, availableMonths)
       : cachedMonths;
     availableMonths = mergeAvailableMonthSlots(baseMonths, nextMonths);
+    availableMonths = ensureCurrentCalendarMonthSlot(availableMonths);
     availableMonthsContextKey = nextContextKey;
     if (nextContextKey) {
       availableMonthsByContext[nextContextKey] = mergeAvailableMonthSlots([], availableMonths);
