@@ -539,6 +539,7 @@
     green: "#1f9d68",
     yellow: "#d39a18",
     red: "#e14f63",
+    blue: "#2b5ca6",
     gray: "#94a3b8",
     grey: "#94a3b8",
     unknown: "#94a3b8",
@@ -565,6 +566,7 @@
     if (s === "yellow" || s === "amber" || s === "y" || s.indexOf("жёл") === 0 || s.indexOf("жел") === 0)
       return "yellow";
     if (s === "red" || s === "r" || s.indexOf("красн") === 0) return "red";
+    if (s === "blue" || s === "b" || s.indexOf("син") === 0) return "blue";
     if (
       s === "gray" ||
       s === "grey" ||
@@ -736,6 +738,10 @@
     return "red";
   }
 
+  function isQualdirMonthlyKpiId(kpiId) {
+    return /^QD-M\d+$/i.test(kpiId != null ? String(kpiId).trim() : "");
+  }
+
   /**
    * Единая презентация плитки: число %, RAG и цвет диаграммы.
    * Приоритет: 1) rag/status из API, 2) пороги green_threshold/yellow_threshold, 3) заглушка по percent.
@@ -745,6 +751,7 @@
     var cfg = typeof global !== "undefined" && global.KPI_TILE_EXCEPTIONS ? global.KPI_TILE_EXCEPTIONS : null;
     var tileKey = tile && tile.kpi_id != null ? String(tile.kpi_id).trim() : "";
     var tileRule = tileKey && cfg && cfg[tileKey] ? cfg[tileKey] : null;
+    var qualdirMonthlyKpi = isQualdirMonthlyKpiId(tileKey);
     function tileUsesLowerIsBetter() {
       return tile.pct_lower_is_better === true || !!(tileRule && tileRule.pctLowerIsBetter);
     }
@@ -760,18 +767,20 @@
         var ragFallback =
           deriveRagFromThresholds(tile, percent) ||
           (tileUsesLowerIsBetter() ? lowerIsBetterPctRagFromPercent(percent) : null) ||
-          kpiRagFromPercentStub(percent).rag;
-        return {
-          percent: percent,
-          rag: ragFallback,
-          fillColor: KPI_RAG_FILL[ragFallback],
-          ragFromApi: false,
-        };
+          (qualdirMonthlyKpi ? null : kpiRagFromPercentStub(percent).rag);
+        if (ragFallback) {
+          return {
+            percent: percent,
+            rag: ragFallback,
+            fillColor: KPI_RAG_FILL[ragFallback],
+            ragFromApi: false,
+          };
+        }
       }
       return {
         percent: percent,
         rag: ragFromApi,
-        fillColor: KPI_RAG_FILL[ragFromApi],
+        fillColor: KPI_RAG_FILL[ragFromApi] || KPI_RAG_FILL.gray,
         ragFromApi: true,
       };
     }
@@ -794,6 +803,14 @@
           ragFromApi: false,
         };
       }
+    }
+    if (qualdirMonthlyKpi) {
+      return {
+        percent: percent,
+        rag: "gray",
+        fillColor: KPI_RAG_FILL.gray,
+        ragFromApi: false,
+      };
     }
     var stub = kpiRagFromPercentStub(percent);
     return {

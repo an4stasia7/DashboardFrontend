@@ -333,6 +333,41 @@
     setTimeout(run, 0);
   }
 
+  function reprocessApiResultAtPeriod(result, year, month) {
+    if (
+      !result ||
+      (year == null && month == null) ||
+      typeof Api === "undefined" ||
+      !Api ||
+      typeof Api.processKpiResponseBodyAtPeriod !== "function"
+    ) {
+      return result;
+    }
+    var selectedMonth = month != null ? Number(month) : null;
+    var selectedYear = year != null ? Number(year) : null;
+    if (
+      selectedMonth == null ||
+      selectedYear == null ||
+      isNaN(selectedMonth) ||
+      isNaN(selectedYear) ||
+      selectedMonth < 1 ||
+      selectedMonth > 12
+    ) {
+      return result;
+    }
+    var rawForPeriod = result.raw || (result.data && typeof result.data === "object" ? result.data : null);
+    if (!rawForPeriod) return result;
+    var reprocessed = Api.processKpiResponseBodyAtPeriod(rawForPeriod, selectedYear, selectedMonth);
+    if (!reprocessed || !Array.isArray(reprocessed.tiles) || !reprocessed.tiles.length) return result;
+    result.tiles = reprocessed.tiles;
+    result.chartIndicators = reprocessed.chartIndicators || result.chartIndicators || null;
+    result.tableRows = reprocessed.tableRows || result.tableRows || null;
+    if (reprocessed.unwrappedData) {
+      result.data = reprocessed.unwrappedData;
+    }
+    return result;
+  }
+
   function applyApiResult(result, _source, options) {
     mergeContext(options);
     if (!options || !options.preserveViewState) {
@@ -343,37 +378,6 @@
     if (result.unauthorized) {
       onUnauthorized();
       return;
-    }
-    if (
-      result.fromLocalKpiCache &&
-      result.raw &&
-      typeof Api !== "undefined" &&
-      Api &&
-      typeof Api.processKpiResponseBodyAtPeriod === "function"
-    ) {
-      var cachePeriodState = getPeriodState();
-      var cacheMonth =
-        cachePeriodState.currentPeriodMonth != null ? Number(cachePeriodState.currentPeriodMonth) : null;
-      var cacheYear =
-        cachePeriodState.currentPeriodYear != null ? Number(cachePeriodState.currentPeriodYear) : null;
-      if (
-        cacheMonth != null &&
-        cacheYear != null &&
-        !isNaN(cacheMonth) &&
-        !isNaN(cacheYear) &&
-        cacheMonth >= 1 &&
-        cacheMonth <= 12
-      ) {
-        var reprocessed = Api.processKpiResponseBodyAtPeriod(result.raw, cacheYear, cacheMonth);
-        if (reprocessed && Array.isArray(reprocessed.tiles) && reprocessed.tiles.length) {
-          result.tiles = reprocessed.tiles;
-          result.chartIndicators = reprocessed.chartIndicators || result.chartIndicators || null;
-          result.tableRows = reprocessed.tableRows || result.tableRows || null;
-          if (reprocessed.unwrappedData) {
-            result.data = reprocessed.unwrappedData;
-          }
-        }
-      }
     }
     if (result.ok && result.data) {
       var dep = result.data.department;
@@ -457,6 +461,15 @@
     }
 
     updateMonthNavigatorUI();
+
+    periodState = getPeriodState();
+    if (result.ok && (result.raw || result.data)) {
+      reprocessApiResultAtPeriod(
+        result,
+        periodState.currentPeriodYear,
+        periodState.currentPeriodMonth
+      );
+    }
 
     var role = getViewContextUser().role;
     var renderOptions = {

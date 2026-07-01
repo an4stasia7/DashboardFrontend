@@ -1390,11 +1390,19 @@
       if (!point) return;
       if (point.plan !== undefined) tile.plan = point.plan;
       if (point.fact !== undefined) tile.fact = point.fact;
-      if (typeof point.kpi_pct === "number" && !isNaN(point.kpi_pct)) {
-        tile.percent = point.kpi_pct;
-        tile.kpi_pct = point.kpi_pct;
+      if (point.kpi_pct !== undefined) {
+        if (typeof point.kpi_pct === "number" && !isNaN(point.kpi_pct)) {
+          tile.percent = point.kpi_pct;
+          tile.kpi_pct = point.kpi_pct;
+        } else {
+          tile.kpi_pct = null;
+          tile.percent = null;
+        }
       }
       if (typeof point.has_data === "boolean") tile.has_data = point.has_data;
+      if (point.color != null && String(point.color).trim() !== "") {
+        applyBackendTileColor(tile, point.color);
+      }
       var label = formatPlanFactPeriodFromMonthlyPoint(point);
       if (label) tile.plan_fact_period_label = label;
       if (Array.isArray(point.articles)) {
@@ -2350,7 +2358,8 @@
     tiles.forEach(function (tile) {
       if (!tile || !tile.kpi_id || !Array.isArray(tile.monthly_data) || !tile.monthly_data.length) return;
       var point = useMonthFilter
-        ? pickMonthlyPointWithAnyPlanFactForYearMonth(tile.monthly_data, filterYear, filterMonth)
+        ? findTileMonthlyDataPoint(tile.monthly_data, filterYear, filterMonth) ||
+          pickMonthlyPointWithAnyPlanFactForYearMonth(tile.monthly_data, filterYear, filterMonth)
         : pickLatestMonthlyPointWithAnyPlanFact(tile.monthly_data);
       if (!point) return;
       var isWeightedDeviation = point.aggregation === "weighted_delta_amount_div_project_amount";
@@ -2368,7 +2377,7 @@
         plan_fact_period_label: formatPlanFactPeriodFromMonthlyPoint(point),
         has_data: typeof point.has_data === "boolean" ? point.has_data : undefined,
         display_unit: isWeightedDeviation && point.display_unit != null ? point.display_unit : undefined,
-        color: isWeightedDeviation && point.color != null ? point.color : undefined,
+        color: point.color != null ? point.color : undefined,
       };
     });
     return out;
@@ -2574,6 +2583,9 @@
             var turnoverRag = turnoverLimitRagFromPct(ownMonthly.kpi_pct);
             if (turnoverRag) tile.rag = turnoverRag;
           }
+        } else if (useMonthFilter) {
+          tile.kpi_pct = null;
+          tile.percent = null;
         }
         if (backendColor) {
           applyBackendTileColor(tile, backendColor);
