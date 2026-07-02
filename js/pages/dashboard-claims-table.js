@@ -125,6 +125,124 @@
     return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   }
 
+  function removeClaimsTableExtSearchByKey(key) {
+    if (
+      typeof $ === "undefined" ||
+      !$.fn ||
+      !$.fn.dataTable ||
+      !$.fn.dataTable.ext ||
+      !Array.isArray($.fn.dataTable.ext.search)
+    ) {
+      return;
+    }
+    for (var i = $.fn.dataTable.ext.search.length - 1; i >= 0; i--) {
+      var fn = $.fn.dataTable.ext.search[i];
+      if (fn && fn._claimsTableSearchKey === key) {
+        $.fn.dataTable.ext.search.splice(i, 1);
+      }
+    }
+  }
+
+  function getPlainTextFromDataTableValue(value) {
+    if (value == null) return "";
+    var raw = String(value);
+    if (raw.indexOf("<") === -1) return raw.trim();
+    var el = document.createElement("div");
+    el.innerHTML = raw;
+    return String(el.textContent || el.innerText || "").trim();
+  }
+
+  function getPlainTextFromDataTableCell(cell) {
+    if (!cell) return "";
+    return String(cell.textContent || "").trim();
+  }
+
+  function syncDashboardTableCellDataOrder(tableNode) {
+    if (!tableNode) return;
+    tableNode.querySelectorAll("tbody td").forEach(function (td) {
+      if (!td.hasAttribute("data-order")) {
+        td.setAttribute("data-order", getPlainTextFromDataTableCell(td));
+      }
+    });
+  }
+
+  function getTableHeaderLabels(tableNode) {
+    if (!tableNode) return [];
+    var headers = [];
+    tableNode.querySelectorAll("thead tr:first-child th").forEach(function (th) {
+      headers.push(String(th.textContent || "").trim());
+    });
+    return headers;
+  }
+
+  function inferColumnSearchType(label) {
+    var lower = String(label || "").trim().toLocaleLowerCase("ru-RU");
+    if (/дата|срок|начало|окончан|date/.test(lower)) return "date";
+    if (
+      /сумм|просроч|отклон|прогресс|руб\.?|кол-?во|расчетное|всего обращ|в срок|не в срок|№ пункта/.test(lower)
+    ) {
+      return "text";
+    }
+    return "text";
+  }
+
+  function inferColumnControlType(label, searchType) {
+    var lower = String(label || "").trim().toLocaleLowerCase("ru-RU");
+    if (/описание|действие|примечание/.test(lower)) return "none";
+    if (searchType === "date") return "sort";
+    if (/сумм|просроч|отклон|прогресс|расчетное|всего обращ|в срок|не в срок/.test(lower)) return "sort";
+    if (/^№$|^код$|^номер$/.test(lower)) return "sort";
+    return "filter";
+  }
+
+  function buildDefaultColumnConfigs(tableNode, fallbackConfigs) {
+    var labels = getTableHeaderLabels(tableNode);
+    if (!labels.length && Array.isArray(fallbackConfigs) && fallbackConfigs.length) {
+      return fallbackConfigs.slice();
+    }
+    return labels.map(function (label, index) {
+      var searchType = inferColumnSearchType(label);
+      return {
+        index: index,
+        label: label || "Колонка " + String(index + 1),
+        type: inferColumnControlType(label, searchType),
+        searchType: searchType,
+      };
+    });
+  }
+
+  function resolveInteractiveTableColumnConfigs(tableNode, fallbackConfigs) {
+    var labels = getTableHeaderLabels(tableNode);
+    if (labels.length) {
+      return buildDefaultColumnConfigs(tableNode, null);
+    }
+    return Array.isArray(fallbackConfigs) ? fallbackConfigs.slice() : [];
+  }
+
+  function buildSortableColumnDefs(columnConfigs, extraDefs) {
+    var sortTargets = (Array.isArray(columnConfigs) ? columnConfigs : [])
+      .filter(function (config) {
+        return config && config.type === "sort";
+      })
+      .map(function (config) {
+        return config.index;
+      });
+    var defs = [{ targets: "_all", orderDataType: "dom-text", orderable: false }];
+    if (sortTargets.length) {
+      defs.push({ targets: sortTargets, orderable: true, orderDataType: "dom-text" });
+    }
+    if (Array.isArray(extraDefs) && extraDefs.length) {
+      defs = defs.concat(extraDefs);
+    }
+    return defs;
+  }
+
+  function tableHasBodyRows(tableSelector) {
+    var tableNode =
+      typeof tableSelector === "string" ? document.querySelector(tableSelector) : tableSelector;
+    return !!(tableNode && tableNode.querySelector("tbody tr"));
+  }
+
   function normalizeClaimsSearchText(value) {
     return String(value == null ? "" : value)
       .replace(/\s+/g, " ")
@@ -801,19 +919,13 @@
 
   function initQualdirDefectDataTable(tableSelector, wrapperSelector, advancedSearchKey) {
     prepareQualdirTableForDataTables(tableSelector);
+    if (!tableHasBodyRows(tableSelector)) return null;
     return initInteractiveDashboardTable({
       tableSelector: tableSelector,
       wrapperSelector: wrapperSelector,
       advancedSearchKey: advancedSearchKey,
       omitFooter: true,
-      columnConfigs: [
-        { index: 0, label: "Документ", type: "filter", searchType: "text" },
-        { index: 1, label: "Объект несоответствия", type: "filter", searchType: "text" },
-        { index: 2, label: "Вид несоответствия", type: "filter", searchType: "text" },
-        { index: 3, label: "Подразделение", type: "filter", searchType: "text" },
-        { index: 4, label: "Статус", type: "filter", searchType: "text" },
-        { index: 5, label: "Значимость", type: "filter", searchType: "text" },
-      ],
+      columnConfigs: [],
       initialOrder: [[0, "desc"]],
       columnDefs: [
         { targets: 0, width: "22%" },
@@ -2183,6 +2295,17 @@
 
     var table = $(tableSelector);
     if (!table.length) return null;
+    var tableNode = table[0];
+    columnConfigs = resolveInteractiveTableColumnConfigs(
+      tableNode,
+      columnConfigs.length ? columnConfigs : null
+    );
+    syncDashboardTableCellDataOrder(tableNode);
+    if (!columnDefs.length) {
+      columnDefs = buildSortableColumnDefs(columnConfigs);
+    } else if (!columnDefs.some(function (def) { return def && def.orderDataType === "dom-text"; })) {
+      columnDefs = [{ targets: "_all", orderDataType: "dom-text", orderable: false }].concat(columnDefs);
+    }
 
     var wrapper = table.closest(wrapperSelector);
     if (wrapper.length) {
@@ -2199,7 +2322,6 @@
       staleWrapper.replaceWith(table);
     }
 
-    var tableNode = table[0];
     if (tableNode) {
       if (options.omitFooter) {
         var footer = tableNode.querySelector("tfoot");
@@ -2258,12 +2380,7 @@
       date: "",
     };
     if ($.fn.dataTable && $.fn.dataTable.ext && Array.isArray($.fn.dataTable.ext.search)) {
-      for (var extIdx = $.fn.dataTable.ext.search.length - 1; extIdx >= 0; extIdx--) {
-        var extSearchFn = $.fn.dataTable.ext.search[extIdx];
-        if (extSearchFn && extSearchFn._claimsAdvancedSearchKey === advancedSearchKey) {
-          $.fn.dataTable.ext.search.splice(extIdx, 1);
-        }
-      }
+      removeClaimsTableExtSearchByKey(advancedSearchKey);
     }
 
     function getClaimsSearchFieldsByType(type) {
@@ -2308,7 +2425,8 @@
       return rowMatchesClaimsSearchText(data, activeTextFields, textQuery, !claimsSearchState.fields.length) &&
         rowMatchesClaimsSearchDate(data, activeDateFields, dateQuery);
     };
-    claimsAdvancedSearchFn._claimsAdvancedSearchKey = advancedSearchKey;
+    claimsAdvancedSearchFn._claimsTableSearchKey = advancedSearchKey;
+    removeClaimsTableExtSearchByKey(advancedSearchKey);
     $.fn.dataTable.ext.search.push(claimsAdvancedSearchFn);
 
     function buildClaimsAdvancedSearch() {
@@ -2498,9 +2616,10 @@
       var seen = [];
       dataTable
         .column(columnIndex)
-        .data()
-        .each(function (value) {
-          var text = value != null ? String(value).trim() : "";
+        .nodes()
+        .to$()
+        .each(function () {
+          var text = getPlainTextFromDataTableCell(this);
           if (!text || seen.indexOf(text) !== -1) return;
           seen.push(text);
         });
@@ -2516,27 +2635,33 @@
     }
 
     function applyClaimsColumnState() {
-      Object.keys(activeFilters).forEach(function (key) {
-        var values = activeFilters[key];
-        var columnIndex = Number(key);
-        if (Array.isArray(values) && values.length) {
-          var pattern = values
-            .map(function (value) {
-              return escapeRegexForDataTable(value);
-            })
-            .join("|");
-          dataTable.column(columnIndex).search("^(" + pattern + ")$", true, false);
-        } else {
-          dataTable.column(columnIndex).search("", true, false);
-        }
-      });
       if (activeSortColumn != null && activeSortDir) {
         dataTable.order([[activeSortColumn, activeSortDir]]);
+      } else if (initialOrder.length) {
+        dataTable.order(initialOrder);
       } else {
         dataTable.order([]);
       }
       dataTable.draw();
     }
+
+    var columnFilterFn = function (settings, data) {
+      if (!settings || settings.nTable !== table[0]) return true;
+      if (!Array.isArray(data)) return true;
+      for (var key in activeFilters) {
+        if (!Object.prototype.hasOwnProperty.call(activeFilters, key)) continue;
+        var selected = activeFilters[key];
+        if (!Array.isArray(selected) || !selected.length) continue;
+        var colIdx = Number(key);
+        if (isNaN(colIdx)) continue;
+        var cellText = getPlainTextFromDataTableValue(data[colIdx]);
+        if (selected.indexOf(cellText) === -1) return false;
+      }
+      return true;
+    };
+    columnFilterFn._claimsTableSearchKey = advancedSearchKey + ":column-filter";
+    removeClaimsTableExtSearchByKey(advancedSearchKey + ":column-filter");
+    $.fn.dataTable.ext.search.push(columnFilterFn);
 
     function isClaimsColumnResetVisible(config) {
       if (config.type === "sort") {
@@ -2555,8 +2680,10 @@
         }
       }
       if (!config) return;
+      th.classList.remove("claims-column-head");
+      th.innerHTML = "";
+      th.textContent = config.label || th.textContent || "";
       if (config.type === "none") return;
-      if (th.querySelector(".claims-column-filter-trigger") || th.querySelector(".claims-column-sort-btn")) return;
 
       th.classList.add("claims-column-head");
       var titleText = th.textContent;
@@ -2709,23 +2836,14 @@
   }
 
   function initProtocolOverdueDataTable() {
+    if (!tableHasBodyRows("#table-protocol-overdue")) return null;
     return initInteractiveDashboardTable({
       tableSelector: "#table-protocol-overdue",
       wrapperSelector: ".dashboard-table-wrap--protocol-overdue",
       advancedSearchKey: "protocol-overdue-table-advanced",
-      columnConfigs: [
-        { index: 0, label: "Протокол", type: "filter", searchType: "text" },
-        { index: 1, label: "Срок", type: "sort", searchType: "date" },
-        { index: 2, label: "Постановка", type: "sort", searchType: "date" },
-        { index: 3, label: "Задача", type: "filter", searchType: "text" },
-        { index: 4, label: "Исполнитель", type: "filter", searchType: "text" },
-        { index: 5, label: "Автор", type: "filter", searchType: "text" },
-      ],
+      columnConfigs: [],
       initialOrder: [[1, "desc"], [2, "desc"]],
-      columnDefs: [
-        { targets: "_all", orderable: false },
-        { targets: [1, 2], orderable: true },
-      ],
+      columnDefs: [{ targets: [1, 2], orderable: true }],
     });
   }
 
@@ -2960,21 +3078,15 @@
   }
 
   function initOverdueDebtDataTable() {
+    if (!tableHasBodyRows("#table-overdue-debt")) return null;
     if (logisticsSupplierDebtTableMode) {
       return initInteractiveDashboardTable({
         tableSelector: "#table-overdue-debt",
         wrapperSelector: ".dashboard-table-wrap--overdue-debt",
         advancedSearchKey: "supplier-dz-table-advanced",
-        columnConfigs: [
-          { index: 0, label: "№ объекта расчетов", type: "filter", searchType: "text" },
-          { index: 1, label: "Дата", type: "date", searchType: "date" },
-          { index: 2, label: "Объект расчетов", type: "filter", searchType: "text" },
-          { index: 3, label: "Поставщик", type: "filter", searchType: "text" },
-          { index: 4, label: "Сумма", type: "sort", searchType: "text" },
-        ],
+        columnConfigs: [],
         initialOrder: [[4, "desc"]],
         columnDefs: [
-          { targets: "_all", orderable: false },
           { targets: [1], type: "date", orderable: true },
           { targets: [4], type: "num-fmt", orderable: true },
         ],
@@ -2990,18 +3102,9 @@
       tableSelector: "#table-overdue-debt",
       wrapperSelector: ".dashboard-table-wrap--overdue-debt",
       advancedSearchKey: "overdue-debt-table-advanced",
-      columnConfigs: [
-        { index: 0, label: "№ Заказа клиента", type: "filter", searchType: "text" },
-        { index: 1, label: "Контрагент", type: "filter", searchType: "text" },
-        { index: 2, label: "Просрочка, дн.", type: "sort", searchType: "text" },
-        { index: 3, label: "Ликвидированное подразделение", type: "filter", searchType: "text" },
-        { index: 4, label: "Причина", type: "filter", searchType: "text" },
-        { index: 5, label: "Действие", type: "none", searchType: "text" },
-        { index: 6, label: "Сумма, руб", type: "sort", searchType: "text" },
-      ],
+      columnConfigs: [],
       initialOrder: [[6, "desc"]],
       columnDefs: [
-        { targets: "_all", orderable: false },
         { targets: [2], type: "num", orderable: true },
         { targets: [6], type: "num-fmt", orderable: true },
       ],
@@ -3416,9 +3519,7 @@
     renderClaimsTableRows(rows);
     renderOverdueDebtTableRows(rows);
     initClaimsDataTable();
-    if (enhanceOverdueDebtTable || logisticsSupplierDebtTableMode) {
-      initOverdueDebtDataTable();
-    }
+    initOverdueDebtDataTable();
     if (enableLawsuitsTable) {
       renderLawsuitsTableRows(rows);
       initLawsuitsDataTable();
