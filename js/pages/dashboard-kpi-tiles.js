@@ -426,10 +426,7 @@
     var isFactOnly = !!(rule && rule.factOnly);
     var hidePlanOnTile = shouldHidePlanOnTile(tile);
     var isKpiPctOnly = !!(rule && rule.kpiPctOnly);
-    var generatedFlag =
-      tile.has_data === false && !hasKpiTileDisplayableMetricValue(tile)
-        ? buildKpiTileGeneratedFlagHtml()
-        : "";
+    var generatedFlag = tile.has_data === false ? buildKpiTileGeneratedFlagHtml() : "";
     var periodPrefix =
       rule && rule.periodLabelPrefix != null && String(rule.periodLabelPrefix).trim()
         ? String(rule.periodLabelPrefix).trim() + ": "
