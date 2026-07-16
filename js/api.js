@@ -1585,9 +1585,20 @@
     return false;
   }
 
+  function isServheadSurveysTableTabKey(tabKey) {
+    return tabKey != null && String(tabKey).trim().toUpperCase() === "SH-T2";
+  }
+
   function isServheadClientsTableTabKey(tabKey) {
     var key = tabKey != null ? String(tabKey).trim().toUpperCase() : "";
+    if (isServheadSurveysTableTabKey(key)) return false;
     return key === "SH-T1" || key.indexOf("SH-T") === 0;
+  }
+
+  function hasServheadSurveysTableInBody(body) {
+    var tables = getTablesMapFromBody(body);
+    if (!tables || typeof tables !== "object") return false;
+    return Object.prototype.hasOwnProperty.call(tables, "SH-T2");
   }
 
   function hasServheadClientsTableInBody(body) {
@@ -1611,7 +1622,34 @@
   }
 
   function hasServheadDashboardInBody(body) {
-    return hasServheadClientsTableInBody(body) || hasServheadDashboardTilesInBody(body);
+    return (
+      hasServheadClientsTableInBody(body) ||
+      hasServheadSurveysTableInBody(body) ||
+      hasServheadDashboardTilesInBody(body)
+    );
+  }
+
+  function getTableTabMetaFromBody(body, tableKey, filterYear, filterMonth) {
+    var tables = getTablesMapFromBody(body);
+    if (!tables || typeof tables !== "object") return null;
+    var wanted = tableKey != null ? String(tableKey).trim() : "";
+    if (!wanted || !Object.prototype.hasOwnProperty.call(tables, wanted)) return null;
+    var tab = tables[wanted];
+    if (!tab || typeof tab !== "object") return null;
+    var view = resolveTableTabView(tab, filterYear, filterMonth);
+    return {
+      kpi_id: tab.kpi_id != null ? String(tab.kpi_id) : wanted,
+      name: view.name || (tab.name != null ? String(tab.name).trim() : ""),
+      description: view.description || (tab.description != null ? String(tab.description).trim() : ""),
+      columns: Array.isArray(view.columns)
+        ? view.columns.slice()
+        : Array.isArray(tab.columns)
+          ? tab.columns.slice()
+          : [],
+      periodicity: tab.periodicity != null ? String(tab.periodicity) : "",
+      period: view.period || tab.period || null,
+      totals: tab.totals && typeof tab.totals === "object" ? tab.totals : null,
+    };
   }
 
   function hasQualdirDefectTablesInBody(body) {
@@ -2954,7 +2992,13 @@
       row.fact !== undefined ||
       row.order_sum !== undefined ||
       row.amount !== undefined ||
-      row.claim_amount !== undefined
+      row.claim_amount !== undefined ||
+      (row["\u041f\u0435\u0440\u0438\u043e\u0434"] != null && String(row["\u041f\u0435\u0440\u0438\u043e\u0434"]).trim() !== "") ||
+      (row["\u041a\u043e\u043c\u043f\u0430\u043d\u0438\u044f"] != null && String(row["\u041a\u043e\u043c\u043f\u0430\u043d\u0438\u044f"]).trim() !== "") ||
+      (row["\u041f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044c \u0438\u043b\u0438 \u0417\u0430\u043a\u0430\u0437\u0447\u0438\u043a"] != null &&
+        String(row["\u041f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044c \u0438\u043b\u0438 \u0417\u0430\u043a\u0430\u0437\u0447\u0438\u043a"]).trim() !== "") ||
+      (row["\u0413\u043e\u0442\u043e\u0432\u043d\u043e\u0441\u0442\u044c \u043a \u0434\u0430\u043b\u044c\u043d\u0435\u0439\u0448\u0435\u043c\u0443 \u0441\u043e\u0442\u0440\u0443\u0434\u043d\u0438\u0447\u0435\u0441\u0442\u0432\u0443"] != null &&
+        String(row["\u0413\u043e\u0442\u043e\u0432\u043d\u043e\u0441\u0442\u044c \u043a \u0434\u0430\u043b\u044c\u043d\u0435\u0439\u0448\u0435\u043c\u0443 \u0441\u043e\u0442\u0440\u0443\u0434\u043d\u0438\u0447\u0435\u0441\u0442\u0432\u0443"]).trim() !== "")
     );
   }
 
@@ -3020,25 +3064,34 @@
       var updatedAt = tableMeta && typeof tableMeta === "object" && !Array.isArray(tableMeta)
         ? tableMeta.cache_updated_at
         : "";
-      if (!status && !refreshKpiId && !updatedAt) return;
       var hasRowsForTable = collected.some(function (item) {
         return item && item.tk === tk;
       });
-      if (!hasRowsForTable) {
-        collected.push({
-          tk: tk,
-          row: {
-            __tableCacheStatusMarker: true,
-            cache_refresh_status: status != null ? String(status) : "",
-            cache_refresh_kpi_id:
-              refreshKpiId != null ? String(refreshKpiId) : "",
-            cache_updated_at:
-              updatedAt != null ? String(updatedAt) : "",
-          },
-          tableMeta: tableMeta,
-          index: collected.length,
-        });
-      }
+      if (hasRowsForTable) return;
+      var view = resolveTableTabView(tableMeta, periodYear, periodMonth);
+      var displayWhenEmpty = isServheadSurveysTableTabKey(tk);
+      var hasCacheMeta = !!(status || refreshKpiId || updatedAt);
+      if (!displayWhenEmpty && !hasCacheMeta) return;
+      collected.push({
+        tk: tk,
+        row: displayWhenEmpty
+          ? { __tableEmptyMarker: true }
+          : {
+              __tableCacheStatusMarker: true,
+              cache_refresh_status: status != null ? String(status) : "",
+              cache_refresh_kpi_id: refreshKpiId != null ? String(refreshKpiId) : "",
+              cache_updated_at: updatedAt != null ? String(updatedAt) : "",
+            },
+        tableMeta: tableMeta,
+        index: collected.length,
+        tableName: view.name || (tableMeta.name != null ? String(tableMeta.name) : ""),
+        tableColumns: Array.isArray(view.columns)
+          ? view.columns.slice()
+          : Array.isArray(tableMeta.columns)
+            ? tableMeta.columns.slice()
+            : [],
+        tableDescription: view.description || (tableMeta.description != null ? String(tableMeta.description) : ""),
+      });
     });
     if (!collected.length) return [];
 
@@ -3057,6 +3110,21 @@
       .map(function (item) {
         var row = item.row;
         var tk = item.tk;
+        if (row && row.__tableEmptyMarker === true) {
+          return {
+            kpi: "\u2014",
+            fact: "\u2014",
+            plan: "\u2014",
+            rag: "blue",
+            deviation: "\u2014",
+            comment: item.tableDescription != null ? String(item.tableDescription) : "",
+            tableKey: tk != null ? String(tk).trim() : "",
+            tableName: item.tableName != null ? String(item.tableName).trim() : "",
+            tableColumns: Array.isArray(item.tableColumns) ? item.tableColumns.slice() : [],
+            __tableEmptyMarker: true,
+            raw: row,
+          };
+        }
         var tableMeta = item.tableMeta && typeof item.tableMeta === "object" && !Array.isArray(item.tableMeta)
           ? item.tableMeta
           : null;
@@ -3680,6 +3748,9 @@
     isQualdirDefectTableTabKey: isQualdirDefectTableTabKey,
     hasServheadDashboardInBody: hasServheadDashboardInBody,
     hasServheadClientsTableInBody: hasServheadClientsTableInBody,
+    hasServheadSurveysTableInBody: hasServheadSurveysTableInBody,
     isServheadClientsTableTabKey: isServheadClientsTableTabKey,
+    isServheadSurveysTableTabKey: isServheadSurveysTableTabKey,
+    getTableTabMetaFromBody: getTableTabMetaFromBody,
   };
 })(typeof window !== "undefined" ? window : globalThis);

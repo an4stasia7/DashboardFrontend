@@ -368,6 +368,17 @@
   var LOGISTICS_CLAIMS_TABLE_KEY = "LOG-T-CLAIMS";
   var LOGISTICS_SUPPLIER_DZ_TABLE_KEY = "LOG-T-SUPPLIER-DZ";
   var SERVHEAD_CLIENTS_TABLE_KEY = "SH-T1";
+  var SERVHEAD_SURVEYS_TABLE_KEY = "SH-T2";
+  var SERVHEAD_SURVEYS_DEFAULT_HEADERS = [
+    "\u041f\u0435\u0440\u0438\u043e\u0434",
+    "\u041f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044c \u0438\u043b\u0438 \u0417\u0430\u043a\u0430\u0437\u0447\u0438\u043a",
+    "\u041a\u043e\u043c\u043f\u0430\u043d\u0438\u044f",
+    "\u041e\u0446\u0435\u043d\u043a\u0430 \u043a\u0430\u0447\u0435\u0441\u0442\u0432\u0430 \u043e\u043a\u0430\u0437\u044b\u0432\u0430\u0435\u043c\u044b\u0445 \u0443\u0441\u043b\u0443\u0433",
+    "\u041e\u0446\u0435\u043d\u043a\u0430 \u043a\u0430\u0447\u0435\u0441\u0442\u0432\u0430 \u043e\u0431\u043e\u0440\u0443\u0434\u043e\u0432\u0430\u043d\u0438\u044f",
+    "\u0423\u0434\u043e\u0432\u043b\u0435\u0442\u0432\u043e\u0440\u0435\u043d\u0438\u0435 \u043f\u043e\u0442\u0440\u0435\u0431\u043d\u043e\u0441\u0442\u0435\u0439",
+    "\u041a\u043e\u043c\u043c\u0435\u043d\u0442\u0430\u0440\u0438\u0439 \u043a \u0443\u0434\u043e\u0432\u043b\u0435\u0442\u0432\u043e\u0440\u0435\u043d\u0438\u044e \u043f\u043e\u0442\u0440\u0435\u0431\u043d\u043e\u0441\u0442\u0435\u0439",
+    "\u0413\u043e\u0442\u043e\u0432\u043d\u043e\u0441\u0442\u044c \u043a \u0434\u0430\u043b\u044c\u043d\u0435\u0439\u0448\u0435\u043c\u0443 \u0441\u043e\u0442\u0440\u0443\u0434\u043d\u0438\u0447\u0435\u0441\u0442\u0432\u0443",
+  ];
   var SERVHEAD_CLIENTS_TABLE_KEYS = [
     "SH-T1",
     "SERV-T-CLIENTS",
@@ -415,6 +426,7 @@
   var metrologLateStagesTableMode = false;
   var logisticsSupplierDebtTableMode = false;
   var servheadClientsTableMode = false;
+  var servheadSurveysTableState = Object.create(null);
 
   function pickTableField(raw, keys) {
     if (!raw || typeof raw !== "object") return null;
@@ -994,6 +1006,31 @@
     var day = String(parsed.getDate()).padStart(2, "0");
     var month = String(parsed.getMonth() + 1).padStart(2, "0");
     return day + "." + month + "." + parsed.getFullYear();
+  }
+
+  function formatServheadSurveyPeriod(value) {
+    if (value == null || value === "") return "—";
+    var s = String(value).trim();
+    if (!s) return "—";
+    var isoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{2}):(\d{2})(?::\d{2})?)?/);
+    if (isoMatch) {
+      var formatted = isoMatch[3] + "." + isoMatch[2] + "." + isoMatch[1];
+      if (isoMatch[4] != null && isoMatch[5] != null) {
+        formatted += " " + isoMatch[4] + ":" + isoMatch[5];
+      }
+      return formatted;
+    }
+    var parsed = new Date(s);
+    if (isNaN(parsed.getTime())) return tableTextOrDash(s);
+    var day = String(parsed.getDate()).padStart(2, "0");
+    var month = String(parsed.getMonth() + 1).padStart(2, "0");
+    var year = parsed.getFullYear();
+    var hours = String(parsed.getHours()).padStart(2, "0");
+    var minutes = String(parsed.getMinutes()).padStart(2, "0");
+    if (/T|\d{1,2}:\d{2}/.test(s)) {
+      return day + "." + month + "." + year + " " + hours + ":" + minutes;
+    }
+    return day + "." + month + "." + year;
   }
 
   function formatTechnicalPercentComplete(value) {
@@ -1612,6 +1649,11 @@
       topTable.classList.remove("dashboard-table--logistics-claims");
       topTable.classList.remove("dashboard-table--hrd-late-vacancies");
       topTable.classList.remove("dashboard-table--servhead-clients");
+      topTable.classList.remove("dashboard-table--servhead-surveys");
+    }
+    var overdueTable = document.getElementById("table-overdue-debt");
+    if (overdueTable) {
+      overdueTable.classList.remove("dashboard-table--servhead-surveys");
     }
     if (qualdirDefectTablesMode) {
       setTableHeaders(
@@ -1661,7 +1703,7 @@
     if (!Array.isArray(rows)) return SERVHEAD_CLIENTS_TABLE_KEY;
     for (var i = 0; i < rows.length; i++) {
       var key = rows[i] && rows[i].tableKey != null ? String(rows[i].tableKey).trim().toUpperCase() : "";
-      if (!key) continue;
+      if (!key || key === SERVHEAD_SURVEYS_TABLE_KEY) continue;
       for (var j = 0; j < SERVHEAD_CLIENTS_TABLE_KEYS.length; j++) {
         if (key === SERVHEAD_CLIENTS_TABLE_KEYS[j]) return key;
       }
@@ -1677,7 +1719,16 @@
     return item && item.tableKey != null ? String(item.tableKey).trim().toUpperCase() : "";
   }
 
+  function isServheadSurveysRow(item) {
+    return servheadClientsTableKey(item) === SERVHEAD_SURVEYS_TABLE_KEY;
+  }
+
+  function isServheadSurveysDataRow(item) {
+    return isServheadSurveysRow(item) && !(item && item.__tableEmptyMarker);
+  }
+
   function isServheadClientsRow(item) {
+    if (isServheadSurveysRow(item)) return false;
     var key = servheadClientsTableKey(item);
     var wanted = String(activeServheadClientsTableKey || SERVHEAD_CLIENTS_TABLE_KEY).trim().toUpperCase();
     if (key === wanted) return true;
@@ -1687,6 +1738,20 @@
     return key.indexOf("SERV") !== -1 && (key.indexOf("CLIENT") !== -1 || key.indexOf("CUSTOMER") !== -1)
       ? true
       : key.indexOf("SH-T") === 0;
+  }
+
+  function getServheadSurveysHeadersFromRows(rows) {
+    if (!Array.isArray(rows) || !rows.length) return SERVHEAD_SURVEYS_DEFAULT_HEADERS.slice();
+    for (var i = 0; i < rows.length; i++) {
+      var item = rows[i];
+      if (!item || !isServheadSurveysRow(item)) continue;
+      if (Array.isArray(item.tableColumns) && item.tableColumns.length) {
+        return item.tableColumns.map(function (header) {
+          return tableTextOrDash(header);
+        });
+      }
+    }
+    return SERVHEAD_SURVEYS_DEFAULT_HEADERS.slice();
   }
 
   function getServheadClientsHeadersFromRows(rows) {
@@ -1864,6 +1929,433 @@
         appendClampedCell(tr, value, cellIndex === 2 ? "dashboard-table-cell--wide-text" : "");
       });
       tbody.appendChild(tr);
+    });
+  }
+
+  function getServheadSurveyHeaderCellMeta(header) {
+    var h = String(header || "")
+      .trim()
+      .toLocaleLowerCase("ru-RU");
+    if (/период|period|date/.test(h)) {
+      return {
+        className: "dashboard-table-cell--date",
+        value: function (raw) {
+          return formatServheadSurveyPeriod(
+            pickTableField(raw, ["\u041f\u0435\u0440\u0438\u043e\u0434", "period", "date", "month"])
+          );
+        },
+      };
+    }
+    if (/компан|company|организац/.test(h)) {
+      return {
+        className: "dashboard-table-cell--medium-text",
+        value: function (raw) {
+          return pickTableField(raw, ["\u041a\u043e\u043c\u043f\u0430\u043d\u0438\u044f", "company", "organization"]);
+        },
+      };
+    }
+    if (/пользовател|заказчик|customer|client|контрагент/.test(h)) {
+      return {
+        className: "dashboard-table-cell--medium-text",
+        value: function (raw) {
+          return pickTableField(raw, [
+            "\u041f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044c \u0438\u043b\u0438 \u0417\u0430\u043a\u0430\u0437\u0447\u0438\u043a",
+            "customer",
+            "client",
+            "user",
+            "counterparty",
+          ]);
+        },
+      };
+    }
+    if (/удовлетвор|оценк|балл|rating|score|nps/.test(h)) {
+      return {
+        className: "dt-center",
+        value: function (raw) {
+          if (raw && header in raw) return raw[header];
+          return pickTableField(raw, [header, "rating", "score", "nps"]);
+        },
+      };
+    }
+    if (/коммент|comment|отзыв|feedback|готовност/.test(h)) {
+      return {
+        className: "dashboard-table-cell--wide-text",
+        value: function (raw) {
+          if (raw && header in raw) return raw[header];
+          return pickTableField(raw, [header, "comment", "feedback"]);
+        },
+      };
+    }
+    return getServheadHeaderCellMeta(header);
+  }
+
+  function getServheadSurveysTitleFromRows(rows) {
+    if (!Array.isArray(rows)) return "";
+    for (var i = 0; i < rows.length; i++) {
+      if (!rows[i] || !isServheadSurveysRow(rows[i])) continue;
+      if (rows[i].tableName != null && String(rows[i].tableName).trim() !== "") {
+        return String(rows[i].tableName).trim();
+      }
+    }
+    return "";
+  }
+
+  function getServheadSurveyRawPeriodValue(raw) {
+    return pickTableField(raw, ["\u041f\u0435\u0440\u0438\u043e\u0434", "period", "date", "month"]);
+  }
+
+  function parseServheadSurveyPeriodParts(value) {
+    if (value == null || value === "") return null;
+    var s = String(value).trim();
+    if (!s) return null;
+    var isoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (isoMatch) {
+      return {
+        year: Number(isoMatch[1]),
+        month: Number(isoMatch[2]),
+        day: Number(isoMatch[3]),
+      };
+    }
+    var parsed = new Date(s);
+    if (isNaN(parsed.getTime())) return null;
+    return {
+      year: parsed.getFullYear(),
+      month: parsed.getMonth() + 1,
+      day: parsed.getDate(),
+    };
+  }
+
+  function servheadSurveyRowDateKey(item) {
+    var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
+    if (!raw) return "";
+    var parts = parseServheadSurveyPeriodParts(getServheadSurveyRawPeriodValue(raw));
+    if (!parts || !parts.year || !parts.month || !parts.day) return "";
+    return (
+      String(parts.year) +
+      "-" +
+      String(parts.month).padStart(2, "0") +
+      "-" +
+      String(parts.day).padStart(2, "0")
+    );
+  }
+
+  function normalizeServheadSurveysDateInputValue(value) {
+    var match = String(value || "").trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return "";
+    return match[1] + "-" + match[2] + "-" + match[3];
+  }
+
+  function collectServheadSurveysDateBounds(allRows) {
+    var min = "";
+    var max = "";
+    if (!Array.isArray(allRows)) return { min: min, max: max };
+    allRows.forEach(function (item) {
+      var key = servheadSurveyRowDateKey(item);
+      if (!key) return;
+      if (!min || key < min) min = key;
+      if (!max || key > max) max = key;
+    });
+    return { min: min, max: max };
+  }
+
+  function filterServheadSurveysRowsByDateRange(allRows, dateFrom, dateTo) {
+    if (!Array.isArray(allRows)) return [];
+    var fromKey = normalizeServheadSurveysDateInputValue(dateFrom);
+    var toKey = normalizeServheadSurveysDateInputValue(dateTo);
+    if (!fromKey && !toKey) return allRows.slice();
+    return allRows.filter(function (item) {
+      var rowDateKey = servheadSurveyRowDateKey(item);
+      if (!rowDateKey) return false;
+      if (fromKey && rowDateKey < fromKey) return false;
+      if (toKey && rowDateKey > toKey) return false;
+      return true;
+    });
+  }
+
+  function filterServheadSurveysRows(allRows, dateFrom, dateTo) {
+    return filterServheadSurveysRowsByDateRange(allRows, dateFrom, dateTo);
+  }
+
+  function syncServheadSurveysDateRangeInputs(fromInput, toInput) {
+    if (!fromInput || !toInput) return;
+    var fromKey = normalizeServheadSurveysDateInputValue(fromInput.value);
+    var toKey = normalizeServheadSurveysDateInputValue(toInput.value);
+    if (fromKey && toKey && fromKey > toKey) {
+      toInput.value = fromKey;
+    }
+  }
+
+  function renderServheadSurveysTableBody(tableId, dataRows, headers) {
+    var table = document.getElementById(tableId);
+    var tbody = table ? table.querySelector("tbody") : null;
+    if (!table || !tbody || !Array.isArray(headers) || !headers.length) return;
+    tbody.innerHTML = "";
+    dataRows.forEach(function (item) {
+      var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
+      if (!raw) return;
+      var tr = document.createElement("tr");
+      headers.forEach(function (header) {
+        var meta = getServheadSurveyHeaderCellMeta(header);
+        appendClampedCell(tr, meta.value(raw), meta.className);
+      });
+      tbody.appendChild(tr);
+    });
+  }
+
+  function buildServheadSurveysColumnConfigs(headers) {
+    return (Array.isArray(headers) ? headers : []).map(function (header, index) {
+      var label = String(header || "Колонка " + String(index + 1));
+      var lower = label.toLocaleLowerCase("ru-RU");
+      return {
+        index: index,
+        label: label,
+        type: /период|period/.test(lower) ? "sort" : "none",
+        searchType: /период|date|дата/.test(lower) ? "date" : "text",
+      };
+    });
+  }
+
+  function restoreServheadSurveysTableShell(tableId, headers, wrapperSelector, advancedSearchKey) {
+    var tableNode = document.getElementById(tableId);
+    if (!tableNode) return;
+    setTableHeaders(tableId, headers);
+    var tbody = tableNode.querySelector("tbody");
+    if (tbody) tbody.innerHTML = "";
+
+    if (typeof $ === "undefined" || !$.fn) return;
+    var table = $("#" + tableId);
+    if (!table.length) return;
+
+    var wrapper = table.closest(wrapperSelector || ".dashboard-table-wrap--claims");
+    if (wrapper.length) {
+      wrapper.find(".claims-column-filter-menu").remove();
+    }
+    if (advancedSearchKey) {
+      removeClaimsTableExtSearchByKey(advancedSearchKey);
+    }
+
+    if ($.fn.DataTable && $.fn.DataTable.isDataTable(table)) {
+      try {
+        table.DataTable().destroy();
+      } catch (e) {
+        /* ignore */
+      }
+    }
+
+    var staleWrapper = table.closest(".dataTables_wrapper");
+    if (staleWrapper.length) {
+      table.detach();
+      staleWrapper.replaceWith(table);
+    }
+  }
+
+  function destroyServheadSurveysDataTable(tableId) {
+    var state = servheadSurveysTableState[tableId];
+    restoreServheadSurveysTableShell(
+      tableId,
+      state && state.headers ? state.headers : [],
+      state && state.wrapperSelector ? state.wrapperSelector : ".dashboard-table-wrap--claims",
+      state && state.advancedSearchKey ? state.advancedSearchKey : ""
+    );
+  }
+
+  function refreshServheadSurveysTable(tableId) {
+    var state = servheadSurveysTableState[tableId];
+    if (!state) return;
+    restoreServheadSurveysTableShell(
+      tableId,
+      state.headers,
+      state.wrapperSelector,
+      state.advancedSearchKey
+    );
+    var filtered = filterServheadSurveysRows(
+      state.allRows,
+      state.dateFrom || "",
+      state.dateTo || ""
+    );
+    renderServheadSurveysTableBody(tableId, filtered, state.headers);
+    initServheadSurveysDataTable(
+      "#" + tableId,
+      state.wrapperSelector,
+      state.advancedSearchKey,
+      state.headers
+    );
+  }
+
+  function setupServheadSurveysDateRangeFilter(
+    tableId,
+    filterWrapId,
+    dateFromId,
+    dateToId,
+    dateResetId
+  ) {
+    var wrap = document.getElementById(filterWrapId);
+    var dateFromInput = document.getElementById(dateFromId);
+    var dateToInput = document.getElementById(dateToId);
+    var dateResetBtn = dateResetId ? document.getElementById(dateResetId) : null;
+    var state = servheadSurveysTableState[tableId];
+    if (!wrap || !dateFromInput || !dateToInput || !state) return;
+
+    var bounds = collectServheadSurveysDateBounds(state.allRows);
+    if (bounds.min) {
+      dateFromInput.min = bounds.min;
+      dateToInput.min = bounds.min;
+    } else {
+      dateFromInput.removeAttribute("min");
+      dateToInput.removeAttribute("min");
+    }
+    if (bounds.max) {
+      dateFromInput.max = bounds.max;
+      dateToInput.max = bounds.max;
+    } else {
+      dateFromInput.removeAttribute("max");
+      dateToInput.removeAttribute("max");
+    }
+
+    dateFromInput.value = normalizeServheadSurveysDateInputValue(state.dateFrom);
+    dateToInput.value = normalizeServheadSurveysDateInputValue(state.dateTo);
+    syncServheadSurveysDateRangeInputs(dateFromInput, dateToInput);
+    state.dateFrom = dateFromInput.value;
+    state.dateTo = dateToInput.value;
+
+    if (!dateFromInput.dataset.servheadSurveysBound) {
+      dateFromInput.dataset.servheadSurveysBound = "1";
+      dateFromInput.addEventListener("change", function () {
+        var boundTableId = dateFromInput.getAttribute("data-table-id");
+        if (!boundTableId) return;
+        var tableState = servheadSurveysTableState[boundTableId];
+        if (!tableState) return;
+        var boundToInput = document.getElementById(
+          dateFromInput.getAttribute("data-date-to-id") || ""
+        );
+        syncServheadSurveysDateRangeInputs(dateFromInput, boundToInput);
+        tableState.dateFrom = dateFromInput.value || "";
+        tableState.dateTo = boundToInput ? boundToInput.value || "" : tableState.dateTo;
+        refreshServheadSurveysTable(boundTableId);
+      });
+    }
+
+    if (!dateToInput.dataset.servheadSurveysBound) {
+      dateToInput.dataset.servheadSurveysBound = "1";
+      dateToInput.addEventListener("change", function () {
+        var boundTableId = dateToInput.getAttribute("data-table-id");
+        if (!boundTableId) return;
+        var tableState = servheadSurveysTableState[boundTableId];
+        if (!tableState) return;
+        var boundFromInput = document.getElementById(
+          dateToInput.getAttribute("data-date-from-id") || ""
+        );
+        syncServheadSurveysDateRangeInputs(boundFromInput, dateToInput);
+        tableState.dateFrom = boundFromInput ? boundFromInput.value || "" : tableState.dateFrom;
+        tableState.dateTo = dateToInput.value || "";
+        refreshServheadSurveysTable(boundTableId);
+      });
+    }
+
+    if (dateResetBtn && !dateResetBtn.dataset.servheadSurveysBound) {
+      dateResetBtn.dataset.servheadSurveysBound = "1";
+      dateResetBtn.addEventListener("click", function () {
+        var boundTableId = dateResetBtn.getAttribute("data-table-id");
+        if (!boundTableId) return;
+        var tableState = servheadSurveysTableState[boundTableId];
+        if (!tableState) return;
+        var boundFromInput = document.getElementById(
+          dateResetBtn.getAttribute("data-date-from-id") || ""
+        );
+        var boundToInput = document.getElementById(
+          dateResetBtn.getAttribute("data-date-to-id") || ""
+        );
+        if (boundFromInput) boundFromInput.value = "";
+        if (boundToInput) boundToInput.value = "";
+        tableState.dateFrom = "";
+        tableState.dateTo = "";
+        refreshServheadSurveysTable(boundTableId);
+      });
+    }
+
+    dateFromInput.setAttribute("data-table-id", tableId);
+    dateFromInput.setAttribute("data-date-to-id", dateToId);
+    dateToInput.setAttribute("data-table-id", tableId);
+    dateToInput.setAttribute("data-date-from-id", dateFromId);
+    if (dateResetBtn) {
+      dateResetBtn.setAttribute("data-table-id", tableId);
+      dateResetBtn.setAttribute("data-date-from-id", dateFromId);
+      dateResetBtn.setAttribute("data-date-to-id", dateToId);
+    }
+  }
+
+  function renderServheadSurveysTableRows(rows, tableId, ariaLabel, renderOptions) {
+    renderOptions = renderOptions || {};
+    var table = document.getElementById(tableId);
+    var tbody = table ? table.querySelector("tbody") : null;
+    if (!table || !tbody) return;
+    tbody.innerHTML = "";
+    table.classList.add("dashboard-table--servhead-surveys");
+    var headers = getServheadSurveysHeadersFromRows(rows);
+    setTableHeaders(tableId, headers);
+    if (table.tFoot) {
+      table.tFoot.hidden = true;
+      table.tFoot.innerHTML = '<tr><th colspan="' + String(headers.length) + '"></th></tr>';
+    }
+    table.setAttribute(
+      "aria-label",
+      ariaLabel || getServheadSurveysTitleFromRows(rows) || "Анкеты удовлетворённости клиентов"
+    );
+
+    var allRows = rows.filter(isServheadSurveysDataRow);
+    servheadSurveysTableState[tableId] = {
+      allRows: allRows,
+      headers: headers,
+      ariaLabel: ariaLabel || getServheadSurveysTitleFromRows(rows) || "Анкеты удовлетворённости клиентов",
+      wrapperSelector: renderOptions.wrapperSelector || ".dashboard-table-wrap--claims",
+      advancedSearchKey: renderOptions.advancedSearchKey || "servhead-surveys-table-advanced",
+      dateFrom: servheadSurveysTableState[tableId] && servheadSurveysTableState[tableId].dateFrom
+        ? servheadSurveysTableState[tableId].dateFrom
+        : "",
+      dateTo: servheadSurveysTableState[tableId] && servheadSurveysTableState[tableId].dateTo
+        ? servheadSurveysTableState[tableId].dateTo
+        : "",
+    };
+
+    var filteredRows = filterServheadSurveysRows(
+      allRows,
+      servheadSurveysTableState[tableId].dateFrom,
+      servheadSurveysTableState[tableId].dateTo
+    );
+    renderServheadSurveysTableBody(tableId, filteredRows, headers);
+
+    if (renderOptions.filterWrapId && renderOptions.dateFromId && renderOptions.dateToId) {
+      setupServheadSurveysDateRangeFilter(
+        tableId,
+        renderOptions.filterWrapId,
+        renderOptions.dateFromId,
+        renderOptions.dateToId,
+        renderOptions.dateResetId
+      );
+    }
+  }
+
+  function initServheadSurveysDataTable(tableSelector, wrapperSelector, advancedSearchKey, headers) {
+    var tableId = String(tableSelector || "").replace(/^#/, "");
+    var resolvedHeaders =
+      Array.isArray(headers) && headers.length
+        ? headers
+        : servheadSurveysTableState[tableId] && servheadSurveysTableState[tableId].headers
+          ? servheadSurveysTableState[tableId].headers
+          : [];
+    var columnConfigs = buildServheadSurveysColumnConfigs(resolvedHeaders);
+    return initInteractiveDashboardTable({
+      tableSelector: tableSelector,
+      wrapperSelector: wrapperSelector,
+      advancedSearchKey: advancedSearchKey,
+      omitFooter: true,
+      useExplicitColumnConfigs: true,
+      columnConfigs: columnConfigs,
+      initialOrder: [[0, "desc"]],
+      columnDefs: [
+        { targets: "_all", orderable: false },
+        { targets: 0, orderable: true, className: "dt-left dashboard-table-cell--date" },
+      ],
     });
   }
 
@@ -2048,7 +2540,7 @@
 
   function isClaimsTableRow(item) {
     var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
-    if (!raw || isOverdueDebtRow(item) || isLawsuitsRow(item) || isProtocolOverdueRow(item) || isQualdirDefectRow(item) || isServheadClientsRow(item) || isHrdLateVacancyRow(item)) {
+    if (!raw || isOverdueDebtRow(item) || isLawsuitsRow(item) || isProtocolOverdueRow(item) || isQualdirDefectRow(item) || isServheadClientsRow(item) || isServheadSurveysRow(item) || isHrdLateVacancyRow(item)) {
       return false;
     }
     return (
@@ -2296,10 +2788,14 @@
     var table = $(tableSelector);
     if (!table.length) return null;
     var tableNode = table[0];
-    columnConfigs = resolveInteractiveTableColumnConfigs(
-      tableNode,
-      columnConfigs.length ? columnConfigs : null
-    );
+    if (options.useExplicitColumnConfigs && columnConfigs.length) {
+      columnConfigs = columnConfigs.slice();
+    } else {
+      columnConfigs = resolveInteractiveTableColumnConfigs(
+        tableNode,
+        columnConfigs.length ? columnConfigs : null
+      );
+    }
     syncDashboardTableCellDataOrder(tableNode);
     if (!columnDefs.length) {
       columnDefs = buildSortableColumnDefs(columnConfigs);
@@ -3448,8 +3944,58 @@
       return;
     }
     if (servheadClientsTableMode) {
-      renderServheadClientsTableRows(rows);
-      initServheadClientsDataTable();
+      var hasClientsTable = rows.some(isServheadClientsRow);
+      var hasSurveysTable =
+        rows.some(isServheadSurveysRow) ||
+        (typeof Api !== "undefined" &&
+          Api &&
+          typeof Api.hasServheadSurveysTableInBody === "function" &&
+          options.servheadSurveysTableInBody);
+      if (hasClientsTable) {
+        renderServheadClientsTableRows(rows);
+        initServheadClientsDataTable();
+      } else if (hasSurveysTable) {
+        renderServheadSurveysTableRows(
+          rows,
+          "table-top-deviations",
+          getServheadSurveysTitleFromRows(rows) || "Анкеты удовлетворённости клиентов",
+          {
+            wrapperSelector: ".dashboard-table-wrap--claims",
+            advancedSearchKey: "servhead-surveys-table-advanced",
+            filterWrapId: "servhead-surveys-period-filter-wrap",
+            dateFromId: "servhead-surveys-date-from",
+            dateToId: "servhead-surveys-date-to",
+            dateResetId: "servhead-surveys-date-reset",
+          }
+        );
+        initServheadSurveysDataTable(
+          "#table-top-deviations",
+          ".dashboard-table-wrap--claims",
+          "servhead-surveys-table-advanced",
+          getServheadSurveysHeadersFromRows(rows)
+        );
+      }
+      if (hasClientsTable && hasSurveysTable) {
+        renderServheadSurveysTableRows(
+          rows,
+          "table-overdue-debt",
+          getServheadSurveysTitleFromRows(rows) || "Анкеты удовлетворённости клиентов",
+          {
+            wrapperSelector: ".dashboard-table-wrap--overdue-debt",
+            advancedSearchKey: "servhead-surveys-table-advanced-overdue",
+            filterWrapId: "servhead-surveys-period-filter-wrap-overdue",
+            dateFromId: "servhead-surveys-date-from-overdue",
+            dateToId: "servhead-surveys-date-to-overdue",
+            dateResetId: "servhead-surveys-date-reset-overdue",
+          }
+        );
+        initServheadSurveysDataTable(
+          "#table-overdue-debt",
+          ".dashboard-table-wrap--overdue-debt",
+          "servhead-surveys-table-advanced-overdue",
+          getServheadSurveysHeadersFromRows(rows)
+        );
+      }
       syncProtocolOverduePanel(rows, options);
       return;
     }

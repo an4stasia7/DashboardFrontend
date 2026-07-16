@@ -407,6 +407,70 @@
   cursor: pointer;
 }
 
+.servhead-surveys-period-filter-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.servhead-surveys-period-filter-wrap[hidden] {
+  display: none !important;
+}
+
+.servhead-surveys-period-filter-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 4px 0 4px 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #475569;
+  border-left: 1px solid #e2e8f0;
+}
+
+.servhead-surveys-date-input {
+  min-width: 132px;
+  padding: 4px 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #0f172a;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.servhead-surveys-date-input:focus {
+  outline: 2px solid rgba(37, 99, 235, 0.25);
+  border-color: #2563eb;
+}
+
+.servhead-surveys-date-reset {
+  padding: 4px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #475569;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.servhead-surveys-date-reset:hover {
+  border-color: #94a3b8;
+  color: #0f172a;
+}
+
+.servhead-surveys-date-reset:focus {
+  outline: 2px solid rgba(37, 99, 235, 0.25);
+  border-color: #2563eb;
+}
+
 .tables-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -1250,6 +1314,39 @@
   text-overflow: ellipsis;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
+}
+
+.dashboard-table.dashboard-table--servhead-surveys {
+  table-layout: auto;
+  min-width: 100%;
+}
+
+.dashboard-table.dashboard-table--servhead-surveys thead th,
+.dashboard-table.dashboard-table--servhead-surveys tbody td {
+  padding: 9px 10px;
+  vertical-align: top;
+}
+
+.dashboard-table.dashboard-table--servhead-surveys thead th:first-child,
+.dashboard-table.dashboard-table--servhead-surveys tbody td.dashboard-table-cell--date {
+  white-space: nowrap;
+  min-width: 9.5rem;
+}
+
+.dashboard-table.dashboard-table--servhead-surveys .dashboard-table-cell--date .dashboard-table-cell-text {
+  display: inline-block;
+  max-width: none;
+  white-space: nowrap;
+}
+
+.dashboard-table.dashboard-table--servhead-surveys .dashboard-table-cell--wide-text .dashboard-table-cell-text {
+  display: -webkit-box;
+  max-height: 54px;
+  overflow: hidden;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
 }
 
 .table-panel table.dataTable.dashboard-table--qualdir-defects {

@@ -1919,15 +1919,36 @@
     if (!Array.isArray(rows)) return false;
     for (var i = 0; i < rows.length; i++) {
       var key = rows[i] && rows[i].tableKey != null ? String(rows[i].tableKey).trim().toUpperCase() : "";
+      if (key === "SH-T2") continue;
       if (key === "SH-T1" || key.indexOf("SH-T") === 0) return true;
     }
     return false;
+  }
+
+  function hasServheadSurveysTableRows(rows) {
+    if (!Array.isArray(rows)) return false;
+    for (var i = 0; i < rows.length; i++) {
+      var key = rows[i] && rows[i].tableKey != null ? String(rows[i].tableKey).trim().toUpperCase() : "";
+      if (key === "SH-T2") return true;
+    }
+    return false;
+  }
+
+  function hasServheadSurveysTable() {
+    if (hasServheadSurveysTableRows(lastApiTableRows)) return true;
+    return (
+      typeof Api !== "undefined" &&
+      Api &&
+      typeof Api.hasServheadSurveysTableInBody === "function" &&
+      Api.hasServheadSurveysTableInBody(lastRawKpiResponse)
+    );
   }
 
   function shouldUseServheadClientsTable() {
     if (isServheadDashboardContext()) return true;
     if (hasServheadDashboardTiles(lastKpiTiles)) return true;
     if (hasServheadClientsTableRows(lastApiTableRows)) return true;
+    if (hasServheadSurveysTable()) return true;
     return (
       typeof Api !== "undefined" &&
       Api &&
@@ -2353,6 +2374,32 @@
       if (item.tableName != null && String(item.tableName).trim() !== "") {
         return String(item.tableName).trim();
       }
+    }
+    return "";
+  }
+
+  function getApiTableTitle(tableKey) {
+    var fromRows = getApiTableTitleFromRows(lastApiTableRows, tableKey);
+    if (fromRows) return fromRows;
+    if (
+      typeof Api !== "undefined" &&
+      Api &&
+      typeof Api.getTableTabMetaFromBody === "function" &&
+      lastRawKpiResponse
+    ) {
+      var periodState =
+        typeof DashboardMonthNav !== "undefined" &&
+        DashboardMonthNav &&
+        typeof DashboardMonthNav.getPeriodState === "function"
+          ? DashboardMonthNav.getPeriodState()
+          : null;
+      var meta = Api.getTableTabMetaFromBody(
+        lastRawKpiResponse,
+        tableKey,
+        periodState && periodState.currentPeriodYear != null ? Number(periodState.currentPeriodYear) : null,
+        periodState && periodState.currentPeriodMonth != null ? Number(periodState.currentPeriodMonth) : null
+      );
+      if (meta && meta.name) return String(meta.name).trim();
     }
     return "";
   }
@@ -3552,6 +3599,8 @@
     var useProductionDeputyProjectTables = isProductionDeputyDashboardContext();
     var useHrdLateVacanciesTable = shouldUseHrdLateVacanciesTable();
     var useServheadClientsTable = shouldUseServheadClientsTable();
+    var useServheadSurveysTable = hasServheadSurveysTable();
+    var useServheadClientsOnlyTable = hasServheadClientsTableRows(lastApiTableRows);
     var useQualdirDefectTables = shouldUseQualdirDefectTables();
     if (useTechnicalTables) {
       activeClaimsTableView = "claims";
@@ -3588,7 +3637,9 @@
                 : useHrdLateVacanciesTable
                   ? "Вакансии, закрытые не в срок"
                   : useServheadClientsTable
-                    ? getApiTableTitleFromRows(lastApiTableRows, "SH-T1") || "Ситуация по клиентам"
+                    ? useServheadClientsOnlyTable
+                      ? getApiTableTitle("SH-T1") || "Ситуация по клиентам"
+                      : getApiTableTitle("SH-T2") || "Анкеты удовлетворённости клиентов"
                     : useTechnicalTables
                     ? "Отклонения по вехам"
                     : isBoardChairOwnDashboard
@@ -3598,7 +3649,9 @@
     }
 
     if (overdueDebtTableTitleEl) {
-      overdueDebtTableTitleEl.textContent = useOpdirProjectTables
+      overdueDebtTableTitleEl.textContent = useServheadClientsTable && useServheadSurveysTable
+        ? getApiTableTitle("SH-T2") || "Анкеты удовлетворённости клиентов"
+        : useOpdirProjectTables
         ? useProductionDirectorProjectTables
           ? "Проекты улучшений / сокращения потерь"
           : "Проекты с отклонениями по вехам"
@@ -3655,7 +3708,7 @@
         overduePanel.hidden =
           useQualdirDefectTables ||
           useHrdLateVacanciesTable ||
-          useServheadClientsTable ||
+          (useServheadClientsTable && !useServheadSurveysTable) ||
           useTechnicalTables ||
           useOpdirProjectTables ||
           useProjectMilestonesTables ||
@@ -3666,6 +3719,41 @@
 
     updateClaimsTableSwitcherUi(showClaimsSwitcher);
     updatePsdTableAmountFilterBarVisibility();
+    updateServheadSurveysPeriodFilterVisibility(
+      useServheadSurveysTable,
+      useServheadClientsOnlyTable
+    );
+  }
+
+  function updateServheadSurveysPeriodFilterVisibility(useServheadSurveysTable, useServheadClientsOnlyTable) {
+    var wrapClaims = document.getElementById("servhead-surveys-period-filter-wrap");
+    var wrapOverdue = document.getElementById("servhead-surveys-period-filter-wrap-overdue");
+    var showClaims = !!useServheadSurveysTable && !useServheadClientsOnlyTable;
+    var showOverdue = !!useServheadSurveysTable && !!useServheadClientsOnlyTable;
+
+    if (wrapClaims) {
+      if (showClaims) {
+        wrapClaims.hidden = false;
+        wrapClaims.removeAttribute("hidden");
+        wrapClaims.setAttribute("aria-hidden", "false");
+      } else {
+        wrapClaims.hidden = true;
+        wrapClaims.setAttribute("hidden", "");
+        wrapClaims.setAttribute("aria-hidden", "true");
+      }
+    }
+
+    if (wrapOverdue) {
+      if (showOverdue) {
+        wrapOverdue.hidden = false;
+        wrapOverdue.removeAttribute("hidden");
+        wrapOverdue.setAttribute("aria-hidden", "false");
+      } else {
+        wrapOverdue.hidden = true;
+        wrapOverdue.setAttribute("hidden", "");
+        wrapOverdue.setAttribute("aria-hidden", "true");
+      }
+    }
   }
 
   function updatePsdTableAmountFilterBarVisibility() {
@@ -3795,6 +3883,11 @@
         technicalTablesMode: shouldUseTechnicalDeviationTables(),
         hrdLateVacanciesTableMode: shouldUseHrdLateVacanciesTable(),
         servheadClientsTableMode: shouldUseServheadClientsTable(),
+        servheadSurveysTableInBody:
+          typeof Api !== "undefined" &&
+          Api &&
+          typeof Api.hasServheadSurveysTableInBody === "function" &&
+          Api.hasServheadSurveysTableInBody(lastRawKpiResponse),
         technicalExternalTableKey: shouldUseGsppTechnicalTables() ? "GSPP-T-Q4-DEVIATIONS" : undefined,
         technicalDevelopmentTableKey: shouldUseGsppTechnicalTables() ? "GSPP-T-Q4-DEVIATIONS" : undefined,
         technicalDeviationsSinglePanel: shouldUseGsppTechnicalTables(),
