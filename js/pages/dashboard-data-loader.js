@@ -517,6 +517,12 @@
       }
       if (cacheKey) rememberDrilldownKpiTiles(cacheKey, tilesToRender.slice());
       renderKpiTiles(tilesToRender, renderOptions);
+    } else if (result.ok && isViewingChairmanCatalogDashboard()) {
+      pushDashboardDebugNote(
+        "UI (chairman)",
+        "API вернул ответ без плиток для for=" + String(getChairmanDashboardCatalogId() || "commerce")
+      );
+      renderKpiTiles([], renderOptions);
     } else {
       renderKpiTiles(getMockKpiTilesForRole(role), renderOptions);
     }
@@ -555,7 +561,15 @@
         currentPeriodYear: null,
       });
       updateMonthNavigatorUI();
-      renderKpiTiles(getMockKpiTilesForRole(role));
+      if (isViewingChairmanCatalogDashboard()) {
+        pushDashboardDebugNote(
+          "UI (chairman)",
+          "Не удалось загрузить KPI для for=" + String(getChairmanDashboardCatalogId() || "commerce")
+        );
+        renderKpiTiles([]);
+      } else {
+        renderKpiTiles(getMockKpiTilesForRole(role));
+      }
       updateTopBarForView();
       hideLoading();
       bootChartsAndTablesDeferred();
@@ -577,16 +591,11 @@
       if (isViewingChairmanCatalogDashboard()) {
         var catalogTarget = getActiveChairmanCatalogTarget();
         var catalogId =
-          catalogTarget && catalogTarget.catalogId != null ? String(catalogTarget.catalogId).trim() : "";
+          catalogTarget && catalogTarget.catalogId != null
+            ? String(catalogTarget.catalogId).trim()
+            : String(getChairmanDashboardCatalogId() || "").trim();
         if (catalogId && catalogId !== "my_dashboard") {
           var catalogOpts = { for: catalogId };
-          var catalogDept =
-            catalogTarget.viewDepartment != null && String(catalogTarget.viewDepartment).trim()
-              ? String(catalogTarget.viewDepartment).trim()
-              : catalogTarget.department != null && String(catalogTarget.department).trim()
-                ? String(catalogTarget.department).trim()
-                : "";
-          if (catalogDept) catalogOpts.department = catalogDept;
           if (periodOpts.month != null) catalogOpts.month = periodOpts.month;
           if (periodOpts.year != null) catalogOpts.year = periodOpts.year;
           fetchKpis(catalogOpts)

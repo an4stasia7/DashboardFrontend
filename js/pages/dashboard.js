@@ -592,7 +592,7 @@
           if (ps && ps.currentPeriodMonth != null) opts.month = Number(ps.currentPeriodMonth);
           if (ps && ps.currentPeriodYear != null) opts.year = Number(ps.currentPeriodYear);
         }
-        return Api.fetchKpis(opts);
+        return Api.fetchKpis(attachActivePeriodToRequestOptions(opts));
       },
       onExpand: function (target) {
         if (!target) return;
