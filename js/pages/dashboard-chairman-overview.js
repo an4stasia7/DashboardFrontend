@@ -1,7 +1,8 @@
 /**
  * @fileoverview Обзорный экран дашбордов председателя совета директоров.
- * Показывает компактные блоки «Коммерческий блок» / «Ревизионный блок» и карточки
- * каталогов ПСД. Клик по блоку или карточке раскрывает полный дашборд.
+ * Показывает карточки вида «Мой дашборд» / «Коммерческая служба» с кратким
+ * перечислением плиток и их значений. Клик по карточке раскрывает её в полный
+ * дашборд (плитки + графики + таблицы) через существующий data-loader.
  */
 (function (global) {
   var ctx = {};
@@ -13,7 +14,8 @@
   var monthNavEl = null;
   var chairmanTabsEl = null;
   var dashLoadingEl = null;
-  var blockSummaryScrollBound = false;
+  var commercialSummaryEl = null;
+  var commercialSummaryScrollBound = false;
 
   /** Сколько карточек дашбордов показывать на одном «экране» (ряд в сетке). */
   var CHAIRMAN_OVERVIEW_CARDS_PER_PAGE = 2;
@@ -21,68 +23,14 @@
   var COMMERCIAL_ICON_BASE_PATH = "/temp/comblock";
   var COMMERCIAL_ICON_FOLDERS_BY_INDEX = ["otgruzki", "dogovorplan", "plandeneg", "otntoshenie"];
 
-  var BLOCK_SUMMARY_DEFS = [
-    {
-      key: "commercial",
-      elementId: "dash-chairman-commercial-summary",
-      ariaLabel: "Коммерческий блок",
-      eyebrow: "Коммерческий блок",
-      actionText: "Перейти в коммерческий блок",
-      emptyText: "Нет данных коммерческого блока.",
-      errorText: "Не удалось загрузить коммерческий блок.",
-      defaultCatalogId: "commerce",
-      maxTiles: 4,
-      skeletonCount: 4,
-      iconBasePath: COMMERCIAL_ICON_BASE_PATH,
-      iconFoldersByIndex: COMMERCIAL_ICON_FOLDERS_BY_INDEX,
-      matchesTarget: function (t) {
-        if (!t) return false;
-        var cid = t.catalogId != null ? String(t.catalogId).trim().toLowerCase() : "";
-        var id = t.id != null ? String(t.id).trim().toLowerCase() : "";
-        var label = t.label != null ? String(t.label).trim().toLowerCase() : "";
-        return cid === "commerce" || id.indexOf("commerce") !== -1 || label.indexOf("коммер") !== -1;
-      },
-    },
-    {
-      key: "revision",
-      elementId: "dash-chairman-revision-summary",
-      ariaLabel: "Ревизионный блок",
-      eyebrow: "Ревизионный блок",
-      actionText: "Перейти в ревизионный блок",
-      emptyText: "Нет данных ревизионного блока.",
-      errorText: "Не удалось загрузить ревизионный блок.",
-      defaultCatalogId: "revision",
-      maxTiles: 4,
-      skeletonCount: 4,
-      iconBasePath: null,
-      iconFoldersByIndex: [],
-      matchesTarget: function (t) {
-        if (!t) return false;
-        var cid = t.catalogId != null ? String(t.catalogId).trim().toLowerCase() : "";
-        var id = t.id != null ? String(t.id).trim().toLowerCase() : "";
-        var label = t.label != null ? String(t.label).trim().toLowerCase() : "";
-        var dept = t.department != null ? String(t.department).trim().toLowerCase() : "";
-        if (cid === "revision" || cid.indexOf("revision") !== -1 || cid.indexOf("audit") !== -1) return true;
-        if (id.indexOf("revision") !== -1) return true;
-        if (label.indexOf("ревиз") !== -1 || dept.indexOf("ревиз") !== -1) return true;
-        if (label.indexOf("руководитель ревизионной") !== -1) return true;
-        return false;
-      },
-    },
-  ];
-
   var state = {
     expandedCatalogId: null,
     cache: Object.create(null),
     /** Страница среди карточек каталога (не строк KPI внутри карточки) */
     cardPageIndex: 0,
     requestSeq: 0,
-    blockRequestSeq: Object.create(null),
+    commercialRequestSeq: 0,
   };
-
-  BLOCK_SUMMARY_DEFS.forEach(function (def) {
-    state.blockRequestSeq[def.key] = 0;
-  });
 
   function mergeContext(next) {
     ctx = Object.assign({}, ctx, next || {});
@@ -156,53 +104,39 @@
     if (!monthNavEl) monthNavEl = document.getElementById("month-navigator");
     if (!chairmanTabsEl) chairmanTabsEl = document.getElementById("dashboard-chairman-tabs");
     if (!dashLoadingEl) dashLoadingEl = document.getElementById("dash-loading");
-    ensureBlockSummaryElements();
+    ensureCommercialSummaryElement();
     return !!overviewEl;
   }
 
-  function getBlockSummaryElement(def) {
-    if (!def) return null;
-    return document.getElementById(def.elementId);
-  }
-
-  function ensureBlockSummaryElements() {
+  function ensureCommercialSummaryElement() {
+    if (commercialSummaryEl && document.body.contains(commercialSummaryEl)) return commercialSummaryEl;
     var anchor = document.querySelector(".dash-kpi-tiles-block");
-    if (!anchor || !anchor.parentNode) return;
-    var insertPoint = anchor;
-    for (var i = BLOCK_SUMMARY_DEFS.length - 1; i >= 0; i--) {
-      var def = BLOCK_SUMMARY_DEFS[i];
-      var el = getBlockSummaryElement(def);
-      if (!el) {
-        el = document.createElement("section");
-        el.id = def.elementId;
-        el.className = "dash-chairman-commercial-summary";
-        el.setAttribute("aria-label", def.ariaLabel);
-        el.hidden = true;
-        anchor.parentNode.insertBefore(el, insertPoint);
-      }
-      insertPoint = el;
-    }
-    bindBlockSummaryScroll();
+    if (!anchor || !anchor.parentNode) return null;
+    commercialSummaryEl = document.createElement("section");
+    commercialSummaryEl.id = "dash-chairman-commercial-summary";
+    commercialSummaryEl.className = "dash-chairman-commercial-summary";
+    commercialSummaryEl.setAttribute("aria-label", "Коммерческий блок");
+    commercialSummaryEl.hidden = true;
+    anchor.parentNode.insertBefore(commercialSummaryEl, anchor);
+    bindCommercialSummaryScroll();
+    return commercialSummaryEl;
   }
 
-  function bindBlockSummaryScroll() {
-    if (blockSummaryScrollBound) return;
-    blockSummaryScrollBound = true;
+  function bindCommercialSummaryScroll() {
+    if (commercialSummaryScrollBound) return;
+    commercialSummaryScrollBound = true;
     var update = function () {
-      BLOCK_SUMMARY_DEFS.forEach(function (def) {
-        var root = getBlockSummaryElement(def);
-        if (!root || root.hidden) return;
-        var main = document.querySelector(".dash-main");
-        var content = document.getElementById("dash-content");
-        var workspace = document.querySelector(".dash-workspace");
-        var scrollTop = Math.max(
-          window.pageYOffset || document.documentElement.scrollTop || 0,
-          main && main.scrollTop ? main.scrollTop : 0,
-          content && content.scrollTop ? content.scrollTop : 0,
-          workspace && workspace.scrollTop ? workspace.scrollTop : 0
-        );
-        root.classList.toggle("is-collapsed", scrollTop > 90);
-      });
+      if (!commercialSummaryEl || commercialSummaryEl.hidden) return;
+      var main = document.querySelector(".dash-main");
+      var content = document.getElementById("dash-content");
+      var workspace = document.querySelector(".dash-workspace");
+      var scrollTop = Math.max(
+        window.pageYOffset || document.documentElement.scrollTop || 0,
+        main && main.scrollTop ? main.scrollTop : 0,
+        content && content.scrollTop ? content.scrollTop : 0,
+        workspace && workspace.scrollTop ? workspace.scrollTop : 0
+      );
+      commercialSummaryEl.classList.toggle("is-collapsed", scrollTop > 90);
     };
     window.addEventListener("scroll", update, { passive: true });
     ["dash-main", "dash-content", "dash-workspace"].forEach(function (className) {
@@ -473,10 +407,10 @@
       .replace(/^_+|_+$/g, "");
   }
 
-  function commercialIconFoldersForTile(tile, index, foldersByIndex) {
+  function commercialIconFoldersForTile(tile, index) {
     var title = normalizeIconFolderPart(tileDisplayTitle(tile));
     var kpiId = normalizeIconFolderPart(tile && (tile.kpi_id || tile.badge || tile.id));
-    var forcedByIndex = (foldersByIndex || COMMERCIAL_ICON_FOLDERS_BY_INDEX)[index] || "";
+    var forcedByIndex = COMMERCIAL_ICON_FOLDERS_BY_INDEX[index] || "";
     var raw = [forcedByIndex, tile && tile.iconFolder, tile && tile.icon_folder, tile && tile.slug, kpiId, title]
       .map(normalizeIconFolderPart)
       .filter(Boolean);
@@ -527,7 +461,7 @@
     tryNext();
   }
 
-  function makeBlockSummaryTile(def, tile, index) {
+  function makeCommercialSummaryTile(tile, index) {
     var item = document.createElement("article");
     var rag = normalizeRag(tile);
     item.className = "dash-chairman-commercial-tile rag-" + rag;
@@ -559,54 +493,47 @@
     body.appendChild(value);
     item.appendChild(body);
 
-    if (def && def.iconBasePath) {
-      var color = rag === "gray" ? "grey" : rag;
-      var folders = commercialIconFoldersForTile(tile, index, def.iconFoldersByIndex);
-      var candidates = [];
-      var colors = [color];
-      ["red", "yellow", "green"].forEach(function (fallbackColor) {
-        if (colors.indexOf(fallbackColor) === -1) colors.push(fallbackColor);
-      });
-      folders.forEach(function (folder) {
-        colors.forEach(function (candidateColor) {
-          ["png", "svg", "webp"].forEach(function (ext) {
-            candidates.push(def.iconBasePath + "/" + folder + "/" + candidateColor + "." + ext);
-          });
+    var color = rag === "gray" ? "grey" : rag;
+    var folders = commercialIconFoldersForTile(tile, index);
+    var candidates = [];
+    var colors = [color];
+    ["red", "yellow", "green"].forEach(function (fallbackColor) {
+      if (colors.indexOf(fallbackColor) === -1) colors.push(fallbackColor);
+    });
+    folders.forEach(function (folder) {
+      colors.forEach(function (candidateColor) {
+        ["png", "svg", "webp"].forEach(function (ext) {
+          candidates.push(COMMERCIAL_ICON_BASE_PATH + "/" + folder + "/" + candidateColor + "." + ext);
         });
       });
-      setImageCandidates(img, candidates, fallback);
-    } else {
-      img.hidden = true;
-      fallback.hidden = false;
-    }
+    });
+    setImageCandidates(img, candidates, fallback);
     return item;
   }
 
-  function findBlockTarget(def) {
-    if (!def || typeof def.matchesTarget !== "function") return null;
+  function findCommercialTarget() {
     var targets = getTargets();
     for (var i = 0; i < targets.length; i++) {
-      if (def.matchesTarget(targets[i])) return targets[i];
+      var t = targets[i];
+      if (!t) continue;
+      var cid = t.catalogId != null ? String(t.catalogId).trim().toLowerCase() : "";
+      var id = t.id != null ? String(t.id).trim().toLowerCase() : "";
+      var label = t.label != null ? String(t.label).trim().toLowerCase() : "";
+      if (cid === "commerce" || id.indexOf("commerce") !== -1 || label.indexOf("коммер") !== -1) return t;
     }
     return null;
   }
 
-  function blockSummaryCacheKey(def, target) {
-    var catalogId =
-      target && (target.catalogId || target.id)
-        ? String(target.catalogId || target.id)
-        : def && def.defaultCatalogId
-          ? String(def.defaultCatalogId)
-          : "";
-    return String(def.key) + "-summary\0" + cacheKeyFor(catalogId);
+  function commercialSummaryCacheKey(target) {
+    var catalogId = target && (target.catalogId || target.id) ? String(target.catalogId || target.id) : "commerce";
+    return "commercial-summary\0" + cacheKeyFor(catalogId);
   }
 
-  function renderBlockSummary(def, entry) {
-    ensureBlockSummaryElements();
-    var root = getBlockSummaryElement(def);
+  function renderCommercialSummary(entry) {
+    var root = ensureCommercialSummaryElement();
     if (!root) return;
-    var target = findBlockTarget(def);
-    if (!shouldShowChairmanLanding() || !target) {
+    var commercialTarget = findCommercialTarget();
+    if (!shouldShowChairmanLanding() || !commercialTarget) {
       root.hidden = true;
       root.innerHTML = "";
       root.classList.remove("is-collapsed");
@@ -621,26 +548,24 @@
     titleWrap.className = "dash-chairman-commercial-title-wrap";
     var eyebrow = document.createElement("span");
     eyebrow.className = "dash-chairman-commercial-eyebrow";
-    eyebrow.textContent = def.eyebrow;
+    eyebrow.textContent = "Коммерческий блок";
     titleWrap.appendChild(eyebrow);
     head.appendChild(titleWrap);
 
     var btn = document.createElement("button");
     btn.type = "button";
     btn.className = "dash-chairman-commercial-action";
-    btn.textContent = def.actionText;
+    btn.textContent = "Перейти в коммерческий блок";
     btn.addEventListener("click", function () {
-      expandTarget(target);
+      expandTarget(commercialTarget);
     });
     head.appendChild(btn);
     root.appendChild(head);
 
     var tilesRoot = document.createElement("div");
     tilesRoot.className = "dash-chairman-commercial-tiles";
-    var skeletonCount = def.skeletonCount != null ? def.skeletonCount : 4;
-    var maxTiles = def.maxTiles != null ? def.maxTiles : 4;
     if (entry && entry.loading) {
-      for (var i = 0; i < skeletonCount; i++) {
+      for (var i = 0; i < 4; i++) {
         var skeleton = document.createElement("span");
         skeleton.className = "dash-chairman-commercial-tile dash-chairman-commercial-tile--loading";
         tilesRoot.appendChild(skeleton);
@@ -648,85 +573,66 @@
     } else if (entry && entry.error) {
       var err = document.createElement("p");
       err.className = "dash-chairman-commercial-empty";
-      err.textContent = def.errorText;
+      err.textContent = "Не удалось загрузить коммерческий блок.";
       tilesRoot.appendChild(err);
     } else {
-      var tiles = entry && Array.isArray(entry.tiles) ? entry.tiles.slice(0, maxTiles) : [];
+      var tiles = entry && Array.isArray(entry.tiles) ? entry.tiles.slice(0, 4) : [];
       if (!tiles.length) {
         var empty = document.createElement("p");
         empty.className = "dash-chairman-commercial-empty";
-        empty.textContent = def.emptyText;
+        empty.textContent = "Нет данных коммерческого блока.";
         tilesRoot.appendChild(empty);
       } else {
         tiles.forEach(function (tile, index) {
-          tilesRoot.appendChild(makeBlockSummaryTile(def, tile, index));
+          tilesRoot.appendChild(makeCommercialSummaryTile(tile, index));
         });
       }
     }
     root.appendChild(tilesRoot);
   }
 
-  function hideBlockSummary(def) {
-    var root = getBlockSummaryElement(def);
+  function hideCommercialSummary() {
+    var root = ensureCommercialSummaryElement();
     if (!root) return;
     root.hidden = true;
     root.innerHTML = "";
     root.classList.remove("is-collapsed");
   }
 
-  function hideAllBlockSummaries() {
-    BLOCK_SUMMARY_DEFS.forEach(hideBlockSummary);
-  }
-
-  function loadBlockSummary(def) {
-    var target = findBlockTarget(def);
+  function loadCommercialSummary() {
+    var target = findCommercialTarget();
     if (!target || !shouldShowChairmanLanding()) {
-      hideBlockSummary(def);
+      hideCommercialSummary();
       return Promise.resolve();
     }
-    var key = blockSummaryCacheKey(def, target);
+    var key = commercialSummaryCacheKey(target);
     var cached = state.cache[key];
     if (cached && !cached.loading && Array.isArray(cached.tiles)) {
-      renderBlockSummary(def, cached);
+      renderCommercialSummary(cached);
       return Promise.resolve();
     }
-    var seq = ++state.blockRequestSeq[def.key];
+    var seq = ++state.commercialRequestSeq;
     state.cache[key] = { loading: true };
-    renderBlockSummary(def, state.cache[key]);
-    var catalogId = target.catalogId || target.id || def.defaultCatalogId || "";
+    renderCommercialSummary(state.cache[key]);
+    var catalogId = target.catalogId || target.id || "";
     return fetchTilesFor(catalogId)
       .then(function (result) {
-        if (seq !== state.blockRequestSeq[def.key]) return;
-        var maxTiles = def.maxTiles != null ? def.maxTiles : 4;
+        if (seq !== state.commercialRequestSeq) return;
         if (!result || result.unauthorized || result.ok === false) {
           state.cache[key] = { loading: false, tiles: [], error: "error" };
         } else {
           state.cache[key] = {
             loading: false,
-            tiles: Array.isArray(result.tiles) ? result.tiles.slice(0, maxTiles) : [],
+            tiles: Array.isArray(result.tiles) ? result.tiles.slice(0, 4) : [],
           };
         }
-        renderBlockSummary(def, state.cache[key]);
+        renderCommercialSummary(state.cache[key]);
       })
       .catch(function () {
-        if (seq !== state.blockRequestSeq[def.key]) return;
+        if (seq !== state.commercialRequestSeq) return;
         state.cache[key] = { loading: false, tiles: [], error: "error" };
-        renderBlockSummary(def, state.cache[key]);
+        renderCommercialSummary(state.cache[key]);
       });
-  }
-
-  function loadAllBlockSummaries() {
-    return Promise.all(
-      BLOCK_SUMMARY_DEFS.map(function (def) {
-        return loadBlockSummary(def);
-      })
-    );
-  }
-
-  function renderAllBlockSummaries(entry) {
-    BLOCK_SUMMARY_DEFS.forEach(function (def) {
-      renderBlockSummary(def, entry);
-    });
   }
 
   function buildCardHead(target) {
@@ -1013,7 +919,7 @@
     if (!target) return;
     state.expandedCatalogId = target.catalogId || target.id || "";
     if (overviewEl) overviewEl.hidden = true;
-    hideAllBlockSummaries();
+    hideCommercialSummary();
     setWorkspaceChairmanOverviewMode(false);
     setExpandedBar(target);
     call("onExpand", [target]);
@@ -1024,16 +930,13 @@
     setWorkspaceChairmanOverviewMode(false);
     hideExpandedBar();
     call("onBackToOverview", []);
-    renderAllBlockSummaries({ loading: true });
-    loadAllBlockSummaries();
+    renderCommercialSummary({ loading: true });
+    loadCommercialSummary();
   }
 
   function invalidate() {
     state.cache = Object.create(null);
     state.cardPageIndex = 0;
-    BLOCK_SUMMARY_DEFS.forEach(function (def) {
-      state.blockRequestSeq[def.key] = 0;
-    });
   }
 
   function reload() {
@@ -1042,28 +945,28 @@
       render();
       loadAll();
     }
-    loadAllBlockSummaries();
+    loadCommercialSummary();
   }
 
   function showIfNeeded() {
     if (!shouldShowOverview()) {
       hide();
       hideExpandedBar();
-      hideAllBlockSummaries();
+      hideCommercialSummary();
       return false;
     }
     if (!shouldShowChairmanLanding()) {
       hide();
       hideExpandedBar();
-      hideAllBlockSummaries();
+      hideCommercialSummary();
       return false;
     }
     /* На входе ПСД больше не показываем две обзорные карточки:
-       оставляем обычный my_dashboard и добавляем компактные блоки сверху. */
+       оставляем обычный my_dashboard и добавляем компактный коммерческий блок сверху. */
     hide();
     hideExpandedBar();
-    renderAllBlockSummaries({ loading: true });
-    loadAllBlockSummaries();
+    renderCommercialSummary({ loading: true });
+    loadCommercialSummary();
     return false;
   }
 
@@ -1076,7 +979,7 @@
     state.expandedCatalogId = null;
     hide();
     hideExpandedBar();
-    hideAllBlockSummaries();
+    hideCommercialSummary();
   }
 
   function isVisible() {
@@ -1108,8 +1011,7 @@
     getExpandedCatalogId: getExpandedCatalogId,
     backToOverview: backToOverview,
     reload: reload,
-    reloadCommercialSummary: loadAllBlockSummaries,
-    reloadBlockSummaries: loadAllBlockSummaries,
+    reloadCommercialSummary: loadCommercialSummary,
     invalidate: invalidate,
   };
 })(typeof window !== "undefined" ? window : globalThis);

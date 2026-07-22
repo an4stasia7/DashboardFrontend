@@ -2076,10 +2076,6 @@
   display: none !important;
 }
 
-.dash-chairman-commercial-summary + .dash-chairman-commercial-summary {
-  margin-top: 12px;
-}
-
 .dash-chairman-commercial-head {
   display: flex;
   align-items: center;
