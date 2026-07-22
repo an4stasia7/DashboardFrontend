@@ -672,6 +672,33 @@
     );
   }
 
+  function formatKpiTilePlainNumber(value) {
+    if (value == null || value === "") return "—";
+    var n = Number(value);
+    if (!isFinite(n) || isNaN(n)) return "—";
+    return new Intl.NumberFormat("ru-RU", {
+      maximumFractionDigits: Math.abs(n - Math.round(n)) < 0.000001 ? 0 : 2,
+    }).format(n);
+  }
+
+  function formatKpiTilePlanFactPairByUnit(plan, fact, unit) {
+    var normalizedUnit = String(unit || "").trim().toLowerCase();
+    if (normalizedUnit === "шт." || normalizedUnit === "шт") {
+      return formatKpiTilePlainNumber(plan) + " / " + formatKpiTilePlainNumber(fact) + " шт.";
+    }
+    return formatKpiTileMillionsPlanFactPair(plan, fact);
+  }
+
+  function formatKpiTileProductionMoney(value) {
+    var text = formatKpiTileMoneyShort(value);
+    return text === "—" ? text : text + " руб.";
+  }
+
+  function formatKpiTileProductionQty(value) {
+    var text = formatKpiTilePlainNumber(value);
+    return text === "—" ? text : text + " шт.";
+  }
+
   function formatKpiTileRatioPercent(value) {
     if (value == null || value === "") return "—";
     var n = Number(value);
@@ -1116,6 +1143,9 @@
   }
 
   function buildKpiTileDepartmentAmountsHtml(tile) {
+    if (tile && Array.isArray(tile.production_plan_rows)) {
+      return buildKpiTileProductionPlanRowsHtml(tile);
+    }
     var planByDept = tile && tile.plan_by_dept && typeof tile.plan_by_dept === "object" ? tile.plan_by_dept : null;
     var factByDept = tile && tile.fact_by_dept && typeof tile.fact_by_dept === "object" ? tile.fact_by_dept : null;
     var names = Object.create(null);
@@ -1155,7 +1185,7 @@
       '<div class="kpi-tile-children-list">' +
       rows
         .map(function (row) {
-          var pair = formatKpiTileMillionsPlanFactPair(row.plan, row.fact);
+          var pair = formatKpiTilePlanFactPairByUnit(row.plan, row.fact, tile && tile.unit);
           var canNavigate = String(row.name || "").trim() !== "Прочие подразделения";
           var tagName = canNavigate ? "a" : "div";
           var extraClass = canNavigate ? " kpi-tile-child-link" : " kpi-tile-child-item--static";
@@ -1183,6 +1213,61 @@
             "</" +
             tagName +
             ">"
+          );
+        })
+        .join("") +
+      "</div>"
+    );
+  }
+
+  function buildKpiTileProductionPlanRowsHtml(tile) {
+    var rows = tile && Array.isArray(tile.production_plan_rows) ? tile.production_plan_rows : [];
+    var unit = String((tile && tile.unit) || "").trim().toLowerCase();
+    var isMoneyTile = unit !== "шт." && unit !== "шт";
+    rows = rows
+      .map(function (row) {
+        var name = row && row.name != null ? String(row.name).trim() : "";
+        var plan = isMoneyTile ? row && row.plan_rub : row && row.plan_qty;
+        var fact = isMoneyTile ? row && row.fact_rub : row && row.fact_qty;
+        var planNum = Number(plan);
+        var factNum = Number(fact);
+        var qtyNum = Number(row && row.plan_qty);
+        return {
+          name: name || "Прибор",
+          plan: isFinite(planNum) && !isNaN(planNum) ? planNum : null,
+          fact: isFinite(factNum) && !isNaN(factNum) ? factNum : null,
+          planQty: isFinite(qtyNum) && !isNaN(qtyNum) ? qtyNum : null,
+        };
+      })
+      .filter(function (row) {
+        return row.plan != null || row.fact != null || row.planQty != null;
+      })
+      .sort(function (a, b) {
+        var aMax = Math.max(Math.abs(a.plan || 0), Math.abs(a.fact || 0));
+        var bMax = Math.max(Math.abs(b.plan || 0), Math.abs(b.fact || 0));
+        if (bMax !== aMax) return bMax - aMax;
+        return String(a.name || "").localeCompare(String(b.name || ""), "ru");
+      });
+    if (!rows.length) {
+      return '<div class="kpi-tile-back-message">Нет данных по приборам.</div>';
+    }
+    return (
+      '<div class="kpi-tile-children-list">' +
+      rows
+        .map(function (row) {
+          var valueText = isMoneyTile
+            ? "План (" + formatKpiTileProductionQty(row.planQty) + ") - " + formatKpiTileProductionMoney(row.plan) +
+              " | Факт - " + formatKpiTileProductionMoney(row.fact)
+            : "План - " + formatKpiTileProductionQty(row.plan) + " | Факт - " + formatKpiTileProductionQty(row.fact);
+          return (
+            '<div class="kpi-tile-child-item kpi-tile-child-item--static">' +
+            '<span class="kpi-tile-child-name">' +
+            DashUi.escapeHtml(row.name) +
+            "</span>" +
+            '<span class="kpi-tile-child-value">' +
+            DashUi.escapeHtml(valueText) +
+            "</span>" +
+            "</div>"
           );
         })
         .join("") +
@@ -1322,7 +1407,11 @@
         (hint ? '<p class="kpi-tile-back-hint">' + DashUi.escapeHtml(hint) + "</p>" : "")
       );
     }
+    console.log("tile", tile);
     if (shouldRenderKpiTileBackDeptAmounts(tile)) {
+      var deptAmountsTitle = tile && Array.isArray(tile.production_plan_rows)
+        ? "Приборы за период"
+        : "Подразделения за период";
       return (
         '<div class="kpi-tile-back-head">' +
         '<div class="kpi-tile-back-head-copy">' +
@@ -1336,7 +1425,7 @@
         '<button type="button" class="kpi-tile-flip-action" aria-label="Вернуться к карточке">Назад</button>' +
         "</div></div>" +
         '<div class="kpi-tile-back-section kpi-tile-back-section--dual">' +
-        '<div class="kpi-tile-back-section-title">Подразделения за период</div>' +
+        '<div class="kpi-tile-back-section-title">' + DashUi.escapeHtml(deptAmountsTitle) + "</div>" +
         buildKpiTileDepartmentAmountsHtml(tile) +
         "</div>" +
         (hint ? '<p class="kpi-tile-back-hint">' + DashUi.escapeHtml(hint) + "</p>" : "")

@@ -13,6 +13,24 @@
     "PD-Q1": {
       showBackPlanFact: true,
     },
+    "PD-M1.1.M": {
+      backDeptAmounts: true,
+    },
+    "PD-M1.1.W": {
+      backDeptAmounts: true,
+    },
+    "PD-M1.1.T": {
+      backDeptAmounts: true,
+    },
+    "PD-M1.2.M": {
+      backDeptAmounts: true,
+    },
+    "PD-M1.2.W": {
+      backDeptAmounts: true,
+    },
+    "PD-M1.2.T": {
+      backDeptAmounts: true,
+    },
     "LOG-Q1": {
       allowPartialPlanFact: true,
       showEmptyPlanFact: true,
