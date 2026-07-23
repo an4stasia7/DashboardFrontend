@@ -183,7 +183,7 @@
     "№ Заказа клиента",
     "Контрагент",
     "Просрочка, дн.",
-    "Ликвидированное подразделение",
+    "Подразделение",
     "Причина",
     "Действие",
     "Сумма, руб",
@@ -1087,7 +1087,13 @@
           tableTextOrDash(orderNum),
           tableTextOrDash(counterparty),
           raw.days_overdue != null && raw.days_overdue !== "" ? tableTextOrDash(raw.days_overdue) : "—",
-          tableTextOrDash(raw.liquidated_dept_name || raw["Ликвидированное подразделение"]),
+          tableTextOrDash(
+            raw.department ||
+              raw["Подразделение"] ||
+              raw.dept_name ||
+              raw.liquidated_dept_name ||
+              raw["Ликвидированное подразделение"]
+          ),
           tableTextOrDash(raw.reason),
           tableTextOrDash(raw.action),
           formatClaimsOrderSum(raw.amount),
@@ -1833,7 +1839,7 @@
         { index: 0, label: "№ Заказа клиента", type: "filter", searchType: "text" },
         { index: 1, label: "Контрагент", type: "filter", searchType: "text" },
         { index: 2, label: "Просрочка, дн.", type: "sort", searchType: "text" },
-        { index: 3, label: "Ликвидированное подразделение", type: "filter", searchType: "text" },
+        { index: 3, label: "Подразделение", type: "filter", searchType: "text" },
         { index: 4, label: "Причина", type: "filter", searchType: "text" },
         { index: 5, label: "Действие", type: "none", searchType: "text" },
         { index: 6, label: "Сумма, руб", type: "sort", searchType: "text" },
