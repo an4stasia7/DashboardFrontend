@@ -1986,7 +1986,6 @@
         (hint ? '<p class="kpi-tile-back-hint">' + DashUi.escapeHtml(hint) + "</p>" : "")
       );
     }
-    console.log("tile", tile);
     if (shouldRenderKpiTileBackDeptAmounts(tile)) {
       var deptAmountsTitle = tile && Array.isArray(tile.production_plan_rows)
         ? "Приборы за период"
