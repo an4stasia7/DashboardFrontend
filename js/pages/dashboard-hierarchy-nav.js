@@ -438,12 +438,35 @@
         return t;
       }
     }
+    /* selectedViewId = chairman:commerce, а в targets ещё старый снимок — берём catalogId из id */
+    var viewId = selectedViewId != null ? String(selectedViewId) : "";
+    if (viewId.indexOf("chairman:") === 0) {
+      var fromView = "";
+      try {
+        fromView = decodeURIComponent(viewId.slice("chairman:".length)).trim();
+      } catch (e) {
+        fromView = viewId.slice("chairman:".length).trim();
+      }
+      if (fromView) {
+        rememberedChairmanCatalogId = fromView;
+        for (var vi = 0; vi < chairmanTargets.length; vi++) {
+          var vt = chairmanTargets[vi];
+          if (!vt) continue;
+          var vcid = vt.catalogId != null ? String(vt.catalogId).trim() : "";
+          if (vcid && vcid === fromView) return vt;
+        }
+      }
+    }
     if (rememberedChairmanCatalogId) {
       for (var j = 0; j < chairmanTargets.length; j++) {
         var mt = chairmanTargets[j];
         if (!mt) continue;
         var mcid = mt.catalogId != null ? String(mt.catalogId).trim() : "";
         if (mcid && mcid === rememberedChairmanCatalogId) return mt;
+      }
+      /* Не сбрасываем commerce в my_dashboard через совпадение корня иерархии с отделом ПСД */
+      if (rememberedChairmanCatalogId !== "my_dashboard") {
+        return null;
       }
     }
     var hierarchy = getHierarchyStack();
@@ -459,8 +482,20 @@
 
   function getActiveChairmanCatalogId() {
     var target = getActiveChairmanCatalogTarget();
-    if (!target || target.catalogId == null) return "";
-    return String(target.catalogId).trim();
+    if (target && target.catalogId != null && String(target.catalogId).trim()) {
+      return String(target.catalogId).trim();
+    }
+    if (rememberedChairmanCatalogId) return String(rememberedChairmanCatalogId).trim();
+    var viewId = getSelectedViewId();
+    viewId = viewId != null ? String(viewId) : "";
+    if (viewId.indexOf("chairman:") === 0) {
+      try {
+        return decodeURIComponent(viewId.slice("chairman:".length)).trim();
+      } catch (e) {
+        return viewId.slice("chairman:".length).trim();
+      }
+    }
+    return "";
   }
 
   function renderChairmanDashboardTabs() {

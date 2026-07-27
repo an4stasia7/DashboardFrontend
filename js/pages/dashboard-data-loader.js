@@ -36,6 +36,12 @@
     );
   }
 
+  /** Виртуальные вкладки ПСД (`chairman:commerce`) — не «чужой отдел», а свой дашборд с `?for=`. */
+  function isChairmanVirtualCatalogView(selectedViewId) {
+    var id = selectedViewId != null ? String(selectedViewId) : "";
+    return id.indexOf("chairman:") === 0;
+  }
+
   function getChairmanDashboardCatalogId() {
     var fn = getContext().getChairmanDashboardCatalogId;
     return typeof fn === "function" ? fn() : "";
@@ -414,7 +420,8 @@
 
     var selectedViewId = getSelectedViewId();
     var viewContextUser = getViewContextUser();
-    var isSelf = selectedViewId === "self";
+    /* commerce и др. виртуальные блоки ПСД грузим через /api/kpi/?for=…, не через /all/ как чужой отдел */
+    var isSelf = selectedViewId === "self" || isChairmanVirtualCatalogView(selectedViewId);
     var role = viewContextUser.role;
     var elHint = document.getElementById("dash-user-hint");
 

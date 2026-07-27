@@ -797,8 +797,19 @@
     var fromNav = callHierarchyNav("getActiveChairmanCatalogId", [], "");
     if (fromNav) return fromNav;
     var target = getCurrentViewTarget();
-    if (!target || target.catalogKind !== "chairman" || target.catalogId == null) return "";
-    return String(target.catalogId).trim();
+    if (target && target.catalogKind === "chairman" && target.catalogId != null) {
+      return String(target.catalogId).trim();
+    }
+    /* Fallback: id вида chairman:commerce → commerce (если каталог ещё не сматчился) */
+    var viewId = selectedViewId != null ? String(selectedViewId) : "";
+    if (viewId.indexOf("chairman:") === 0) {
+      try {
+        return decodeURIComponent(viewId.slice("chairman:".length)).trim();
+      } catch (e) {
+        return viewId.slice("chairman:".length).trim();
+      }
+    }
+    return "";
   }
 
   function isChairmanRootHierarchy() {
@@ -2394,7 +2405,7 @@
       dz_client: 0, kz_client: 0,
       dz_supplier: 0, kz_supplier: 0,
       dz_total: 0, kz_total: 0,
-      portfolio_count: 0, deviation_count: 0,
+      portfolio_count: 0, deviation_count: 0, without_deviation_count: 0,
     };
     var extraHas = {
       found: false, won: false, not_participating: false,
@@ -2402,7 +2413,7 @@
       dz_client: false, kz_client: false,
       dz_supplier: false, kz_supplier: false,
       dz_total: false, kz_total: false,
-      portfolio_count: false, deviation_count: false,
+      portfolio_count: false, deviation_count: false, without_deviation_count: false,
     };
     var planByDept = {};
     var factByDept = {};
@@ -2477,6 +2488,20 @@
     if (pctTotal != null) {
       kpiPct = pctTotal;
     }
+    // FND-T6 «Портфель проектов»: KPI = без отклонений по вехам / все проекты × 100%.
+    if (
+      extraHas.portfolio_count &&
+      Math.abs(extraSums.portfolio_count) > 0.000001
+    ) {
+      var withoutAgg = extraHas.without_deviation_count
+        ? extraSums.without_deviation_count
+        : (extraHas.deviation_count
+          ? Math.max(extraSums.portfolio_count - extraSums.deviation_count, 0)
+          : null);
+      if (withoutAgg != null) {
+        kpiPct = (withoutAgg / extraSums.portfolio_count) * 100;
+      }
+    }
     var limitRag = isBudgetFotLimitKpiItem(item) ? planFactLimitRag(plan, fact) : null;
     var turnoverRag = isTurnoverKpiItem(item) ? turnoverLimitRagFromPct(kpiPct) : null;
     var shareRag = isMrk06ShareKpiItem(item) ? mrk06ShareRagFromPct(kpiPct) : null;
@@ -2511,6 +2536,7 @@
       kz_total: kzTotal,
       portfolio_count: extraHas.portfolio_count ? extraSums.portfolio_count : null,
       deviation_count: extraHas.deviation_count ? extraSums.deviation_count : null,
+      without_deviation_count: extraHas.without_deviation_count ? extraSums.without_deviation_count : null,
       pct_client: pctClient,
       pct_supplier: pctSupplier,
       pct_total: pctTotal,
@@ -2694,6 +2720,12 @@
           ? point.deviation_count
           : rawItem.deviation_count != null
             ? rawItem.deviation_count
+            : null,
+      without_deviation_count:
+        point && point.without_deviation_count != null
+          ? point.without_deviation_count
+          : rawItem.without_deviation_count != null
+            ? rawItem.without_deviation_count
             : null,
       plan_by_dept:
         point && point.plan_by_dept && typeof point.plan_by_dept === "object"
@@ -2950,8 +2982,6 @@
           ? "Улучшение и развитие"
           : isLogisticsDashboardContext()
           ? "Дебиторская задолженность"
-          : isBoardChairOwnDashboard
-          ? "ТОП-10 решений / эскалаций"
           : "Расшифровка просроченной дебиторской задолженности";
     }
 
@@ -2990,7 +3020,12 @@
     if (overdueDebtTableTitleEl && overdueDebtTableTitleEl.closest) {
       var overduePanel = overdueDebtTableTitleEl.closest(".table-panel");
       if (overduePanel) {
-        overduePanel.hidden = useTechnicalTables || useOpdirProjectTables || useChiefConstructorTables;
+        /* ПСД «Мой дашборд»: FND-B2 не реализован — панель не показываем */
+        overduePanel.hidden =
+          useTechnicalTables ||
+          useOpdirProjectTables ||
+          useChiefConstructorTables ||
+          isBoardChairOwnDashboard;
       }
     }
 
