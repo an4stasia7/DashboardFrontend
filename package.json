@@ -1,6 +1,6 @@
 {
   "name": "dashboard-desktop",
-  "version": "1.2.3",
+  "version": "1.2.4",
   "description": "Управленческий дашборд — desktop (Electron)",
   "main": "main.js",
   "author": "Dashboard",
