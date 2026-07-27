@@ -1835,6 +1835,10 @@
     var showHelp = shouldShowKpiTileHelp(tile);
     var showPercent = shouldShowKpiTilePercent(tile);
     if (rule && rule.backProjectDeviations) {
+      var projectListTitle =
+        rule.backProjectDeviationsTitle != null && String(rule.backProjectDeviationsTitle).trim()
+          ? String(rule.backProjectDeviationsTitle).trim()
+          : "Проекты КБ за период";
       return (
         '<div class="kpi-tile-back-head">' +
         '<div class="kpi-tile-back-head-copy">' +
@@ -1848,7 +1852,7 @@
         '<button type="button" class="kpi-tile-flip-action" aria-label="Вернуться к карточке">Назад</button>' +
         "</div></div>" +
         '<div class="kpi-tile-back-section">' +
-        '<div class="kpi-tile-back-section-title">Проекты КБ за период</div>' +
+        '<div class="kpi-tile-back-section-title">' + DashUi.escapeHtml(projectListTitle) + "</div>" +
         buildKpiTileProjectDeviationsHtml(tile) +
         "</div>" +
         (hint ? '<p class="kpi-tile-back-hint">' + DashUi.escapeHtml(hint) + "</p>" : "")

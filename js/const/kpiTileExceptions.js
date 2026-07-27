@@ -161,7 +161,8 @@
     "FND-T6": {
       kpiPctOnly: true,
       hideKpiPercent: true,
-      backPortfolioAmounts: true,
+      backProjectDeviations: true,
+      backProjectDeviationsTitle: "Все проекты портфеля",
       frontAccentColor: "#374e6f",
     },
     "FND-T7": {

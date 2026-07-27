@@ -36,19 +36,10 @@
     );
   }
 
-  function shouldUseChairmanAggregatedTiles() {
-    var fn = getContext().shouldUseChairmanAggregatedTiles;
-    return typeof fn === "function" ? !!fn() : false;
-  }
-
-  function getActiveChairmanCatalogTarget() {
-    var fn = getContext().getActiveChairmanCatalogTarget;
-    return typeof fn === "function" ? fn() : null;
-  }
-
-  function isViewingChairmanCatalogDashboard() {
-    var sid = getSelectedViewId() != null ? String(getSelectedViewId()) : "";
-    return sid.indexOf("chairman:") === 0;
+  /** Виртуальные вкладки ПСД (`chairman:commerce`) — не «чужой отдел», а свой дашборд с `?for=`. */
+  function isChairmanVirtualCatalogView(selectedViewId) {
+    var id = selectedViewId != null ? String(selectedViewId) : "";
+    return id.indexOf("chairman:") === 0;
   }
 
   function getChairmanDashboardCatalogId() {
@@ -478,7 +469,7 @@
     if (result.ok && result.tiles && result.tiles.length > 0) {
       var tilesToRender = result.tiles;
       if (
-        shouldUseChairmanAggregatedTiles() &&
+        isChairmanViewContext() &&
         typeof getContext().getChairmanAggregatedTilesFromRaw === "function"
       ) {
         var aggregated = getContext().getChairmanAggregatedTilesFromRaw(result.data || result.raw || null);
@@ -517,12 +508,6 @@
       }
       if (cacheKey) rememberDrilldownKpiTiles(cacheKey, tilesToRender.slice());
       renderKpiTiles(tilesToRender, renderOptions);
-    } else if (result.ok && isViewingChairmanCatalogDashboard()) {
-      pushDashboardDebugNote(
-        "UI (chairman)",
-        "API вернул ответ без плиток для for=" + String(getChairmanDashboardCatalogId() || "commerce")
-      );
-      renderKpiTiles([], renderOptions);
     } else {
       renderKpiTiles(getMockKpiTilesForRole(role), renderOptions);
     }
@@ -546,7 +531,8 @@
 
     var selectedViewId = getSelectedViewId();
     var viewContextUser = getViewContextUser();
-    var isSelf = selectedViewId === "self";
+    /* commerce и др. виртуальные блоки ПСД грузим через /api/kpi/?for=…, не через /all/ как чужой отдел */
+    var isSelf = selectedViewId === "self" || isChairmanVirtualCatalogView(selectedViewId);
     var role = viewContextUser.role;
     var elHint = document.getElementById("dash-user-hint");
 
@@ -561,15 +547,7 @@
         currentPeriodYear: null,
       });
       updateMonthNavigatorUI();
-      if (isViewingChairmanCatalogDashboard()) {
-        pushDashboardDebugNote(
-          "UI (chairman)",
-          "Не удалось загрузить KPI для for=" + String(getChairmanDashboardCatalogId() || "commerce")
-        );
-        renderKpiTiles([]);
-      } else {
-        renderKpiTiles(getMockKpiTilesForRole(role));
-      }
+      renderKpiTiles(getMockKpiTilesForRole(role));
       updateTopBarForView();
       hideLoading();
       bootChartsAndTablesDeferred();
@@ -587,26 +565,6 @@
         pushDashboardDebugNote("UI (mock)", "Подчинённый вид — запросы KPI не выполняются");
         fallback();
         return;
-      }
-      if (isViewingChairmanCatalogDashboard()) {
-        var catalogTarget = getActiveChairmanCatalogTarget();
-        var catalogId =
-          catalogTarget && catalogTarget.catalogId != null
-            ? String(catalogTarget.catalogId).trim()
-            : String(getChairmanDashboardCatalogId() || "").trim();
-        if (catalogId && catalogId !== "my_dashboard") {
-          var catalogOpts = { for: catalogId };
-          if (periodOpts.month != null) catalogOpts.month = periodOpts.month;
-          if (periodOpts.year != null) catalogOpts.year = periodOpts.year;
-          fetchKpis(catalogOpts)
-            .then(function (result) {
-              applyApiResult(result);
-            })
-            .catch(function () {
-              fallback();
-            });
-          return;
-        }
       }
       var subDept = getDepartmentForCurrentKpiContext();
       if (subDept) {
