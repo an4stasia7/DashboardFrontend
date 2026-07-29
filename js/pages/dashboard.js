@@ -598,12 +598,24 @@
         if (!target) return;
         selectedViewId = target.id || "self";
         viewContextUser = target.user || sessionUser;
-        var viewDeptRaw =
-          target.viewDepartment != null && String(target.viewDepartment).trim()
-            ? String(target.viewDepartment).trim()
-            : target.department != null && String(target.department).trim()
-              ? String(target.department).trim()
-              : "";
+        var isVirtualCatalog =
+          target.catalogKind === "chairman" &&
+          target.catalogId != null &&
+          String(target.catalogId).trim() !== "" &&
+          String(target.catalogId).trim() !== "my_dashboard";
+        var viewDeptRaw = "";
+        if (isVirtualCatalog) {
+          // Не подставлять label («Коммерческий блок») в hierarchy — API даст 403.
+          viewDeptRaw =
+            sessionUser && sessionUser.department != null ? String(sessionUser.department).trim() : "";
+        } else {
+          viewDeptRaw =
+            target.viewDepartment != null && String(target.viewDepartment).trim()
+              ? String(target.viewDepartment).trim()
+              : target.department != null && String(target.department).trim()
+                ? String(target.department).trim()
+                : "";
+        }
         if (viewDeptRaw) {
           hierarchyStack = [viewDeptRaw];
         } else {
@@ -1716,7 +1728,9 @@
 
   /**
    * Для выбранного текущего календарного месяца (ещё не закончившегося) на плитках с «ФОТ» / «текучестью» в названии
-   * показываем план/факт за предыдущий месяц (из monthly_data). Исключения по kpi_id: OD-M3.2, LOG-M3.F, TD-M6.
+   * показываем план/факт за предыдущий месяц (из monthly_data).
+   * Исключения по kpi_id: KD-M8 (комдир — в незакрытом месяце ФОТ = 0, без отката на прошлый),
+   * OD-M3.2, LOG-M3.F, TD-M6, GSP-M3, PD-M3.F*.
    */
   function applyPriorMonthFactForFotTurnoverTiles(tiles) {
     if (!Array.isArray(tiles) || !tiles.length) return tiles;
@@ -1738,6 +1752,8 @@
     return tiles.map(function (tile) {
       if (!tile || !isFotOrPersonnelTurnoverKpiTitle(tile.title)) return tile;
       var kpiId = tile.kpi_id != null ? String(tile.kpi_id).trim() : "";
+      // Комдир: в текущем (незакрытом) месяце ФОТ не подменяем июнем — показываем факт июля (0).
+      if (kpiId === "KD-M8") return tile;
       if (kpiId === "PD-M3.F1" || kpiId === "PD-M3.F2") return tile;
       if (kpiId === "OD-M3.2" || kpiId === "LOG-M3.F" || kpiId === "TD-M6") return tile;
       if (isGsppFotKpiId(kpiId)) return tile;
@@ -3785,9 +3801,11 @@
     if (overdueDebtTableTitleEl && overdueDebtTableTitleEl.closest) {
       var overduePanel = overdueDebtTableTitleEl.closest(".table-panel");
       if (overduePanel) {
-        /* ПСД «Мой дашборд»: FND-B2 не реализован — панель не показываем */
+        /* ПСД «Мой дашборд»: FND-B2 не реализован — панель не показываем.
+           У председателя СД / коммерческого блока таблицы просроченной ДЗ нет. */
         overduePanel.hidden =
           hideDefaultCommercialTables ||
+          isBoardChairCommercialBlockContext() ||
           useQualdirDefectTables ||
           useHrdLateVacanciesTable ||
           (useServheadClientsTable && !useServheadSurveysTable) ||
@@ -3852,7 +3870,9 @@
     var show = isBoardChairUser(sessionUser) && typeof sessionUser === "object";
     for (var i = 0; i < wraps.length; i++) {
       var wrap = wraps[i];
-      if (show) {
+      // Фильтр «< 1 млн» у таблицы просрочки не показываем — самой таблицы у ПСД нет.
+      var showThis = show && wrap !== wrapOverdue;
+      if (showThis) {
         wrap.hidden = false;
         wrap.removeAttribute("hidden");
         wrap.setAttribute("aria-hidden", "false");

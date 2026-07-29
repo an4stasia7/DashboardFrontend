@@ -36,10 +36,19 @@
     );
   }
 
-  /** Виртуальные вкладки ПСД (`chairman:commerce`) — не «чужой отдел», а свой дашборд с `?for=`. */
-  function isChairmanVirtualCatalogView(selectedViewId) {
-    var id = selectedViewId != null ? String(selectedViewId) : "";
-    return id.indexOf("chairman:") === 0;
+  function shouldUseChairmanAggregatedTiles() {
+    var fn = getContext().shouldUseChairmanAggregatedTiles;
+    return typeof fn === "function" ? !!fn() : false;
+  }
+
+  function getActiveChairmanCatalogTarget() {
+    var fn = getContext().getActiveChairmanCatalogTarget;
+    return typeof fn === "function" ? fn() : null;
+  }
+
+  function isViewingChairmanCatalogDashboard() {
+    var sid = getSelectedViewId() != null ? String(getSelectedViewId()) : "";
+    return sid.indexOf("chairman:") === 0;
   }
 
   function getChairmanDashboardCatalogId() {
@@ -533,8 +542,7 @@
 
     var selectedViewId = getSelectedViewId();
     var viewContextUser = getViewContextUser();
-    /* commerce и др. виртуальные блоки ПСД грузим через /api/kpi/?for=…, не через /all/ как чужой отдел */
-    var isSelf = selectedViewId === "self" || isChairmanVirtualCatalogView(selectedViewId);
+    var isSelf = selectedViewId === "self";
     var role = viewContextUser.role;
     var elHint = document.getElementById("dash-user-hint");
 
@@ -567,6 +575,35 @@
         pushDashboardDebugNote("UI (mock)", "Подчинённый вид — запросы KPI не выполняются");
         fallback();
         return;
+      }
+      if (isViewingChairmanCatalogDashboard()) {
+        var catalogTarget = getActiveChairmanCatalogTarget();
+        var catalogId =
+          catalogTarget && catalogTarget.catalogId != null ? String(catalogTarget.catalogId).trim() : "";
+        if (catalogId && catalogId !== "my_dashboard") {
+          var catalogOpts = { for: catalogId };
+          // Виртуальный блок: ?department= = подразделение ПСД из сессии, не label «Коммерческий блок».
+          var viewUser = getViewContextUser() || {};
+          var catalogDept =
+            viewUser.department != null && String(viewUser.department).trim()
+              ? String(viewUser.department).trim()
+              : catalogTarget.viewDepartment != null && String(catalogTarget.viewDepartment).trim()
+                ? String(catalogTarget.viewDepartment).trim()
+                : catalogTarget.department != null && String(catalogTarget.department).trim()
+                  ? String(catalogTarget.department).trim()
+                  : "";
+          if (catalogDept) catalogOpts.department = catalogDept;
+          if (periodOpts.month != null) catalogOpts.month = periodOpts.month;
+          if (periodOpts.year != null) catalogOpts.year = periodOpts.year;
+          fetchKpis(catalogOpts)
+            .then(function (result) {
+              applyApiResult(result);
+            })
+            .catch(function () {
+              fallback();
+            });
+          return;
+        }
       }
       var subDept = getDepartmentForCurrentKpiContext();
       if (subDept) {
