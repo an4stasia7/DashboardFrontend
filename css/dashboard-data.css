@@ -1691,6 +1691,32 @@
   border-bottom: none !important;
 }
 
+.dashboard-table#table-lawsuits {
+  table-layout: fixed;
+}
+
+.dashboard-table#table-lawsuits thead th:nth-child(8),
+.dashboard-table#table-lawsuits tbody td:nth-child(8),
+.dashboard-table#table-lawsuits tbody td.dashboard-table-cell--situation {
+  width: 22%;
+  min-width: 0;
+  max-width: 280px;
+  vertical-align: top;
+  overflow: hidden;
+}
+
+.dashboard-table#table-lawsuits tbody td.dashboard-table-cell--situation .dashboard-table-cell-text {
+  display: -webkit-box;
+  max-height: 3.9em;
+  overflow: hidden;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  white-space: normal;
+  word-break: break-word;
+}
+
 .dashboard-table#table-top-deviations tfoot th,
 .table-panel table.dataTable#table-top-deviations tfoot th,
 .dashboard-table#table-overdue-debt tfoot th,

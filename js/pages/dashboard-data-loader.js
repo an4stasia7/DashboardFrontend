@@ -580,12 +580,16 @@
           catalogTarget && catalogTarget.catalogId != null ? String(catalogTarget.catalogId).trim() : "";
         if (catalogId && catalogId !== "my_dashboard") {
           var catalogOpts = { for: catalogId };
+          // Виртуальный блок: ?department= = подразделение ПСД из сессии, не label «Коммерческий блок».
+          var viewUser = getViewContextUser() || {};
           var catalogDept =
-            catalogTarget.viewDepartment != null && String(catalogTarget.viewDepartment).trim()
-              ? String(catalogTarget.viewDepartment).trim()
-              : catalogTarget.department != null && String(catalogTarget.department).trim()
-                ? String(catalogTarget.department).trim()
-                : "";
+            viewUser.department != null && String(viewUser.department).trim()
+              ? String(viewUser.department).trim()
+              : catalogTarget.viewDepartment != null && String(catalogTarget.viewDepartment).trim()
+                ? String(catalogTarget.viewDepartment).trim()
+                : catalogTarget.department != null && String(catalogTarget.department).trim()
+                  ? String(catalogTarget.department).trim()
+                  : "";
           if (catalogDept) catalogOpts.department = catalogDept;
           if (periodOpts.month != null) catalogOpts.month = periodOpts.month;
           if (periodOpts.year != null) catalogOpts.year = periodOpts.year;

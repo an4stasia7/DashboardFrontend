@@ -65,11 +65,24 @@
     }
   }
 
+  var LAWSUITS_TABLE_HEADERS = [
+    "Тип документа",
+    "Контрагент",
+    "Предмет спора",
+    "Роль ГК в споре",
+    "Юр. лицо",
+    "Подразделение",
+    "Дата SLA",
+    "Краткое описание ситуации",
+    "Сумма требований, руб.",
+  ];
+  var LAWSUITS_AMOUNT_COLUMN_INDEX = 8;
+
   function updateLawsuitsTotalRow(dataTableApi) {
     if (!dataTableApi || typeof dataTableApi.column !== "function") return;
     var total = 0;
     dataTableApi
-      .column(6, { search: "applied" })
+      .column(LAWSUITS_AMOUNT_COLUMN_INDEX, { search: "applied" })
       .nodes()
       .each(function (cell) {
         if (!cell || typeof cell.getAttribute !== "function") return;
@@ -713,7 +726,7 @@
     if (secondTable && !secondTable.querySelector("tfoot")) {
       secondTable.insertAdjacentHTML(
         "beforeend",
-        '<tfoot><tr><th colspan="6">Итого</th><th id="lawsuits-table-total-sum">0,00</th></tr></tfoot>'
+        '<tfoot><tr><th colspan="8">Итого</th><th id="lawsuits-table-total-sum">0,00</th></tr></tfoot>'
       );
     }
   }
@@ -779,7 +792,7 @@
       if (secondTable && secondTable.tFoot) {
         secondTable.tFoot.hidden = false;
         secondTable.tFoot.innerHTML =
-          '<tr><th colspan="6">Итого</th><th id="lawsuits-table-total-sum">0,00</th></tr>';
+          '<tr><th colspan="8">Итого</th><th id="lawsuits-table-total-sum">0,00</th></tr>';
       }
     }
   }
@@ -1643,7 +1656,7 @@
       setTableHeaders("table-lawsuits", getTechnicalTableHeadersFromRows(rows, activeTechnicalDevelopmentTableKey));
     } else {
       setTableHeaders("table-top-deviations", DEFAULT_TOP_DEVIATIONS_HEADERS);
-      setTableHeaders("table-lawsuits", ["Тип документа", "Контрагент", "Предмет спора", "Роль ГК в споре", "Юр. лицо", "Подразделение", "Сумма требований, руб."]);
+      setTableHeaders("table-lawsuits", LAWSUITS_TABLE_HEADERS);
     }
     setTableHeaders("table-overdue-debt", DEFAULT_OVERDUE_DEBT_HEADERS);
     if (!qualdirDefectTablesMode && !technicalTablesMode) {
@@ -2155,6 +2168,14 @@
         var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
         if (!raw) return;
         var amount = pickLawsuitsField(raw, ["claim_amount", "amount", "sum", "requirement_sum", "requirements_sum"]);
+        var slaDate = pickLawsuitsField(raw, ["sla_date", "slaDate", "deadline_sla", "КрайнийСрокПоSLA"]);
+        var situation = pickLawsuitsField(raw, [
+          "situation_summary",
+          "situationSummary",
+          "situation",
+          "brief_description",
+          "КраткоеОписаниеСитуации",
+        ]);
         var tr = document.createElement("tr");
         [
           tableTextOrDash(pickLawsuitsField(raw, ["doc_type", "document_type", "documentType"])),
@@ -2163,12 +2184,34 @@
           tableTextOrDash(pickLawsuitsField(raw, ["gc_role", "gk_role", "role", "company_role"])),
           tableTextOrDash(pickLawsuitsField(raw, ["gc_entity", "legal_entity", "entity", "company", "jur_entity", "ur_entity"])),
           tableTextOrDash(pickLawsuitsField(raw, ["initiator_dept", "department", "subdivision", "unit", "division"])),
+          tableTextOrDash(slaDate),
+          tableTextOrDash(situation),
           formatClaimsOrderSum(amount),
         ].forEach(function (value, cellIndex) {
           var td = document.createElement("td");
-          td.textContent = value;
-          if (cellIndex === 6) {
+          if (cellIndex === 7) {
+            var fullText = value === "—" ? "" : String(situation == null ? "" : situation).trim();
+            var displayText = fullText
+              ? fullText.replace(/\r\n/g, "\n").replace(/\n+/g, " ").replace(/\s+/g, " ").trim()
+              : value;
+            td.className = "dashboard-table-cell--situation";
+            var span = document.createElement("span");
+            span.className = "dashboard-table-cell-text";
+            span.textContent = displayText || value;
+            if (fullText) {
+              td.title = fullText;
+              span.title = fullText;
+            }
+            td.appendChild(span);
+          } else {
+            td.textContent = value;
+          }
+          if (cellIndex === LAWSUITS_AMOUNT_COLUMN_INDEX) {
             td.setAttribute("data-order", getClaimsOrderSumSortValue(amount));
+          }
+          if (cellIndex === 6 && slaDate) {
+            td.setAttribute("data-order", String(slaDate).slice(0, 10));
+            td.className = "dashboard-table-cell--date";
           }
           tr.appendChild(td);
         });
@@ -2980,12 +3023,15 @@
         { index: 3, label: "Роль ГК в споре", type: "filter", searchType: "text" },
         { index: 4, label: "Юр. лицо", type: "filter", searchType: "text" },
         { index: 5, label: "Подразделение", type: "filter", searchType: "text" },
-        { index: 6, label: "Сумма требований, руб.", type: "sort", searchType: "text" },
+        { index: 6, label: "Дата SLA", type: "filter", searchType: "date" },
+        { index: 7, label: "Краткое описание ситуации", type: "filter", searchType: "text" },
+        { index: 8, label: "Сумма требований, руб.", type: "sort", searchType: "text" },
       ],
-      initialOrder: [[6, "desc"]],
+      initialOrder: [[LAWSUITS_AMOUNT_COLUMN_INDEX, "desc"]],
       columnDefs: [
         { targets: "_all", orderable: false },
-        { targets: [6], type: "num-fmt", orderable: true },
+        { targets: [6], type: "date", orderable: true },
+        { targets: [LAWSUITS_AMOUNT_COLUMN_INDEX], type: "num-fmt", orderable: true },
       ],
       footerCallback: function () {
         updateLawsuitsTotalRow(this.api());

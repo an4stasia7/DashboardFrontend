@@ -533,6 +533,20 @@ async function performSelfUpdate() {
     syncWindowBackgroundFromUrl(win);
   });
 
+  // Menu.setApplicationMenu(null) снимает стандартные accelerator'ы (Ctrl/Cmd+R).
+  // Возвращаем reload без видимого меню.
+  win.webContents.on("before-input-event", function (event, input) {
+    if (input.type !== "keyDown") return;
+    if (String(input.key || "").toLowerCase() !== "r") return;
+    if (!(input.control || input.meta) || input.alt) return;
+    event.preventDefault();
+    if (input.shift) {
+      win.webContents.reloadIgnoringCache();
+    } else {
+      win.webContents.reload();
+    }
+  });
+
   win.on("will-resize", function () {
     if (win.isDestroyed()) return;
     syncWindowBackgroundFromUrl(win);

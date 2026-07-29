@@ -363,12 +363,16 @@
         hasSelf = true;
         return;
       }
-      var department = rawLabel || rawId;
+      // Виртуальные блоки (commerce и т.п.): подпись для UI, а ?department= —
+      // реальное подразделение ПСД; KPI грузятся с for=<catalogId>.
+      var selfDeptForVirtual =
+        sessionUser && sessionUser.department != null ? String(sessionUser.department).trim() : "";
+      var displayLabel = rawLabel || rawId;
       out.push({
         id: "chairman:" + encodeURIComponent(rawId),
-        label: department,
-        department: department,
-        viewDepartment: department,
+        label: displayLabel,
+        department: selfDeptForVirtual,
+        viewDepartment: selfDeptForVirtual,
         user: sessionUser,
         aliases: aliases,
         catalogKind: "chairman",
@@ -412,6 +416,17 @@
     var root = rootDepartment != null ? String(rootDepartment).trim() : "";
     if (!root) return null;
     var chairmanTargets = getChairmanDashboardTargets();
+    // Несколько виртуальных блоков могут иметь один department (ПСД) —
+    // предпочитаем remembered catalogId (commerce), иначе вернётся «Мой дашборд».
+    if (rememberedChairmanCatalogId) {
+      for (var j = 0; j < chairmanTargets.length; j++) {
+        var pref = chairmanTargets[j];
+        if (!pref) continue;
+        var pcid = pref.catalogId != null ? String(pref.catalogId).trim() : "";
+        var pdept = pref.department != null ? String(pref.department).trim() : "";
+        if (pcid === rememberedChairmanCatalogId && (!pdept || pdept === root)) return pref;
+      }
+    }
     for (var i = 0; i < chairmanTargets.length; i++) {
       var target = chairmanTargets[i];
       var dept = target && target.department != null ? String(target.department).trim() : "";
