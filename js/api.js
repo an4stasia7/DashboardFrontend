@@ -1463,9 +1463,7 @@
         }
       }
       if (typeof point.has_data === "boolean") tile.has_data = point.has_data;
-      if (point.color != null && String(point.color).trim() !== "") {
-        applyBackendTileColor(tile, point.color);
-      }
+      syncTileColorFromMonthlyPoint(tile, point, { useMonthFilter: true });
       var label = formatPlanFactPeriodFromMonthlyPoint(point);
       if (label) tile.plan_fact_period_label = label;
       if (Array.isArray(point.articles)) {
@@ -1567,6 +1565,97 @@
       }
     }
     return best;
+  }
+
+  function isMonthKeyedTablesContainerKey(tabKey) {
+    var key = tabKey != null ? String(tabKey).trim().toUpperCase() : "";
+    return key.indexOf("-BY-MONTH") !== -1;
+  }
+
+  /** Таблица-словарь: ключи «1»…«12», значения — срезы с rows/columns (HRD-T-M1-LATE-VACANCIES-BY-MONTH). */
+  function isMonthKeyedTableMap(tab) {
+    if (!tab || typeof tab !== "object" || Array.isArray(tab)) return false;
+    if (Array.isArray(tab.monthly_data) && tab.monthly_data.length) return false;
+    if (tab.rows != null) return false;
+    if (Array.isArray(tab.columns) && tab.columns.length) return false;
+    var keys = Object.keys(tab);
+    if (!keys.length) return false;
+    for (var i = 0; i < keys.length; i++) {
+      var n = Number(keys[i]);
+      if (isNaN(n) || n < 1 || n > 12) return false;
+      if (!tab[keys[i]] || typeof tab[keys[i]] !== "object") return false;
+    }
+    return true;
+  }
+
+  function pickMonthKeyedTableSlice(tabMap, filterYear, filterMonth) {
+    if (!isMonthKeyedTableMap(tabMap)) return null;
+    var month = Number(filterMonth);
+    if (isNaN(month) || month < 1 || month > 12) return null;
+    var slice = tabMap[String(month)] != null ? tabMap[String(month)] : tabMap[month];
+    if (!slice || typeof slice !== "object") return null;
+    if (filterYear != null && slice.period && slice.period.year != null) {
+      if (Number(slice.period.year) !== Number(filterYear)) return null;
+    }
+    return slice;
+  }
+
+  function getMonthKeyedTableCompanionKey(tabKey) {
+    var key = tabKey != null ? String(tabKey).trim() : "";
+    if (!key || isMonthKeyedTablesContainerKey(key)) return "";
+    return key + "-BY-MONTH";
+  }
+
+  function getMonthKeyedTableTemplateSlice(tabMap, fallbackTab) {
+    if (!isMonthKeyedTableMap(tabMap)) return fallbackTab;
+    var keys = Object.keys(tabMap)
+      .map(function (k) {
+        return Number(k);
+      })
+      .filter(function (n) {
+        return !isNaN(n);
+      })
+      .sort(function (a, b) {
+        return a - b;
+      });
+    if (keys.length && tabMap[String(keys[0])]) return tabMap[String(keys[0])];
+    return fallbackTab;
+  }
+
+  /**
+   * Для таблиц с companion *-BY-MONTH подставляет срез выбранного месяца вместо
+   * плоского снимка «последнего полного месяца» (HRD-T-M1-LATE-VACANCIES).
+   */
+  function resolveTableSourceForPeriod(tables, tabKey, tab, filterYear, filterMonth) {
+    var hasFilter =
+      filterYear != null &&
+      filterMonth != null &&
+      !isNaN(filterYear) &&
+      !isNaN(filterMonth) &&
+      filterMonth >= 1 &&
+      filterMonth <= 12;
+    if (!hasFilter || !tables || !tabKey) return tab;
+
+    var companionKey = getMonthKeyedTableCompanionKey(tabKey);
+    if (!companionKey || !Object.prototype.hasOwnProperty.call(tables, companionKey)) return tab;
+
+    var byMonth = tables[companionKey];
+    var slice = pickMonthKeyedTableSlice(byMonth, filterYear, filterMonth);
+    if (slice) return slice;
+
+    var template = getMonthKeyedTableTemplateSlice(byMonth, tab);
+    return {
+      name: template && template.name != null ? template.name : tab && tab.name,
+      description: template && template.description != null ? template.description : tab && tab.description,
+      columns:
+        template && Array.isArray(template.columns)
+          ? template.columns
+          : tab && Array.isArray(tab.columns)
+            ? tab.columns
+            : null,
+      period: { year: filterYear, month: filterMonth },
+      rows: [],
+    };
   }
 
   /**
@@ -2645,8 +2734,10 @@
     var normalized = getTablesMapFromBody({ "\u0422\u0430\u0431\u043b\u0438\u0446\u044b": tables });
     if (!normalized || typeof normalized !== "object") return;
     Object.keys(normalized).forEach(function (tk) {
+      if (isMonthKeyedTablesContainerKey(tk)) return;
       var tab = normalized[tk];
-      var view = resolveTableTabView(tab, filterYear, filterMonth);
+      var sourceTab = resolveTableSourceForPeriod(normalized, tk, tab, filterYear, filterMonth);
+      var view = resolveTableTabView(sourceTab, filterYear, filterMonth);
       var rows = view.rows;
       if (!rows || !rows.length) return;
       var resolvedTab = {
@@ -2808,23 +2899,82 @@
     return normalized ? normalized : null;
   }
 
-  function resolveBackendTileColor(tile, ownMonthly) {
-    if (ownMonthly && ownMonthly.color != null) {
-      return normalizeBackendTileColor(ownMonthly.color);
-    }
-    if (tile && tile.backend_color != null) {
-      return normalizeBackendTileColor(tile.backend_color);
-    }
-    if (tile && tile.color != null) {
-      return normalizeBackendTileColor(tile.color);
-    }
-    if (tile && tile.status_color != null) {
-      return normalizeBackendTileColor(tile.status_color);
-    }
-    if (tile && tile.rag != null) {
-      return normalizeBackendTileColor(tile.rag);
+  function clearStaleTileColorFields(tile) {
+    if (!tile) return;
+    tile.color = null;
+    tile.rag = null;
+    tile.backend_color = null;
+    tile.status_color = null;
+  }
+
+  function monthlyPointPctForColor(point) {
+    if (!point || typeof point !== "object") return null;
+    if (typeof point.kpi_pct === "number" && !isNaN(point.kpi_pct)) return point.kpi_pct;
+    var planN = Number(point.plan);
+    var factN = Number(point.fact);
+    if (isFinite(planN) && planN > 0 && isFinite(factN) && !isNaN(factN)) {
+      return (factN / planN) * 100;
     }
     return null;
+  }
+
+  /**
+   * Цвет плитки для выбранного месяца: monthly_data[].color, затем пороги/KPI-правила.
+   * При явном месяце не оставляет color/rag с верхнего уровня (last_full_month).
+   */
+  function syncTileColorFromMonthlyPoint(tile, point, options) {
+    options = options || {};
+    var useMonthFilter = !!options.useMonthFilter;
+    if (!tile || !point) return;
+
+    if (point.color != null && String(point.color).trim() !== "") {
+      applyBackendTileColor(tile, point.color);
+      return;
+    }
+
+    var id = tile.kpi_id != null ? String(tile.kpi_id).trim().toUpperCase() : "";
+    var pct = monthlyPointPctForColor(point);
+
+    if (isBudgetFotLimitKpiId(id, tile) && !isHigherIsBetterKpiItem(tile)) {
+      var pfRag = planFactLimitRag(point.plan, point.fact);
+      if (pfRag) {
+        applyBackendTileColor(tile, pfRag);
+        return;
+      }
+    }
+    if (isCommercialHigherIsBetterPlanFactKpiId(id)) {
+      var commercialRag =
+        higherBetterRagFromPlanFact(point.plan, point.fact) ||
+        (pct != null ? higherBetterRagFromPct(pct) : null);
+      if (commercialRag) {
+        applyBackendTileColor(tile, commercialRag);
+        return;
+      }
+    }
+    if (isTurnoverKpiTile(tile) && pct != null) {
+      var turnoverRag = turnoverLimitRagFromPct(pct);
+      if (turnoverRag) {
+        applyBackendTileColor(tile, turnoverRag);
+        return;
+      }
+    }
+
+    var MockData = global.MockData;
+    if (
+      pct != null &&
+      MockData &&
+      typeof MockData.deriveRagFromThresholds === "function"
+    ) {
+      var fromThresholds = MockData.deriveRagFromThresholds(tile, pct);
+      if (fromThresholds) {
+        applyBackendTileColor(tile, fromThresholds);
+        return;
+      }
+    }
+
+    if (useMonthFilter) {
+      clearStaleTileColorFields(tile);
+    }
   }
 
   function applyBackendTileColor(tile, color) {
@@ -2950,18 +3100,6 @@
           tile.unit = ownMonthly.display_unit;
         }
         ensureQualdirPieceCountUnits(tile);
-        var backendColor = resolveBackendTileColor(tile, ownMonthly);
-        if (!backendColor) {
-          if (isBudgetFotLimitKpiId(id, tile) && !isHigherIsBetterKpiItem(tile)) {
-            var pfRag = planFactLimitRag(ownMonthly.plan, ownMonthly.fact);
-            if (pfRag) tile.rag = pfRag;
-          } else if (isCommercialHigherIsBetterPlanFactKpiId(id)) {
-            var commercialRag =
-              higherBetterRagFromPlanFact(ownMonthly.plan, ownMonthly.fact) ||
-              (ownMonthly.kpi_pct != null ? higherBetterRagFromPct(ownMonthly.kpi_pct) : null);
-            if (commercialRag) tile.rag = commercialRag;
-          }
-        }
         if (ownMonthly.expected_plan !== undefined) tile.expected_plan = ownMonthly.expected_plan;
         if (Array.isArray(ownMonthly.plan_fact_rows)) tile.plan_fact_rows = ownMonthly.plan_fact_rows;
         if (Array.isArray(ownMonthly.project_deviation_rows)) {
@@ -2973,17 +3111,11 @@
         if (ownMonthly.kpi_pct != null) {
           tile.percent = ownMonthly.kpi_pct;
           tile.kpi_pct = ownMonthly.kpi_pct;
-          if (!backendColor && isTurnoverKpiTile(tile)) {
-            var turnoverRag = turnoverLimitRagFromPct(ownMonthly.kpi_pct);
-            if (turnoverRag) tile.rag = turnoverRag;
-          }
         } else if (useMonthFilter) {
           tile.kpi_pct = null;
           tile.percent = null;
         }
-        if (backendColor) {
-          applyBackendTileColor(tile, backendColor);
-        }
+        syncTileColorFromMonthlyPoint(tile, ownMonthly, { useMonthFilter: useMonthFilter });
         if (ownMonthly.plan_fact_period_label) tile.plan_fact_period_label = String(ownMonthly.plan_fact_period_label);
         if (
           isCommercialHigherIsBetterPlanFactKpiId(id) &&
@@ -3417,6 +3549,7 @@
       periodMonth
     );
     Object.keys(tables).forEach(function (tk) {
+      if (isMonthKeyedTablesContainerKey(tk)) return;
       var tableMeta = tables[tk];
       var status = tableMeta && typeof tableMeta === "object" && !Array.isArray(tableMeta)
         ? tableMeta.cache_refresh_status
@@ -3431,7 +3564,8 @@
         return item && item.tk === tk;
       });
       if (hasRowsForTable) return;
-      var view = resolveTableTabView(tableMeta, periodYear, periodMonth);
+      var sourceTab = resolveTableSourceForPeriod(tables, tk, tableMeta, periodYear, periodMonth);
+      var view = resolveTableTabView(sourceTab, periodYear, periodMonth);
       var displayWhenEmpty = isServheadSurveysTableTabKey(tk);
       var hasCacheMeta = !!(status || refreshKpiId || updatedAt);
       if (!displayWhenEmpty && !hasCacheMeta) return;
