@@ -892,6 +892,25 @@
   }
 
   /**
+   * Месяц/год для графиков: из query URL или из полей `month`/`year` тела KPI-ответа.
+   */
+  function resolveKpiFilterYearMonth(body, requestUrl) {
+    var qp = parseMonthYearFromKpiUrl(requestUrl || "");
+    if (qp.year != null && qp.month != null) return qp;
+    if (body && typeof body === "object") {
+      var y = parseIntLoose(body.year);
+      var m = parseIntLoose(body.month);
+      if (isNaN(m) || m < 1 || m > 12) {
+        m = parseIntLoose(body.kpi_ref_month);
+      }
+      if (!isNaN(y) && !isNaN(m) && m >= 1 && m <= 12) {
+        return { year: y, month: m };
+      }
+    }
+    return qp;
+  }
+
+  /**
    * Единая постобработка успешного JSON KPI: плитки, графики, таблица план/факт, подстановка план/факт на плитки.
    * @param {object|null} data — распарсенное тело ответа GET /api/kpi/ или /api/kpi/all/
    * @param {string} [requestUrl] — полный URL запроса (для выбора месяца план/факт по ?month=&year=)
@@ -900,7 +919,7 @@
   function processKpiResponseBody(data, requestUrl) {
     var body = unwrapKpiResponseBody(data, requestUrl || "");
     var tiles = normalizeKpiListFromApiResponse(body);
-    var qp = parseMonthYearFromKpiUrl(requestUrl || "");
+    var qp = resolveKpiFilterYearMonth(body, requestUrl || "");
     applyPlanFactFromJsonLastPeriodToTiles(body, tiles, qp.year, qp.month);
     return {
       tiles: tiles,
@@ -1317,6 +1336,50 @@
     return null;
   }
 
+  /** Последний месяц в monthly_data не позже выбранного (или последний с plan/fact). */
+  function findLatestTileMonthlyDataPointUpTo(monthlyData, year, month) {
+    if (!Array.isArray(monthlyData) || !monthlyData.length) return null;
+    var y = Number(year);
+    var m = Number(month);
+    var hasTarget = !isNaN(y) && !isNaN(m) && m >= 1 && m <= 12;
+    var targetKey = hasTarget ? y * 100 + m : Infinity;
+    var best = null;
+    var bestKey = -1;
+    for (var i = 0; i < monthlyData.length; i++) {
+      var point = monthlyData[i];
+      if (!point || typeof point !== "object") continue;
+      var py = Number(point.year);
+      var pm = Number(point.month);
+      if (isNaN(py) || isNaN(pm) || pm < 1 || pm > 12) continue;
+      if (
+        !planFactValuePresent(point.plan) &&
+        !planFactValuePresent(point.fact) &&
+        point.has_data !== true
+      ) {
+        continue;
+      }
+      var key = py * 100 + pm;
+      if ((!hasTarget || key <= targetKey) && key > bestKey) {
+        best = point;
+        bestKey = key;
+      }
+    }
+    if (best) return best;
+    for (var j = monthlyData.length - 1; j >= 0; j--) {
+      var tail = monthlyData[j];
+      if (
+        tail &&
+        typeof tail === "object" &&
+        (planFactValuePresent(tail.plan) ||
+          planFactValuePresent(tail.fact) ||
+          tail.has_data === true)
+      ) {
+        return tail;
+      }
+    }
+    return null;
+  }
+
   function normalizeDefectDirectionDepartments(raw) {
     if (!Array.isArray(raw)) return [];
     return raw
@@ -1728,21 +1791,321 @@
     return -1;
   }
 
+  function categoryLooksLikeMonthName(cat) {
+    var c = cat != null ? String(cat).trim().toLowerCase() : "";
+    if (!c) return false;
+    var monthPrefixes = [
+      "январ",
+      "феврал",
+      "март",
+      "апрел",
+      "май",
+      "июн",
+      "июл",
+      "август",
+      "сентябр",
+      "октябр",
+      "ноябр",
+      "декабр",
+    ];
+    for (var i = 0; i < monthPrefixes.length; i++) {
+      if (c.indexOf(monthPrefixes[i]) === 0) return true;
+    }
+    return false;
+  }
+
+  function seriesCategoriesLookLikeMonths(series) {
+    var categories = Array.isArray(series && series.categories) ? series.categories : [];
+    if (!categories.length) return false;
+    for (var i = 0; i < categories.length; i++) {
+      if (!categoryLooksLikeMonthName(categories[i])) return false;
+    }
+    return true;
+  }
+
+  function readSeriesPlanFactAtIndex(series, idx) {
+    if (!series) return { plan: null, fact: null, point: null };
+    var explicitPlan = Array.isArray(series.plan) ? series.plan : [];
+    var explicitFact = Array.isArray(series.fact) ? series.fact : [];
+    var seriesPoints = getSeriesPointsList(series);
+    var srcPoint =
+      idx >= 0 && seriesPoints[idx] && typeof seriesPoints[idx] === "object" ? seriesPoints[idx] : null;
+    var point = srcPoint ? Object.assign({}, srcPoint) : {};
+    var planValue;
+    var factValue;
+    if (idx >= 0) {
+      planValue = explicitPlan[idx];
+      factValue = explicitFact[idx];
+    } else if (!Array.isArray(series.plan) && !Array.isArray(series.fact)) {
+      planValue = series.plan;
+      factValue = series.fact;
+    } else {
+      planValue = explicitPlan.length === 1 ? explicitPlan[0] : undefined;
+      factValue = explicitFact.length === 1 ? explicitFact[0] : undefined;
+    }
+    if (point.plan == null && planValue !== undefined) point.plan = planValue;
+    if (point.fact == null && factValue !== undefined) point.fact = factValue;
+    return { plan: planValue, fact: factValue, point: point };
+  }
+
+  function seriesHasColumnDataForPeriod(series, year, month) {
+    if (!series) return false;
+    if (findMonthlySeriesDataIndex(series, year, month) >= 0) return true;
+    if (seriesCategoriesLookLikeMonths(series)) return false;
+    if (Array.isArray(series.plan) && series.plan.length) return true;
+    if (Array.isArray(series.fact) && series.fact.length) return true;
+    if (planFactValuePresent(series.plan) || planFactValuePresent(series.fact)) return true;
+    return false;
+  }
+
+  function buildTileLookupByKpiId(body) {
+    var lookup = Object.create(null);
+    if (!body || typeof body !== "object") return lookup;
+    var tilesBlock = body[KPI_JSON_KEY_TILES];
+    var items =
+      tilesBlock && Array.isArray(tilesBlock.items)
+        ? tilesBlock.items
+        : Array.isArray(tilesBlock)
+          ? tilesBlock
+          : [];
+    for (var i = 0; i < items.length; i++) {
+      var tile = items[i];
+      if (!tile || tile.kpi_id == null) continue;
+      lookup[String(tile.kpi_id).trim().toUpperCase()] = tile;
+    }
+    return lookup;
+  }
+
+  function readPlanFactFromTileMonthlyData(kpiId, period, tileLookup) {
+    if (!kpiId || !tileLookup || !period) return null;
+    var tile = tileLookup[String(kpiId).trim().toUpperCase()];
+    if (!tile || !Array.isArray(tile.monthly_data)) return null;
+    var monthlyPoint =
+      findTileMonthlyDataPoint(tile.monthly_data, period.year, period.month) ||
+      findLatestTileMonthlyDataPointUpTo(tile.monthly_data, period.year, period.month);
+    if (!monthlyPoint) return null;
+    return {
+      plan: monthlyPoint.plan,
+      fact: monthlyPoint.fact,
+      point: Object.assign({}, monthlyPoint, {
+        kpi_id: kpiId,
+        year: monthlyPoint.year != null ? monthlyPoint.year : period.year,
+        month: monthlyPoint.month != null ? monthlyPoint.month : period.month,
+      }),
+    };
+  }
+
+  /**
+   * GSPP-C2 / DEVDIR-C2 / RD-C2: одна series, на оси X несколько KPI за один месяц.
+   */
+  function isSeriesKpiSnapshotColumn(series, year, month) {
+    if (!series || typeof series !== "object") return false;
+    if (seriesCategoriesLookLikeMonths(series)) return false;
+    var categories = Array.isArray(series.categories) ? series.categories : [];
+    var plan = Array.isArray(series.plan) ? series.plan : [];
+    var fact = Array.isArray(series.fact) ? series.fact : [];
+    if (!categories.length) return false;
+    if (!plan.length && !fact.length) return false;
+    var points = getSeriesPointsList(series);
+    if (!points.length) return true;
+    var y = parseIntLoose(year);
+    var m = parseIntLoose(month);
+    if (isNaN(y) || isNaN(m)) return true;
+    var matched = 0;
+    for (var i = 0; i < points.length; i++) {
+      var p = points[i];
+      if (!p || typeof p !== "object") continue;
+      if (parseIntLoose(p.year) === y && parseIntLoose(p.month) === m) matched++;
+    }
+    return matched >= 1 || categories.length >= 2;
+  }
+
+  function buildKpiSnapshotColumnBarIndicator(chart, chartKey, series, period, tileLookup) {
+    var explicitCategories = Array.isArray(series.categories) ? series.categories.slice() : [];
+    var explicitPlan = Array.isArray(series.plan) ? series.plan.slice() : [];
+    var explicitFact = Array.isArray(series.fact) ? series.fact.slice() : [];
+    var seriesPoints = getSeriesPointsList(series);
+    var maxLen = explicitCategories.length;
+    if (explicitPlan.length > maxLen) maxLen = explicitPlan.length;
+    if (explicitFact.length > maxLen) maxLen = explicitFact.length;
+    if (seriesPoints.length > maxLen) maxLen = seriesPoints.length;
+    if (!maxLen) return null;
+
+    var categories = [];
+    var plan = [];
+    var fact = [];
+    var points = [];
+
+    for (var i = 0; i < maxLen; i++) {
+      var srcPoint = seriesPoints[i] && typeof seriesPoints[i] === "object" ? seriesPoints[i] : null;
+      var categoryLabel =
+        explicitCategories[i] != null && String(explicitCategories[i]).trim() !== ""
+          ? String(explicitCategories[i]).trim()
+          : srcPoint && srcPoint.name != null && String(srcPoint.name).trim() !== ""
+            ? String(srcPoint.name).trim()
+            : String(i + 1);
+      var planValue = explicitPlan[i];
+      var factValue = explicitFact[i];
+      var point = srcPoint ? Object.assign({}, srcPoint) : {};
+      var kpiId = srcPoint && srcPoint.kpi_id != null ? String(srcPoint.kpi_id).trim() : "";
+      var fromTiles = kpiId ? readPlanFactFromTileMonthlyData(kpiId, period, tileLookup) : null;
+
+      if (fromTiles) {
+        planValue = fromTiles.plan !== undefined ? fromTiles.plan : planValue;
+        factValue = fromTiles.fact !== undefined ? fromTiles.fact : factValue;
+        point = Object.assign({}, point, fromTiles.point);
+      } else if (srcPoint) {
+        var py = parseIntLoose(srcPoint.year);
+        var pm = parseIntLoose(srcPoint.month);
+        if (!isNaN(py) && !isNaN(pm) && (py !== period.year || pm !== period.month)) {
+          planValue = planValue !== undefined ? planValue : srcPoint.plan;
+          factValue = factValue !== undefined ? factValue : srcPoint.fact;
+          point = Object.assign({}, srcPoint);
+        }
+      }
+
+      if (point.name == null) point.name = categoryLabel;
+      if (point.plan == null && planValue !== undefined) point.plan = planValue;
+      if (point.fact == null && factValue !== undefined) point.fact = factValue;
+      categories.push(categoryLabel);
+      plan.push(numberOrNull(planValue !== undefined ? planValue : point.plan));
+      fact.push(numberOrNull(factValue !== undefined ? factValue : point.fact));
+      points.push(point);
+    }
+
+    if (!categories.length) return null;
+
+    var chartName =
+      chart.name != null && String(chart.name).trim() !== ""
+        ? String(chart.name).trim()
+        : chart.kpi_id != null
+          ? String(chart.kpi_id).trim()
+          : chartKey != null
+            ? String(chartKey).trim()
+            : "KPI";
+
+    return {
+      id: chart.kpi_id || chartKey || chartName,
+      optionLabel: chartName,
+      title: chartName,
+      xAxisTitle: chart.x_axis_title || chart.xAxisTitle || "Показатель",
+      yAxisTitle: chart.y_axis_title || chart.yAxisTitle || "Значение",
+      categories: categories,
+      points: points,
+      plan: plan,
+      fact: fact,
+      disableAllOption: true,
+    };
+  }
+
+  function buildMergedKpiColumnBarIndicator(chart, chartKey, seriesList, period, tileLookup) {
+    var rows = seriesList.filter(function (s) {
+      if (!s) return false;
+      var label = s.form || s.name || s.kpi_id || "KPI";
+      if (isAggregateKpiTile(s, label)) return false;
+      if (seriesHasColumnDataForPeriod(s, period.year, period.month)) return true;
+      return !!(s.kpi_id && readPlanFactFromTileMonthlyData(s.kpi_id, period, tileLookup));
+    });
+    if (!rows.length) return null;
+
+    var categories = [];
+    var plan = [];
+    var fact = [];
+    var points = [];
+
+    rows.forEach(function (s) {
+      var idx = findMonthlySeriesDataIndex(s, period.year, period.month);
+      var pf = readSeriesPlanFactAtIndex(s, idx);
+      if (idx < 0 && s.kpi_id) {
+        var fromTiles = readPlanFactFromTileMonthlyData(s.kpi_id, period, tileLookup);
+        if (fromTiles) {
+          pf = {
+            plan: fromTiles.plan,
+            fact: fromTiles.fact,
+            point: Object.assign({}, fromTiles.point, {
+              name:
+                s.name != null && String(s.name).trim() !== ""
+                  ? String(s.name).trim()
+                  : fromTiles.point.name,
+            }),
+          };
+        }
+      }
+      var categoryLabel =
+        s.form != null && String(s.form).trim() !== ""
+          ? String(s.form).trim()
+          : s.name != null && String(s.name).trim() !== ""
+            ? String(s.name).trim()
+            : pf.point && pf.point.name != null && String(pf.point.name).trim() !== ""
+              ? String(pf.point.name).trim()
+              : s.kpi_id != null
+                ? String(s.kpi_id).trim()
+                : "KPI";
+      if (pf.point.name == null) pf.point.name = categoryLabel;
+      categories.push(categoryLabel);
+      plan.push(
+        numberOrNull(pf.plan !== undefined ? pf.plan : pf.point.plan)
+      );
+      fact.push(
+        numberOrNull(pf.fact !== undefined ? pf.fact : pf.point.fact)
+      );
+      points.push(pf.point);
+    });
+
+    if (!categories.length) return null;
+
+    var chartName =
+      chart.name != null && String(chart.name).trim() !== ""
+        ? String(chart.name).trim()
+        : chart.kpi_id != null
+          ? String(chart.kpi_id).trim()
+          : chartKey != null
+            ? String(chartKey).trim()
+            : "KPI";
+
+    return {
+      id: chart.kpi_id || chartKey || chartName,
+      optionLabel: chartName,
+      title: chartName,
+      xAxisTitle: chart.x_axis_title || chart.xAxisTitle || "Показатель",
+      yAxisTitle: chart.y_axis_title || chart.yAxisTitle || "Значение",
+      categories: categories,
+      points: points,
+      plan: plan,
+      fact: fact,
+      disableAllOption: true,
+    };
+  }
+
   /**
    * column_plan_fact_monthly: на оси X — формы/показатели, значения plan/fact только за выбранный месяц.
    */
-  function buildMonthlyColumnBarIndicatorFromChart(chart, chartKey, filterYear, filterMonth) {
+  function buildMonthlyColumnBarIndicatorFromChart(chart, chartKey, filterYear, filterMonth, tileLookup) {
     var seriesList = getChartSeriesList(chart);
     if (!seriesList.length) return null;
 
     var period = resolveChartFilterYearMonth(chart, filterYear, filterMonth);
     if (!period) return null;
 
+    if (seriesList.length === 1 && isSeriesKpiSnapshotColumn(seriesList[0], period.year, period.month)) {
+      return buildKpiSnapshotColumnBarIndicator(chart, chartKey, seriesList[0], period, tileLookup);
+    }
+
+    if (seriesList.length > 1) {
+      var allKpiColumns = seriesList.every(function (s) {
+        return !s || !seriesCategoriesLookLikeMonths(s);
+      });
+      if (allKpiColumns) {
+        var merged = buildMergedKpiColumnBarIndicator(chart, chartKey, seriesList, period, tileLookup);
+        if (merged) return merged;
+      }
+    }
+
     var usableSeries = seriesList.filter(function (s) {
       if (!s) return false;
       var label = s.form || s.name || s.kpi_id || "KPI";
       if (isAggregateKpiTile(s, label)) return false;
-      return findMonthlySeriesDataIndex(s, period.year, period.month) >= 0;
+      return seriesHasColumnDataForPeriod(s, period.year, period.month);
     });
     if (!usableSeries.length) return null;
 
@@ -1754,14 +2117,11 @@
 
     usableSeries.forEach(function (s) {
       var idx = findMonthlySeriesDataIndex(s, period.year, period.month);
-      if (idx < 0) return;
+      if (idx < 0 && !seriesHasColumnDataForPeriod(s, period.year, period.month)) return;
 
       var explicitCategories = Array.isArray(s.categories) ? s.categories : [];
-      var explicitPlan = Array.isArray(s.plan) ? s.plan : [];
-      var explicitFact = Array.isArray(s.fact) ? s.fact : [];
-      var seriesPoints = getSeriesPointsList(s);
-      var srcPoint = seriesPoints[idx] && typeof seriesPoints[idx] === "object" ? seriesPoints[idx] : null;
-      var point = srcPoint ? Object.assign({}, srcPoint) : {};
+      var pf = readSeriesPlanFactAtIndex(s, idx);
+      var point = pf.point;
 
       var categoryLabel;
       if (multiSeries) {
@@ -1773,11 +2133,11 @@
               : s.kpi_id != null
                 ? String(s.kpi_id).trim()
                 : "KPI";
-      } else if (srcPoint && srcPoint.month_name != null && String(srcPoint.month_name).trim() !== "") {
-        categoryLabel = capitalizeRuMonthToken(srcPoint.month_name);
+      } else if (point && point.month_name != null && String(point.month_name).trim() !== "") {
+        categoryLabel = capitalizeRuMonthToken(point.month_name);
       } else if (chart.period && chart.period.month_name != null && String(chart.period.month_name).trim() !== "") {
         categoryLabel = capitalizeRuMonthToken(chart.period.month_name);
-      } else if (explicitCategories[idx] != null && String(explicitCategories[idx]).trim() !== "") {
+      } else if (idx >= 0 && explicitCategories[idx] != null && String(explicitCategories[idx]).trim() !== "") {
         categoryLabel = capitalizeRuMonthToken(explicitCategories[idx]);
       } else {
         categoryLabel =
@@ -1788,15 +2148,11 @@
               : capitalizeRuMonthToken(MONTH_SHORT[period.month - 1] || String(period.month));
       }
 
-      var planValue = explicitPlan[idx];
-      var factValue = explicitFact[idx];
       if (point.name == null) point.name = categoryLabel;
-      if (point.plan == null && planValue !== undefined) point.plan = planValue;
-      if (point.fact == null && factValue !== undefined) point.fact = factValue;
 
       categories.push(categoryLabel);
-      plan.push(numberOrNull(planValue !== undefined ? planValue : point.plan));
-      fact.push(numberOrNull(factValue !== undefined ? factValue : point.fact));
+      plan.push(numberOrNull(pf.plan !== undefined ? pf.plan : point.plan));
+      fact.push(numberOrNull(pf.fact !== undefined ? pf.fact : point.fact));
       points.push(point);
     });
 
@@ -2695,6 +3051,7 @@
     if (!body) return out;
     var charts = body[KPI_JSON_KEY_CHARTS];
     if (!charts || typeof charts !== "object") return out;
+    var tileLookup = buildTileLookupByKpiId(body);
 
     Object.keys(charts).forEach(function (key) {
       var chart = charts[key];
@@ -2704,7 +3061,13 @@
       if (!target) return;
 
       if (target === "bar" && isMonthlyColumnChartType(chart.chart_type)) {
-        var monthlyBar = buildMonthlyColumnBarIndicatorFromChart(chart, key, filterYear, filterMonth);
+        var monthlyBar = buildMonthlyColumnBarIndicatorFromChart(
+          chart,
+          key,
+          filterYear,
+          filterMonth,
+          tileLookup
+        );
         if (monthlyBar) out.bar.push(monthlyBar);
         return;
       }

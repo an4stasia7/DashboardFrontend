@@ -1917,6 +1917,55 @@
     );
   }
 
+  function isItAutomationHeadDepartmentContext(value) {
+    var normalized = normalizeDashboardRole(value);
+    if (!normalized) return false;
+    return (
+      normalized === "начальник отдела автоматизации ит" ||
+      normalized === "autoit" ||
+      (normalized.indexOf("начальник") !== -1 &&
+        normalized.indexOf("автоматизац") !== -1 &&
+        normalized.indexOf("ит") !== -1)
+    );
+  }
+
+  function isItAutomationHeadDashboardContext() {
+    var currentDepartment = normalizeDashboardRole(getDepartmentForCurrentKpiContext());
+    var responseDepartment = normalizeDashboardRole(lastKpiResponseDepartment);
+    var role = normalizeDashboardRole(viewContextUser && viewContextUser.role);
+    var department = normalizeDashboardRole(viewContextUser && viewContextUser.department);
+    return (
+      isItAutomationHeadDepartmentContext(currentDepartment) ||
+      isItAutomationHeadDepartmentContext(responseDepartment) ||
+      (selectedViewId === "self" &&
+        (isItAutomationHeadDepartmentContext(role) ||
+          isItAutomationHeadDepartmentContext(department) ||
+          isItAutomationHeadDepartmentContext(sessionUser && sessionUser.department) ||
+          isItAutomationHeadDepartmentContext(sessionUser && sessionUser.role)))
+    );
+  }
+
+  function hasRdDashboardTiles(tiles) {
+    if (!Array.isArray(tiles)) return false;
+    for (var i = 0; i < tiles.length; i++) {
+      var id = tiles[i] && tiles[i].kpi_id != null ? String(tiles[i].kpi_id).trim().toUpperCase() : "";
+      if (id.indexOf("RD-M") === 0 || id.indexOf("RD-Q") === 0) return true;
+    }
+    return false;
+  }
+
+  /** Претензии и просроченная ДЗ — не для дашборда начальника отдела автоматизации ИТ (протоколы остаются). */
+  function shouldHideDefaultCommercialTables() {
+    if (isItAutomationHeadDashboardContext()) return true;
+    if (selectedViewId === "self" && hasRdDashboardTiles(lastKpiTiles)) {
+      return (
+        isItAutomationHeadDepartmentContext(sessionUser && sessionUser.department) ||
+        isItAutomationHeadDepartmentContext(viewContextUser && viewContextUser.department)
+      );
+    }
+    return false;
+  }
+
   function hasServheadDashboardTiles(tiles) {
     if (!Array.isArray(tiles)) return false;
     for (var i = 0; i < tiles.length; i++) {
@@ -3634,6 +3683,7 @@
     var useServheadSurveysTable = hasServheadSurveysTable();
     var useServheadClientsOnlyTable = hasServheadClientsTableRows(lastApiTableRows);
     var useQualdirDefectTables = shouldUseQualdirDefectTables();
+    var hideDefaultCommercialTables = shouldHideDefaultCommercialTables();
     if (useTechnicalTables) {
       activeClaimsTableView = "claims";
     }
@@ -3707,7 +3757,7 @@
     if (claimsTableTitleTextEl && claimsTableTitleTextEl.closest) {
       var claimsPanel = claimsTableTitleTextEl.closest(".table-panel");
       if (claimsPanel) {
-        claimsPanel.hidden = false;
+        claimsPanel.hidden = hideDefaultCommercialTables;
       }
     }
 
@@ -3737,9 +3787,14 @@
       if (overduePanel) {
         /* ПСД «Мой дашборд»: FND-B2 не реализован — панель не показываем */
         overduePanel.hidden =
+          hideDefaultCommercialTables ||
+          useQualdirDefectTables ||
+          useHrdLateVacanciesTable ||
+          (useServheadClientsTable && !useServheadSurveysTable) ||
           useTechnicalTables ||
-          useOpdirProjectTables ||
+          useProjectMilestonesTables ||
           useChiefConstructorTables ||
+          useChiefMetrologTables ||
           isBoardChairOwnDashboard;
       }
     }
@@ -3750,6 +3805,11 @@
       useServheadSurveysTable,
       useServheadClientsOnlyTable
     );
+
+    var tablesRow = document.querySelector(".tables-row");
+    if (tablesRow) {
+      tablesRow.hidden = hideDefaultCommercialTables;
+    }
   }
 
   function updateServheadSurveysPeriodFilterVisibility(useServheadSurveysTable, useServheadClientsOnlyTable) {
@@ -3896,8 +3956,10 @@
             ? Number(tablePeriodState.currentPeriodMonth)
             : null;
       }
+      var hideDefaultCommercialTables = shouldHideDefaultCommercialTables();
       DashboardClaimsTable.init({
         rows: lastApiTableRows,
+        hideDefaultCommercialTablesMode: hideDefaultCommercialTables,
         protocolOverdueTableInBody:
           typeof Api !== "undefined" &&
           Api &&

@@ -460,6 +460,8 @@
         periodState.currentPeriodYear,
         periodState.currentPeriodMonth
       );
+      setLastApiChartIndicators(result.chartIndicators || null);
+      setLastApiTableRows(result.tableRows || null);
     }
 
     var role = getViewContextUser().role;

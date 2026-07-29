@@ -3931,6 +3931,12 @@
       return;
     }
 
+    if (options.hideDefaultCommercialTablesMode) {
+      resetDefaultTables(rows);
+      syncProtocolOverduePanel(rows, options);
+      return;
+    }
+
     resetDefaultTables(rows);
     setTechnicalTableMode(technicalTablesMode);
     setOpdirProjectTableMode(opdirProjectTableMode || constructorProjectTableMode);
