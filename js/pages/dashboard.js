@@ -517,7 +517,11 @@
         onUnauthorized: handleUnauthorized,
         pushDashboardDebugNote: pushDashboardDebugNote,
         fetchKpis: function (opts) {
-          return Api.fetchKpis(attachChairmanCatalogForIfNeeded(opts));
+          return Api.fetchKpis(
+            attachActivePeriodToRequestOptions(
+              attachChairmanCatalogForIfNeeded(opts)
+            )
+          );
         },
         fetchKpiAll: function (opts) {
           return Api.fetchKpiAll(attachActivePeriodToRequestOptions(opts || {}));
@@ -686,7 +690,8 @@
             return;
           }
           callChairmanOverview("reloadCommercialSummary", []);
-          if (applyCurrentPeriodFromLastRawResponse()) {
+          var supPeriodNeedsServerData = shouldUseHrdLateVacanciesTable();
+          if (!supPeriodNeedsServerData && applyCurrentPeriodFromLastRawResponse()) {
             return;
           }
           if (
@@ -718,6 +723,10 @@
           donutChartsPageIndex = 0;
           chairmanAggregationMode = mode || "current";
           callChairmanOverview("reloadCommercialSummary", []);
+          if (shouldUseHrdLateVacanciesTable()) {
+            loadKpiTilesAndChartsForView({ preserveViewState: true });
+            return;
+          }
           if (rerenderChairmanTilesFromRaw()) return;
           if (applyCurrentPeriodFromLastRawResponse()) return;
           loadKpiTilesAndChartsForView();
