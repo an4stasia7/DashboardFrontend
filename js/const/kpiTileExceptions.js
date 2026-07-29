@@ -126,7 +126,7 @@
       zeroGeneratedPlanFact: true,
     },
     "LOG-M2": {
-      hidePlanDelta: true,
+      hidePlanDelta: false,
     },
     "GK-M1": {
       backProjectDeviations: true,

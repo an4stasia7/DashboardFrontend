@@ -1098,6 +1098,7 @@
               };
         function normalizeUnits(kpiId, value) {
           var kid = kpiId != null ? String(kpiId).trim().toUpperCase() : "";
+          if (kid === "LOG-M2") return "руб.";
           if (kid === "OD-M1" || kid === "OD-M3.1" || kid === "OD-M3.2") return "руб.";
           if (kid === "KD-M11") return "чел.";
           if (/^QD-M\d+$/i.test(kid)) {
@@ -1164,6 +1165,7 @@
           percent: pct,
           kpi_pst: typeof item.kpi_pst === "number" && !isNaN(item.kpi_pst) ? item.kpi_pst : null,
           kpi_pct: typeof item.kpi_pct === "number" && !isNaN(item.kpi_pct) ? item.kpi_pct : null,
+          kpi_pct_is_deviation: item.kpi_pct_is_deviation === true,
           plan: item.plan,
           fact: item.fact,
           expected_plan: item.expected_plan != null ? item.expected_plan : null,

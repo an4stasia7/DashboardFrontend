@@ -3235,6 +3235,7 @@
           };
     function normalizeUnits(kpiId, value) {
       var kid = kpiId != null ? String(kpiId).trim().toUpperCase() : "";
+      if (kid === "LOG-M2") return "руб.";
       if (kid === "OD-M1" || kid === "OD-M3.1" || kid === "OD-M3.2") return "руб.";
       if (kid === "KD-M11") return "чел.";
       if (/^QD-M\d+$/.test(kid)) {
@@ -3274,6 +3275,11 @@
       point && point.display_unit != null
         ? point.display_unit
         : firstStringValue(["units", "unit", "uom", "measure_unit", "measurement_unit"]);
+    if (String(rawItem.kpi_id || "").trim().toUpperCase() === "LOG-M2") {
+      outPlan = point && point.plan != null ? point.plan : rawItem.plan;
+      outFact = point && point.fact != null ? point.fact : rawItem.fact;
+      outUnit = "руб.";
+    }
 
     var normalizedTile = {
       kpi_id: rawItem.kpi_id != null ? String(rawItem.kpi_id) : "",
@@ -3295,6 +3301,7 @@
       percent: pointPct != null ? pointPct : itemPct,
       kpi_pst: typeof rawItem.kpi_pst === "number" && !isNaN(rawItem.kpi_pst) ? rawItem.kpi_pst : null,
       kpi_pct: pointPct != null ? pointPct : itemPct,
+      kpi_pct_is_deviation: rawItem.kpi_pct_is_deviation === true,
       plan: outPlan,
       fact: outFact,
       expected_plan:

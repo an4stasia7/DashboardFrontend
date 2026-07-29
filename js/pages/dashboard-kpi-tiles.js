@@ -621,9 +621,14 @@
       var signPp = pp > 0 ? "+" : "";
       text = signPp + (Math.round(pp * 100) / 100).toLocaleString("ru-RU", { maximumFractionDigits: 2 }) + " п.п.";
     } else if (kpiPct != null) {
-      var delta = kpiPct - 100;
+      var delta = tile && tile.kpi_pct_is_deviation ? kpiPct : kpiPct - 100;
       var sign = delta > 0 ? "+" : "";
-      text = sign + Math.round(delta) + "%";
+      text =
+        sign +
+        (Math.round(delta * 100) / 100).toLocaleString("ru-RU", {
+          maximumFractionDigits: 2,
+        }) +
+        "%";
     } else if (factNum != null && planNum != null && Math.abs(planNum) > 0) {
       var deltaPct = ((factNum - planNum) / Math.abs(planNum)) * 100;
       var signPct = deltaPct > 0 ? "+" : "";
