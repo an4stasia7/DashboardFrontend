@@ -171,6 +171,8 @@
   }
 
   function resolveKpiTileDisplayUnits(tile) {
+    var kid = tile && tile.kpi_id != null ? String(tile.kpi_id).trim().toUpperCase() : "";
+    if (kid === "LOG-M2") return "руб.";
     var rule = getKpiTileException(tile);
     var usesPieceCount =
       !!(
@@ -513,7 +515,7 @@
       .map(function (point) {
         if (!point || typeof point !== "object") return null;
         var value = point.aggregation === "weighted_delta_amount_div_project_amount"
-          ? readFiniteTileNumber(point.display_fact)
+          ? readFiniteTileNumber(point.kpi_pct != null ? point.kpi_pct : point.display_fact)
           : null;
         if (value == null) value = readFiniteTileNumber(point.fact);
         if (value == null) value = readFiniteTileNumber(point.kpi_pct);
@@ -616,12 +618,21 @@
     var units = String((tile && tile.units) || "").trim();
     var kpiPct = readFiniteTileNumber(tile && (tile.kpi_pct != null ? tile.kpi_pct : tile.percent));
     var text = "";
-    if (units === "%" && factNum != null && planNum != null) {
+    // Отклонение KPI (LOG-M2 и др.): всегда (факт−план)/план в %, не «п.п.» от сырых сумм.
+    if (tile && tile.kpi_pct_is_deviation && kpiPct != null) {
+      var signDev = kpiPct > 0 ? "+" : "";
+      text =
+        signDev +
+        (Math.round(kpiPct * 100) / 100).toLocaleString("ru-RU", {
+          maximumFractionDigits: 2,
+        }) +
+        "%";
+    } else if (units === "%" && factNum != null && planNum != null) {
       var pp = factNum - planNum;
       var signPp = pp > 0 ? "+" : "";
       text = signPp + (Math.round(pp * 100) / 100).toLocaleString("ru-RU", { maximumFractionDigits: 2 }) + " п.п.";
     } else if (kpiPct != null) {
-      var delta = tile && tile.kpi_pct_is_deviation ? kpiPct : kpiPct - 100;
+      var delta = kpiPct - 100;
       var sign = delta > 0 ? "+" : "";
       text =
         sign +

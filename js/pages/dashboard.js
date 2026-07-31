@@ -3062,7 +3062,10 @@
     });
 
     if (hasPlan && Math.abs(plan) > 0.000001 && hasFact) {
-      kpiPct = (fact / plan) * 100;
+      // Взвешенное отклонение закупочной цены: KPI = (факт − план) / план × 100.
+      kpiPct = weightedDisplay
+        ? ((fact - plan) / Math.abs(plan)) * 100
+        : (fact / plan) * 100;
     } else if (lastPct != null) {
       kpiPct = lastPct;
     }
@@ -3121,13 +3124,17 @@
       month_name: null,
       plan: hasPlan ? plan : null,
       fact: hasFact ? fact : null,
-      display_plan: weightedDisplay ? displayPlan : null,
-      display_fact: weightedDisplay ? kpiPct : null,
-      display_unit: weightedDisplay ? (displayUnit || "%") : null,
+      // Для LOG-M2 display_* больше не подменяют суммы на % — план/факт остаются в рублях.
+      display_plan: null,
+      display_fact: null,
+      display_unit: null,
       aggregation: weightedDisplay ? "weighted_delta_amount_div_project_amount" : null,
+      target_deviation_pct: weightedDisplay ? (displayPlan != null ? displayPlan : 5) : null,
       color:
-        weightedDisplay && kpiPct != null && displayPlan != null
-          ? (kpiPct < displayPlan ? "green" : (Math.abs(kpiPct - displayPlan) < 0.000001 ? "yellow" : "red"))
+        weightedDisplay && kpiPct != null
+          ? (kpiPct < (displayPlan != null ? displayPlan : 5)
+            ? "green"
+            : (Math.abs(kpiPct - (displayPlan != null ? displayPlan : 5)) < 0.000001 ? "yellow" : "red"))
           : (shareRag || turnoverRag || limitRag || commercialPlanFactRag),
       expected_plan: extraHas.expected_plan ? extraSums.expected_plan : null,
       found: extraHas.found ? extraSums.found : null,
@@ -3275,10 +3282,20 @@
       point && point.display_unit != null
         ? point.display_unit
         : firstStringValue(["units", "unit", "uom", "measure_unit", "measurement_unit"]);
-    if (String(rawItem.kpi_id || "").trim().toUpperCase() === "LOG-M2") {
+    var isLogM2Tile = String(rawItem.kpi_id || "").trim().toUpperCase() === "LOG-M2";
+    if (isLogM2Tile) {
       outPlan = point && point.plan != null ? point.plan : rawItem.plan;
       outFact = point && point.fact != null ? point.fact : rawItem.fact;
       outUnit = "руб.";
+      if (point && typeof point.kpi_pct === "number" && !isNaN(point.kpi_pct)) {
+        pointPct = point.kpi_pct;
+      } else {
+        var planNumM2 = parseNumberLoose(outPlan);
+        var factNumM2 = parseNumberLoose(outFact);
+        if (planNumM2 != null && factNumM2 != null && Math.abs(planNumM2) > 0.000001) {
+          pointPct = ((factNumM2 - planNumM2) / Math.abs(planNumM2)) * 100;
+        }
+      }
     }
 
     var normalizedTile = {
@@ -3301,7 +3318,7 @@
       percent: pointPct != null ? pointPct : itemPct,
       kpi_pst: typeof rawItem.kpi_pst === "number" && !isNaN(rawItem.kpi_pst) ? rawItem.kpi_pst : null,
       kpi_pct: pointPct != null ? pointPct : itemPct,
-      kpi_pct_is_deviation: rawItem.kpi_pct_is_deviation === true,
+      kpi_pct_is_deviation: isLogM2Tile ? true : rawItem.kpi_pct_is_deviation === true,
       plan: outPlan,
       fact: outFact,
       expected_plan:
