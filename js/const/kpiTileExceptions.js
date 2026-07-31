@@ -126,7 +126,8 @@
       zeroGeneratedPlanFact: true,
     },
     "LOG-M2": {
-      hidePlanDelta: true,
+      hidePlanDelta: false,
+      // Суммы в рублях (млн на плитке); бейдж — KPI% отклонения от плана.
     },
     "GK-M1": {
       backProjectDeviations: true,

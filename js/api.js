@@ -1098,6 +1098,7 @@
               };
         function normalizeUnits(kpiId, value) {
           var kid = kpiId != null ? String(kpiId).trim().toUpperCase() : "";
+          if (kid === "LOG-M2") return "руб.";
           if (kid === "OD-M1" || kid === "OD-M3.1" || kid === "OD-M3.2") return "руб.";
           if (kid === "KD-M11") return "чел.";
           if (/^QD-M\d+$/i.test(kid)) {
@@ -1164,6 +1165,7 @@
           percent: pct,
           kpi_pst: typeof item.kpi_pst === "number" && !isNaN(item.kpi_pst) ? item.kpi_pst : null,
           kpi_pct: typeof item.kpi_pct === "number" && !isNaN(item.kpi_pct) ? item.kpi_pct : null,
+          kpi_pct_is_deviation: item.kpi_pct_is_deviation === true,
           plan: item.plan,
           fact: item.fact,
           expected_plan: item.expected_plan != null ? item.expected_plan : null,
@@ -1451,6 +1453,7 @@
       if (!tile || !Array.isArray(tile.monthly_data)) return;
       var point = findTileMonthlyDataPoint(tile.monthly_data, year, month);
       if (!point) return;
+      var isLogM2 = String(tile.kpi_id || "").trim().toUpperCase() === "LOG-M2";
       if (point.plan !== undefined) tile.plan = point.plan;
       if (point.fact !== undefined) tile.fact = point.fact;
       if (point.kpi_pct !== undefined) {
@@ -1460,6 +1463,24 @@
         } else {
           tile.kpi_pct = null;
           tile.percent = null;
+        }
+      }
+      if (isLogM2) {
+        tile.units = "руб.";
+        tile.unit = "руб.";
+        tile.kpi_pct_is_deviation = true;
+        var planNum = Number(tile.plan);
+        var factNum = Number(tile.fact);
+        if (
+          isFinite(planNum) &&
+          !isNaN(planNum) &&
+          isFinite(factNum) &&
+          !isNaN(factNum) &&
+          Math.abs(planNum) > 0.000001
+        ) {
+          var devPct = ((factNum - planNum) / Math.abs(planNum)) * 100;
+          tile.kpi_pct = devPct;
+          tile.percent = devPct;
         }
       }
       if (typeof point.has_data === "boolean") tile.has_data = point.has_data;
@@ -2847,14 +2868,34 @@
           pickMonthlyPointWithAnyPlanFactForYearMonth(tile.monthly_data, filterYear, filterMonth)
         : pickLatestMonthlyPointWithAnyPlanFact(tile.monthly_data);
       if (!point) return;
-      var isWeightedDeviation = point.aggregation === "weighted_delta_amount_div_project_amount";
+      var kid = String(tile.kpi_id || "").trim().toUpperCase();
+      // LOG-M2: на плитке суммы в рублях, KPI% = (факт−план)/план; не подменять на display_*.
+      var isLogM2RubAmounts = kid === "LOG-M2";
+      var isWeightedDeviation =
+        !isLogM2RubAmounts && point.aggregation === "weighted_delta_amount_div_project_amount";
       var resolved = resolvePlanFactFromMonthlyPoint(point);
+      var kpiPct = resolved.kpi_pct;
+      if (isLogM2RubAmounts && (kpiPct == null || point.aggregation === "weighted_delta_amount_div_project_amount")) {
+        var planNumLog = Number(resolved.plan);
+        var factNumLog = Number(resolved.fact);
+        if (
+          isFinite(planNumLog) &&
+          !isNaN(planNumLog) &&
+          isFinite(factNumLog) &&
+          !isNaN(factNumLog) &&
+          Math.abs(planNumLog) > 0.000001
+        ) {
+          kpiPct = ((factNumLog - planNumLog) / Math.abs(planNumLog)) * 100;
+        } else if (typeof point.kpi_pct === "number" && !isNaN(point.kpi_pct)) {
+          kpiPct = point.kpi_pct;
+        }
+      }
       out[String(tile.kpi_id)] = {
         plan:
           isWeightedDeviation && point.display_plan !== undefined ? point.display_plan : resolved.plan,
         fact: isWeightedDeviation && point.display_fact !== undefined ? point.display_fact : resolved.fact,
         expected_plan: point.expected_plan,
-        kpi_pct: resolved.kpi_pct,
+        kpi_pct: kpiPct,
         plan_fact_rows: Array.isArray(point.plan_fact_rows) ? point.plan_fact_rows : [],
         project_deviation_rows: Array.isArray(point.project_deviation_rows) ? point.project_deviation_rows : [],
         max_allowed_delay_workdays:
@@ -2862,6 +2903,7 @@
         plan_fact_period_label: formatPlanFactPeriodFromMonthlyPoint(point),
         has_data: typeof point.has_data === "boolean" ? point.has_data : undefined,
         display_unit: isWeightedDeviation && point.display_unit != null ? point.display_unit : undefined,
+        force_unit: isLogM2RubAmounts ? "руб." : undefined,
         color: point.color != null ? point.color : undefined,
       };
     });
@@ -3095,9 +3137,17 @@
       if (ownMonthly && !isProductionDeputyOutputPeriodTile(id)) {
         tile.plan = ownMonthly.plan;
         tile.fact = ownMonthly.fact;
-        if (ownMonthly.display_unit != null && !isQualdirPieceCountKpiId(id)) {
+        if (ownMonthly.force_unit != null) {
+          tile.units = ownMonthly.force_unit;
+          tile.unit = ownMonthly.force_unit;
+        } else if (ownMonthly.display_unit != null && !isQualdirPieceCountKpiId(id)) {
           tile.units = ownMonthly.display_unit;
           tile.unit = ownMonthly.display_unit;
+        }
+        if (String(id).trim().toUpperCase() === "LOG-M2") {
+          tile.units = "руб.";
+          tile.unit = "руб.";
+          tile.kpi_pct_is_deviation = true;
         }
         ensureQualdirPieceCountUnits(tile);
         if (ownMonthly.expected_plan !== undefined) tile.expected_plan = ownMonthly.expected_plan;
