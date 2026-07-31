@@ -428,15 +428,19 @@
     return true;
   }
 
+  function shouldShowKpiTileGeneratedFlag(tile) {
+    if (!tile) return false;
+    if (isKpiTileGeneratedData(tile)) return true;
+    // has_data: false на бэке = сгенерированные/заглушечные данные, даже если plan/fact заполнены.
+    return tile.has_data === false;
+  }
+
   function buildKpiTileBodyHtml(tile, hasPf, pfPeriod) {
     var rule = getKpiTileException(tile);
     var isFactOnly = !!(rule && rule.factOnly);
     var hidePlanOnTile = shouldHidePlanOnTile(tile);
     var isKpiPctOnly = !!(rule && rule.kpiPctOnly);
-    var generatedFlag =
-      isKpiTileGeneratedData(tile) || (tile.has_data === false && !hasKpiTileDisplayableMetricValue(tile))
-        ? buildKpiTileGeneratedFlagHtml()
-        : "";
+    var generatedFlag = shouldShowKpiTileGeneratedFlag(tile) ? buildKpiTileGeneratedFlagHtml() : "";
     var periodPrefix =
       rule && rule.periodLabelPrefix != null && String(rule.periodLabelPrefix).trim()
         ? String(rule.periodLabelPrefix).trim() + ": "

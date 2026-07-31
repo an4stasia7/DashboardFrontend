@@ -1710,16 +1710,69 @@
     return false;
   }
 
+  function normalizeKpiIdForCompare(kpiId) {
+    return String(kpiId == null ? "" : kpiId)
+      .trim()
+      .toUpperCase()
+      .replace(/\u041C/g, "M")
+      .replace(/\u0413/g, "G")
+      .replace(/\u0421/g, "S")
+      .replace(/\u041F/g, "P")
+      .replace(/[\s_]/g, "");
+  }
+
   function isGsppFotKpiId(kpiId) {
-    var id = kpiId != null ? String(kpiId).trim().toUpperCase() : "";
-    return (
-      id === "GSP-M3" ||
-      id === "GSPP-M3" ||
-      id === "ГСП-M3" ||
-      id === "ГCП-M3" ||
-      id === "ГСПП-M3" ||
-      id === "ГCПП-M3"
-    );
+    var id = normalizeKpiIdForCompare(kpiId);
+    return id === "GSP-M3" || id === "GSPP-M3";
+  }
+
+  function resolvePriorMonthFotPoint(tile, prevYear, prevMonth) {
+    if (!tile) return null;
+    var monthly = Array.isArray(tile.monthly_data) ? tile.monthly_data : [];
+    var prevPoint = findMonthlyDataPoint(monthly, prevYear, prevMonth);
+    if (prevPoint) return prevPoint;
+    var lfm = tile.last_full_month_row;
+    if (
+      lfm &&
+      typeof lfm === "object" &&
+      Number(lfm.year) === Number(prevYear) &&
+      Number(lfm.month) === Number(prevMonth)
+    ) {
+      return lfm;
+    }
+    return null;
+  }
+
+  function applyPriorMonthColorFromPoint(tile, prevPoint) {
+    if (!tile || !prevPoint) return;
+    if (prevPoint.color != null && String(prevPoint.color).trim()) {
+      tile.color = String(prevPoint.color).toLowerCase().trim();
+      tile.rag = tile.color;
+      return;
+    }
+    if (isTurnoverKpiItem(tile)) {
+      var turnoverPct = parseNumberLoose(prevPoint.kpi_pct);
+      if (turnoverPct == null) {
+        var prevPlan = parseNumberLoose(prevPoint.plan);
+        var prevFact = parseNumberLoose(prevPoint.fact);
+        if (prevPlan != null && Math.abs(prevPlan) > 0.000001 && prevFact != null) {
+          turnoverPct = (prevFact / prevPlan) * 100;
+        }
+      }
+      var turnoverRag = turnoverLimitRagFromPct(turnoverPct);
+      if (turnoverRag) {
+        tile.rag = turnoverRag;
+        tile.color = turnoverRag;
+      }
+      return;
+    }
+    if (isBudgetFotLimitKpiItem(tile) || isGsppFotKpiId(tile.kpi_id) || tile.pct_lower_is_better === true) {
+      var limitRag = planFactLimitRag(tile.plan, tile.fact);
+      if (limitRag) {
+        tile.rag = limitRag;
+        tile.color = limitRag;
+      }
+    }
   }
 
   function planFactPeriodLabelFromMonthlyPoint(point, year) {
@@ -1739,7 +1792,7 @@
    * Для выбранного текущего календарного месяца (ещё не закончившегося) на плитках с «ФОТ» / «текучестью» в названии
    * показываем план/факт за предыдущий месяц (из monthly_data).
    * Исключения по kpi_id: KD-M8 (комдир — в незакрытом месяце ФОТ = 0, без отката на прошлый),
-   * OD-M3.2, LOG-M3.F, TD-M6, GSP-M3, PD-M3.F*.
+   * OD-M3.2, LOG-M3.F, TD-M6, PD-M3.F*.
    */
   function applyPriorMonthFactForFotTurnoverTiles(tiles) {
     if (!Array.isArray(tiles) || !tiles.length) return tiles;
@@ -1765,11 +1818,8 @@
       if (kpiId === "KD-M8") return tile;
       if (kpiId === "PD-M3.F1" || kpiId === "PD-M3.F2") return tile;
       if (kpiId === "OD-M3.2" || kpiId === "LOG-M3.F" || kpiId === "TD-M6") return tile;
-      if (isGsppFotKpiId(kpiId)) return tile;
       if (tile.__priorMonthMergedFromKpiAll) return tile;
-      var monthly = tile.monthly_data;
-      if (!Array.isArray(monthly) || !monthly.length) return tile;
-      var prevPoint = findMonthlyDataPoint(monthly, prevYm.year, prevYm.month);
+      var prevPoint = resolvePriorMonthFotPoint(tile, prevYm.year, prevYm.month);
       if (!prevPoint) return tile;
 
       var next = Object.assign({}, tile);
@@ -1780,8 +1830,7 @@
         next.kpi_pct = prevPoint.kpi_pct;
         next.kpi_pst = prevPoint.kpi_pct;
         next.percent = prevPoint.kpi_pct;
-      }
-      if (isTurnoverKpiItem(next)) {
+      } else if (isTurnoverKpiItem(next)) {
         var turnoverPct = parseNumberLoose(prevPoint.kpi_pct);
         if (turnoverPct == null) {
           var prevPlan = parseNumberLoose(prevPoint.plan);
@@ -1793,12 +1842,8 @@
             next.percent = turnoverPct;
           }
         }
-        var turnoverRag = turnoverLimitRagFromPct(turnoverPct);
-        if (turnoverRag) {
-          next.rag = turnoverRag;
-          next.color = turnoverRag;
-        }
       }
+      applyPriorMonthColorFromPoint(next, prevPoint);
       var pl = planFactPeriodLabelFromMonthlyPoint(prevPoint, prevYm.year);
       if (pl) next.plan_fact_period_label = pl;
       return next;
@@ -2787,6 +2832,7 @@
     if (!item || typeof item !== "object") return false;
     var id = item.kpi_id != null ? String(item.kpi_id).trim().toUpperCase() : "";
     if (id === "KD-M8") return true;
+    if (isGsppFotKpiId(item.kpi_id)) return true;
     if (
       id === "LOG-M3.B" ||
       id === "LOG-M3.F" ||
