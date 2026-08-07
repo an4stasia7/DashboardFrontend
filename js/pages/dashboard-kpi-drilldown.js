@@ -186,6 +186,34 @@
     return 4;
   }
 
+  function getTileExceptionRule(tile) {
+    var cfg = (typeof global !== "undefined" && global && global.KPI_TILE_EXCEPTIONS) || null;
+    if (!cfg || !tile) return null;
+    var key =
+      tile.kpi_id != null && String(tile.kpi_id).trim()
+        ? String(tile.kpi_id).trim()
+        : tile.badge != null && String(tile.badge).trim()
+          ? String(tile.badge).trim()
+          : "";
+    return key && cfg[key] ? cfg[key] : null;
+  }
+
+  function formatDrilldownFactAmount(tile) {
+    var units =
+      tile && tile.units != null && String(tile.units).trim()
+        ? String(tile.units).trim()
+        : tile && tile.unit != null && String(tile.unit).trim()
+          ? String(tile.unit).trim()
+          : "руб.";
+    if (typeof DashUi !== "undefined" && DashUi && typeof DashUi.formatKpiTileFactValueWithUnits === "function") {
+      return DashUi.formatKpiTileFactValueWithUnits(tile && tile.fact, units);
+    }
+    if (tile && tile.fact != null && tile.fact !== "") {
+      return String(tile.fact) + (units ? " " + units : "");
+    }
+    return "—";
+  }
+
   function drillRowFromTile(deptName, tile, isCurrentContext) {
     var label = deptName != null ? String(deptName).trim() : "—";
     if (!tile) {
@@ -199,16 +227,23 @@
       };
     }
     var pres = MockData.getKpiTilePresentation(tile);
-    var pct =
-      tile.kpi_pct != null && typeof tile.kpi_pct === "number" && !isNaN(tile.kpi_pct)
-        ? tile.kpi_pct
-        : tile.kpi_pst != null && typeof tile.kpi_pst === "number" && !isNaN(tile.kpi_pst)
-          ? tile.kpi_pst
-          : pres.percent;
-    var pctLabel = MockData.formatKpiPercentLabel(pct) + "%";
+    var rule = getTileExceptionRule(tile);
+    // KD-M4 / FND-T7: на обороте — сумма ДЗ в рублях, не % к лимиту.
+    var valueLabel =
+      rule && rule.factOnly
+        ? formatDrilldownFactAmount(tile)
+        : (function () {
+            var pct =
+              tile.kpi_pct != null && typeof tile.kpi_pct === "number" && !isNaN(tile.kpi_pct)
+                ? tile.kpi_pct
+                : tile.kpi_pst != null && typeof tile.kpi_pst === "number" && !isNaN(tile.kpi_pst)
+                  ? tile.kpi_pst
+                  : pres.percent;
+            return MockData.formatKpiPercentLabel(pct) + "%";
+          })();
     return {
       department: label,
-      kpiPct: pctLabel,
+      kpiPct: valueLabel,
       rag: pres.rag || "blue",
       isCurrentContext: !!isCurrentContext,
       focus_kpi_id: tile.kpi_id != null ? String(tile.kpi_id).trim() : "",

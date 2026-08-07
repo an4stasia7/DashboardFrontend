@@ -3031,7 +3031,15 @@
           tile.kpi_pct = null;
           tile.percent = null;
         }
-        if (backendColor) {
+        // MRK-04: цвет по отображаемому месячному %, не по YTD с плитки.
+        if (String(id).trim().toUpperCase() === "MRK-04" && ownMonthly.kpi_pct != null) {
+          var mrk04MonthRag =
+            (ownMonthly.color != null ? normalizeBackendTileColor(ownMonthly.color) : null) ||
+            higherBetterRagFromPct(ownMonthly.kpi_pct);
+          if (mrk04MonthRag) {
+            applyBackendTileColor(tile, mrk04MonthRag);
+          }
+        } else if (backendColor) {
           applyBackendTileColor(tile, backendColor);
         }
         if (ownMonthly.plan_fact_period_label) tile.plan_fact_period_label = String(ownMonthly.plan_fact_period_label);
