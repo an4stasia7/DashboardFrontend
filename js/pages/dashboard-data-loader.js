@@ -268,7 +268,7 @@
     var user = getViewContextUser() || {};
     if (!dept && user.department != null) dept = String(user.department);
     return [
-      "dashboard:last-kpi-result:v1",
+      "dashboard:last-kpi-result:v2",
       getSelectedViewId() || "self",
       String(dept || "").trim().toLocaleLowerCase("ru-RU"),
       ps.currentPeriodYear != null ? String(ps.currentPeriodYear) : "",

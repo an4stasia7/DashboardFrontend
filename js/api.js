@@ -1160,6 +1160,7 @@
           quarterly_data: Array.isArray(item.quarterly_data) ? item.quarterly_data : [],
           plan_fact_rows: Array.isArray(item.plan_fact_rows) ? item.plan_fact_rows : [],
           project_deviation_rows: Array.isArray(item.project_deviation_rows) ? item.project_deviation_rows : [],
+          stage_rows: Array.isArray(item.stage_rows) ? item.stage_rows : [],
           max_allowed_delay_workdays:
             item.max_allowed_delay_workdays != null ? item.max_allowed_delay_workdays : null,
           percent: pct,
@@ -1451,6 +1452,8 @@
     if (!Array.isArray(tiles) || !tiles.length) return;
     tiles.forEach(function (tile) {
       if (!tile || !Array.isArray(tile.monthly_data)) return;
+      // HRD-M2/M4/Q4 уже выставлены из last_full_month_row в applyPlanFact — не затирать.
+      if (isSupHrdLateMonthKpiId(tile.kpi_id)) return;
       var point = findTileMonthlyDataPoint(tile.monthly_data, year, month);
       if (!point) return;
       var isLogM2 = String(tile.kpi_id || "").trim().toUpperCase() === "LOG-M2";
@@ -2760,6 +2763,33 @@
     return { plan: plan, fact: fact, kpi_pct: kpiPct };
   }
 
+  function isSupHrdLateMonthKpiId(kpiId) {
+    var kid = kpiId != null ? String(kpiId).trim().toUpperCase() : "";
+    return kid === "HRD-M2" || kid === "HRD-M4" || kid === "HRD-Q4";
+  }
+
+  function monthlyPointHasUsableFact(point, kpiId) {
+    if (!point || !planFactValuePresent(point.fact)) return false;
+    return true;
+  }
+
+  function pickLatestMonthlyPointWithUsableFact(points, kpiId) {
+    if (!points || !points.length) return null;
+    var best = null;
+    var bestKey = -1;
+    for (var i = 0; i < points.length; i++) {
+      var p = points[i];
+      if (!planFactValuePresent(p && p.plan) || !monthlyPointHasUsableFact(p, kpiId)) continue;
+      var k = monthlyPointSortKey(p);
+      if (k < 0) continue;
+      if (k >= bestKey) {
+        bestKey = k;
+        best = p;
+      }
+    }
+    return best;
+  }
+
   function buildPlanFactLookupFromTileMonthlyData(tiles, filterYear, filterMonth) {
     var out = {};
     if (!Array.isArray(tiles) || !tiles.length) return out;
@@ -2771,11 +2801,43 @@
       filterMonth >= 1 &&
       filterMonth <= 12;
     tiles.forEach(function (tile) {
-      if (!tile || !tile.kpi_id || !Array.isArray(tile.monthly_data) || !tile.monthly_data.length) return;
-      var point = useMonthFilter
-        ? findTileMonthlyDataPoint(tile.monthly_data, filterYear, filterMonth) ||
-          pickMonthlyPointWithAnyPlanFactForYearMonth(tile.monthly_data, filterYear, filterMonth)
-        : pickLatestMonthlyPointWithAnyPlanFact(tile.monthly_data);
+      if (!tile || !tile.kpi_id) return;
+      var kidEarly = String(tile.kpi_id || "").trim().toUpperCase();
+      var point = null;
+      // SUP HRD-M2/M4/Q4: всегда опора с бэка (last_full_month_row), иначе август
+      // без факта / fact=0 затирает плитку в «Нет данных из источника».
+      if (
+        isSupHrdLateMonthKpiId(kidEarly) &&
+        tile.last_full_month_row &&
+        typeof tile.last_full_month_row === "object" &&
+        (planFactValuePresent(tile.last_full_month_row.plan) ||
+          monthlyPointHasUsableFact(tile.last_full_month_row, kidEarly))
+      ) {
+        point = tile.last_full_month_row;
+      }
+      if (!point && Array.isArray(tile.monthly_data) && tile.monthly_data.length) {
+        point = useMonthFilter
+          ? findTileMonthlyDataPoint(tile.monthly_data, filterYear, filterMonth) ||
+            pickMonthlyPointWithAnyPlanFactForYearMonth(tile.monthly_data, filterYear, filterMonth)
+          : pickLatestMonthlyPointWithAnyPlanFact(tile.monthly_data);
+        if (point && isSupHrdLateMonthKpiId(kidEarly) && !monthlyPointHasUsableFact(point, kidEarly)) {
+          point = null;
+        }
+        if (!point && useMonthFilter) {
+          point = isSupHrdLateMonthKpiId(kidEarly)
+            ? pickLatestMonthlyPointWithUsableFact(tile.monthly_data, kidEarly)
+            : pickLatestMonthlyPointWithPlanAndFact(tile.monthly_data);
+        }
+      }
+      if (
+        !point &&
+        tile.last_full_month_row &&
+        typeof tile.last_full_month_row === "object" &&
+        (planFactValuePresent(tile.last_full_month_row.plan) ||
+          planFactValuePresent(tile.last_full_month_row.fact))
+      ) {
+        point = tile.last_full_month_row;
+      }
       if (!point) return;
       var kid = String(tile.kpi_id || "").trim().toUpperCase();
       // LOG-M2: на плитке суммы в рублях, KPI% = (факт−план)/план; не подменять на display_*.
@@ -2807,6 +2869,7 @@
         kpi_pct: kpiPct,
         plan_fact_rows: Array.isArray(point.plan_fact_rows) ? point.plan_fact_rows : [],
         project_deviation_rows: Array.isArray(point.project_deviation_rows) ? point.project_deviation_rows : [],
+        stage_rows: Array.isArray(point.stage_rows) ? point.stage_rows : [],
         max_allowed_delay_workdays:
           point.max_allowed_delay_workdays != null ? point.max_allowed_delay_workdays : null,
         plan_fact_period_label: formatPlanFactPeriodFromMonthlyPoint(point),
@@ -3029,6 +3092,9 @@
         if (Array.isArray(ownMonthly.plan_fact_rows)) tile.plan_fact_rows = ownMonthly.plan_fact_rows;
         if (Array.isArray(ownMonthly.project_deviation_rows)) {
           tile.project_deviation_rows = ownMonthly.project_deviation_rows;
+        }
+        if (Array.isArray(ownMonthly.stage_rows)) {
+          tile.stage_rows = ownMonthly.stage_rows;
         }
         if (ownMonthly.max_allowed_delay_workdays != null) {
           tile.max_allowed_delay_workdays = ownMonthly.max_allowed_delay_workdays;

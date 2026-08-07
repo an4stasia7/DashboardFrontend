@@ -1706,13 +1706,19 @@
     return Number(selectedYear) === now.getFullYear() && Number(selectedMonth) === now.getMonth() + 1;
   }
 
-  /** Показатели «ФОТ» и «Текучесть персонала» — по вхождению в название плитки. */
+  /** Показатели «ФОТ», «Текучесть» и адаптация (HRD-Q4) — прошлый месяц при просмотре текущего. */
   function isFotOrPersonnelTurnoverKpiTitle(title) {
     var t = normalizeKpiTitleForMatch(title);
     if (!t) return false;
     if (t.indexOf("фот") !== -1) return true;
     if (t.indexOf("текучесть") !== -1) return true;
+    if (t.indexOf("адаптац") !== -1) return true;
     return false;
+  }
+
+  function isSupLateMonthFallbackKpiId(kpiId) {
+    var id = kpiId != null ? String(kpiId).trim().toUpperCase() : "";
+    return id === "HRD-M2" || id === "HRD-M4" || id === "HRD-Q4";
   }
 
   function isGsppFotKpiId(kpiId) {
@@ -1763,8 +1769,13 @@
     if (!prevYm) return tiles;
 
     return tiles.map(function (tile) {
-      if (!tile || !isFotOrPersonnelTurnoverKpiTitle(tile.title)) return tile;
-      var kpiId = tile.kpi_id != null ? String(tile.kpi_id).trim() : "";
+      var kpiId = tile && tile.kpi_id != null ? String(tile.kpi_id).trim() : "";
+      if (
+        !tile ||
+        (!isFotOrPersonnelTurnoverKpiTitle(tile.title) && !isSupLateMonthFallbackKpiId(kpiId))
+      ) {
+        return tile;
+      }
       if (kpiId === "PD-M3.F1" || kpiId === "PD-M3.F2") return tile;
       if (kpiId === "OD-M3.2" || kpiId === "TD-M6") return tile;
       if (isGsppFotKpiId(kpiId)) return tile;
@@ -1772,6 +1783,7 @@
       var monthly = tile.monthly_data;
       if (!Array.isArray(monthly) || !monthly.length) return tile;
       var prevPoint = findMonthlyDataPoint(monthly, prevYm.year, prevYm.month);
+      // ФОТ: в текущем месяце показываем строго прошлый календарный месяц.
       if (!prevPoint) return tile;
 
       var next = Object.assign({}, tile);
@@ -1801,7 +1813,9 @@
           next.color = turnoverRag;
         }
       }
-      var pl = planFactPeriodLabelFromMonthlyPoint(prevPoint, prevYm.year);
+      var labelYear =
+        prevPoint.year != null && !isNaN(Number(prevPoint.year)) ? Number(prevPoint.year) : prevYm.year;
+      var pl = planFactPeriodLabelFromMonthlyPoint(prevPoint, labelYear);
       if (pl) next.plan_fact_period_label = pl;
       return next;
     });
@@ -3490,6 +3504,12 @@
           ? point.project_deviation_rows
           : Array.isArray(rawItem.project_deviation_rows)
             ? rawItem.project_deviation_rows
+            : [],
+      stage_rows:
+        point && Array.isArray(point.stage_rows)
+          ? point.stage_rows
+          : Array.isArray(rawItem.stage_rows)
+            ? rawItem.stage_rows
             : [],
       max_allowed_delay_workdays:
         point && point.max_allowed_delay_workdays != null
