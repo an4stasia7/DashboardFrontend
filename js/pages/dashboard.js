@@ -690,12 +690,17 @@
             return;
           }
           callChairmanOverview("reloadCommercialSummary", []);
+          // ПСД: при смене месяца всегда ходим на бэк. Иначе monthly_data из ответа
+          // за август подменяет июль устаревшими/пересчитанными строками (выручка, ДЗ/КЗ, портфель).
+          if (isBoardChairUser(viewContextUser)) {
+            loadKpiTilesAndChartsForView({ preserveViewState: true });
+            return;
+          }
           var supPeriodNeedsServerData = shouldUseHrdLateVacanciesTable();
           if (!supPeriodNeedsServerData && applyCurrentPeriodFromLastRawResponse()) {
             return;
           }
           if (
-            isBoardChairUser(viewContextUser) ||
             isCommercialDirectorUser(viewContextUser) ||
             isCommercialHierarchyRootForPriorMonthRule() ||
             isTechnicalDirectorUser(viewContextUser) ||

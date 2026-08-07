@@ -2814,6 +2814,19 @@
         display_unit: isWeightedDeviation && point.display_unit != null ? point.display_unit : undefined,
         force_unit: isLogM2RubAmounts ? "руб." : undefined,
         color: point.color != null ? point.color : undefined,
+        // FND-T3 / FND-T6: детализация лежит в monthly_data выбранного месяца.
+        dz_client: point.dz_client,
+        kz_client: point.kz_client,
+        dz_supplier: point.dz_supplier,
+        kz_supplier: point.kz_supplier,
+        dz_total: point.dz_total,
+        kz_total: point.kz_total,
+        pct_client: point.pct_client,
+        pct_supplier: point.pct_supplier,
+        pct_total: point.pct_total,
+        portfolio_count: point.portfolio_count,
+        deviation_count: point.deviation_count,
+        without_deviation_count: point.without_deviation_count,
       };
     });
     return out;
@@ -3020,6 +3033,22 @@
         if (ownMonthly.max_allowed_delay_workdays != null) {
           tile.max_allowed_delay_workdays = ownMonthly.max_allowed_delay_workdays;
         }
+        [
+          "dz_client",
+          "kz_client",
+          "dz_supplier",
+          "kz_supplier",
+          "dz_total",
+          "kz_total",
+          "pct_client",
+          "pct_supplier",
+          "pct_total",
+          "portfolio_count",
+          "deviation_count",
+          "without_deviation_count",
+        ].forEach(function (extraKey) {
+          if (ownMonthly[extraKey] !== undefined) tile[extraKey] = ownMonthly[extraKey];
+        });
         if (ownMonthly.kpi_pct != null) {
           tile.percent = ownMonthly.kpi_pct;
           tile.kpi_pct = ownMonthly.kpi_pct;
