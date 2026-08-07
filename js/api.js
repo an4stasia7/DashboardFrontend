@@ -1341,6 +1341,39 @@
     return null;
   }
 
+  /** Есть ли в monthly_data точка ровно за year/month (не «ближайший» месяц). */
+  function monthlyDataCoversYearMonth(monthlyData, year, month) {
+    return !!findTileMonthlyDataPoint(monthlyData, year, month);
+  }
+
+  /**
+   * Raw KPI JSON покрывает выбранный месяц: у плиток с monthly_data есть точка за этот месяц.
+   * Иначе локальный пересчёт из кэша другого месяца подставляет чужие plan/fact.
+   */
+  function kpiResponseCoversYearMonth(body, year, month) {
+    var unwrapped = unwrapKpiResponseBody(body, "");
+    if (!unwrapped || typeof unwrapped !== "object") return false;
+    var y = Number(year);
+    var m = Number(month);
+    if (isNaN(y) || isNaN(m) || m < 1 || m > 12) return false;
+    var tilesBlock = unwrapped[KPI_JSON_KEY_TILES];
+    var items =
+      tilesBlock && Array.isArray(tilesBlock.items)
+        ? tilesBlock.items
+        : Array.isArray(tilesBlock)
+          ? tilesBlock
+          : [];
+    var checked = 0;
+    for (var i = 0; i < items.length; i++) {
+      var item = items[i];
+      if (!item || typeof item !== "object") continue;
+      if (!Array.isArray(item.monthly_data) || !item.monthly_data.length) continue;
+      checked++;
+      if (!monthlyDataCoversYearMonth(item.monthly_data, y, m)) return false;
+    }
+    return checked > 0;
+  }
+
   /** Последний месяц в monthly_data не позже выбранного (или последний с plan/fact). */
   function findLatestTileMonthlyDataPointUpTo(monthlyData, year, month) {
     if (!Array.isArray(monthlyData) || !monthlyData.length) return null;
@@ -2529,6 +2562,29 @@
     return best;
   }
 
+  /** Как pickLatestMonthlyPointWithPlanAndFact, но не позже filterYear/filterMonth. */
+  function pickLatestMonthlyPointWithPlanAndFactUpTo(points, year, month) {
+    if (!points || !points.length) return null;
+    var y = Number(year);
+    var m = Number(month);
+    var hasTarget = !isNaN(y) && !isNaN(m) && m >= 1 && m <= 12;
+    var targetKey = hasTarget ? y * 100 + m : Infinity;
+    var best = null;
+    var bestKey = -1;
+    for (var i = 0; i < points.length; i++) {
+      var p = points[i];
+      if (!planFactPointHasBoth(p)) continue;
+      var k = monthlyPointSortKey(p);
+      if (k < 0) continue;
+      if (hasTarget && k > targetKey) continue;
+      if (k >= bestKey) {
+        bestKey = k;
+        best = p;
+      }
+    }
+    return best;
+  }
+
   function pickLatestMonthlyPointWithAnyPlanFact(points) {
     if (!points || !points.length) return null;
     var best = null;
@@ -2870,6 +2926,21 @@
         ? findTileMonthlyDataPoint(tile.monthly_data, filterYear, filterMonth) ||
           pickMonthlyPointWithAnyPlanFactForYearMonth(tile.monthly_data, filterYear, filterMonth)
         : pickLatestMonthlyPointWithAnyPlanFact(tile.monthly_data);
+      // Незакрытый месяц: есть план, факта ещё нет — не показываем «пустой» факт,
+      // берём последний месяц, где заполнены и plan, и fact (стабильная плитка).
+      if (
+        useMonthFilter &&
+        point &&
+        planFactValuePresent(point.plan) &&
+        !planFactValuePresent(point.fact)
+      ) {
+        var completePoint = pickLatestMonthlyPointWithPlanAndFactUpTo(
+          tile.monthly_data,
+          filterYear,
+          filterMonth
+        );
+        if (completePoint) point = completePoint;
+      }
       if (!point) return;
       var kid = String(tile.kpi_id || "").trim().toUpperCase();
       // LOG-M2: на плитке суммы в рублях, KPI% = (факт−план)/план; не подменять на display_*.
@@ -3135,6 +3206,22 @@
       var ch = fromCharts[id];
       var tb = fromTables[id];
       if (isProductionDeputyOutputPeriodTile(id)) {
+        return;
+      }
+      // Выбранный месяц отсутствует в monthly_data (кэш другого периода) —
+      // не оставляем plan/fact чужого месяца под новой подписью периода.
+      if (
+        useMonthFilter &&
+        Array.isArray(tile.monthly_data) &&
+        tile.monthly_data.length > 0 &&
+        !monthlyDataCoversYearMonth(tile.monthly_data, filterYear, filterMonth)
+      ) {
+        tile.plan = null;
+        tile.fact = null;
+        tile.kpi_pct = null;
+        tile.percent = null;
+        tile.has_data = false;
+        if (requestedPeriodLabel) tile.plan_fact_period_label = requestedPeriodLabel;
         return;
       }
       if (ownMonthly && !isProductionDeputyOutputPeriodTile(id)) {
@@ -4293,6 +4380,8 @@
     normalizeKpiListFromApiResponse: normalizeKpiListFromApiResponse,
     buildChartIndicatorsFromApiResponse: buildChartIndicatorsFromApiResponse,
     processKpiResponseBodyAtPeriod: processKpiResponseBodyAtPeriod,
+    kpiResponseCoversYearMonth: kpiResponseCoversYearMonth,
+    monthlyDataCoversYearMonth: monthlyDataCoversYearMonth,
     hasProtocolOverdueTableInBody: hasProtocolOverdueTableInBody,
     hasQualdirDefectTablesInBody: hasQualdirDefectTablesInBody,
     isQualdirDefectTableTabKey: isQualdirDefectTableTabKey,

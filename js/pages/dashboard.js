@@ -51,6 +51,10 @@
   var kpiTileCacheRefreshState = Object.create(null);
   var kpiTileCacheRefreshPollTimers = Object.create(null);
   var kpiTileCooldownTickTimer = null;
+  /** Только пользовательский ⟳ — не авто-poll по статусу из API. */
+  var kpiTileUserInitiatedRefreshKeys = Object.create(null);
+  /** Отложенный reload после фонового refresh, пока окно свёрнуто/скрыто. */
+  var kpiTilePendingReloadOnVisible = false;
 
   /** Индикаторы для графиков, полученные от API (null = данных нет, использовать MockData) */
   var lastApiChartIndicators = null;
@@ -528,6 +532,7 @@
         },
         getActiveChairmanCatalogTarget: getActiveChairmanCatalogTarget,
         shouldUseChairmanAggregatedTiles: shouldUseChairmanAggregatedTiles,
+        shouldApplyPeriodAggregationTiles: shouldApplyPeriodAggregationTiles,
         getSessionApiMode: function () {
           return session.apiMode;
         },
@@ -690,28 +695,12 @@
             return;
           }
           callChairmanOverview("reloadCommercialSummary", []);
-          var supPeriodNeedsServerData = shouldUseHrdLateVacanciesTable();
-          if (!supPeriodNeedsServerData && applyCurrentPeriodFromLastRawResponse()) {
+          // SUP / servhead: при смене месяца — с сервера (таблицы помесячные).
+          if (shouldUseHrdLateVacanciesTable() || shouldUseServheadClientsTable()) {
+            loadKpiTilesAndChartsForView({ preserveViewState: true });
             return;
           }
-          if (
-            isBoardChairUser(viewContextUser) ||
-            isCommercialDirectorUser(viewContextUser) ||
-            isCommercialHierarchyRootForPriorMonthRule() ||
-            isTechnicalDirectorUser(viewContextUser) ||
-            isGsppUser(viewContextUser) ||
-            isSupUser(viewContextUser) ||
-            isSupDepartmentContext(getDepartmentForCurrentKpiContext()) ||
-            isDevserviceUser(viewContextUser) ||
-            isOperationalDirectorUser(viewContextUser) ||
-            isProductionDeputyUser(viewContextUser) ||
-            isLogisticsDashboardContext() ||
-            shouldUseServheadClientsTable() ||
-            isChiefConstructorDashboardContext() ||
-            isChiefMetrologDashboardContext() ||
-            isChiefAccountantDashboardContext()
-          ) {
-            loadKpiTilesAndChartsForView({ preserveViewState: true });
+          if (applyCurrentPeriodFromLastRawResponse()) {
             return;
           }
           loadKpiTilesAndChartsForView({ preserveViewState: true });
@@ -723,7 +712,17 @@
           donutChartsPageIndex = 0;
           chairmanAggregationMode = mode || "current";
           callChairmanOverview("reloadCommercialSummary", []);
-          if (shouldUseHrdLateVacanciesTable()) {
+          var aggMode = String(mode || "current").trim();
+          // YTD/квартал — сумма monthly_data на клиенте (servhead/SUP тоже).
+          if (aggMode === "ytd" || aggMode === "quarter") {
+            if (rerenderChairmanTilesFromRaw()) return;
+            if (applyCurrentPeriodFromLastRawResponse()) return;
+          }
+          // Смена месяца для таблиц SUP/servhead — только в режимах current/month.
+          if (
+            (aggMode === "current" || aggMode === "month") &&
+            (shouldUseHrdLateVacanciesTable() || shouldUseServheadClientsTable())
+          ) {
             loadKpiTilesAndChartsForView({ preserveViewState: true });
             return;
           }
@@ -929,6 +928,23 @@
     return isBoardChairUser(sessionUser) && selectedViewId === "self";
   }
 
+  /** YTD / квартал: суммировать monthly_data на клиенте для любой роли. */
+  function shouldApplyPeriodAggregationTiles() {
+    var mode = chairmanAggregationMode || "current";
+    if (
+      typeof DashboardMonthNav !== "undefined" &&
+      DashboardMonthNav &&
+      typeof DashboardMonthNav.getPeriodState === "function"
+    ) {
+      var ps = DashboardMonthNav.getPeriodState();
+      if (ps && ps.aggregationMode != null && String(ps.aggregationMode).trim()) {
+        mode = String(ps.aggregationMode).trim();
+      }
+    }
+    if (mode === "ytd" || mode === "quarter") return true;
+    return shouldUseChairmanAggregatedTiles();
+  }
+
   function attachChairmanCatalogForIfNeeded(opts) {
     var nextOpts = attachActivePeriodToRequestOptions(opts || {});
     if (!isBoardChairUser(sessionUser) || !isChairmanRootHierarchy()) return nextOpts;
@@ -1063,16 +1079,55 @@
     }, delay);
   }
 
+  function isDocumentCurrentlyVisible() {
+    if (typeof document === "undefined") return true;
+    if (typeof document.visibilityState === "string") {
+      return document.visibilityState === "visible";
+    }
+    return !document.hidden;
+  }
+
+  function reloadKpiTilesAfterUserRefresh() {
+    if (Api && typeof Api.clearKpiGetMemoryCache === "function") {
+      Api.clearKpiGetMemoryCache();
+    }
+    callDataLoader("loadKpiTilesAndChartsForView", [{ preserveViewState: true }]);
+  }
+
+  function scheduleKpiTilesReloadAfterRefresh() {
+    if (!isDocumentCurrentlyVisible()) {
+      kpiTilePendingReloadOnVisible = true;
+      return;
+    }
+    kpiTilePendingReloadOnVisible = false;
+    reloadKpiTilesAfterUserRefresh();
+  }
+
+  function flushPendingKpiTilesReloadOnVisible() {
+    if (!kpiTilePendingReloadOnVisible) return;
+    if (!isDocumentCurrentlyVisible()) return;
+    kpiTilePendingReloadOnVisible = false;
+    reloadKpiTilesAfterUserRefresh();
+  }
+
   function pollKpiTileCacheRefreshStatus(key, opts) {
     if (kpiTileCacheRefreshPollTimers[key]) {
       clearTimeout(kpiTileCacheRefreshPollTimers[key]);
       delete kpiTileCacheRefreshPollTimers[key];
     }
     if (!Api || typeof Api.fetchKpiTileCacheRefreshStatus !== "function") return;
+    // Пока окно скрыто — не дергаем статус и не перерисовываем плитки.
+    if (!isDocumentCurrentlyVisible()) {
+      kpiTileCacheRefreshPollTimers[key] = setTimeout(function () {
+        pollKpiTileCacheRefreshStatus(key, opts);
+      }, 10000);
+      return;
+    }
     kpiTileCacheRefreshPollTimers[key] = setTimeout(function () {
       Api.fetchKpiTileCacheRefreshStatus(opts).then(function (res) {
         if (!res || !res.ok) {
           setKpiTileCacheRefreshState(key, { status: "failed", error: res && res.error ? res.error : "Ошибка проверки статуса" });
+          delete kpiTileUserInitiatedRefreshKeys[key];
           return;
         }
         var prev = kpiTileCacheRefreshState[key] || {};
@@ -1082,14 +1137,13 @@
           pollKpiTileCacheRefreshStatus(key, opts);
           return;
         }
+        delete kpiTileUserInitiatedRefreshKeys[key];
         if (res.status === "succeeded" || prev.status === "running") {
-          if (Api && typeof Api.clearKpiGetMemoryCache === "function") {
-            Api.clearKpiGetMemoryCache();
-          }
-          callDataLoader("loadKpiTilesAndChartsForView", [{ preserveViewState: true }]);
+          scheduleKpiTilesReloadAfterRefresh();
         }
       }).catch(function () {
         setKpiTileCacheRefreshState(key, { status: "failed", error: "Ошибка проверки статуса" });
+        delete kpiTileUserInitiatedRefreshKeys[key];
       });
     }, 10000);
   }
@@ -1099,31 +1153,57 @@
     var opts = buildKpiTileCacheRefreshOptions(tile);
     if (!opts.department || !opts.kpi_id) return;
     var key = kpiTileCacheRefreshKeyFromOptions(opts);
+    kpiTileUserInitiatedRefreshKeys[key] = true;
     setKpiTileCacheRefreshState(key, { status: "running" });
     Api.refreshKpiTileCache(opts).then(function (res) {
       if (!res || !res.ok) {
         setKpiTileCacheRefreshState(key, { status: "failed", error: res && res.error ? res.error : "Ошибка запуска пересчёта" });
+        delete kpiTileUserInitiatedRefreshKeys[key];
         return;
       }
       setKpiTileCacheRefreshState(key, res);
       scheduleKpiTileCooldownReset(key, res);
       if (res.status === "running") {
         pollKpiTileCacheRefreshStatus(key, opts);
+      } else if (res.status === "succeeded") {
+        delete kpiTileUserInitiatedRefreshKeys[key];
+        scheduleKpiTilesReloadAfterRefresh();
+      } else {
+        delete kpiTileUserInitiatedRefreshKeys[key];
       }
     }).catch(function () {
       setKpiTileCacheRefreshState(key, { status: "failed", error: "Ошибка запуска пересчёта" });
+      delete kpiTileUserInitiatedRefreshKeys[key];
     });
   }
 
   function watchAutoRefreshingKpiTiles(tiles) {
     if (!Array.isArray(tiles) || !tiles.length) return;
     tiles.forEach(function (tile) {
-      if (!tile || tile.cache_refresh_status !== "running") return;
+      if (!tile) return;
       var opts = buildKpiTileCacheRefreshOptions(tile);
       if (!opts.department || !opts.kpi_id) return;
       var key = kpiTileCacheRefreshKeyFromOptions(opts);
+      // Не стартуем poll только из‑за статуса в API — иначе плитки «прыгают» при прогреве кэша.
+      if (!kpiTileUserInitiatedRefreshKeys[key]) return;
+      var local = kpiTileCacheRefreshState[key] || {};
+      if (local.status !== "running" && tile.cache_refresh_status !== "running") return;
       if (kpiTileCacheRefreshPollTimers[key]) return;
       pollKpiTileCacheRefreshStatus(key, opts);
+    });
+  }
+
+  if (typeof document !== "undefined" && typeof document.addEventListener === "function") {
+    document.addEventListener("visibilitychange", function () {
+      if (!isDocumentCurrentlyVisible()) return;
+      flushPendingKpiTilesReloadOnVisible();
+      Object.keys(kpiTileUserInitiatedRefreshKeys).forEach(function (key) {
+        if (!kpiTileUserInitiatedRefreshKeys[key]) return;
+        if (kpiTileCacheRefreshPollTimers[key]) return;
+        var local = kpiTileCacheRefreshState[key] || {};
+        if (local.status !== "running") return;
+        // opts не храним — watch подхватит на следующем render; здесь только отложенный reload.
+      });
     });
   }
 
@@ -1701,12 +1781,13 @@
     return Number(selectedYear) === now.getFullYear() && Number(selectedMonth) === now.getMonth() + 1;
   }
 
-  /** Показатели «ФОТ» и «Текучесть персонала» — по вхождению в название плитки. */
+  /** Показатели «ФОТ», «Текучесть» и «адаптация» — по вхождению в название плитки. */
   function isFotOrPersonnelTurnoverKpiTitle(title) {
     var t = normalizeKpiTitleForMatch(title);
     if (!t) return false;
     if (t.indexOf("фот") !== -1) return true;
     if (t.indexOf("текучесть") !== -1) return true;
+    if (t.indexOf("адаптац") !== -1) return true;
     return false;
   }
 
@@ -1726,21 +1807,40 @@
     return id === "GSP-M3" || id === "GSPP-M3";
   }
 
+  function monthlyPointHasFact(point) {
+    if (!point || typeof point !== "object") return false;
+    var fact = parseNumberLoose(point.fact);
+    return fact != null;
+  }
+
   function resolvePriorMonthFotPoint(tile, prevYear, prevMonth) {
     if (!tile) return null;
     var monthly = Array.isArray(tile.monthly_data) ? tile.monthly_data : [];
-    var prevPoint = findMonthlyDataPoint(monthly, prevYear, prevMonth);
-    if (prevPoint) return prevPoint;
-    var lfm = tile.last_full_month_row;
-    if (
-      lfm &&
-      typeof lfm === "object" &&
-      Number(lfm.year) === Number(prevYear) &&
-      Number(lfm.month) === Number(prevMonth)
-    ) {
-      return lfm;
+    // Идём назад от предыдущего месяца, пока не найдём точку с фактом
+    // (незакрытый месяц часто имеет план, но fact = null / #DIV/0!).
+    var cursorY = Number(prevYear);
+    var cursorM = Number(prevMonth);
+    for (var guard = 0; guard < 24; guard++) {
+      if (isNaN(cursorY) || isNaN(cursorM) || cursorM < 1 || cursorM > 12) break;
+      var point = findMonthlyDataPoint(monthly, cursorY, cursorM);
+      if (monthlyPointHasFact(point)) return point;
+      var lfm = tile.last_full_month_row;
+      if (
+        lfm &&
+        typeof lfm === "object" &&
+        Number(lfm.year) === cursorY &&
+        Number(lfm.month) === cursorM &&
+        monthlyPointHasFact(lfm)
+      ) {
+        return lfm;
+      }
+      var prev = prevCalendarMonthYear(cursorY, cursorM);
+      if (!prev) break;
+      cursorY = prev.year;
+      cursorM = prev.month;
     }
-    return null;
+    // Fallback: просто точка предыдущего месяца (даже без факта).
+    return findMonthlyDataPoint(monthly, prevYear, prevMonth);
   }
 
   function applyPriorMonthColorFromPoint(tile, prevPoint) {
@@ -1812,8 +1912,9 @@
     if (!prevYm) return tiles;
 
     return tiles.map(function (tile) {
-      if (!tile || !isFotOrPersonnelTurnoverKpiTitle(tile.title)) return tile;
-      var kpiId = tile.kpi_id != null ? String(tile.kpi_id).trim() : "";
+      var kpiId = tile.kpi_id != null ? String(tile.kpi_id).trim().toUpperCase() : "";
+      // HRD-Q4: в незакрытом месяце факт из HC «живой» — держим прошлый месяц.
+      if (!tile || (!isFotOrPersonnelTurnoverKpiTitle(tile.title) && kpiId !== "HRD-Q4")) return tile;
       // Комдир: в текущем (незакрытом) месяце ФОТ не подменяем июнем — показываем факт июля (0).
       if (kpiId === "KD-M8") return tile;
       if (kpiId === "PD-M3.F1" || kpiId === "PD-M3.F2") return tile;
@@ -2954,6 +3055,36 @@
     return id === "MRK-06";
   }
 
+  function isServheadHigherBetterKpiItem(item) {
+    if (!item || typeof item !== "object") return false;
+    var id = item.kpi_id != null ? String(item.kpi_id).trim().toUpperCase() : "";
+    return id === "SH-M1" || id === "SH-M4";
+  }
+
+  function isServheadLowerBetterKpiItem(item) {
+    if (!item || typeof item !== "object") return false;
+    var id = item.kpi_id != null ? String(item.kpi_id).trim().toUpperCase() : "";
+    return id === "SH-M2" || id === "SH-M3" || id === "SH-M5";
+  }
+
+  /** SH-M1/M4: ≥90 зелёный, 80–89,9 жёлтый, <80 красный (как rag_servhead_m1_pct). */
+  function servheadHigherBetterRagFromPct(pct) {
+    var value = parseNumberLoose(pct);
+    if (value == null) return null;
+    if (value >= 90) return "green";
+    if (value >= 80) return "yellow";
+    return "red";
+  }
+
+  /** SH-M2/M3/M5: ≤5 зелёный, ≤10 жёлтый, >10 красный. */
+  function servheadLowerBetterRagFromPct(pct) {
+    var value = parseNumberLoose(pct);
+    if (value == null) return null;
+    if (value <= 5) return "green";
+    if (value <= 10) return "yellow";
+    return "red";
+  }
+
   function computeChairmanAggregatedPoint(item, year, month, mode, selectedQuarters) {
     if (!item || typeof item !== "object") return null;
     var points = Array.isArray(item.monthly_data) ? item.monthly_data.slice() : [];
@@ -3159,6 +3290,11 @@
     var limitRag = isBudgetFotLimitKpiItem(item) ? planFactLimitRag(plan, fact) : null;
     var turnoverRag = isTurnoverKpiItem(item) ? turnoverLimitRagFromPct(kpiPct) : null;
     var shareRag = isMrk06ShareKpiItem(item) ? mrk06ShareRagFromPct(kpiPct) : null;
+    var servheadRag = isServheadHigherBetterKpiItem(item)
+      ? servheadHigherBetterRagFromPct(kpiPct)
+      : isServheadLowerBetterKpiItem(item)
+        ? servheadLowerBetterRagFromPct(kpiPct)
+        : null;
     var commercialPlanFactRag = isCommercialHigherIsBetterPlanFactKpiItem(item)
       ? higherBetterRagFromPlanFact(hasPlan ? plan : null, hasFact ? fact : null) ||
         higherBetterRagFromPct(kpiPct)
@@ -3181,7 +3317,7 @@
           ? (kpiPct < (displayPlan != null ? displayPlan : 5)
             ? "green"
             : (Math.abs(kpiPct - (displayPlan != null ? displayPlan : 5)) < 0.000001 ? "yellow" : "red"))
-          : (shareRag || turnoverRag || limitRag || commercialPlanFactRag),
+          : (shareRag || turnoverRag || limitRag || servheadRag || commercialPlanFactRag),
       expected_plan: extraHas.expected_plan ? extraSums.expected_plan : null,
       found: extraHas.found ? extraSums.found : null,
       won: extraHas.won ? extraSums.won : null,
@@ -3623,6 +3759,9 @@
     if (!items.length) return null;
 
     var mode = chairmanAggregationMode || "current";
+    if (periodState && periodState.aggregationMode != null && String(periodState.aggregationMode).trim()) {
+      mode = String(periodState.aggregationMode).trim();
+    }
     return items
       .map(function (item) {
         var point = computeChairmanAggregatedPoint(item, year, month, mode, selectedQuarters);
@@ -4290,6 +4429,13 @@
     var month = ps && ps.currentPeriodMonth != null ? Number(ps.currentPeriodMonth) : null;
     var year = ps && ps.currentPeriodYear != null ? Number(ps.currentPeriodYear) : null;
     if (month == null || year == null || isNaN(month) || isNaN(year)) return false;
+    // Кэш января при выборе июня иначе оставляет plan/fact января под подписью «Июнь».
+    if (
+      typeof Api.kpiResponseCoversYearMonth === "function" &&
+      !Api.kpiResponseCoversYearMonth(lastRawKpiResponse, year, month)
+    ) {
+      return false;
+    }
 
     var result = Api.processKpiResponseBodyAtPeriod(lastRawKpiResponse, year, month);
     if (!result || !Array.isArray(result.tiles)) return false;

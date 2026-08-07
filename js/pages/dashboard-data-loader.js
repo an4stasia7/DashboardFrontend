@@ -41,6 +41,12 @@
     return typeof fn === "function" ? !!fn() : false;
   }
 
+  function shouldApplyPeriodAggregationTiles() {
+    var fn = getContext().shouldApplyPeriodAggregationTiles;
+    if (typeof fn === "function") return !!fn();
+    return shouldUseChairmanAggregatedTiles() || isChairmanViewContext();
+  }
+
   function getActiveChairmanCatalogTarget() {
     var fn = getContext().getActiveChairmanCatalogTarget;
     return typeof fn === "function" ? fn() : null;
@@ -480,7 +486,7 @@
     if (result.ok && result.tiles && result.tiles.length > 0) {
       var tilesToRender = result.tiles;
       if (
-        isChairmanViewContext() &&
+        shouldApplyPeriodAggregationTiles() &&
         typeof getContext().getChairmanAggregatedTilesFromRaw === "function"
       ) {
         var aggregated = getContext().getChairmanAggregatedTilesFromRaw(result.data || result.raw || null);
@@ -535,7 +541,24 @@
     cancelDeferredChartsAndTablesBoot();
     var staleResult = options && options.preserveViewState ? loadLastKpiResult() : null;
     if (staleResult) {
-      applyApiResult(staleResult, "local-cache", options);
+      var stalePeriod = getPeriodState();
+      var staleCovers =
+        typeof Api !== "undefined" &&
+        Api &&
+        typeof Api.kpiResponseCoversYearMonth === "function" &&
+        stalePeriod.currentPeriodYear != null &&
+        stalePeriod.currentPeriodMonth != null
+          ? Api.kpiResponseCoversYearMonth(
+              staleResult.raw || staleResult.data,
+              stalePeriod.currentPeriodYear,
+              stalePeriod.currentPeriodMonth
+            )
+          : true;
+      if (staleCovers) {
+        applyApiResult(staleResult, "local-cache", options);
+      } else {
+        showLoading();
+      }
     } else {
       showLoading();
     }
