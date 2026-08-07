@@ -201,6 +201,14 @@
     "METD-M1": {
       hideKpiPercent: true,
       showBackPlanFact: true,
+      backStageRows: true,
+      backStageRowsTitle: "План производства в части МС",
+    },
+    "МЕТ-M1": {
+      hideKpiPercent: true,
+      showBackPlanFact: true,
+      backStageRows: true,
+      backStageRowsTitle: "План производства в части МС",
     },
     "METD-Q1": {
       backProjectDeviations: true,

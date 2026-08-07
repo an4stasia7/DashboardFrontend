@@ -1340,29 +1340,34 @@
     );
   }
 
-  function buildKpiTileProjectDeviationsHtml(tile) {
-    var rows = tile && Array.isArray(tile.project_deviation_rows) ? tile.project_deviation_rows : [];
-    if (!rows.length && tile && Array.isArray(tile.monthly_data) && tile.monthly_data.length) {
-      var periodState =
-        typeof DashboardMonthNav !== "undefined" && DashboardMonthNav && typeof DashboardMonthNav.getPeriodState === "function"
-          ? DashboardMonthNav.getPeriodState()
-          : null;
-      var targetYear = periodState && periodState.currentPeriodYear != null ? Number(periodState.currentPeriodYear) : null;
-      var targetMonth = periodState && periodState.currentPeriodMonth != null ? Number(periodState.currentPeriodMonth) : null;
-      var point = null;
-      if (targetYear != null && targetMonth != null && !isNaN(targetYear) && !isNaN(targetMonth)) {
-        for (var p = 0; p < tile.monthly_data.length; p++) {
-          var candidate = tile.monthly_data[p];
-          if (!candidate) continue;
-          if (Number(candidate.year) === targetYear && Number(candidate.month) === targetMonth) {
-            point = candidate;
-            break;
-          }
+  function resolveKpiTileMonthlyRows(tile, fieldName) {
+    var rows = tile && Array.isArray(tile[fieldName]) ? tile[fieldName] : [];
+    if (rows.length || !tile || !Array.isArray(tile.monthly_data) || !tile.monthly_data.length) {
+      return rows;
+    }
+    var periodState =
+      typeof DashboardMonthNav !== "undefined" && DashboardMonthNav && typeof DashboardMonthNav.getPeriodState === "function"
+        ? DashboardMonthNav.getPeriodState()
+        : null;
+    var targetYear = periodState && periodState.currentPeriodYear != null ? Number(periodState.currentPeriodYear) : null;
+    var targetMonth = periodState && periodState.currentPeriodMonth != null ? Number(periodState.currentPeriodMonth) : null;
+    var point = null;
+    if (targetYear != null && targetMonth != null && !isNaN(targetYear) && !isNaN(targetMonth)) {
+      for (var p = 0; p < tile.monthly_data.length; p++) {
+        var candidate = tile.monthly_data[p];
+        if (!candidate) continue;
+        if (Number(candidate.year) === targetYear && Number(candidate.month) === targetMonth) {
+          point = candidate;
+          break;
         }
       }
-      if (!point) point = tile.monthly_data[tile.monthly_data.length - 1];
-      rows = point && Array.isArray(point.project_deviation_rows) ? point.project_deviation_rows : [];
     }
+    if (!point) point = tile.monthly_data[tile.monthly_data.length - 1];
+    return point && Array.isArray(point[fieldName]) ? point[fieldName] : [];
+  }
+
+  function buildKpiTileProjectDeviationsHtml(tile) {
+    var rows = resolveKpiTileMonthlyRows(tile, "project_deviation_rows");
     if (!rows.length) {
       return '<div class="kpi-tile-back-message">Нет данных по проектам.</div>';
     }
@@ -1768,6 +1773,116 @@
     );
   }
 
+  function resolveKpiTileStageRows(tile) {
+    var rows = resolveKpiTileMonthlyRows(tile, "stage_rows");
+    if (rows.length) return rows;
+    var periodState =
+      typeof DashboardMonthNav !== "undefined" && DashboardMonthNav && typeof DashboardMonthNav.getPeriodState === "function"
+        ? DashboardMonthNav.getPeriodState()
+        : null;
+    var targetYear = periodState && periodState.currentPeriodYear != null ? Number(periodState.currentPeriodYear) : null;
+    var targetMonth = periodState && periodState.currentPeriodMonth != null ? Number(periodState.currentPeriodMonth) : null;
+    var point = null;
+    var monthly = tile && Array.isArray(tile.monthly_data) ? tile.monthly_data : [];
+    if (targetYear != null && targetMonth != null && !isNaN(targetYear) && !isNaN(targetMonth)) {
+      for (var p = 0; p < monthly.length; p++) {
+        var candidate = monthly[p];
+        if (!candidate) continue;
+        if (Number(candidate.year) === targetYear && Number(candidate.month) === targetMonth) {
+          point = candidate;
+          break;
+        }
+      }
+    }
+    if (!point && monthly.length) point = monthly[monthly.length - 1];
+    var details =
+      point && point.debug && Array.isArray(point.debug.details_sample)
+        ? point.debug.details_sample
+        : tile && tile.debug && Array.isArray(tile.debug.details_sample)
+          ? tile.debug.details_sample
+          : [];
+    if (!details.length) return [];
+    return details.map(function (detail) {
+      return {
+        Этап: detail && detail.stage_number != null ? detail.stage_number : "Этап",
+        Начало: detail && detail.plan_start != null ? detail.plan_start : "",
+        Окончание: detail && detail.plan_end != null ? detail.plan_end : "",
+        ЭтапФактическоеОкончание: detail && detail.fact_end != null ? detail.fact_end : "",
+        ЗаказНаПроизводствоТД_ОпросныйЛист: "",
+        late: !!(detail && detail.late),
+      };
+    });
+  }
+
+  function buildKpiTileStageRowsHtml(tile) {
+    var rows = resolveKpiTileStageRows(tile);
+    if (!rows.length) {
+      return '<div class="kpi-tile-back-message">Нет этапов за период.</div>';
+    }
+    return (
+      '<div class="kpi-tile-project-list">' +
+      rows
+        .map(function (row) {
+          var stageName =
+            row && row["Этап"] != null && String(row["Этап"]).trim()
+              ? String(row["Этап"]).trim()
+              : row && row.stage_number != null && String(row.stage_number).trim()
+                ? String(row.stage_number).trim()
+                : "Этап";
+          var survey =
+            row && row["ЗаказНаПроизводствоТД_ОпросныйЛист"] != null && String(row["ЗаказНаПроизводствоТД_ОпросныйЛист"]).trim()
+              ? String(row["ЗаказНаПроизводствоТД_ОпросныйЛист"]).trim()
+              : "Опросный лист не указан";
+          var planStart =
+            row && row["Начало"] != null && String(row["Начало"]).trim()
+              ? String(row["Начало"]).trim()
+              : row && row.plan_start != null
+                ? String(row.plan_start).trim()
+                : "";
+          var planEnd =
+            row && row["Окончание"] != null && String(row["Окончание"]).trim()
+              ? String(row["Окончание"]).trim()
+              : row && row.plan_end != null
+                ? String(row.plan_end).trim()
+                : "";
+          var factEnd =
+            row && row["ЭтапФактическоеОкончание"] != null && String(row["ЭтапФактическоеОкончание"]).trim()
+              ? String(row["ЭтапФактическоеОкончание"]).trim()
+              : row && row.fact_end != null
+                ? String(row.fact_end).trim()
+                : "";
+          var isLate = !!(row && row.late);
+          var planText =
+            planStart || planEnd
+              ? "План: " + (planStart || "—") + " — " + (planEnd || "—")
+              : "План не указан";
+          var metaText = survey + (planText ? " · " + planText : "");
+          return (
+            '<article class="kpi-tile-project-row' + (isLate ? " is-delayed" : "") + '">' +
+            '<div class="kpi-tile-project-main">' +
+            "<strong>" +
+            DashUi.escapeHtml(stageName) +
+            "</strong>" +
+            "<span>" +
+            DashUi.escapeHtml(metaText) +
+            "</span>" +
+            "</div>" +
+            '<div class="kpi-tile-project-delay">' +
+            "<span>" +
+            (isLate ? "Просрочен" : "Факт") +
+            "</span>" +
+            "<strong>" +
+            DashUi.escapeHtml(factEnd || (isLate ? "нет факта" : "—")) +
+            "</strong>" +
+            "</div>" +
+            "</article>"
+          );
+        })
+        .join("") +
+      "</div>"
+    );
+  }
+
   function buildKpiTileProductionPlanRowsHtml(tile) {
     var rows = tile && Array.isArray(tile.production_plan_rows) ? tile.production_plan_rows : [];
     var unit = String((tile && tile.unit) || "").trim().toLowerCase();
@@ -1874,6 +1989,38 @@
         '<div class="kpi-tile-back-section">' +
         '<div class="kpi-tile-back-section-title">' + DashUi.escapeHtml(projectListTitle) + "</div>" +
         buildKpiTileProjectDeviationsHtml(tile) +
+        "</div>" +
+        (hint ? '<p class="kpi-tile-back-hint">' + DashUi.escapeHtml(hint) + "</p>" : "")
+      );
+    }
+    if (rule && rule.backStageRows) {
+      var stageListTitle =
+        rule.backStageRowsTitle != null && String(rule.backStageRowsTitle).trim()
+          ? String(rule.backStageRowsTitle).trim()
+          : "План производства в части МС";
+      return (
+        '<div class="kpi-tile-back-head">' +
+        '<div class="kpi-tile-back-head-copy">' +
+        (code ? '<span class="kpi-tile-back-badge">' + DashUi.escapeHtml(code) + "</span>" : "") +
+        '<h3 class="kpi-tile-back-title">' +
+        DashUi.escapeHtml(tile && tile.title ? tile.title : "Показатель") +
+        "</h3>" +
+        (period ? '<p class="kpi-tile-back-period">' + DashUi.escapeHtml(period) + "</p>" : "") +
+        "</div>" +
+        '<div class="kpi-tile-back-head-actions">' +
+        '<button type="button" class="kpi-tile-flip-action" aria-label="Вернуться к карточке">Назад</button>' +
+        "</div></div>" +
+        (hasPf && shouldRenderKpiTileBack(tile) && (!isKpiPctOnlyTile(tile) || forceBackPlanFact)
+          ? '<div class="kpi-tile-back-summary">' +
+            '<div class="kpi-tile-back-summary-item"><span class="kpi-tile-back-summary-label">План / факт</span><strong>' +
+            DashUi.escapeHtml(planFactShown) +
+            "</strong></div></div>"
+          : "") +
+        '<div class="kpi-tile-back-section">' +
+        '<div class="kpi-tile-back-section-title">' +
+        DashUi.escapeHtml(stageListTitle) +
+        "</div>" +
+        buildKpiTileStageRowsHtml(tile) +
         "</div>" +
         (hint ? '<p class="kpi-tile-back-hint">' + DashUi.escapeHtml(hint) + "</p>" : "")
       );

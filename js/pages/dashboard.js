@@ -695,12 +695,33 @@
             return;
           }
           callChairmanOverview("reloadCommercialSummary", []);
-          // SUP / servhead: при смене месяца — с сервера (таблицы помесячные).
-          if (shouldUseHrdLateVacanciesTable() || shouldUseServheadClientsTable()) {
+          // ПСД: при смене месяца всегда ходим на бэк. Иначе monthly_data из ответа
+          // за август подменяет июль устаревшими/пересчитанными строками (выручка, ДЗ/КЗ, портфель).
+          if (isBoardChairUser(viewContextUser)) {
             loadKpiTilesAndChartsForView({ preserveViewState: true });
             return;
           }
-          if (applyCurrentPeriodFromLastRawResponse()) {
+          var supPeriodNeedsServerData = shouldUseHrdLateVacanciesTable();
+          if (!supPeriodNeedsServerData && applyCurrentPeriodFromLastRawResponse()) {
+            return;
+          }
+          if (
+            isCommercialDirectorUser(viewContextUser) ||
+            isCommercialHierarchyRootForPriorMonthRule() ||
+            isTechnicalDirectorUser(viewContextUser) ||
+            isGsppUser(viewContextUser) ||
+            isSupUser(viewContextUser) ||
+            isSupDepartmentContext(getDepartmentForCurrentKpiContext()) ||
+            isDevserviceUser(viewContextUser) ||
+            isOperationalDirectorUser(viewContextUser) ||
+            isProductionDeputyUser(viewContextUser) ||
+            isLogisticsDashboardContext() ||
+            shouldUseServheadClientsTable() ||
+            isChiefConstructorDashboardContext() ||
+            isChiefMetrologDashboardContext() ||
+            isChiefAccountantDashboardContext()
+          ) {
+            loadKpiTilesAndChartsForView({ preserveViewState: true });
             return;
           }
           loadKpiTilesAndChartsForView({ preserveViewState: true });
@@ -1781,7 +1802,7 @@
     return Number(selectedYear) === now.getFullYear() && Number(selectedMonth) === now.getMonth() + 1;
   }
 
-  /** Показатели «ФОТ», «Текучесть» и «адаптация» — по вхождению в название плитки. */
+  /** Показатели «ФОТ», «Текучесть» и адаптация (HRD-Q4) — прошлый месяц при просмотре текущего. */
   function isFotOrPersonnelTurnoverKpiTitle(title) {
     var t = normalizeKpiTitleForMatch(title);
     if (!t) return false;
@@ -1800,6 +1821,11 @@
       .replace(/\u0421/g, "S")
       .replace(/\u041F/g, "P")
       .replace(/[\s_]/g, "");
+  }
+
+  function isSupLateMonthFallbackKpiId(kpiId) {
+    var id = kpiId != null ? String(kpiId).trim().toUpperCase() : "";
+    return id === "HRD-M2" || id === "HRD-M4" || id === "HRD-Q4";
   }
 
   function isGsppFotKpiId(kpiId) {
@@ -1912,13 +1938,20 @@
     if (!prevYm) return tiles;
 
     return tiles.map(function (tile) {
-      var kpiId = tile.kpi_id != null ? String(tile.kpi_id).trim().toUpperCase() : "";
-      // HRD-Q4: в незакрытом месяце факт из HC «живой» — держим прошлый месяц.
-      if (!tile || (!isFotOrPersonnelTurnoverKpiTitle(tile.title) && kpiId !== "HRD-Q4")) return tile;
-      // Комдир: в текущем (незакрытом) месяце ФОТ не подменяем июнем — показываем факт июля (0).
-      if (kpiId === "KD-M8") return tile;
-      if (kpiId === "PD-M3.F1" || kpiId === "PD-M3.F2") return tile;
-      if (kpiId === "OD-M3.2" || kpiId === "LOG-M3.F" || kpiId === "TD-M6") return tile;
+      var kpiId = tile && tile.kpi_id != null ? String(tile.kpi_id).trim() : "";
+      var kpiIdUpper = kpiId.toUpperCase();
+      if (
+        !tile ||
+        (!isFotOrPersonnelTurnoverKpiTitle(tile.title) &&
+          kpiIdUpper !== "HRD-Q4" &&
+          !isSupLateMonthFallbackKpiId(kpiId))
+      ) {
+        return tile;
+      }
+      // Комдир: в текущем (незакрытом) месяце ФОТ не подменяем прошлым — показываем факт текущего (0).
+      if (kpiIdUpper === "KD-M8") return tile;
+      if (kpiIdUpper === "PD-M3.F1" || kpiIdUpper === "PD-M3.F2") return tile;
+      if (kpiIdUpper === "OD-M3.2" || kpiIdUpper === "LOG-M3.F" || kpiIdUpper === "TD-M6") return tile;
       if (tile.__priorMonthMergedFromKpiAll) return tile;
       var prevPoint = resolvePriorMonthFotPoint(tile, prevYm.year, prevYm.month);
       if (!prevPoint) return tile;
@@ -1945,7 +1978,9 @@
         }
       }
       applyPriorMonthColorFromPoint(next, prevPoint);
-      var pl = planFactPeriodLabelFromMonthlyPoint(prevPoint, prevYm.year);
+      var labelYear =
+        prevPoint.year != null && !isNaN(Number(prevPoint.year)) ? Number(prevPoint.year) : prevYm.year;
+      var pl = planFactPeriodLabelFromMonthlyPoint(prevPoint, labelYear);
       if (pl) next.plan_fact_period_label = pl;
       return next;
     });
@@ -2967,6 +3002,13 @@
     return id === "KD-M1" || id === "KD-M2" || id === "KD-M3";
   }
 
+  /** MRK-04 «Отношение отгрузок YoY»: чем выше %, тем лучше (≥100 зелёный). */
+  function isMrk04YoyKpiItem(item) {
+    if (!item || typeof item !== "object") return false;
+    var id = item.kpi_id != null ? String(item.kpi_id).trim().toUpperCase() : "";
+    return id === "MRK-04";
+  }
+
   function higherBetterRagFromPct(pct) {
     var value = parseNumberLoose(pct);
     if (value == null) return null;
@@ -2990,7 +3032,19 @@
   function normalizeCommercialHigherIsBetterPlanFactTiles(tiles) {
     if (!Array.isArray(tiles) || !tiles.length) return tiles;
     return tiles.map(function (tile) {
-      if (!tile || !isCommercialHigherIsBetterPlanFactKpiItem(tile)) return tile;
+      if (!tile) return tile;
+      if (isMrk04YoyKpiItem(tile)) {
+        var nextMrk04 = Object.assign({}, tile);
+        var mrk04Rag = higherBetterRagFromPct(
+          tile.kpi_pct != null ? tile.kpi_pct : tile.percent
+        );
+        if (mrk04Rag) {
+          nextMrk04.rag = mrk04Rag;
+          nextMrk04.color = mrk04Rag;
+        }
+        return nextMrk04;
+      }
+      if (!isCommercialHigherIsBetterPlanFactKpiItem(tile)) return tile;
       var next = Object.assign({}, tile);
       var plan = parseNumberLoose(tile.plan);
       var fact = parseNumberLoose(tile.fact);
@@ -3124,6 +3178,11 @@
       for (var ci = 0; ci < filtered.length; ci++) {
         if (Number(filtered[ci].month) === m) {
           var row = filtered[ci];
+          if (isMrk04YoyKpiItem(item)) {
+            row = Object.assign({}, row);
+            var monthRag = higherBetterRagFromPct(row.kpi_pct);
+            if (monthRag) row.color = monthRag;
+          }
           return mode === "month" ? applyFullMonthPlanToPoint(row) : row;
         }
       }
@@ -3299,6 +3358,7 @@
       ? higherBetterRagFromPlanFact(hasPlan ? plan : null, hasFact ? fact : null) ||
         higherBetterRagFromPct(kpiPct)
       : null;
+    var mrk04Rag = isMrk04YoyKpiItem(item) ? higherBetterRagFromPct(kpiPct) : null;
 
     return {
       year: y,
@@ -3317,7 +3377,7 @@
           ? (kpiPct < (displayPlan != null ? displayPlan : 5)
             ? "green"
             : (Math.abs(kpiPct - (displayPlan != null ? displayPlan : 5)) < 0.000001 ? "yellow" : "red"))
-          : (shareRag || turnoverRag || limitRag || servheadRag || commercialPlanFactRag),
+          : (mrk04Rag || shareRag || turnoverRag || limitRag || servheadRag || commercialPlanFactRag),
       expected_plan: extraHas.expected_plan ? extraSums.expected_plan : null,
       found: extraHas.found ? extraSums.found : null,
       won: extraHas.won ? extraSums.won : null,
@@ -3645,6 +3705,12 @@
           ? point.project_deviation_rows
           : Array.isArray(rawItem.project_deviation_rows)
             ? rawItem.project_deviation_rows
+            : [],
+      stage_rows:
+        point && Array.isArray(point.stage_rows)
+          ? point.stage_rows
+          : Array.isArray(rawItem.stage_rows)
+            ? rawItem.stage_rows
             : [],
       max_allowed_delay_workdays:
         point && point.max_allowed_delay_workdays != null
