@@ -1679,9 +1679,214 @@
     return fallbackTab;
   }
 
+  var SH_T1_MONTH_SHORT_RU = [
+    null,
+    "янв.",
+    "февр.",
+    "март",
+    "апр.",
+    "май",
+    "июнь",
+    "июль",
+    "авг.",
+    "сент.",
+    "окт.",
+    "нояб.",
+    "дек.",
+  ];
+
+  function parseTableCountLoose(value) {
+    if (value == null || value === "") return 0;
+    if (typeof value === "number" && isFinite(value)) return Math.round(value);
+    var n = Number(String(value).replace(/\s/g, "").replace(",", "."));
+    return isFinite(n) && !isNaN(n) ? Math.round(n) : 0;
+  }
+
+  function getSelectedQuartersForTableAggregation() {
+    if (
+      typeof DashboardMonthNav !== "undefined" &&
+      DashboardMonthNav &&
+      typeof DashboardMonthNav.getPeriodState === "function"
+    ) {
+      var ps = DashboardMonthNav.getPeriodState();
+      if (ps && Array.isArray(ps.selectedQuarters)) return ps.selectedQuarters;
+    }
+    return [];
+  }
+
+  function getShT1AggregationMonths(mode, filterMonth, selectedQuarters) {
+    var m = Number(filterMonth);
+    if (isNaN(m) || m < 1 || m > 12) return [];
+    if (mode === "ytd") {
+      var ytdMonths = [];
+      for (var i = 1; i <= m; i++) ytdMonths.push(i);
+      return ytdMonths;
+    }
+    if (mode === "quarter") {
+      var qs = (Array.isArray(selectedQuarters) ? selectedQuarters : [])
+        .map(function (v) {
+          return parseInt(String(v), 10);
+        })
+        .filter(function (q) {
+          return !isNaN(q) && q >= 1 && q <= 4;
+        })
+        .sort(function (a, b) {
+          return a - b;
+        });
+      if (!qs.length) qs = [Math.ceil(m / 3)];
+      var out = [];
+      var seen = Object.create(null);
+      qs.forEach(function (q) {
+        var start = (q - 1) * 3 + 1;
+        var end = q * 3;
+        for (var mm = start; mm <= end; mm++) {
+          if (seen[mm]) continue;
+          seen[mm] = true;
+          out.push(mm);
+        }
+      });
+      return out;
+    }
+    return [];
+  }
+
+  function buildShT1AggregatedTableTitle(mode, year, month, selectedQuarters) {
+    var y = Number(year);
+    var m = Number(month);
+    if (mode === "ytd") {
+      return (
+        "Обращения по клиентам — накопительно с начала " +
+        y +
+        " г. (янв.–" +
+        (SH_T1_MONTH_SHORT_RU[m] || String(m)) +
+        ")"
+      );
+    }
+    var qs = (Array.isArray(selectedQuarters) ? selectedQuarters : [])
+      .map(function (v) {
+        return parseInt(String(v), 10);
+      })
+      .filter(function (q) {
+        return !isNaN(q) && q >= 1 && q <= 4;
+      })
+      .sort(function (a, b) {
+        return a - b;
+      });
+    if (!qs.length) qs = [Math.ceil(m / 3)];
+    var roman = ["I", "II", "III", "IV"];
+    var label = qs
+      .map(function (q) {
+        return (roman[q - 1] || String(q)) + " кв.";
+      })
+      .join(", ");
+    var startMonth = (qs[0] - 1) * 3 + 1;
+    var endMonth = qs[qs.length - 1] * 3;
+    return (
+      "Обращения по клиентам — накопительно за " +
+      label +
+      " " +
+      y +
+      " (" +
+      (SH_T1_MONTH_SHORT_RU[startMonth] || String(startMonth)) +
+      "–" +
+      (SH_T1_MONTH_SHORT_RU[endMonth] || String(endMonth)) +
+      ")"
+    );
+  }
+
+  /**
+   * Только SH-T1: сумма срезов SH-T1-BY-MONTH по клиенту для ytd/quarter.
+   * Другие таблицы не трогаем.
+   */
+  function aggregateShT1TableFromByMonth(byMonth, filterYear, filterMonth, mode) {
+    if (!isMonthKeyedTableMap(byMonth)) return null;
+    if (mode !== "ytd" && mode !== "quarter") return null;
+    var selectedQuarters = getSelectedQuartersForTableAggregation();
+    var months = getShT1AggregationMonths(mode, filterMonth, selectedQuarters);
+    if (!months.length) return null;
+
+    var byClient = Object.create(null);
+    var columns = null;
+    var template = null;
+    var usedMonths = [];
+
+    months.forEach(function (monthNum) {
+      var slice = pickMonthKeyedTableSlice(byMonth, filterYear, monthNum);
+      if (!slice) {
+        slice = byMonth[String(monthNum)] != null ? byMonth[String(monthNum)] : byMonth[monthNum];
+      }
+      if (!slice || typeof slice !== "object") return;
+      usedMonths.push(monthNum);
+      if (!template) template = slice;
+      if (!columns && Array.isArray(slice.columns) && slice.columns.length) {
+        columns = slice.columns.slice();
+      }
+      var rows = Array.isArray(slice.rows) ? slice.rows : [];
+      rows.forEach(function (row) {
+        if (!row || typeof row !== "object") return;
+        var clientName = row["Клиент"] != null ? String(row["Клиент"]).trim() : "";
+        var clientKey =
+          row.client_key != null && String(row.client_key).trim()
+            ? String(row.client_key).trim()
+            : clientName || "__empty__";
+        if (!byClient[clientKey]) {
+          byClient[clientKey] = {
+            Клиент: clientName || "—",
+            "Всего обращений": 0,
+            "В срок": 0,
+            "Не в срок": 0,
+            client_key: row.client_key != null ? row.client_key : null,
+          };
+        }
+        var bucket = byClient[clientKey];
+        bucket["Всего обращений"] += parseTableCountLoose(row["Всего обращений"]);
+        bucket["В срок"] += parseTableCountLoose(row["В срок"]);
+        bucket["Не в срок"] += parseTableCountLoose(row["Не в срок"]);
+        if ((!bucket["Клиент"] || bucket["Клиент"] === "—") && clientName) {
+          bucket["Клиент"] = clientName;
+        }
+      });
+    });
+
+    if (!usedMonths.length) return null;
+
+    var mergedRows = Object.keys(byClient).map(function (key) {
+      return byClient[key];
+    });
+    mergedRows.sort(function (a, b) {
+      var diff = Number(b["Всего обращений"]) - Number(a["Всего обращений"]);
+      if (diff) return diff;
+      return String(a["Клиент"]).localeCompare(String(b["Клиент"]), "ru");
+    });
+
+    var totals = { total: 0, on_time: 0, late: 0 };
+    mergedRows.forEach(function (row) {
+      totals.total += Number(row["Всего обращений"]) || 0;
+      totals.on_time += Number(row["В срок"]) || 0;
+      totals.late += Number(row["Не в срок"]) || 0;
+    });
+
+    return {
+      kpi_id: "SH-T1",
+      name: buildShT1AggregatedTableTitle(mode, filterYear, filterMonth, selectedQuarters),
+      periodicity: template && template.periodicity != null ? template.periodicity : "ежемесячно",
+      description: template && template.description != null ? template.description : "",
+      period: {
+        year: Number(filterYear),
+        month: Number(filterMonth),
+        aggregation_mode: mode,
+        months: usedMonths.slice(),
+      },
+      columns: columns || ["Клиент", "Всего обращений", "В срок", "Не в срок"],
+      rows: mergedRows,
+      totals: totals,
+    };
+  }
+
   /**
    * Для таблиц с companion *-BY-MONTH подставляет срез выбранного месяца вместо
    * плоского снимка «последнего полного месяца» (HRD-T-M1-LATE-VACANCIES).
+   * SH-T1 в режимах ytd/quarter — сумма срезов по клиенту.
    */
   function resolveTableSourceForPeriod(tables, tabKey, tab, filterYear, filterMonth) {
     var hasFilter =
@@ -1697,6 +1902,15 @@
     if (!companionKey || !Object.prototype.hasOwnProperty.call(tables, companionKey)) return tab;
 
     var byMonth = tables[companionKey];
+    var tabKeyNorm = String(tabKey).trim().toUpperCase();
+    if (tabKeyNorm === "SH-T1") {
+      var aggMode = getClientAggregationMode();
+      if (aggMode === "ytd" || aggMode === "quarter") {
+        var aggregated = aggregateShT1TableFromByMonth(byMonth, filterYear, filterMonth, aggMode);
+        if (aggregated) return aggregated;
+      }
+    }
+
     var slice = pickMonthKeyedTableSlice(byMonth, filterYear, filterMonth);
     if (slice) return slice;
 

@@ -713,10 +713,10 @@
           chairmanAggregationMode = mode || "current";
           callChairmanOverview("reloadCommercialSummary", []);
           var aggMode = String(mode || "current").trim();
-          // YTD/квартал — сумма monthly_data на клиенте (servhead/SUP тоже).
+          // YTD/квартал — пересобрать плитки и таблицы из raw (SH-T1 суммируется в api.js).
           if (aggMode === "ytd" || aggMode === "quarter") {
-            if (rerenderChairmanTilesFromRaw()) return;
             if (applyCurrentPeriodFromLastRawResponse()) return;
+            if (rerenderChairmanTilesFromRaw()) return;
           }
           // Смена месяца для таблиц SUP/servhead — только в режимах current/month.
           if (
@@ -726,8 +726,8 @@
             loadKpiTilesAndChartsForView({ preserveViewState: true });
             return;
           }
-          if (rerenderChairmanTilesFromRaw()) return;
           if (applyCurrentPeriodFromLastRawResponse()) return;
+          if (rerenderChairmanTilesFromRaw()) return;
           loadKpiTilesAndChartsForView();
         },
       });
