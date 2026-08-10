@@ -1098,7 +1098,7 @@
               };
         function normalizeUnits(kpiId, value) {
           var kid = kpiId != null ? String(kpiId).trim().toUpperCase() : "";
-          if (kid === "LOG-M2") return "руб.";
+          if (kid === "LOG-M2" || kid === "LOG-M5") return "руб.";
           if (kid === "OD-M1" || kid === "OD-M3.1" || kid === "OD-M3.2") return "руб.";
           if (kid === "KD-M11") return "чел.";
           if (/^QD-M\d+$/i.test(kid)) {
@@ -3074,6 +3074,28 @@
           tile.units = "руб.";
           tile.unit = "руб.";
           tile.kpi_pct_is_deviation = true;
+        }
+        if (String(id).trim().toUpperCase() === "LOG-M5") {
+          tile.units = "руб.";
+          tile.unit = "руб.";
+          tile.pct_lower_is_better = true;
+          tile.rag_direction = "lower_better";
+          // Доля просрочки: зелёный <5%, жёлтый 5–15%, красный >15%.
+          var overdueShare = ownMonthly.kpi_pct;
+          if (overdueShare == null && planFactValuePresent(ownMonthly.plan) && planFactValuePresent(ownMonthly.fact)) {
+            var planDz = Number(ownMonthly.plan);
+            var factOverdue = Number(ownMonthly.fact);
+            if (isFinite(planDz) && planDz > 0 && isFinite(factOverdue)) {
+              overdueShare = (factOverdue / planDz) * 100;
+              tile.kpi_pct = overdueShare;
+              tile.percent = overdueShare;
+            }
+          }
+          if (overdueShare != null && isFinite(Number(overdueShare))) {
+            var share = Number(overdueShare);
+            var shareRag = share < 5 ? "green" : share <= 15 ? "yellow" : "red";
+            applyBackendTileColor(tile, shareRag);
+          }
         }
         ensureQualdirPieceCountUnits(tile);
         var backendColor = resolveBackendTileColor(tile, ownMonthly);

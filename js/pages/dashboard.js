@@ -74,6 +74,8 @@
   var claimsTableTitleTextEl = document.getElementById("claims-table-title-text");
   var claimsTableHelpWrapEl = document.getElementById("claims-table-help-wrap");
   var overdueDebtTableTitleEl = document.getElementById("overdue-debt-table-title");
+  var logisticsClientDzOverdueFilterWrapEl = document.getElementById("logistics-client-dz-overdue-filter-wrap");
+  var logisticsClientDzOverdueOnlyEl = document.getElementById("logistics-client-dz-overdue-only");
   var claimsTableSwitcherEl = document.getElementById("claims-table-switcher");
   var activeClaimsTableView = "claims";
   var debugJsonToggleBtnEl = document.getElementById("debug-kpi-json-toggle");
@@ -2917,7 +2919,15 @@
   function isPointInTimeDebtKpiItem(item) {
     if (!item || typeof item !== "object") return false;
     var id = item.kpi_id != null ? String(item.kpi_id).trim().toUpperCase() : "";
-    return id === "KD-M4" || id === "KD-M5" || id === "FND-T7";
+    return id === "KD-M4" || id === "KD-M5" || id === "FND-T7" || id === "LOG-M5";
+  }
+
+  function overdueDzShareRagFromPct(pct) {
+    var value = parseNumberLoose(pct);
+    if (value == null) return null;
+    if (value < 5) return "green";
+    if (value <= 15) return "yellow";
+    return "red";
   }
 
   function lowerIsBetterRagFromPct(pct) {
@@ -3027,7 +3037,11 @@
       if (!latestPoint) return null;
       var snapshotPoint = Object.assign({}, latestPoint);
       var snapshotPct = parseNumberLoose(snapshotPoint.kpi_pct);
-      snapshotPoint.color = lowerIsBetterRagFromPct(snapshotPct);
+      var snapshotId = item.kpi_id != null ? String(item.kpi_id).trim().toUpperCase() : "";
+      snapshotPoint.color =
+        snapshotId === "LOG-M5"
+          ? overdueDzShareRagFromPct(snapshotPct)
+          : lowerIsBetterRagFromPct(snapshotPct);
       snapshotPoint.snapshot_aggregation = true;
       return snapshotPoint;
     }
@@ -3283,7 +3297,7 @@
           };
     function normalizeUnits(kpiId, value) {
       var kid = kpiId != null ? String(kpiId).trim().toUpperCase() : "";
-      if (kid === "LOG-M2") return "руб.";
+      if (kid === "LOG-M2" || kid === "LOG-M5") return "руб.";
       if (kid === "OD-M1" || kid === "OD-M3.1" || kid === "OD-M3.2") return "руб.";
       if (kid === "KD-M11") return "чел.";
       if (/^QD-M\d+$/.test(kid)) {
@@ -3836,7 +3850,7 @@
         : useTechnicalTables
           ? "Улучшение и развитие"
           : isLogisticsDashboardContext()
-          ? "Дебиторская задолженность"
+          ? "Дебиторская задолженность (НПО+АЛМАЗ)"
           : "Расшифровка просроченной дебиторской задолженности";
     }
 
@@ -3903,6 +3917,7 @@
       useServheadSurveysTable,
       useServheadClientsOnlyTable
     );
+    updateLogisticsClientDzFilterVisibility(isLogisticsDashboardContext());
 
     var tablesRow = document.querySelector(".tables-row");
     if (tablesRow) {
@@ -3965,6 +3980,20 @@
     if (!show) {
       if (boxes.primary) boxes.primary.checked = false;
       if (boxes.overdue) boxes.overdue.checked = false;
+    }
+  }
+
+  function updateLogisticsClientDzFilterVisibility(show) {
+    if (!logisticsClientDzOverdueFilterWrapEl) return;
+    if (show) {
+      logisticsClientDzOverdueFilterWrapEl.hidden = false;
+      logisticsClientDzOverdueFilterWrapEl.removeAttribute("hidden");
+      logisticsClientDzOverdueFilterWrapEl.setAttribute("aria-hidden", "false");
+    } else {
+      logisticsClientDzOverdueFilterWrapEl.hidden = true;
+      logisticsClientDzOverdueFilterWrapEl.setAttribute("hidden", "");
+      logisticsClientDzOverdueFilterWrapEl.setAttribute("aria-hidden", "true");
+      if (logisticsClientDzOverdueOnlyEl) logisticsClientDzOverdueOnlyEl.checked = false;
     }
   }
 
@@ -4086,7 +4115,7 @@
         productionClaimsShop: normalizeProductionShopKey(productionDeputySelectedShop),
         constructorProjectTableMode: isChiefConstructorDashboardContext(),
         metrologLateStagesTableMode: isChiefMetrologDashboardContext(),
-        logisticsSupplierDebtTableMode: isLogisticsDashboardContext(),
+        logisticsClientDebtTableMode: isLogisticsDashboardContext(),
         qualdirDefectTablesMode: shouldUseQualdirDefectTables(),
         qualdirExternalTableKey: "QD-T-M5",
         qualdirInternalTableKey: "QD-T-M1",

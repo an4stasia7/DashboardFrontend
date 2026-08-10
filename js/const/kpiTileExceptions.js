@@ -129,6 +129,11 @@
       hidePlanDelta: false,
       // Суммы в рублях (млн на плитке); бейдж — KPI% отклонения от плана.
     },
+    "LOG-M5": {
+      // kpi_pct = просроченная ДЗ / общая ДЗ × 100; бейдж показывает долю, не отклонение от 100%.
+      kpiPctIsShare: true,
+      planDeltaSubLabel: "просрочено",
+    },
     "GK-M1": {
       backProjectDeviations: true,
     },
