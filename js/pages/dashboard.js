@@ -701,8 +701,9 @@
             loadKpiTilesAndChartsForView({ preserveViewState: true });
             return;
           }
-          var supPeriodNeedsServerData = shouldUseHrdLateVacanciesTable();
-          if (!supPeriodNeedsServerData && applyCurrentPeriodFromLastRawResponse()) {
+          var periodNeedsServerData =
+            shouldUseHrdLateVacanciesTable() || shouldUseGsppTechnicalTables();
+          if (!periodNeedsServerData && applyCurrentPeriodFromLastRawResponse()) {
             return;
           }
           if (

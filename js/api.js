@@ -1907,6 +1907,41 @@
     };
   }
 
+  function tablePeriodMatchesFilter(period, filterYear, filterMonth) {
+    if (!period || typeof period !== "object") return true;
+    if (filterYear == null || filterMonth == null) return true;
+    if (period.year == null || period.month == null) return true;
+    return (
+      Number(period.year) === Number(filterYear) && Number(period.month) === Number(filterMonth)
+    );
+  }
+
+  function emptyTableSliceForPeriod(tab, filterYear, filterMonth) {
+    return {
+      name: tab && tab.name != null ? tab.name : "",
+      description: tab && tab.description != null ? tab.description : "",
+      columns: tab && Array.isArray(tab.columns) ? tab.columns : null,
+      period: { year: filterYear, month: filterMonth },
+      rows: [],
+    };
+  }
+
+  /** Плоский снимок таблицы (rows без monthly_data / *-BY-MONTH): только если period совпадает с фильтром. */
+  function flatTableSourceForPeriod(tab, filterYear, filterMonth) {
+    if (!tab || typeof tab !== "object") return tab;
+    var hasFilter =
+      filterYear != null &&
+      filterMonth != null &&
+      !isNaN(filterYear) &&
+      !isNaN(filterMonth) &&
+      filterMonth >= 1 &&
+      filterMonth <= 12;
+    if (!hasFilter) return tab;
+    if (Array.isArray(tab.monthly_data) && tab.monthly_data.length) return tab;
+    if (tablePeriodMatchesFilter(tab.period, filterYear, filterMonth)) return tab;
+    return emptyTableSliceForPeriod(tab, filterYear, filterMonth);
+  }
+
   /**
    * Для таблиц с companion *-BY-MONTH подставляет срез выбранного месяца вместо
    * плоского снимка «последнего полного месяца» (HRD-T-M1-LATE-VACANCIES).
@@ -1923,7 +1958,9 @@
     if (!hasFilter || !tables || !tabKey) return tab;
 
     var companionKey = getMonthKeyedTableCompanionKey(tabKey);
-    if (!companionKey || !Object.prototype.hasOwnProperty.call(tables, companionKey)) return tab;
+    if (!companionKey || !Object.prototype.hasOwnProperty.call(tables, companionKey)) {
+      return flatTableSourceForPeriod(tab, filterYear, filterMonth);
+    }
 
     var byMonth = tables[companionKey];
     var tabKeyNorm = String(tabKey).trim().toUpperCase();
@@ -1987,6 +2024,21 @@
         rows: rowsObjectToArray(slice.rows),
         columns: Array.isArray(slice.columns) ? slice.columns : Array.isArray(tab.columns) ? tab.columns : null,
         period: slice,
+        name: tab.name != null ? String(tab.name) : "",
+        description: tab.description != null ? String(tab.description) : "",
+      };
+    }
+
+    if (
+      hasFilter &&
+      tab.rows != null &&
+      (!monthly || !monthly.length) &&
+      !tablePeriodMatchesFilter(tab.period, filterYear, filterMonth)
+    ) {
+      return {
+        rows: [],
+        columns: Array.isArray(tab.columns) ? tab.columns : null,
+        period: { year: filterYear, month: filterMonth },
         name: tab.name != null ? String(tab.name) : "",
         description: tab.description != null ? String(tab.description) : "",
       };
