@@ -1148,6 +1148,8 @@
             item.plan_fact_period_label != null
               ? String(item.plan_fact_period_label)
               : null,
+          kpi_period:
+            item.kpi_period && typeof item.kpi_period === "object" ? item.kpi_period : null,
           monthly_data: Array.isArray(item.monthly_data) ? item.monthly_data : [],
           period_aggregates:
             item.period_aggregates && typeof item.period_aggregates === "object"
@@ -1347,6 +1349,25 @@
     return !!findTileMonthlyDataPoint(monthlyData, year, month);
   }
 
+  function tileCoversSelectedPeriod(tile, year, month) {
+    if (!tile || typeof tile !== "object") return false;
+    if (Array.isArray(tile.monthly_data) && tile.monthly_data.length && monthlyDataCoversYearMonth(tile.monthly_data, year, month)) {
+      return true;
+    }
+    var kid = tile.kpi_id != null ? String(tile.kpi_id).trim().toUpperCase() : "";
+    if ((isSupHrdLateMonthKpiId(kid) || isGsppFotKpiId(kid)) && tileHasLastFullMonthRowData(tile, kid)) {
+      return true;
+    }
+    if (
+      tile.kpi_period &&
+      String(tile.kpi_period.type || "").toLowerCase() === "last_full_month" &&
+      tileHasLastFullMonthRowData(tile, kid)
+    ) {
+      return true;
+    }
+    return false;
+  }
+
   /**
    * Raw KPI JSON покрывает выбранный месяц: у плиток с monthly_data есть точка за этот месяц.
    * Иначе локальный пересчёт из кэша другого месяца подставляет чужие plan/fact.
@@ -1370,7 +1391,7 @@
       if (!item || typeof item !== "object") continue;
       if (!Array.isArray(item.monthly_data) || !item.monthly_data.length) continue;
       checked++;
-      if (!monthlyDataCoversYearMonth(item.monthly_data, y, m)) return false;
+      if (!tileCoversSelectedPeriod(item, y, m)) return false;
     }
     return checked > 0;
   }
@@ -1488,8 +1509,8 @@
     if (!Array.isArray(tiles) || !tiles.length) return;
     tiles.forEach(function (tile) {
       if (!tile || !Array.isArray(tile.monthly_data)) return;
-      // HRD-M2/M4/Q4 уже выставлены из last_full_month_row в applyPlanFact — не затирать.
-      if (isSupHrdLateMonthKpiId(tile.kpi_id)) return;
+      // HRD-M2/M4/Q4 и гСПП ФОТ: plan/fact из last_full_month_row в applyPlanFact — не затирать.
+      if (isSupHrdLateMonthKpiId(tile.kpi_id) || isGsppFotKpiId(tile.kpi_id)) return;
       var point = findTileMonthlyDataPoint(tile.monthly_data, year, month);
       if (!point) return;
       var isLogM2 = String(tile.kpi_id || "").trim().toUpperCase() === "LOG-M2";
@@ -3132,6 +3153,33 @@
     return kid === "HRD-M2" || kid === "HRD-M4" || kid === "HRD-Q4";
   }
 
+  function normalizeKpiIdForApiCompare(kpiId) {
+    return String(kpiId == null ? "" : kpiId)
+      .trim()
+      .toUpperCase()
+      .replace(/\u041C/g, "M")
+      .replace(/\u0413/g, "G")
+      .replace(/\u0421/g, "S")
+      .replace(/\u041F/g, "P")
+      .replace(/[\s_]/g, "");
+  }
+
+  function isGsppFotKpiId(kpiId) {
+    var id = normalizeKpiIdForApiCompare(kpiId);
+    return id === "GSP-M3" || id === "GSPP-M3";
+  }
+
+  function tileHasLastFullMonthRowData(tile, kpiId) {
+    var lfm = tile && tile.last_full_month_row;
+    if (!lfm || typeof lfm !== "object") return false;
+    var kid = kpiId != null ? String(kpiId).trim().toUpperCase() : "";
+    return (
+      planFactValuePresent(lfm.plan) ||
+      planFactValuePresent(lfm.fact) ||
+      monthlyPointHasUsableFact(lfm, kid)
+    );
+  }
+
   function monthlyPointHasUsableFact(point, kpiId) {
     if (!point || !planFactValuePresent(point.fact)) return false;
     return true;
@@ -3168,14 +3216,12 @@
       if (!tile || !tile.kpi_id) return;
       var kidEarly = String(tile.kpi_id || "").trim().toUpperCase();
       var point = null;
-      // SUP HRD-M2/M4/Q4: всегда опора с бэка (last_full_month_row), иначе август
-      // без факта / fact=0 затирает плитку в «Нет данных из источника».
+      // HRD и гСПП ФОТ: last_full_month_row, если в monthly_data нет выбранного месяца.
       if (
-        isSupHrdLateMonthKpiId(kidEarly) &&
-        tile.last_full_month_row &&
-        typeof tile.last_full_month_row === "object" &&
-        (planFactValuePresent(tile.last_full_month_row.plan) ||
-          monthlyPointHasUsableFact(tile.last_full_month_row, kidEarly))
+        (isSupHrdLateMonthKpiId(kidEarly) || isGsppFotKpiId(kidEarly)) &&
+        tileHasLastFullMonthRowData(tile, kidEarly) &&
+        (!useMonthFilter ||
+          !monthlyDataCoversYearMonth(tile.monthly_data, filterYear, filterMonth))
       ) {
         point = tile.last_full_month_row;
       }
@@ -3195,6 +3241,7 @@
         // Незакрытый месяц: есть план, факта ещё нет — берём последний полный месяц.
         if (
           !isSupHrdLateMonthKpiId(kidEarly) &&
+          !isGsppFotKpiId(kidEarly) &&
           useMonthFilter &&
           point &&
           planFactValuePresent(point.plan) &&
@@ -3504,7 +3551,15 @@
         useMonthFilter &&
         Array.isArray(tile.monthly_data) &&
         tile.monthly_data.length > 0 &&
-        !monthlyDataCoversYearMonth(tile.monthly_data, filterYear, filterMonth)
+        !monthlyDataCoversYearMonth(tile.monthly_data, filterYear, filterMonth) &&
+        !(
+          ownMonthly &&
+          (planFactValuePresent(ownMonthly.plan) || planFactValuePresent(ownMonthly.fact))
+        ) &&
+        !(
+          (isGsppFotKpiId(id) || isSupHrdLateMonthKpiId(String(id || "").trim().toUpperCase())) &&
+          tileHasLastFullMonthRowData(tile, id)
+        )
       ) {
         tile.plan = null;
         tile.fact = null;
