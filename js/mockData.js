@@ -588,6 +588,9 @@
       rule &&
       (rule.hidePlanOnTile ||
         rule.hideKpiPercent ||
+        rule.kpiRevenuePerHeadFraction ||
+        rule.kpiStaffingFraction ||
+        rule.factOnly ||
         (rule.qualdirControlOverview && !rule.qualdirControlOverviewOnBack) ||
         rule.backArticlesDeptCount)
     );

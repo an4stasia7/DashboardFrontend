@@ -251,16 +251,92 @@
     );
   }
 
+  function readHrdM7RevenueSsc(tile) {
+    var revenue = tile && tile.revenue != null ? tile.revenue : null;
+    var ssc = tile && tile.ssc != null ? tile.ssc : null;
+    var lfr = tile && tile.last_full_month_row && typeof tile.last_full_month_row === "object"
+      ? tile.last_full_month_row
+      : null;
+    if (revenue == null && lfr && lfr.revenue != null) revenue = lfr.revenue;
+    if (ssc == null && lfr && lfr.ssc != null) ssc = lfr.ssc;
+    var revNum = revenue != null && revenue !== "" ? Number(revenue) : NaN;
+    var sscNum = ssc != null && ssc !== "" ? Number(ssc) : NaN;
+    if (!isFinite(revNum) || isNaN(revNum) || !isFinite(sscNum) || isNaN(sscNum)) {
+      return null;
+    }
+    return { revenue: revNum, ssc: sscNum };
+  }
+
+  /** HRD-M7: «выручка / чел» как два числа, без свёртки в млн. */
+  function formatHrdM7RevenuePerHeadFraction(tile) {
+    var pair = readHrdM7RevenueSsc(tile);
+    if (!pair) return "—";
+    var revText = pair.revenue.toLocaleString("ru-RU", {
+      maximumFractionDigits: 2,
+      minimumFractionDigits: 0,
+    });
+    var sscText = pair.ssc.toLocaleString("ru-RU", {
+      maximumFractionDigits: 1,
+      minimumFractionDigits: 0,
+    });
+    return revText + " / " + sscText;
+  }
+
+  function readHrdM9EmployeesVacancies(tile) {
+    var employees = tile && tile.employees != null ? tile.employees : null;
+    var vacancies = tile && tile.vacancies != null ? tile.vacancies : null;
+    var lfr =
+      tile && tile.last_full_month_row && typeof tile.last_full_month_row === "object"
+        ? tile.last_full_month_row
+        : null;
+    if (employees == null && lfr && lfr.employees != null) employees = lfr.employees;
+    if (vacancies == null && lfr && lfr.vacancies != null) vacancies = lfr.vacancies;
+    var empNum = employees != null && employees !== "" ? Number(employees) : NaN;
+    var vacNum = vacancies != null && vacancies !== "" ? Number(vacancies) : NaN;
+    if (!isFinite(empNum) || isNaN(empNum) || !isFinite(vacNum) || isNaN(vacNum)) {
+      return null;
+    }
+    return { employees: empNum, vacancies: vacNum };
+  }
+
+  /** HRD-M9: сотрудники / (сотрудники + вакансии). */
+  function formatHrdM9StaffingFraction(tile) {
+    var pair = readHrdM9EmployeesVacancies(tile);
+    if (!pair) return "—";
+    var empText = pair.employees.toLocaleString("ru-RU", {
+      maximumFractionDigits: 0,
+      minimumFractionDigits: 0,
+    });
+    var vacText = pair.vacancies.toLocaleString("ru-RU", {
+      maximumFractionDigits: 0,
+      minimumFractionDigits: 0,
+    });
+    return empText + " / (" + empText + " + " + vacText + ")";
+  }
+
   function buildKpiTileBackKpiPctSummaryHtml(tile, pres, showHelp, showPercent) {
     if (!showPercent) return "";
-    var percentLabel = MockData.formatKpiPercentLabel(pres && pres.percent != null ? pres.percent : null) + "%";
+    var rule = getKpiTileException(tile);
+    var valueLabel;
+    var kpiLabel = "KPI";
+    if (rule && rule.kpiRevenuePerHeadFraction) {
+      valueLabel = formatHrdM7RevenuePerHeadFraction(tile);
+      kpiLabel = "Расчёт";
+    } else if (rule && rule.kpiStaffingFraction) {
+      valueLabel = formatHrdM9StaffingFraction(tile);
+      kpiLabel = "Расчёт";
+    } else {
+      valueLabel = MockData.formatKpiPercentLabel(pres && pres.percent != null ? pres.percent : null) + "%";
+    }
     return (
       '<div class="kpi-tile-back-summary">' +
       '<div class="kpi-tile-back-summary-item kpi-tile-back-summary-item--kpi">' +
       (showHelp ? buildKpiTileHelpButtonHtml() : "") +
-      '<span class="kpi-tile-back-summary-label">KPI</span>' +
+      '<span class="kpi-tile-back-summary-label">' +
+      DashUi.escapeHtml(kpiLabel) +
+      "</span>" +
       '<strong class="kpi-tile-back-kpi-pct">' +
-      DashUi.escapeHtml(percentLabel) +
+      DashUi.escapeHtml(valueLabel) +
       "</strong></div></div>"
     );
   }

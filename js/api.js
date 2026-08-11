@@ -1171,6 +1171,30 @@
           kpi_pct_is_deviation: item.kpi_pct_is_deviation === true,
           plan: item.plan,
           fact: item.fact,
+          revenue:
+            item.revenue != null
+              ? item.revenue
+              : lastFullMonthRow && lastFullMonthRow.revenue != null
+                ? lastFullMonthRow.revenue
+                : null,
+          ssc:
+            item.ssc != null
+              ? item.ssc
+              : lastFullMonthRow && lastFullMonthRow.ssc != null
+                ? lastFullMonthRow.ssc
+                : null,
+          employees:
+            item.employees != null
+              ? item.employees
+              : lastFullMonthRow && lastFullMonthRow.employees != null
+                ? lastFullMonthRow.employees
+                : null,
+          vacancies:
+            item.vacancies != null
+              ? item.vacancies
+              : lastFullMonthRow && lastFullMonthRow.vacancies != null
+                ? lastFullMonthRow.vacancies
+                : null,
           expected_plan: item.expected_plan != null ? item.expected_plan : null,
           found: item.found != null ? item.found : null,
           won: item.won != null ? item.won : null,
@@ -1516,6 +1540,10 @@
       var isLogM2 = String(tile.kpi_id || "").trim().toUpperCase() === "LOG-M2";
       if (point.plan !== undefined) tile.plan = point.plan;
       if (point.fact !== undefined) tile.fact = point.fact;
+      if (point.revenue !== undefined) tile.revenue = point.revenue;
+      if (point.ssc !== undefined) tile.ssc = point.ssc;
+      if (point.employees !== undefined) tile.employees = point.employees;
+      if (point.vacancies !== undefined) tile.vacancies = point.vacancies;
       if (point.kpi_pct !== undefined) {
         if (typeof point.kpi_pct === "number" && !isNaN(point.kpi_pct)) {
           tile.percent = point.kpi_pct;
@@ -3624,6 +3652,10 @@
       if (ownMonthly && !isProductionDeputyOutputPeriodTile(id)) {
         tile.plan = ownMonthly.plan;
         tile.fact = ownMonthly.fact;
+        if (ownMonthly.revenue !== undefined) tile.revenue = ownMonthly.revenue;
+        if (ownMonthly.ssc !== undefined) tile.ssc = ownMonthly.ssc;
+        if (ownMonthly.employees !== undefined) tile.employees = ownMonthly.employees;
+        if (ownMonthly.vacancies !== undefined) tile.vacancies = ownMonthly.vacancies;
         if (ownMonthly.force_unit != null) {
           tile.units = ownMonthly.force_unit;
           tile.unit = ownMonthly.force_unit;

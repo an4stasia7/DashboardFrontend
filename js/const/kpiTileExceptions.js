@@ -125,6 +125,22 @@
       zeroEmptyPlanFact: true,
       zeroGeneratedPlanFact: true,
     },
+    /**
+     * HRD-M7: на лице — обычный факт (руб./чел.);
+     * на обороте в блоке KPI — дробь «выручка / ССЧ» двумя числами.
+     */
+    "HRD-M7": {
+      hidePlanOnTile: true,
+      allowPartialPlanFact: true,
+      kpiRevenuePerHeadFraction: true,
+    },
+    /**
+     * HRD-M9: на лице — % укомплектованности;
+     * на обороте в блоке KPI — дробь сотрудники / (сотрудники + вакансии).
+     */
+    "HRD-M9": {
+      kpiStaffingFraction: true,
+    },
     "LOG-M2": {
       hidePlanDelta: false,
       // Суммы в рублях (млн на плитке); бейдж — KPI% отклонения от плана.
