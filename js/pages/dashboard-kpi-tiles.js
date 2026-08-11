@@ -172,7 +172,7 @@
 
   function resolveKpiTileDisplayUnits(tile) {
     var kid = tile && tile.kpi_id != null ? String(tile.kpi_id).trim().toUpperCase() : "";
-    if (kid === "LOG-M2") return "руб.";
+    if (kid === "LOG-M2" || kid === "LOG-M5") return "руб.";
     var rule = getKpiTileException(tile);
     var usesPieceCount =
       !!(
@@ -697,9 +697,19 @@
     if (shouldHideKpiTilePlanDelta(tile)) return "";
     var units = String((tile && tile.units) || "").trim();
     var kpiPct = readFiniteTileNumber(tile && (tile.kpi_pct != null ? tile.kpi_pct : tile.percent));
+    var rule = getKpiTileException(tile);
     var text = "";
-    // Отклонение KPI (LOG-M2 и др.): всегда (факт−план)/план в %, не «п.п.» от сырых сумм.
-    if (tile && tile.kpi_pct_is_deviation && kpiPct != null) {
+    var subLabel = "к плану";
+    // Доля (LOG-M5): kpi_pct уже overdue/total×100 — показываем как есть.
+    if (rule && rule.kpiPctIsShare && kpiPct != null) {
+      text =
+        (Math.round(kpiPct * 100) / 100).toLocaleString("ru-RU", {
+          maximumFractionDigits: 2,
+        }) +
+        "%";
+      if (rule.planDeltaSubLabel) subLabel = String(rule.planDeltaSubLabel);
+    } else if (tile && tile.kpi_pct_is_deviation && kpiPct != null) {
+      // Отклонение KPI (LOG-M2 и др.): всегда (факт−план)/план в %, не «п.п.» от сырых сумм.
       var signDev = kpiPct > 0 ? "+" : "";
       text =
         signDev +
@@ -730,7 +740,9 @@
       '<span class="kpi-tile-plan-delta">' +
       '<span class="kpi-tile-plan-delta-main">' +
       DashUi.escapeHtml(text) +
-      '</span><span class="kpi-tile-plan-delta-sub">к плану</span></span>'
+      '</span><span class="kpi-tile-plan-delta-sub">' +
+      DashUi.escapeHtml(subLabel) +
+      "</span></span>"
     );
   }
 
@@ -775,6 +787,7 @@
       '">' +
       '<div class="kpi-tile-modern-value-row">' +
       '<strong class="kpi-tile-modern-value">' +
+      '<span class="kpi-tile-modern-value-label">Факт</span>' +
       '<span class="kpi-tile-modern-value-number">' +
       DashUi.escapeHtml(factParts.value) +
       '</span>' +
@@ -907,11 +920,12 @@
     var parts = splitKpiTileValueAndUnit(factShown, "");
     return (
       '<div class="kpi-tile-fact-only">' +
+      '<span>Факт</span>' +
       '<strong><span class="kpi-tile-fact-only-number">' +
       DashUi.escapeHtml(parts.value) +
       '</span>' +
       (parts.unit ? '<span class="kpi-tile-fact-only-unit">' + DashUi.escapeHtml(parts.unit) + '</span>' : '') +
-      '</strong><span>Факт</span></div>'
+      '</strong></div>'
     );
   }
 

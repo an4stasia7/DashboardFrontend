@@ -102,7 +102,7 @@
 
   function updateOverdueDebtTotalRow(dataTableApi) {
     var total = 0;
-    var amountCellIndex = logisticsSupplierDebtTableMode ? 4 : 6;
+    var amountCellIndex = logisticsClientDebtTableMode ? 5 : logisticsSupplierDebtTableMode ? 4 : 6;
     if (dataTableApi && typeof dataTableApi.rows === "function") {
       dataTableApi
         .rows({ search: "applied" })
@@ -334,6 +334,15 @@
     "Примечание",
   ];
   var LOGISTICS_SUPPLIER_DZ_HEADERS = ["№ объекта расчетов", "Дата", "Объект расчетов", "Поставщик", "Сумма"];
+  var LOGISTICS_CLIENT_DZ_HEADERS = [
+    "№ объекта расчетов",
+    "Дата",
+    "Организация",
+    "Контрагент",
+    "Объект расчетов",
+    "Сумма",
+    "Просрочена",
+  ];
   var EXECUTIVE_DEVIATIONS_HEADERS = ["Показатель", "Факт", "План", "RAG", "Комментарий"];
   var EXECUTIVE_DECISIONS_HEADERS = ["Вопрос", "Факт", "План", "RAG", "Решение"];
   var TECHNICAL_TABLE_HEADERS = [
@@ -380,6 +389,7 @@
   var METROLOG_LATE_STAGE_TABLE_KEY = "METD-T-M1-LATE-STAGES";
   var LOGISTICS_CLAIMS_TABLE_KEY = "LOG-T-CLAIMS";
   var LOGISTICS_SUPPLIER_DZ_TABLE_KEY = "LOG-T-SUPPLIER-DZ";
+  var LOGISTICS_CLIENT_DZ_TABLE_KEY = "LOG-T-CLIENT-DZ";
   var SERVHEAD_CLIENTS_TABLE_KEY = "SH-T1";
   var SERVHEAD_SURVEYS_TABLE_KEY = "SH-T2";
   var SERVHEAD_SURVEYS_DEFAULT_HEADERS = [
@@ -438,6 +448,7 @@
   var protocolOverdueTableMode = false;
   var metrologLateStagesTableMode = false;
   var logisticsSupplierDebtTableMode = false;
+  var logisticsClientDebtTableMode = false;
   var servheadClientsTableMode = false;
   var servheadSurveysTableState = Object.create(null);
 
@@ -2581,6 +2592,11 @@
     return key === LOGISTICS_SUPPLIER_DZ_TABLE_KEY;
   }
 
+  function isLogisticsClientDzRow(item) {
+    var key = item && item.tableKey != null ? String(item.tableKey).trim().toLocaleUpperCase("ru-RU") : "";
+    return key === LOGISTICS_CLIENT_DZ_TABLE_KEY;
+  }
+
   function isProductionClaimsRow(item) {
     var key = item && item.tableKey != null ? String(item.tableKey).trim().toLocaleUpperCase("ru-RU") : "";
     return key === PRODUCTION_CLAIMS_TABLE_KEY;
@@ -2716,6 +2732,36 @@
     var tbody = table ? table.querySelector("tbody") : null;
     if (!table || !tbody) return;
     tbody.innerHTML = "";
+
+    if (logisticsClientDebtTableMode) {
+      var clientDzRows = Array.isArray(rows) ? rows.filter(isLogisticsClientDzRow) : [];
+      setTableHeaders("table-overdue-debt", LOGISTICS_CLIENT_DZ_HEADERS);
+      if (table.tFoot) {
+        table.tFoot.hidden = false;
+        table.tFoot.innerHTML =
+          '<tr><th colspan="5">Итого</th><th id="overdue-debt-table-total-sum">0,00</th><th></th></tr>';
+      }
+      clientDzRows.forEach(function (item) {
+        var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
+        if (!raw) return;
+        var tr = document.createElement("tr");
+        tr.setAttribute("data-logistics-client-dz-overdue", raw.is_overdue ? "1" : "0");
+        appendClampedCell(tr, raw.object_number || raw.object_key, "dashboard-table-cell--compact");
+        appendClampedCell(tr, raw.object_date, "dashboard-table-cell--date");
+        appendClampedCell(tr, raw.organization, "dashboard-table-cell--wide-text");
+        appendClampedCell(tr, raw.partner, "dashboard-table-cell--wide-text");
+        appendClampedCell(tr, raw.object_name, "dashboard-table-cell--wide-text");
+        var amountTd = document.createElement("td");
+        amountTd.textContent = formatClaimsOrderSum(raw.amount);
+        amountTd.setAttribute("data-order", getClaimsOrderSumSortValue(raw.amount));
+        amountTd.className = "dashboard-table-cell--number";
+        tr.appendChild(amountTd);
+        appendClampedCell(tr, raw.is_overdue ? "Да" : "Нет", "dashboard-table-cell--compact");
+        tbody.appendChild(tr);
+      });
+      updateOverdueDebtTotalRow(null);
+      return;
+    }
 
     if (logisticsSupplierDebtTableMode) {
       var supplierDzRows = Array.isArray(rows) ? rows.filter(isLogisticsSupplierDzRow) : [];
@@ -3627,6 +3673,55 @@
 
   function initOverdueDebtDataTable() {
     if (!tableHasBodyRows("#table-overdue-debt")) return null;
+    if (logisticsClientDebtTableMode) {
+      var filterKey = "logistics-client-dz-overdue-only";
+      var checkbox = document.getElementById("logistics-client-dz-overdue-only");
+      removeClaimsTableExtSearchByKey(filterKey);
+      if (typeof $ !== "undefined" && $.fn && $.fn.dataTable && $.fn.dataTable.ext) {
+        var searchFn = function (settings, data, dataIndex) {
+          if (!settings || !settings.nTable || settings.nTable.id !== "table-overdue-debt") return true;
+          if (!checkbox || !checkbox.checked) return true;
+          var row = settings.aoData && settings.aoData[dataIndex] ? settings.aoData[dataIndex].nTr : null;
+          return !row || row.getAttribute("data-logistics-client-dz-overdue") === "1";
+        };
+        searchFn._claimsTableSearchKey = filterKey;
+        $.fn.dataTable.ext.search.push(searchFn);
+      }
+      return initInteractiveDashboardTable({
+        tableSelector: "#table-overdue-debt",
+        wrapperSelector: ".dashboard-table-wrap--overdue-debt",
+        advancedSearchKey: "logistics-client-dz-table-advanced",
+        columnConfigs: [],
+        initialOrder: [[5, "desc"]],
+        columnDefs: [
+          { targets: [1], type: "date", orderable: true },
+          { targets: [5], type: "num-fmt", orderable: true },
+        ],
+        footerCallback: function () {
+          updateOverdueDebtTotalRow(this.api());
+        },
+        afterInit: function (dataTable) {
+          updateOverdueDebtTotalRow(dataTable);
+          if (checkbox && !checkbox._logisticsClientDzBound) {
+            checkbox._logisticsClientDzBound = true;
+            checkbox.addEventListener("change", function () {
+              var table = document.getElementById("table-overdue-debt");
+              if (
+                typeof $ !== "undefined" &&
+                $.fn &&
+                $.fn.DataTable &&
+                table &&
+                $.fn.DataTable.isDataTable(table)
+              ) {
+                var api = $(table).DataTable();
+                api.draw();
+                updateOverdueDebtTotalRow(api);
+              }
+            });
+          }
+        },
+      });
+    }
     if (logisticsSupplierDebtTableMode) {
       return initInteractiveDashboardTable({
         tableSelector: "#table-overdue-debt",
@@ -3764,7 +3859,8 @@
     return (
       isOverdueDebtRow(item) ||
       isDepartmentProtocolOverdueRow(item) ||
-      isLogisticsSupplierDzRow(item)
+      isLogisticsSupplierDzRow(item) ||
+      isLogisticsClientDzRow(item)
     );
   }
 
@@ -3949,6 +4045,7 @@
       hasProtocolOverdueTableRows(rows);
     metrologLateStagesTableMode = !!options.metrologLateStagesTableMode;
     logisticsSupplierDebtTableMode = !!options.logisticsSupplierDebtTableMode;
+    logisticsClientDebtTableMode = !!options.logisticsClientDebtTableMode;
     if (technicalTablesMode) {
       activeTechnicalExternalTableKey =
         options.technicalExternalTableKey != null && String(options.technicalExternalTableKey).trim() !== ""

@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Главная — дашборд</title>
-    <link rel="stylesheet" href="css/styles.css" />
+    <link rel="stylesheet" href="css/styles.css?v=20260810-fact-label" />
     <link rel="stylesheet" href="node_modules/katex/dist/katex.min.css" />
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/jquery.dataTables.min.css" />
   </head>
@@ -551,6 +551,17 @@
               </label>
             </span>
             <span
+              id="logistics-client-dz-overdue-filter-wrap"
+              class="psd-table-amount-filter-wrap"
+              hidden
+              aria-hidden="true"
+            >
+              <label class="psd-table-amount-filter-label" for="logistics-client-dz-overdue-only">
+                <input type="checkbox" id="logistics-client-dz-overdue-only" />
+                <span>Только просроченная</span>
+              </label>
+            </span>
+            <span
               id="servhead-surveys-period-filter-wrap-overdue"
               class="servhead-surveys-period-filter-wrap"
               hidden
@@ -835,10 +846,10 @@
     <script src="js/config.js"></script>
     <script src="js/app-update-notifier.js"></script>
     <script src="js/app-version-label.js"></script>
-    <script src="js/const/kpiTileExceptions.js?v=20260729-log-m2"></script>
+    <script src="js/const/kpiTileExceptions.js?v=20260810-log-dz2"></script>
     <script src="js/mockData.js"></script>
     <script src="js/auth.js"></script>
-    <script src="js/api.js?v=20260810-gspp-table"></script>
+    <script src="js/api.js?v=20260811-cursor-merge"></script>
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
     <!-- Явная версия: с code.highcharts.com без версии иногда подтягивается HC12+ с иными требованиями -->
@@ -854,14 +865,14 @@
     <script src="js/pages/dashboard-data-loader.js"></script>
     <script src="js/pages/dashboard-month-nav.js"></script>
     <script src="js/pages/dashboard-kpi-tile-order.js"></script>
-    <script src="js/pages/dashboard-kpi-tiles.js?v=20260729-log-m2"></script>
+    <script src="js/pages/dashboard-kpi-tiles.js?v=20260810-fact-label"></script>
     <script src="js/pages/dashboard-kpi-drilldown.js"></script>
-    <script src="js/pages/dashboard-claims-table.js"></script>
+    <script src="js/pages/dashboard-claims-table.js?v=20260810-log-dz2"></script>
     <script src="js/pages/dashboard-charts.js"></script>
     <script src="js/pages/dashboard-viewport.js"></script>
     <script src="js/pages/dashboard-chairman-overview.js"></script>
     <script src="js/pages/dashboard-support.js"></script>
     <script src="js/pages/dashboard-ai-assistant.js"></script>
-    <script src="js/pages/dashboard.js?v=20260729-log-m2-rub"></script>
+    <script src="js/pages/dashboard.js?v=20260810-log-dz2"></script>
   </body>
 </html>
