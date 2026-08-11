@@ -707,6 +707,7 @@
       '">' +
       '<div class="kpi-tile-modern-value-row">' +
       '<strong class="kpi-tile-modern-value">' +
+      '<span class="kpi-tile-modern-value-label">Факт</span>' +
       '<span class="kpi-tile-modern-value-number">' +
       DashUi.escapeHtml(factParts.value) +
       '</span>' +
@@ -839,11 +840,12 @@
     var parts = splitKpiTileValueAndUnit(factShown, "");
     return (
       '<div class="kpi-tile-fact-only">' +
+      '<span>Факт</span>' +
       '<strong><span class="kpi-tile-fact-only-number">' +
       DashUi.escapeHtml(parts.value) +
       '</span>' +
       (parts.unit ? '<span class="kpi-tile-fact-only-unit">' + DashUi.escapeHtml(parts.unit) + '</span>' : '') +
-      '</strong><span>Факт</span></div>'
+      '</strong></div>'
     );
   }
 

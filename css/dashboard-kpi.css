@@ -2872,6 +2872,14 @@ article.kpi-tile[data-no-flip="1"] {
   min-width: 0;
 }
 
+.kpi-tile-modern-value-label {
+  color: #64748b;
+  font-size: 0.68rem;
+  font-weight: 500;
+  line-height: 1.2;
+  letter-spacing: 0;
+}
+
 .kpi-tile-modern-value-number {
   font-size: clamp(2rem, 3.1vw, 2.65rem);
   line-height: 0.96;
