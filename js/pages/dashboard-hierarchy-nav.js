@@ -412,6 +412,35 @@
     return !!root && !!dept && root === dept;
   }
 
+  function isChairmanCommerceTarget(target) {
+    if (!target) return false;
+    var cid = target.catalogId != null ? String(target.catalogId).trim().toLowerCase() : "";
+    var id = target.id != null ? String(target.id).trim().toLowerCase() : "";
+    var label = target.label != null ? String(target.label).trim().toLowerCase() : "";
+    return cid === "commerce" || id.indexOf("commerce") !== -1 || label.indexOf("коммер") !== -1;
+  }
+
+  function findChairmanLandingTarget() {
+    var chairmanTargets = getChairmanDashboardTargets();
+    if (!Array.isArray(chairmanTargets) || !chairmanTargets.length) return null;
+    for (var i = 0; i < chairmanTargets.length; i++) {
+      if (isChairmanCommerceTarget(chairmanTargets[i])) return chairmanTargets[i];
+    }
+    return chairmanTargets[0] || null;
+  }
+
+  function applyChairmanLandingView() {
+    var target = findChairmanLandingTarget();
+    if (!target) {
+      setSelectedViewId("self");
+      clearRememberedChairmanCatalogId();
+      return null;
+    }
+    setSelectedViewId(target.id);
+    if (target.catalogId != null) rememberChairmanCatalogId(target.catalogId);
+    return target;
+  }
+
   function findChairmanTargetByRootDepartment(rootDepartment) {
     var root = rootDepartment != null ? String(rootDepartment).trim() : "";
     if (!root) return null;
@@ -426,6 +455,11 @@
         var pdept = pref.department != null ? String(pref.department).trim() : "";
         if (pcid === rememberedChairmanCatalogId && (!pdept || pdept === root)) return pref;
       }
+    }
+    var landing = findChairmanLandingTarget();
+    if (landing) {
+      var landingDept = landing.department != null ? String(landing.department).trim() : "";
+      if (!landingDept || landingDept === root) return landing;
     }
     for (var i = 0; i < chairmanTargets.length; i++) {
       var target = chairmanTargets[i];
@@ -1173,8 +1207,12 @@
     departmentsExpanded = false;
     closeStructurePanel();
     clearSidebarSearchState();
-    clearRememberedChairmanCatalogId();
-    setSelectedViewId("self");
+    if (isBoardChairUser(sessionUser)) {
+      applyChairmanLandingView();
+    } else {
+      clearRememberedChairmanCatalogId();
+      setSelectedViewId("self");
+    }
     setViewContextUser(sessionUser);
     setHierarchyStack(rootDept ? [rootDept] : []);
     renderViewTabs();
@@ -1216,7 +1254,7 @@
               setChairmanDashboardTargets(targets);
               var selfDept = sessionUser && sessionUser.department != null ? String(sessionUser.department).trim() : "";
               setHierarchyStack(selfDept ? [selfDept] : []);
-              setSelectedViewId(resolveChairmanSelectedViewIdFromHierarchy(getHierarchyStack()));
+              applyChairmanLandingView();
               resolve([]);
               return;
             }
@@ -1439,6 +1477,7 @@
 
   global.DashboardHierarchyNav = {
     activateSidebarSearchResult: activateSidebarSearchResult,
+    applyChairmanLandingView: applyChairmanLandingView,
     clearRememberedChairmanCatalogId: clearRememberedChairmanCatalogId,
     clearSidebarSearchState: clearSidebarSearchState,
     filterSidebarViewTabs: filterSidebarViewTabs,

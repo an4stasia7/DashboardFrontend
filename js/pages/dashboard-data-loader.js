@@ -62,6 +62,17 @@
     return typeof fn === "function" ? fn() : "";
   }
 
+  function getVirtualChairmanCatalogId() {
+    var catalogTarget = getActiveChairmanCatalogTarget();
+    var catalogId =
+      catalogTarget && catalogTarget.catalogId != null ? String(catalogTarget.catalogId).trim() : "";
+    if (!catalogId) {
+      catalogId = getChairmanDashboardCatalogId() || "";
+    }
+    if (!catalogId || catalogId === "my_dashboard") return "";
+    return catalogId;
+  }
+
   function getDepartmentForCurrentKpiContext() {
     var fn = getContext().getDepartmentForCurrentKpiContext;
     return typeof fn === "function" ? fn() : "";
@@ -526,7 +537,7 @@
       if (cacheKey) rememberDrilldownKpiTiles(cacheKey, tilesToRender.slice());
       renderKpiTiles(tilesToRender, renderOptions);
     } else {
-      renderKpiTiles(getMockKpiTilesForRole(role), renderOptions);
+      renderKpiTiles(getVirtualChairmanCatalogId() ? [] : getMockKpiTilesForRole(role), renderOptions);
     }
     updateTopBarForView();
     hideLoading();
@@ -580,7 +591,7 @@
         currentPeriodYear: null,
       });
       updateMonthNavigatorUI();
-      renderKpiTiles(getMockKpiTilesForRole(role));
+      renderKpiTiles(getVirtualChairmanCatalogId() ? [] : getMockKpiTilesForRole(role));
       updateTopBarForView();
       hideLoading();
       bootChartsAndTablesDeferred();
@@ -593,40 +604,31 @@
       if (periodState.currentPeriodYear != null) periodOpts.year = periodState.currentPeriodYear;
     }
 
+    var virtualCatalogId = getVirtualChairmanCatalogId();
+    if (virtualCatalogId && isViewingChairmanCatalogDashboard()) {
+      if (getSessionApiMode() === "mock") {
+        pushDashboardDebugNote("UI (mock)", "Виртуальный блок ПСД — запросы KPI не выполняются");
+        fallback();
+        return;
+      }
+      var catalogOpts = { for: virtualCatalogId };
+      if (periodOpts.month != null) catalogOpts.month = periodOpts.month;
+      if (periodOpts.year != null) catalogOpts.year = periodOpts.year;
+      fetchKpis(catalogOpts)
+        .then(function (result) {
+          applyApiResult(result, undefined, options);
+        })
+        .catch(function () {
+          fallback();
+        });
+      return;
+    }
+
     if (!isSelf) {
       if (getSessionApiMode() === "mock") {
         pushDashboardDebugNote("UI (mock)", "Подчинённый вид — запросы KPI не выполняются");
         fallback();
         return;
-      }
-      if (isViewingChairmanCatalogDashboard()) {
-        var catalogTarget = getActiveChairmanCatalogTarget();
-        var catalogId =
-          catalogTarget && catalogTarget.catalogId != null ? String(catalogTarget.catalogId).trim() : "";
-        if (catalogId && catalogId !== "my_dashboard") {
-          var catalogOpts = { for: catalogId };
-          // Виртуальный блок: ?department= = подразделение ПСД из сессии, не label «Коммерческий блок».
-          var viewUser = getViewContextUser() || {};
-          var catalogDept =
-            viewUser.department != null && String(viewUser.department).trim()
-              ? String(viewUser.department).trim()
-              : catalogTarget.viewDepartment != null && String(catalogTarget.viewDepartment).trim()
-                ? String(catalogTarget.viewDepartment).trim()
-                : catalogTarget.department != null && String(catalogTarget.department).trim()
-                  ? String(catalogTarget.department).trim()
-                  : "";
-          if (catalogDept) catalogOpts.department = catalogDept;
-          if (periodOpts.month != null) catalogOpts.month = periodOpts.month;
-          if (periodOpts.year != null) catalogOpts.year = periodOpts.year;
-          fetchKpis(catalogOpts)
-            .then(function (result) {
-              applyApiResult(result);
-            })
-            .catch(function () {
-              fallback();
-            });
-          return;
-        }
       }
       var subDept = getDepartmentForCurrentKpiContext();
       if (subDept) {

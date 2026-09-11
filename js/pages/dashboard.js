@@ -466,6 +466,7 @@
           return MockData.getViewableDashboardTargets(sessionUser);
         },
         onViewChanged: function () {
+          callChairmanOverview("showIfNeeded", [], false);
           loadKpiTilesAndChartsForView();
         },
         onUnauthorized: handleUnauthorized,
@@ -654,18 +655,22 @@
         });
       },
       onBackToOverview: function () {
-        selectedViewId = "self";
-        viewContextUser = sessionUser;
+        var landing =
+          typeof DashboardHierarchyNav !== "undefined" &&
+          DashboardHierarchyNav &&
+          typeof DashboardHierarchyNav.applyChairmanLandingView === "function"
+            ? DashboardHierarchyNav.applyChairmanLandingView()
+            : null;
+        if (landing) {
+          selectedViewId = landing.id || selectedViewId;
+          viewContextUser = landing.user || sessionUser;
+        } else {
+          selectedViewId = "self";
+          viewContextUser = sessionUser;
+        }
         var selfDept =
           sessionUser && sessionUser.department != null ? String(sessionUser.department).trim() : "";
         hierarchyStack = selfDept ? [selfDept] : [];
-        if (
-          typeof DashboardHierarchyNav !== "undefined" &&
-          DashboardHierarchyNav &&
-          typeof DashboardHierarchyNav.clearRememberedChairmanCatalogId === "function"
-        ) {
-          DashboardHierarchyNav.clearRememberedChairmanCatalogId();
-        }
         renderViewTabs();
         updateTopBarForView();
         loadKpiTilesAndChartsForView();
