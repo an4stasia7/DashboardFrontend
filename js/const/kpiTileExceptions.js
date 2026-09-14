@@ -160,7 +160,29 @@
       factOnly: true,
       hideKpiPercent: true,
       backDepartmentsOnly: true,
+      drilldownMatchKpiId: "FND-T7",
       frontAccentColor: "#374e6f",
+    },
+    "KD-M1": {
+      drilldownRootDept: "Коммерческий директор",
+      drilldownMatchKpiId: "MRK-03",
+    },
+    "MRK-03": {
+      drilldownMatchKpiId: "KD-M1",
+    },
+    "KD-M2": {
+      drilldownRootDept: "Коммерческий директор",
+      drilldownMatchKpiId: "MRK-01",
+    },
+    "MRK-01": {
+      drilldownMatchKpiId: "KD-M2",
+    },
+    "KD-M3": {
+      drilldownRootDept: "Коммерческий директор",
+      drilldownMatchKpiId: "MRK-02",
+    },
+    "MRK-02": {
+      drilldownMatchKpiId: "KD-M3",
     },
     "FND-T3": {
       // Три процентные пилюли: общее, клиенты и поставщики.
