@@ -1535,6 +1535,8 @@
       if (!tile || !Array.isArray(tile.monthly_data)) return;
       // HRD-M2/M4/Q4 и гСПП ФОТ: plan/fact из last_full_month_row в applyPlanFact — не затирать.
       if (isSupHrdLateMonthKpiId(tile.kpi_id) || isGsppFotKpiId(tile.kpi_id)) return;
+      // PD-M1.*.W/T: бэкенд уже отдал недельный/итоговый план; в monthly_data всегда месячные поля.
+      if (isProductionDeputyWeeklyOrTotalTile(tile.kpi_id)) return;
       var point = findTileMonthlyDataPoint(tile.monthly_data, year, month);
       if (!point) return;
       var isLogM2 = String(tile.kpi_id || "").trim().toUpperCase() === "LOG-M2";
@@ -3587,6 +3589,16 @@
     return dir === "higher_better" || dir === "higher_is_better";
   }
 
+  function isProductionDeputyOutputPeriodTile(id) {
+    var normalized = id != null ? String(id).trim().toUpperCase() : "";
+    return /^(PD-M1\.[12]\.)(W|M|T)$/.test(normalized);
+  }
+
+  function isProductionDeputyWeeklyOrTotalTile(id) {
+    var normalized = id != null ? String(id).trim().toUpperCase() : "";
+    return /^(PD-M1\.[12]\.)(W|T)$/.test(normalized);
+  }
+
   /**
    * Дополняет плитки полями `plan`, `fact`, подписью периода и `has_data`.
    * При явном месяце сначала берём точку из `monthly_data` самой плитки.
@@ -3609,10 +3621,6 @@
     var fromCharts = buildPlanFactFromChartsLastAvailable(body, filterYear, filterMonth);
     var monthlyFromCharts = buildMonthlyDataFromCharts(body);
     var fromTables = buildPlanFactLookupFromTablesOnly(body, filterYear, filterMonth);
-    function isProductionDeputyOutputPeriodTile(id) {
-      var normalized = id != null ? String(id).trim().toUpperCase() : "";
-      return /^(PD-M1\.[12]\.)(W|M|T)$/.test(normalized);
-    }
     tiles.forEach(function (tile) {
       var id = tile.kpi_id;
       if (!id) return;

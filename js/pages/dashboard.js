@@ -2029,6 +2029,11 @@
     return false;
   }
 
+  function isProductionDeputyWeeklyOrTotalTile(kpiId) {
+    var normalized = kpiId != null ? String(kpiId).trim().toUpperCase() : "";
+    return /^(PD-M1\.[12]\.)(W|T)$/.test(normalized);
+  }
+
   function isProductionDirectorDashboardContext() {
     var currentDepartment = normalizeDashboardRole(getDepartmentForCurrentKpiContext());
     var responseDepartment = normalizeDashboardRole(lastKpiResponseDepartment);
@@ -3850,6 +3855,9 @@
     }
     return items
       .map(function (item) {
+        if (isProductionDeputyWeeklyOrTotalTile(item && item.kpi_id)) {
+          return normalizeKpiTileFromRawItem(item, null, mode);
+        }
         var point = computeChairmanAggregatedPoint(item, year, month, mode, selectedQuarters);
         return normalizeKpiTileFromRawItem(item, point, mode);
       })
@@ -3890,6 +3898,7 @@
     var touched = false;
     var nextTiles = baseTiles.map(function (tile) {
       var id = tile && tile.kpi_id != null ? String(tile.kpi_id).trim() : "";
+      if (isProductionDeputyWeeklyOrTotalTile(id)) return tile;
       if (mode === "month") {
         if (!byId[id] || !Array.isArray(byId[id].monthly_data) || !byId[id].monthly_data.length) return tile;
       } else if (isCommercialDirectorDashboardContext()) {
@@ -3911,6 +3920,7 @@
   }
 
   function rerenderChairmanTilesFromRaw() {
+    if (isProductionDeputyDashboardContext()) return false;
     if (!lastRawKpiResponse) return false;
     var tiles = getChairmanAggregatedTilesFromRaw(lastRawKpiResponse);
     if (!tiles || !tiles.length) return false;
