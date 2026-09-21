@@ -1455,6 +1455,9 @@
       // HRD-M2/M4/Q4 уже выставлены из last_full_month_row в applyPlanFact — не затирать.
       if (isSupHrdLateMonthKpiId(tile.kpi_id)) return;
       var point = findTileMonthlyDataPoint(tile.monthly_data, year, month);
+      if (!point) {
+        point = findLatestTileMonthlyDataPointUpTo(tile.monthly_data, year, month);
+      }
       if (!point) return;
       var isLogM2 = String(tile.kpi_id || "").trim().toUpperCase() === "LOG-M2";
       if (point.plan !== undefined) tile.plan = point.plan;
