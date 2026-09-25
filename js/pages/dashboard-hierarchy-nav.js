@@ -70,6 +70,44 @@
     if (typeof fn === "function") fn(value);
   }
 
+  function ownDepartmentName() {
+    var sessionUser = getSessionUser();
+    return sessionUser && sessionUser.department != null ? String(sessionUser.department).trim() : "";
+  }
+
+  function isHiddenUnimplementedDepartment(name) {
+    if (!isUnimplementedSidebarDepartment(name)) return false;
+    return normalizeDashboardRole(name) !== normalizeDashboardRole(ownDepartmentName());
+  }
+
+  function dropHiddenHierarchyLevels() {
+    var stack = (getHierarchyStack() || []).filter(function (raw) {
+      var name = String(raw || "").trim();
+      return !!name && !isHiddenUnimplementedDepartment(name);
+    });
+    var current = getHierarchyStack() || [];
+    var changed =
+      stack.length !== current.length ||
+      stack.some(function (name, idx) {
+        return name !== current[idx];
+      });
+    if (changed) setHierarchyStack(stack);
+    var selected = getSelectedViewId();
+    if (typeof selected === "string" && selected.indexOf("dept:") === 0) {
+      var decoded = "";
+      try {
+        decoded = decodeURIComponent(selected.slice(5));
+      } catch (err) {
+        decoded = selected.slice(5);
+      }
+      if (isHiddenUnimplementedDepartment(decoded)) {
+        setSelectedViewId(
+          stack.length <= 1 ? "self" : "dept:" + encodeURIComponent(stack[stack.length - 1])
+        );
+      }
+    }
+  }
+
   function getViewContextUser() {
     var fn = getContext().getViewContextUser;
     return typeof fn === "function" ? fn() : null;
@@ -712,7 +750,12 @@
       updateSidebarSearchEmptyState(false);
       return;
     }
-    var list = Array.isArray(results) ? results.slice() : [];
+    var list = (Array.isArray(results) ? results.slice() : []).filter(function (item) {
+      if (!item) return false;
+      return !isUnimplementedSidebarDepartment(
+        item.department || item.label || item.viewDepartment || ""
+      );
+    });
     nav.innerHTML = "";
     if (!list.length) {
       nav.hidden = true;
@@ -823,14 +866,31 @@
     return '<p class="dash-structure-warning">' + DashUi.escapeHtml(String(message)) + "</p>";
   }
 
+  function hoistImplementedStructureTree(tree) {
+    if (!tree || typeof tree !== "object" || Array.isArray(tree)) return {};
+    var next = {};
+    Object.keys(tree).forEach(function (name) {
+      var child = hoistImplementedStructureTree(tree[name]);
+      if (isUnimplementedSidebarDepartment(name)) {
+        Object.keys(child).forEach(function (childName) {
+          next[childName] = child[childName];
+        });
+        return;
+      }
+      next[name] = child;
+    });
+    return next;
+  }
+
   function buildStructureListHtml(tree, parentPath) {
-    var entries = tree && typeof tree === "object" && !Array.isArray(tree) ? Object.keys(tree) : [];
+    var visibleTree = hoistImplementedStructureTree(tree);
+    var entries = visibleTree && typeof visibleTree === "object" && !Array.isArray(visibleTree) ? Object.keys(visibleTree) : [];
     if (!entries.length) return '<p class="dash-structure-state">Структура пуста.</p>';
     return (
       '<ul class="dash-structure-list">' +
       entries
         .map(function (name) {
-          var child = tree[name];
+          var child = visibleTree[name];
           var path = (parentPath || []).concat([name]);
           var hasChildren = hasStructureChildren(child);
           var current = isCurrentStructureNode(name);
@@ -939,6 +999,9 @@
     var sessionUser = getSessionUser();
     var allowedIndex = getAllowedStructurePathIndex(path);
     var nextStack = isBoardChairUser(sessionUser) ? path.slice() : path.slice(allowedIndex);
+    nextStack = nextStack.filter(function (name) {
+      return !isHiddenUnimplementedDepartment(name);
+    });
     var dept = nextStack.length ? nextStack[nextStack.length - 1] : "";
     if (!dept) return;
     closeStructurePanel();
@@ -1006,19 +1069,40 @@
     filterSidebarViewTabs();
   }
 
+  function isUnimplementedSidebarDepartment(name) {
+    var n = String(name || "")
+      .toLowerCase()
+      .replace(/ё/g, "е")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!n) return true;
+    if (
+      n.indexOf("по сервису") !== -1 &&
+      (n.indexOf("зам") !== -1 || n.indexOf("заместитель") !== -1)
+    ) {
+      return true;
+    }
+    if (n === "финансовый директор" || n === "юридический отдел") return true;
+    return false;
+  }
+
   function buildTargetsFromChildren(children, includeSelf) {
     var sessionUser = getSessionUser();
-    var rest = (children || []).map(function (name) {
-      var n = name != null ? String(name).trim() : "";
-      var id = "dept:" + encodeURIComponent(n || "unknown");
-      return {
-        id: id,
-        label: n.length ? n : "—",
-        department: n,
-        viewDepartment: n,
-        user: sessionUser,
-      };
-    });
+    var rest = (children || [])
+      .map(function (name) {
+        var n = name != null ? String(name).trim() : "";
+        var id = "dept:" + encodeURIComponent(n || "unknown");
+        return {
+          id: id,
+          label: n.length ? n : "—",
+          department: n,
+          viewDepartment: n,
+          user: sessionUser,
+        };
+      })
+      .filter(function (target) {
+        return !isUnimplementedSidebarDepartment(target.department || target.label);
+      });
     if (includeSelf === false) return rest;
     var selfEntry = { id: "self", label: "Мой дашборд", user: sessionUser };
     return [selfEntry].concat(rest);
@@ -1026,6 +1110,7 @@
 
   function refreshSubordinateTabsFromApi() {
     return new Promise(function (resolve) {
+      dropHiddenHierarchyLevels();
       var hierarchyStack = getHierarchyStack();
       var sessionUser = getSessionUser();
       if (getSessionApiMode() === "mock") {
@@ -1335,6 +1420,7 @@
                 ? String(t.department).trim()
                 : "";
           if (!deptName) return;
+          if (isHiddenUnimplementedDepartment(deptName)) return;
           var stack = getHierarchyStack().slice();
           if (!stack.length || stack[stack.length - 1] !== deptName) {
             setHierarchyStack(stack.concat([deptName]));
