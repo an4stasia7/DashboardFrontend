@@ -3000,6 +3000,27 @@ article.kpi-tile[data-no-flip="1"] {
   white-space: nowrap;
 }
 
+/* «За месяц» добавляет строку периода, и «Ожидаемо» уезжает за край карточки. */
+.kpi-tile.kpi-tile--has-expected,
+.kpi-tile.kpi-tile--has-expected .kpi-tile-inner {
+  min-height: 336px;
+}
+
+.kpi-tile--has-expected .kpi-tile-modern-numbers {
+  min-width: 168px;
+}
+
+.kpi-tile--has-expected .kpi-tile-modern-number-row {
+  grid-template-columns: auto auto;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.kpi-tile--has-expected .kpi-tile-modern-number-row strong {
+  overflow: visible;
+  text-overflow: unset;
+}
+
 /* Light KPI system overrides: flat cards, muted accents, stable spacing. */
 .kpi-tile-pf-value-row,
 .kpi-tile-tender-cell,

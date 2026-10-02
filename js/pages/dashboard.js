@@ -1779,7 +1779,7 @@
         return tile;
       }
       if (kpiId === "PD-M3.F1" || kpiId === "PD-M3.F2") return tile;
-      if (kpiId === "OD-M3.2" || kpiId === "TD-M6") return tile;
+      if (kpiId === "OD-M3.2" || kpiId === "TD-M6" || kpiId === "KD-M11") return tile;
       if (isGsppFotKpiId(kpiId)) return tile;
       if (tile.__priorMonthMergedFromKpiAll) return tile;
       var monthly = tile.monthly_data;
@@ -3164,6 +3164,60 @@
         kpiPct = (withoutAgg / extraSums.portfolio_count) * 100;
       }
     }
+    var turnoverRows = null;
+    if (item && String(item.kpi_id || "").trim() === "KD-M11") {
+      var latestTurnover = bucket
+        .slice()
+        .sort(function (a, b) { return Number(a.month) - Number(b.month); })
+        .pop();
+      var staffEnd = latestTurnover ? parseNumberLoose(latestTurnover.staff_units) : null;
+      var dismissedSum = 0;
+      bucket.forEach(function (point) {
+        var dismissedValue = parseNumberLoose(point && point.dismissed);
+        if (dismissedValue != null) dismissedSum += dismissedValue;
+      });
+      hasPlan = false;
+      plan = 0;
+      hasFact = true;
+      fact = staffEnd != null && staffEnd > 0 ? (dismissedSum / staffEnd) * 100 : 0;
+      kpiPct = fact;
+      var staffByName = {};
+      var dismissedByName = {};
+      var metaByName = {};
+      var nameOrder = [];
+      (latestTurnover && Array.isArray(latestTurnover.turnover_rows) ? latestTurnover.turnover_rows : []).forEach(function (row) {
+        var deptName = row && row.name != null ? String(row.name) : "";
+        if (!deptName || staffByName[deptName] != null) return;
+        staffByName[deptName] = parseNumberLoose(row.staff) || 0;
+        metaByName[deptName] = row;
+        nameOrder.push(deptName);
+      });
+      bucket.forEach(function (point) {
+        (point && Array.isArray(point.turnover_rows) ? point.turnover_rows : []).forEach(function (row) {
+          var deptName = row && row.name != null ? String(row.name) : "";
+          if (!deptName) return;
+          if (metaByName[deptName] == null) {
+            metaByName[deptName] = row;
+            nameOrder.push(deptName);
+            staffByName[deptName] = parseNumberLoose(row.staff) || 0;
+          }
+          dismissedByName[deptName] = (dismissedByName[deptName] || 0) + (parseNumberLoose(row.dismissed) || 0);
+        });
+      });
+      turnoverRows = nameOrder.map(function (deptName) {
+        var staffValue = staffByName[deptName] || 0;
+        var dismissedValue = dismissedByName[deptName] || 0;
+        var meta = metaByName[deptName] || {};
+        return {
+          name: deptName,
+          staff: staffValue,
+          dismissed: dismissedValue,
+          fact: staffValue > 0 ? Math.round((dismissedValue / staffValue) * 1000) / 10 : 0,
+          navigable: meta.navigable === true,
+          structure_guid: meta.structure_guid != null ? String(meta.structure_guid) : "",
+        };
+      });
+    }
     var limitRag = isBudgetFotLimitKpiItem(item) ? planFactLimitRag(plan, fact) : null;
     var turnoverRag = isTurnoverKpiItem(item) ? turnoverLimitRagFromPct(kpiPct) : null;
     var shareRag = isMrk06ShareKpiItem(item) ? mrk06ShareRagFromPct(kpiPct) : null;
@@ -3209,6 +3263,7 @@
       pct_total: pctTotal,
       plan_by_dept: Object.keys(planByDept).length ? planByDept : null,
       fact_by_dept: Object.keys(factByDept).length ? factByDept : null,
+      turnover_rows: turnoverRows,
       articles: articlesFromBucket ? articlesFromBucket.slice() : null,
       kpi_pct: kpiPct,
       has_data: isCommercialHigherIsBetterPlanFactKpiItem(item)
@@ -3299,7 +3354,7 @@
       var kid = kpiId != null ? String(kpiId).trim().toUpperCase() : "";
       if (kid === "LOG-M2" || kid === "LOG-M5") return "руб.";
       if (kid === "OD-M1" || kid === "OD-M3.1" || kid === "OD-M3.2") return "руб.";
-      if (kid === "KD-M11") return "чел.";
+      if (kid === "KD-M11") return "%";
       if (/^QD-M\d+$/.test(kid)) {
         var unitText = value != null ? String(value).trim() : "";
         if (!unitText || unitText === "%") return "шт.";
@@ -3472,6 +3527,12 @@
           : rawItem.fact_by_dept && typeof rawItem.fact_by_dept === "object"
             ? rawItem.fact_by_dept
             : null,
+      turnover_rows:
+        point && Array.isArray(point.turnover_rows)
+          ? point.turnover_rows
+          : Array.isArray(rawItem.turnover_rows)
+            ? rawItem.turnover_rows
+            : [],
       pct_client:
         point && point.pct_client != null
           ? point.pct_client

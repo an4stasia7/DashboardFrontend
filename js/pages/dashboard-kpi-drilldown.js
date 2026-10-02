@@ -365,6 +365,21 @@
     var clicked = tiles[tileIndex];
     var state = getKpiTileDetailsState(tileIndex);
     if (state.loading || state.loaded) return;
+    var clickedId = clicked && (clicked.kpi_id || clicked.badge) ? String(clicked.kpi_id || clicked.badge).trim() : "";
+    if (
+      (clickedId === "KD-M10" &&
+        clicked.plan_by_dept &&
+        typeof clicked.plan_by_dept === "object" &&
+        Object.keys(clicked.plan_by_dept).length) ||
+      (clickedId === "KD-M11" &&
+        Array.isArray(clicked.turnover_rows) &&
+        clicked.turnover_rows.length)
+    ) {
+      state.loading = false;
+      state.loaded = true;
+      renderKpiTileBackFaceSafe(tileIndex);
+      return;
+    }
     var overrideDept = getDrilldownRootOverride(clicked);
     var parentDept = overrideDept || getDepartmentForCurrentKpiContextSafe();
     state.loading = true;

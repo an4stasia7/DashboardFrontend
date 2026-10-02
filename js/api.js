@@ -1100,7 +1100,7 @@
           var kid = kpiId != null ? String(kpiId).trim().toUpperCase() : "";
           if (kid === "LOG-M2" || kid === "LOG-M5") return "руб.";
           if (kid === "OD-M1" || kid === "OD-M3.1" || kid === "OD-M3.2") return "руб.";
-          if (kid === "KD-M11") return "чел.";
+          if (kid === "KD-M11") return "%";
           if (/^QD-M\d+$/i.test(kid)) {
             var unitText = value != null ? String(value).trim() : "";
             if (!unitText || unitText === "%") return "шт.";
@@ -1194,6 +1194,7 @@
             item.plan_by_dept && typeof item.plan_by_dept === "object"
               ? item.plan_by_dept
               : null,
+          turnover_rows: Array.isArray(item.turnover_rows) ? item.turnover_rows : [],
           fact_by_dept:
             item.fact_by_dept && typeof item.fact_by_dept === "object"
               ? item.fact_by_dept

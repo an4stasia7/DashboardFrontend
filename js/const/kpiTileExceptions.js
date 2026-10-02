@@ -146,6 +146,10 @@
       backDepartmentsOnly: true,
       frontAccentColor: "#374e6f",
     },
+    "KD-M11": {
+      factOnly: true,
+      hideKpiPercent: true,
+    },
     "FND-T3": {
       // Три процентные пилюли: общее, клиенты и поставщики.
       dualRatioOverview: true,
