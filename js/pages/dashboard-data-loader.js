@@ -447,7 +447,12 @@
       (!options || !options.preserveViewState) &&
       periodState.availableMonths.length
     ) {
-      var latestSlot = periodState.availableMonths[periodState.availableMonths.length - 1];
+      var latestSlot =
+        typeof DashboardMonthNav !== "undefined" &&
+        DashboardMonthNav &&
+        typeof DashboardMonthNav.pickDefaultMonthSlot === "function"
+          ? DashboardMonthNav.pickDefaultMonthSlot(periodState.availableMonths)
+          : periodState.availableMonths[periodState.availableMonths.length - 1];
       setPeriodState({
         currentPeriodMonth: latestSlot.month,
         currentPeriodYear: latestSlot.year,
@@ -460,7 +465,12 @@
         currentPeriodYear: respYear,
       });
     } else if (periodState.availableMonths.length) {
-      var lastSlot = periodState.availableMonths[periodState.availableMonths.length - 1];
+      var lastSlot =
+        typeof DashboardMonthNav !== "undefined" &&
+        DashboardMonthNav &&
+        typeof DashboardMonthNav.pickDefaultMonthSlot === "function"
+          ? DashboardMonthNav.pickDefaultMonthSlot(periodState.availableMonths)
+          : periodState.availableMonths[periodState.availableMonths.length - 1];
       setPeriodState({
         currentPeriodMonth: lastSlot.month,
         currentPeriodYear: lastSlot.year,
@@ -598,10 +608,19 @@
     };
 
     var periodState = getPeriodState();
+    var requestPeriod =
+      typeof DashboardMonthNav !== "undefined" &&
+      DashboardMonthNav &&
+      typeof DashboardMonthNav.getRequestPeriod === "function"
+        ? DashboardMonthNav.getRequestPeriod()
+        : {
+            month: periodState.currentPeriodMonth,
+            year: periodState.currentPeriodYear,
+          };
     var periodOpts = {};
     if (options && options.preserveViewState) {
-      if (periodState.currentPeriodMonth != null) periodOpts.month = periodState.currentPeriodMonth;
-      if (periodState.currentPeriodYear != null) periodOpts.year = periodState.currentPeriodYear;
+      if (requestPeriod.month != null) periodOpts.month = requestPeriod.month;
+      if (requestPeriod.year != null) periodOpts.year = requestPeriod.year;
     }
 
     var virtualCatalogId = getVirtualChairmanCatalogId();

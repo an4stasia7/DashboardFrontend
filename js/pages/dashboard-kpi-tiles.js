@@ -593,7 +593,7 @@
     if (!monthly.length) return [];
     var points = monthly
       .map(function (point) {
-        if (!point || typeof point !== "object") return null;
+        if (!point || typeof point !== "object" || point.future_month === true) return null;
         var value = point.aggregation === "weighted_delta_amount_div_project_amount"
           ? readFiniteTileNumber(point.kpi_pct != null ? point.kpi_pct : point.display_fact)
           : null;

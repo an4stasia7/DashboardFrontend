@@ -113,6 +113,72 @@
     return false;
   }
 
+  function todayPeriodKey() {
+    var now = new Date();
+    return now.getFullYear() * 100 + (now.getMonth() + 1);
+  }
+
+  function slotIsAfterToday(slot) {
+    if (!slot || slot.key == null) return false;
+    return Number(slot.key) > todayPeriodKey();
+  }
+
+  function pickDefaultMonthSlot(slots) {
+    var list = slots || availableMonths || [];
+    var best = null;
+    for (var i = 0; i < list.length; i++) {
+      var slot = list[i];
+      if (!slot || slot.key == null || slotIsAfterToday(slot)) continue;
+      if (!best || Number(slot.key) > Number(best.key)) best = slot;
+    }
+    if (best) return best;
+    return list.length ? list[list.length - 1] : null;
+  }
+
+  function allowsFutureMonthPaging() {
+    var fn = getContext().allowsFutureMonthPaging;
+    return typeof fn === "function" && !!fn();
+  }
+
+  function getRequestPeriod() {
+    var year = currentPeriodYear != null ? Number(currentPeriodYear) : null;
+    var month = currentPeriodMonth != null ? Number(currentPeriodMonth) : null;
+    if (year == null || month == null || isNaN(year) || isNaN(month)) {
+      return { year: year, month: month };
+    }
+    var now = new Date();
+    var capYear = now.getFullYear();
+    var capMonth = now.getMonth() + 1;
+    if (year > capYear || (year === capYear && month > capMonth)) {
+      return { year: capYear, month: capMonth };
+    }
+    return { year: year, month: month };
+  }
+
+  function collectCommercialFutureMonthSlots(tiles) {
+    var slots = [];
+    if (!allowsFutureMonthPaging() || !Array.isArray(tiles)) return slots;
+    var cap = todayPeriodKey();
+    var seen = Object.create(null);
+    for (var ti = 0; ti < tiles.length; ti++) {
+      var tile = tiles[ti];
+      var monthly = tile && Array.isArray(tile.monthly_data) ? tile.monthly_data : [];
+      for (var mi = 0; mi < monthly.length; mi++) {
+        var pt = monthly[mi];
+        if (!pt || pt.future_month !== true) continue;
+        var key = monthYearKey(pt.year, pt.month);
+        if (key <= cap || seen[key]) continue;
+        seen[key] = true;
+        slots.push({
+          month: parseInt(String(pt.month), 10),
+          year: parseInt(String(pt.year), 10),
+          key: key,
+        });
+      }
+    }
+    return slots;
+  }
+
   function pickBestMonthForQuarter(q, year) {
     var qq = parseInt(String(q), 10);
     var yy = parseInt(String(year), 10);
@@ -122,7 +188,7 @@
     var best = null;
     for (var i = 0; i < availableMonths.length; i++) {
       var slot = availableMonths[i];
-      if (!slot) continue;
+      if (!slot || slotIsAfterToday(slot)) continue;
       if (Number(slot.year) !== yy) continue;
       var m = Number(slot.month);
       if (m < start || m > end) continue;
@@ -399,6 +465,10 @@
       ? mergeAvailableMonthSlots(cachedMonths, availableMonths)
       : cachedMonths;
     availableMonths = mergeAvailableMonthSlots(baseMonths, nextMonths);
+    availableMonths = mergeAvailableMonthSlots(
+      availableMonths,
+      collectCommercialFutureMonthSlots(options.fallbackTiles)
+    );
     availableMonths = ensureCurrentCalendarMonthSlot(availableMonths);
     availableMonthsContextKey = nextContextKey;
     if (nextContextKey) {
@@ -642,12 +712,15 @@
   }
 
   global.DashboardMonthNav = {
+    allowsFutureMonthPaging: allowsFutureMonthPaging,
     getMonthNavigatorContextKey: getMonthNavigatorContextKey,
     getPeriodState: getPeriodState,
+    getRequestPeriod: getRequestPeriod,
     init: init,
     navigateToMonth: navigateToMonth,
     navigateToQuarter: navigateToQuarter,
     periodKeyInAvailableMonths: periodKeyInAvailableMonths,
+    pickDefaultMonthSlot: pickDefaultMonthSlot,
     setAvailableMonthsFromChartPoints: setAvailableMonthsFromChartPoints,
     setPeriodState: setPeriodState,
     updateMonthNavigatorUI: updateMonthNavigatorUI,

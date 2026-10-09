@@ -936,12 +936,20 @@
   function processKpiResponseBodyAtPeriod(data, year, month) {
     var body = unwrapKpiResponseBody(data, "");
     var tiles = normalizeKpiListFromApiResponse(body);
-    applyPlanFactFromJsonLastPeriodToTiles(body, tiles, year, month);
-    applyMonthlyDataToTilesAtPeriod(tiles, year, month);
+    var view = commercialFutureViewPeriod(year, month);
+    applyPlanFactFromJsonLastPeriodToTiles(body, tiles, view.tileYear, view.tileMonth);
+    applyMonthlyDataToTilesAtPeriod(tiles, view.tileYear, view.tileMonth);
+    var tableRows = buildTableRowsFromApiResponse(body, view.chartYear, view.chartMonth);
+    if (view.future) {
+      tableRows = tableRows.filter(function (row) {
+        var key = row && row.tableKey != null ? String(row.tableKey).trim().toUpperCase() : "";
+        return key !== "KD-T-MONEY" && key !== "KD-T-SHIP" && key !== "KD-T-DOG";
+      });
+    }
     return {
       tiles: tiles,
-      chartIndicators: buildChartIndicatorsFromApiResponse(body, year, month),
-      tableRows: buildTableRowsFromApiResponse(body, year, month),
+      chartIndicators: buildChartIndicatorsFromApiResponse(body, view.chartYear, view.chartMonth),
+      tableRows: tableRows,
       unwrappedData: body,
     };
   }
@@ -1535,8 +1543,133 @@
     return /^(PD-M1\.[12]\.)(W|M|T)$/.test(normalized);
   }
 
+  function calendarTodayPeriod() {
+    var now = new Date();
+    return { year: now.getFullYear(), month: now.getMonth() + 1 };
+  }
+
+  function isPeriodAfterToday(year, month) {
+    var today = calendarTodayPeriod();
+    var y = Number(year);
+    var m = Number(month);
+    if (isNaN(y) || isNaN(m)) return false;
+    return y > today.year || (y === today.year && m > today.month);
+  }
+
+  function allowsCommercialFutureMonthPaging() {
+    return (
+      typeof DashboardMonthNav !== "undefined" &&
+      DashboardMonthNav &&
+      typeof DashboardMonthNav.allowsFutureMonthPaging === "function" &&
+      DashboardMonthNav.allowsFutureMonthPaging()
+    );
+  }
+
+  function commercialFutureViewPeriod(year, month) {
+    var future = isPeriodAfterToday(year, month) && allowsCommercialFutureMonthPaging();
+    if (!future) {
+      return { future: false, tileYear: year, tileMonth: month, chartYear: year, chartMonth: month };
+    }
+    var today = calendarTodayPeriod();
+    return {
+      future: true,
+      tileYear: year,
+      tileMonth: month,
+      chartYear: today.year,
+      chartMonth: today.month,
+    };
+  }
+
+  function futurePeriodLabel(year, month) {
+    var names = [
+      "",
+      "Январь",
+      "Февраль",
+      "Март",
+      "Апрель",
+      "Май",
+      "Июнь",
+      "Июль",
+      "Август",
+      "Сентябрь",
+      "Октябрь",
+      "Ноябрь",
+      "Декабрь",
+    ];
+    var m = Number(month);
+    var y = Number(year);
+    if (names[m]) return names[m] + " " + y;
+    return String(month) + " " + String(year);
+  }
+
+  function ragForCommercialFutureTile(tile) {
+    var id = tile && tile.kpi_id != null ? String(tile.kpi_id).trim().toUpperCase() : "";
+    var pct = tile ? Number(tile.kpi_pct) : NaN;
+    if (!isFinite(pct) || isNaN(pct)) return null;
+    if (id === "KD-M11") {
+      if (pct < 90) return "green";
+      if (pct <= 100) return "yellow";
+      return "red";
+    }
+    var lower =
+      id === "KD-M4" || id === "KD-M5" || id === "KD-M7" || id === "KD-M8" || id === "KD-M9";
+    if (lower) {
+      if (pct < 100) return "green";
+      if (pct <= 110) return "yellow";
+      return "red";
+    }
+    if (pct >= 100) return "green";
+    if (pct >= 90) return "yellow";
+    return "red";
+  }
+
+  function clearTileForMissingFutureMonth(tile, year, month) {
+    tile.plan = null;
+    tile.fact = null;
+    tile.expected_plan = null;
+    tile.forecast = null;
+    tile.kpi_pct = null;
+    tile.percent = null;
+    tile.has_data = false;
+    tile.plan_fact_period_label = futurePeriodLabel(year, month);
+  }
+
+  /**
+   * METD-M1: план = факт (и перевыполнение) — зелёный;
+   * недобор до 10% — жёлтый; недобор больше 10% — красный.
+   */
+  function metdM1ProductionPlanRag(plan, fact, pct) {
+    var planValue = Number(plan);
+    var factValue = Number(fact);
+    var planOk = isFinite(planValue) && !isNaN(planValue);
+    var factOk = isFinite(factValue) && !isNaN(factValue);
+    if (planOk && factOk && Math.abs(planValue - factValue) < 1e-9) return "green";
+    var ratio = null;
+    if (planOk && factOk && Math.abs(planValue) > 1e-9) {
+      ratio = (factValue / planValue) * 100;
+    } else if (pct != null && isFinite(Number(pct)) && !isNaN(Number(pct))) {
+      ratio = Number(pct);
+    }
+    if (ratio == null) return null;
+    if (ratio >= 100) return "green";
+    if (ratio >= 90) return "yellow";
+    return "red";
+  }
+
+  function applyMetdM1ProductionPlanColor(tile) {
+    if (!tile) return;
+    var id = tile.kpi_id != null ? String(tile.kpi_id).trim().toUpperCase() : "";
+    if (id !== "METD-M1" && id !== "МЕТ-M1") return;
+    var rag = metdM1ProductionPlanRag(tile.plan, tile.fact, tile.kpi_pct);
+    if (rag) applyBackendTileColor(tile, rag);
+    tile.green_threshold = "≥100%";
+    tile.yellow_threshold = "90–99,9%";
+    tile.red_threshold = "<90%";
+  }
+
   function applyMonthlyDataToTilesAtPeriod(tiles, year, month) {
     if (!Array.isArray(tiles) || !tiles.length) return;
+    var futureView = isPeriodAfterToday(year, month) && allowsCommercialFutureMonthPaging();
     tiles.forEach(function (tile) {
       if (!tile || !Array.isArray(tile.monthly_data)) return;
       // HRD-M2/M4/Q4 и гСПП ФОТ: plan/fact из last_full_month_row в applyPlanFact — не затирать.
@@ -1545,6 +1678,10 @@
       // monthly_data месяца затирала бы план и факт недели и итого.
       if (isProductionDeputyOutputPeriodTile(tile.kpi_id)) return;
       var point = findTileMonthlyDataPoint(tile.monthly_data, year, month);
+      if (!point && futureView) {
+        clearTileForMissingFutureMonth(tile, year, month);
+        return;
+      }
       if (!point) {
         point = findLatestTileMonthlyDataPointUpTo(tile.monthly_data, year, month);
       }
@@ -1556,6 +1693,9 @@
       if (point.ssc !== undefined) tile.ssc = point.ssc;
       if (point.employees !== undefined) tile.employees = point.employees;
       if (point.vacancies !== undefined) tile.vacancies = point.vacancies;
+      if (point.expected_plan !== undefined) tile.expected_plan = point.expected_plan;
+      if (point.forecast !== undefined) tile.forecast = point.forecast;
+      if (point.plan_full !== undefined) tile.plan_full = point.plan_full;
       if (point.kpi_pct !== undefined) {
         if (typeof point.kpi_pct === "number" && !isNaN(point.kpi_pct)) {
           tile.percent = point.kpi_pct;
@@ -1584,7 +1724,15 @@
         }
       }
       if (typeof point.has_data === "boolean") tile.has_data = point.has_data;
-      syncTileColorFromMonthlyPoint(tile, point, { useMonthFilter: true });
+      var metdId = String(tile.kpi_id || "").trim().toUpperCase();
+      if (metdId === "METD-M1" || metdId === "МЕТ-M1") {
+        applyMetdM1ProductionPlanColor(tile);
+      } else if (point.future_month === true) {
+        var futureRag = ragForCommercialFutureTile(tile);
+        if (futureRag) applyBackendTileColor(tile, futureRag);
+      } else {
+        syncTileColorFromMonthlyPoint(tile, point, { useMonthFilter: true });
+      }
       var label = formatPlanFactPeriodFromMonthlyPoint(point);
       if (label) tile.plan_fact_period_label = label;
       if (Array.isArray(point.articles)) {
