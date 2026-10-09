@@ -164,6 +164,10 @@
 
   function getKpiTileHeroPrimaryValue(tile) {
     if (!tile) return null;
+    var rule = getKpiTileException(tile);
+    if (rule && rule.singleCountFromPlan && kpiTilePlanFactValuePresent(tile.plan)) {
+      return tile.plan;
+    }
     if (!shouldHidePlanOnTile(tile)) return tile.fact;
     if (kpiTilePlanFactValuePresent(tile.fact)) return tile.fact;
     if (kpiTilePlanFactValuePresent(tile.plan)) return tile.plan;
@@ -518,13 +522,15 @@
     var isKpiPctOnly = !!(rule && rule.kpiPctOnly);
     var generatedFlag = shouldShowKpiTileGeneratedFlag(tile) ? buildKpiTileGeneratedFlagHtml() : "";
     var periodPrefix =
-      rule && rule.periodLabelPrefix != null && String(rule.periodLabelPrefix).trim()
-        ? String(rule.periodLabelPrefix).trim() + ": "
-        : isFactOnly || hidePlanOnTile
-          ? "Факт: "
-          : isKpiPctOnly
-            ? "KPI: "
-            : "План/факт: ";
+      rule && rule.singleCountFromPlan
+        ? ""
+        : rule && rule.periodLabelPrefix != null && String(rule.periodLabelPrefix).trim()
+          ? String(rule.periodLabelPrefix).trim() + ": "
+          : isFactOnly || hidePlanOnTile
+            ? "Факт: "
+            : isKpiPctOnly
+              ? "KPI: "
+              : "План/факт: ";
     var periodTitle =
       rule && rule.periodLabelPrefix != null && String(rule.periodLabelPrefix).trim()
         ? "Период показателя"
@@ -778,7 +784,8 @@
     var heroNum = forecastNum != null ? forecastNum : factNum;
     var heroHtml = formatKpiTileMetricValue(heroNum, units);
     var heroParts = splitKpiTileValueAndUnit(heroHtml, units);
-    var heroLabel = forecastNum != null ? "Прогноз" : "Факт";
+    var heroRule = getKpiTileException(tile);
+    var heroLabel = forecastNum != null ? "Прогноз" : heroRule && heroRule.singleCountFromPlan ? "" : "Факт";
     var deltaTile = tile;
     if (forecastNum != null && planNum != null && Math.abs(planNum) > 0) {
       deltaTile = Object.assign({}, tile, {
@@ -821,9 +828,9 @@
       '">' +
       '<div class="kpi-tile-modern-value-row">' +
       '<strong class="kpi-tile-modern-value">' +
-      '<span class="kpi-tile-modern-value-label">' +
-      DashUi.escapeHtml(heroLabel) +
-      '</span>' +
+      (heroLabel
+        ? '<span class="kpi-tile-modern-value-label">' + DashUi.escapeHtml(heroLabel) + "</span>"
+        : "") +
       '<span class="kpi-tile-modern-value-number">' +
       DashUi.escapeHtml(heroParts.value) +
       '</span>' +

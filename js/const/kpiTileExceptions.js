@@ -279,8 +279,11 @@
     "SH-M2": {
       pctLowerIsBetter: true,
     },
+    /** SH-M3: одно число — план, все обращения месяца по дате регистрации. */
     "SH-M3": {
-      pctLowerIsBetter: true,
+      hidePlanOnTile: true,
+      hideKpiPercent: true,
+      singleCountFromPlan: true,
     },
     "SH-M5": {
       pctLowerIsBetter: true,
