@@ -96,6 +96,8 @@
     },
     "PD-Q1": {
       showBackPlanFact: true,
+      backProjectDeviations: true,
+      backProjectDeviationsTitle: "Проекты за период",
     },
     "PD-M1.1.M": {
       backDeptAmounts: true,

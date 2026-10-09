@@ -666,10 +666,22 @@
     );
   }
 
+  function isCommercialForecastTile(tile) {
+    var id = tile && tile.kpi_id != null ? String(tile.kpi_id).trim().toUpperCase() : "";
+    return id === "KD-M1" || id === "KD-M2" || id === "KD-M3";
+  }
+
+  function commercialForecastNumber(factNum, expectedNum) {
+    if (factNum == null && expectedNum == null) return null;
+    return (factNum || 0) + (expectedNum || 0);
+  }
+
   function buildKpiTilePlanFactHeroHtml(tile) {
     var hidePlanOnTile = shouldHidePlanOnTile(tile);
-    var heroValue = hidePlanOnTile ? getKpiTileHeroPrimaryValue(tile) : tile && tile.fact;
-    var fact = normalizeKpiTileMetricValueForDisplay(tile, heroValue);
+    var useForecast = isCommercialForecastTile(tile) && !hidePlanOnTile;
+    var factSource = normalizeKpiTileMetricValueForDisplay(tile, tile && tile.fact);
+    var heroValue = hidePlanOnTile ? getKpiTileHeroPrimaryValue(tile) : factSource;
+    var fact = useForecast ? factSource : heroValue;
     var plan = normalizeKpiTileMetricValueForDisplay(tile, tile && tile.plan);
     var expected = normalizeKpiTileMetricValueForDisplay(tile, tile && tile.expected_plan);
     var units = resolveKpiTileDisplayUnits(tile);
@@ -681,7 +693,28 @@
     var expectedParts = splitKpiTileValueAndUnit(expectedHtml, units);
     var factNum = readFiniteTileNumber(fact);
     var planNum = readFiniteTileNumber(plan);
-    var deltaHtml = hidePlanOnTile ? "" : buildKpiTilePlanDeltaHtml(tile, factNum, planNum);
+    var expectedNum = readFiniteTileNumber(expected);
+    var forecastNum = useForecast ? commercialForecastNumber(factNum, expectedNum) : null;
+    var heroNum = forecastNum != null ? forecastNum : factNum;
+    var heroHtml = formatKpiTileMetricValue(heroNum, units);
+    var heroParts = splitKpiTileValueAndUnit(heroHtml, units);
+    var heroLabel = forecastNum != null ? "Прогноз" : "Факт";
+    var deltaTile = tile;
+    if (forecastNum != null && planNum != null && Math.abs(planNum) > 0) {
+      deltaTile = Object.assign({}, tile, {
+        kpi_pct: (forecastNum / Math.abs(planNum)) * 100,
+      });
+    }
+    var deltaHtml = hidePlanOnTile ? "" : buildKpiTilePlanDeltaHtml(deltaTile, heroNum, planNum);
+    var factLineHtml = "";
+    if (forecastNum != null) {
+      factLineHtml =
+        '<span class="kpi-tile-forecast-fact">' +
+        '<span class="kpi-tile-forecast-fact-label">Факт</span>' +
+        '<span class="kpi-tile-forecast-fact-value">' +
+        DashUi.escapeHtml(factParts.value + (factParts.unit ? " " + factParts.unit : "")) +
+        "</span></span>";
+    }
     var hasExpected =
       !hidePlanOnTile &&
       (typeof DashUi !== "undefined" && DashUi && typeof DashUi.kpiTilePlanFactValuePresent === "function"
@@ -704,14 +737,18 @@
     return (
       '<div class="kpi-tile-modern-metrics' +
       (hidePlanOnTile ? " kpi-tile-modern-metrics--fact-only" : "") +
+      (forecastNum != null ? " kpi-tile-modern-metrics--forecast" : "") +
       '">' +
       '<div class="kpi-tile-modern-value-row">' +
       '<strong class="kpi-tile-modern-value">' +
-      '<span class="kpi-tile-modern-value-label">Факт</span>' +
-      '<span class="kpi-tile-modern-value-number">' +
-      DashUi.escapeHtml(factParts.value) +
+      '<span class="kpi-tile-modern-value-label">' +
+      DashUi.escapeHtml(heroLabel) +
       '</span>' +
-      (factParts.unit ? '<span class="kpi-tile-modern-value-unit">' + DashUi.escapeHtml(factParts.unit) + "</span>" : "") +
+      '<span class="kpi-tile-modern-value-number">' +
+      DashUi.escapeHtml(heroParts.value) +
+      '</span>' +
+      (heroParts.unit ? '<span class="kpi-tile-modern-value-unit">' + DashUi.escapeHtml(heroParts.unit) + "</span>" : "") +
+      factLineHtml +
       "</strong>" +
       deltaHtml +
       "</div>" +
@@ -1396,6 +1433,12 @@
           var manager = row && row.project_manager != null && String(row.project_manager).trim()
             ? String(row.project_manager).trim()
             : "РП не указан";
+          var statusLabel = row && row.status_label != null && String(row.status_label).trim()
+            ? String(row.status_label).trim()
+            : String(Math.round(delay)) + " р.д.";
+          var delayCaption = row && row.delay_caption != null && String(row.delay_caption).trim()
+            ? String(row.delay_caption).trim()
+            : "Отклонение";
           return (
             '<article class="kpi-tile-project-row' + (isDelayed ? " is-delayed" : "") + '">' +
             '<div class="kpi-tile-project-main">' +
@@ -1403,8 +1446,8 @@
             '<span>РП: ' + DashUi.escapeHtml(manager) + "</span>" +
             "</div>" +
             '<div class="kpi-tile-project-delay">' +
-            "<span>Отклонение</span>" +
-            '<strong>' + DashUi.escapeHtml(String(Math.round(delay)) + " р.д.") + "</strong>" +
+            "<span>" + DashUi.escapeHtml(delayCaption) + "</span>" +
+            '<strong>' + DashUi.escapeHtml(statusLabel) + "</strong>" +
             "</div>" +
             "</article>"
           );
@@ -1530,6 +1573,17 @@
       buildKpiTileBodyHtml(tile, hasPf, pfPeriod) +
       buildKpiTileMetricsSectionHtml(tile, hasPf, planFactShown, factShown, planFactLabel) +
       "</section>"
+    );
+  }
+
+  function commercialServiceBreakdownLinkHtml(tile) {
+    var id = tile && tile.kpi_id != null ? String(tile.kpi_id).trim().toUpperCase() : "";
+    var view = id === "KD-M1" ? "money" : id === "KD-M2" ? "ship" : id === "KD-M3" ? "dog" : "";
+    if (!view) return "";
+    return (
+      '<button type="button" class="kpi-tile-breakdown-link" data-plan-fact-view="' +
+      view +
+      '">Коммерческой службы</button>'
     );
   }
 
@@ -2155,6 +2209,13 @@
         '<div class="kpi-tile-back-head-actions">' +
         '<button type="button" class="kpi-tile-flip-action" aria-label="Вернуться к карточке">Назад</button>' +
         "</div></div>" +
+        (forceBackPlanFact ? buildKpiTileBackKpiPctSummaryHtml(tile, pres, showHelp, showPercent) : "") +
+        (hasPf && shouldRenderKpiTileBack(tile) && forceBackPlanFact
+          ? '<div class="kpi-tile-back-summary">' +
+            '<div class="kpi-tile-back-summary-item"><span class="kpi-tile-back-summary-label">План / факт</span><strong>' +
+            DashUi.escapeHtml(planFactShown) +
+            "</strong></div></div>"
+          : "") +
         '<div class="kpi-tile-back-section">' +
         '<div class="kpi-tile-back-section-title">' + DashUi.escapeHtml(projectListTitle) + "</div>" +
         buildKpiTileProjectDeviationsHtml(tile) +
@@ -2417,7 +2478,10 @@
         }
         return (
           '<div class="kpi-tile-back-section">' +
+          '<div class="kpi-tile-back-section-head">' +
           '<div class="kpi-tile-back-section-title">Информация по отделам</div>' +
+          commercialServiceBreakdownLinkHtml(tile) +
+          "</div>" +
           buildKpiTileChildrenHtml(state) +
           "</div>"
         );

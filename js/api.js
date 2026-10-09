@@ -1449,12 +1449,20 @@
     }
   }
 
+  function isProductionDeputyOutputPeriodTile(id) {
+    var normalized = id != null ? String(id).trim().toUpperCase() : "";
+    return /^(PD-M1\.[12]\.)(W|M|T)$/.test(normalized);
+  }
+
   function applyMonthlyDataToTilesAtPeriod(tiles, year, month) {
     if (!Array.isArray(tiles) || !tiles.length) return;
     tiles.forEach(function (tile) {
       if (!tile || !Array.isArray(tile.monthly_data)) return;
       // HRD-M2/M4/Q4 уже выставлены из last_full_month_row в applyPlanFact — не затирать.
       if (isSupHrdLateMonthKpiId(tile.kpi_id)) return;
+      // PD-M1.*.W/M/T: неделя, месяц и итого — разные колонки одного документа.
+      // monthly_data месяца затирала бы план и факт недели и итого.
+      if (isProductionDeputyOutputPeriodTile(tile.kpi_id)) return;
       var point = findTileMonthlyDataPoint(tile.monthly_data, year, month);
       if (!point) {
         point = findLatestTileMonthlyDataPointUpTo(tile.monthly_data, year, month);
@@ -3048,10 +3056,6 @@
     var fromCharts = buildPlanFactFromChartsLastAvailable(body, filterYear, filterMonth);
     var monthlyFromCharts = buildMonthlyDataFromCharts(body);
     var fromTables = buildPlanFactLookupFromTablesOnly(body, filterYear, filterMonth);
-    function isProductionDeputyOutputPeriodTile(id) {
-      var normalized = id != null ? String(id).trim().toUpperCase() : "";
-      return /^(PD-M1\.[12]\.)(W|M|T)$/.test(normalized);
-    }
     tiles.forEach(function (tile) {
       var id = tile.kpi_id;
       if (!id) return;
@@ -3108,8 +3112,16 @@
             var pfRag = planFactLimitRag(ownMonthly.plan, ownMonthly.fact);
             if (pfRag) tile.rag = pfRag;
           } else if (isCommercialHigherIsBetterPlanFactKpiId(id)) {
+            var commercialFact = Number(ownMonthly.fact);
+            var commercialExpected = Number(ownMonthly.expected_plan);
+            var hasCommercialFact = isFinite(commercialFact) && !isNaN(commercialFact);
+            var hasCommercialExpected = isFinite(commercialExpected) && !isNaN(commercialExpected);
+            var commercialForecast =
+              hasCommercialFact || hasCommercialExpected
+                ? (hasCommercialFact ? commercialFact : 0) + (hasCommercialExpected ? commercialExpected : 0)
+                : ownMonthly.fact;
             var commercialRag =
-              higherBetterRagFromPlanFact(ownMonthly.plan, ownMonthly.fact) ||
+              higherBetterRagFromPlanFact(ownMonthly.plan, commercialForecast) ||
               (ownMonthly.kpi_pct != null ? higherBetterRagFromPct(ownMonthly.kpi_pct) : null);
             if (commercialRag) tile.rag = commercialRag;
           }
