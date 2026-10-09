@@ -2927,12 +2927,18 @@
       var fact = parseNumberLoose(tile.fact);
       var expected = parseNumberLoose(tile.expected_plan);
       var forecast = fact == null && expected == null ? null : (fact || 0) + (expected || 0);
-      if (forecast != null && plan != null && Math.abs(plan) > 0) {
-        next.kpi_pct = (forecast / Math.abs(plan)) * 100;
+      var useForecast =
+        typeof DashboardMonthNav !== "undefined" &&
+        DashboardMonthNav &&
+        typeof DashboardMonthNav.selectedPeriodUsesCommercialForecast === "function" &&
+        DashboardMonthNav.selectedPeriodUsesCommercialForecast();
+      var compared = useForecast ? forecast : fact;
+      if (compared != null && plan != null && Math.abs(plan) > 0) {
+        next.kpi_pct = (compared / Math.abs(plan)) * 100;
         next.percent = next.kpi_pct;
       }
       var rag =
-        higherBetterRagFromPlanFact(tile.plan, forecast != null ? forecast : tile.fact) ||
+        higherBetterRagFromPlanFact(tile.plan, compared != null ? compared : tile.fact) ||
         higherBetterRagFromPct(next.kpi_pct != null ? next.kpi_pct : tile.percent);
       if (rag) {
         next.rag = rag;
@@ -4215,6 +4221,12 @@
         '<tr><td colspan="6">Расшифровка за выбранный месяц ещё не готова. Обновите дашборд чуть позже.</td></tr>';
     }
     var forecast = fact + expected;
+    var showForecast =
+      typeof DashboardMonthNav !== "undefined" &&
+      DashboardMonthNav &&
+      typeof DashboardMonthNav.selectedPeriodUsesCommercialForecast === "function" &&
+      DashboardMonthNav.selectedPeriodUsesCommercialForecast();
+    var total = showForecast ? forecast : fact;
     function money(value) {
       return value.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
@@ -4227,10 +4239,9 @@
       money(fact) +
       " · Ожидаемо " +
       money(expected) +
-      " · Прогноз " +
-      money(forecast) +
+      (showForecast ? " · Прогноз " + money(forecast) : "") +
       '</th><th class="dashboard-table-cell--number">' +
-      money(forecast) +
+      money(total) +
       "</th></tr></tfoot>";
   }
 

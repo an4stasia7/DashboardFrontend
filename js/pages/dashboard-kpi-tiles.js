@@ -671,6 +671,15 @@
     return id === "KD-M1" || id === "KD-M2" || id === "KD-M3";
   }
 
+  function commercialSelectedPeriodUsesForecast() {
+    return (
+      typeof DashboardMonthNav !== "undefined" &&
+      DashboardMonthNav &&
+      typeof DashboardMonthNav.selectedPeriodUsesCommercialForecast === "function" &&
+      DashboardMonthNav.selectedPeriodUsesCommercialForecast()
+    );
+  }
+
   function commercialForecastNumber(factNum, expectedNum) {
     if (factNum == null && expectedNum == null) return null;
     return (factNum || 0) + (expectedNum || 0);
@@ -678,7 +687,8 @@
 
   function buildKpiTilePlanFactHeroHtml(tile) {
     var hidePlanOnTile = shouldHidePlanOnTile(tile);
-    var useForecast = isCommercialForecastTile(tile) && !hidePlanOnTile;
+    var useForecast =
+      isCommercialForecastTile(tile) && !hidePlanOnTile && commercialSelectedPeriodUsesForecast();
     var factSource = normalizeKpiTileMetricValueForDisplay(tile, tile && tile.fact);
     var heroValue = hidePlanOnTile ? getKpiTileHeroPrimaryValue(tile) : factSource;
     var fact = useForecast ? factSource : heroValue;

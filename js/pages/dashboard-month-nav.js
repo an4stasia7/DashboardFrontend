@@ -563,6 +563,27 @@
     navigateToMonth(lastMonth, year);
   }
 
+  function selectedPeriodUsesCommercialForecast() {
+    var now = new Date();
+    var todayKey = now.getFullYear() * 100 + (now.getMonth() + 1);
+    var year = Number(currentPeriodYear);
+    var month = Number(currentPeriodMonth);
+    if (!isFinite(year) || !isFinite(month) || month < 1 || month > 12) return true;
+    var mode = aggregationMode || "current";
+    if (mode === "quarter") {
+      var quarters =
+        selectedQuarters && selectedQuarters.length ? selectedQuarters : [Math.ceil(month / 3)];
+      for (var i = 0; i < quarters.length; i++) {
+        var quarter = Number(quarters[i]);
+        if (!quarter) continue;
+        if (year * 100 + quarter * 3 >= todayKey) return true;
+      }
+      return false;
+    }
+    if (mode === "ytd") return year >= now.getFullYear();
+    return year * 100 + month >= todayKey;
+  }
+
   function getPeriodState() {
     return {
       currentPeriodMonth: currentPeriodMonth,
@@ -721,6 +742,7 @@
     navigateToQuarter: navigateToQuarter,
     periodKeyInAvailableMonths: periodKeyInAvailableMonths,
     pickDefaultMonthSlot: pickDefaultMonthSlot,
+    selectedPeriodUsesCommercialForecast: selectedPeriodUsesCommercialForecast,
     setAvailableMonthsFromChartPoints: setAvailableMonthsFromChartPoints,
     setPeriodState: setPeriodState,
     updateMonthNavigatorUI: updateMonthNavigatorUI,
