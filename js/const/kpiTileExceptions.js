@@ -96,6 +96,8 @@
     },
     "PD-Q1": {
       showBackPlanFact: true,
+      backProjectDeviations: true,
+      backProjectDeviationsTitle: "Проекты за период",
     },
     "PD-M1.1.M": {
       backDeptAmounts: true,
@@ -183,6 +185,10 @@
     },
     "MRK-02": {
       drilldownMatchKpiId: "KD-M3",
+    },
+    "KD-M11": {
+      factOnly: true,
+      hideKpiPercent: true,
     },
     "FND-T3": {
       // Три процентные пилюли: общее, клиенты и поставщики.

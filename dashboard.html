@@ -395,6 +395,36 @@
               >
                 Процессные несоответствия
               </button>
+              <button
+                type="button"
+                class="claims-table-switcher-btn"
+                data-claims-view="money"
+                role="tab"
+                aria-selected="false"
+                hidden
+              >
+                Деньги
+              </button>
+              <button
+                type="button"
+                class="claims-table-switcher-btn"
+                data-claims-view="ship"
+                role="tab"
+                aria-selected="false"
+                hidden
+              >
+                Отгрузки
+              </button>
+              <button
+                type="button"
+                class="claims-table-switcher-btn"
+                data-claims-view="dog"
+                role="tab"
+                aria-selected="false"
+                hidden
+              >
+                Договоры
+              </button>
             </nav>
             <span class="table-title-help-wrap" id="claims-table-help-wrap">
               <button
@@ -516,6 +546,27 @@
                 </tr>
               </tfoot>
             </table>
+          </div>
+          <div
+            class="dashboard-table-wrap dashboard-table-wrap--claims dashboard-table-wrap--plan-fact"
+            data-claims-view="money"
+            hidden
+          >
+            <table id="table-plan-fact-money" class="dashboard-table" aria-label="Расшифровка денег"></table>
+          </div>
+          <div
+            class="dashboard-table-wrap dashboard-table-wrap--claims dashboard-table-wrap--plan-fact"
+            data-claims-view="ship"
+            hidden
+          >
+            <table id="table-plan-fact-ship" class="dashboard-table" aria-label="Расшифровка отгрузок"></table>
+          </div>
+          <div
+            class="dashboard-table-wrap dashboard-table-wrap--claims dashboard-table-wrap--plan-fact"
+            data-claims-view="dog"
+            hidden
+          >
+            <table id="table-plan-fact-dog" class="dashboard-table" aria-label="Расшифровка договоров"></table>
           </div>
           <div
             class="dashboard-table-wrap dashboard-table-wrap--claims dashboard-table-wrap--qualdir-process"
@@ -846,10 +897,10 @@
     <script src="js/config.js"></script>
     <script src="js/app-update-notifier.js"></script>
     <script src="js/app-version-label.js"></script>
-    <script src="js/const/kpiTileExceptions.js?v=20260810-log-dz2"></script>
+    <script src="js/const/kpiTileExceptions.js?v=20261005-pd-q1-projects"></script>
     <script src="js/mockData.js"></script>
     <script src="js/auth.js"></script>
-    <script src="js/api.js?v=20260811-cursor-merge"></script>
+    <script src="js/api.js?v=20261009-cursor-merge"></script>
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
     <!-- Явная версия: с code.highcharts.com без версии иногда подтягивается HC12+ с иными требованиями -->
@@ -865,7 +916,7 @@
     <script src="js/pages/dashboard-data-loader.js"></script>
     <script src="js/pages/dashboard-month-nav.js"></script>
     <script src="js/pages/dashboard-kpi-tile-order.js"></script>
-    <script src="js/pages/dashboard-kpi-tiles.js?v=20260810-fact-label"></script>
+    <script src="js/pages/dashboard-kpi-tiles.js?v=20261005-pd-q1-projects"></script>
     <script src="js/pages/dashboard-kpi-drilldown.js"></script>
     <script src="js/pages/dashboard-claims-table.js?v=20260810-log-dz2"></script>
     <script src="js/pages/dashboard-charts.js"></script>

@@ -746,10 +746,22 @@
     );
   }
 
+  function isCommercialForecastTile(tile) {
+    var id = tile && tile.kpi_id != null ? String(tile.kpi_id).trim().toUpperCase() : "";
+    return id === "KD-M1" || id === "KD-M2" || id === "KD-M3";
+  }
+
+  function commercialForecastNumber(factNum, expectedNum) {
+    if (factNum == null && expectedNum == null) return null;
+    return (factNum || 0) + (expectedNum || 0);
+  }
+
   function buildKpiTilePlanFactHeroHtml(tile) {
     var hidePlanOnTile = shouldHidePlanOnTile(tile);
-    var heroValue = hidePlanOnTile ? getKpiTileHeroPrimaryValue(tile) : tile && tile.fact;
-    var fact = normalizeKpiTileMetricValueForDisplay(tile, heroValue);
+    var useForecast = isCommercialForecastTile(tile) && !hidePlanOnTile;
+    var factSource = normalizeKpiTileMetricValueForDisplay(tile, tile && tile.fact);
+    var heroValue = hidePlanOnTile ? getKpiTileHeroPrimaryValue(tile) : factSource;
+    var fact = useForecast ? factSource : heroValue;
     var plan = normalizeKpiTileMetricValueForDisplay(tile, tile && tile.plan);
     var expected = normalizeKpiTileMetricValueForDisplay(tile, tile && tile.expected_plan);
     var units = resolveKpiTileDisplayUnits(tile);
@@ -761,7 +773,28 @@
     var expectedParts = splitKpiTileValueAndUnit(expectedHtml, units);
     var factNum = readFiniteTileNumber(fact);
     var planNum = readFiniteTileNumber(plan);
-    var deltaHtml = hidePlanOnTile ? "" : buildKpiTilePlanDeltaHtml(tile, factNum, planNum);
+    var expectedNum = readFiniteTileNumber(expected);
+    var forecastNum = useForecast ? commercialForecastNumber(factNum, expectedNum) : null;
+    var heroNum = forecastNum != null ? forecastNum : factNum;
+    var heroHtml = formatKpiTileMetricValue(heroNum, units);
+    var heroParts = splitKpiTileValueAndUnit(heroHtml, units);
+    var heroLabel = forecastNum != null ? "Прогноз" : "Факт";
+    var deltaTile = tile;
+    if (forecastNum != null && planNum != null && Math.abs(planNum) > 0) {
+      deltaTile = Object.assign({}, tile, {
+        kpi_pct: (forecastNum / Math.abs(planNum)) * 100,
+      });
+    }
+    var deltaHtml = hidePlanOnTile ? "" : buildKpiTilePlanDeltaHtml(deltaTile, heroNum, planNum);
+    var factLineHtml = "";
+    if (forecastNum != null) {
+      factLineHtml =
+        '<span class="kpi-tile-forecast-fact">' +
+        '<span class="kpi-tile-forecast-fact-label">Факт</span>' +
+        '<span class="kpi-tile-forecast-fact-value">' +
+        DashUi.escapeHtml(factParts.value + (factParts.unit ? " " + factParts.unit : "")) +
+        "</span></span>";
+    }
     var hasExpected =
       !hidePlanOnTile &&
       (typeof DashUi !== "undefined" && DashUi && typeof DashUi.kpiTilePlanFactValuePresent === "function"
@@ -784,14 +817,18 @@
     return (
       '<div class="kpi-tile-modern-metrics' +
       (hidePlanOnTile ? " kpi-tile-modern-metrics--fact-only" : "") +
+      (forecastNum != null ? " kpi-tile-modern-metrics--forecast" : "") +
       '">' +
       '<div class="kpi-tile-modern-value-row">' +
       '<strong class="kpi-tile-modern-value">' +
-      '<span class="kpi-tile-modern-value-label">Факт</span>' +
-      '<span class="kpi-tile-modern-value-number">' +
-      DashUi.escapeHtml(factParts.value) +
+      '<span class="kpi-tile-modern-value-label">' +
+      DashUi.escapeHtml(heroLabel) +
       '</span>' +
-      (factParts.unit ? '<span class="kpi-tile-modern-value-unit">' + DashUi.escapeHtml(factParts.unit) + "</span>" : "") +
+      '<span class="kpi-tile-modern-value-number">' +
+      DashUi.escapeHtml(heroParts.value) +
+      '</span>' +
+      (heroParts.unit ? '<span class="kpi-tile-modern-value-unit">' + DashUi.escapeHtml(heroParts.unit) + "</span>" : "") +
+      factLineHtml +
       "</strong>" +
       deltaHtml +
       "</div>" +
@@ -1476,6 +1513,12 @@
           var manager = row && row.project_manager != null && String(row.project_manager).trim()
             ? String(row.project_manager).trim()
             : "РП не указан";
+          var statusLabel = row && row.status_label != null && String(row.status_label).trim()
+            ? String(row.status_label).trim()
+            : String(Math.round(delay)) + " р.д.";
+          var delayCaption = row && row.delay_caption != null && String(row.delay_caption).trim()
+            ? String(row.delay_caption).trim()
+            : "Отклонение";
           return (
             '<article class="kpi-tile-project-row' + (isDelayed ? " is-delayed" : "") + '">' +
             '<div class="kpi-tile-project-main">' +
@@ -1483,8 +1526,8 @@
             '<span>РП: ' + DashUi.escapeHtml(manager) + "</span>" +
             "</div>" +
             '<div class="kpi-tile-project-delay">' +
-            "<span>Отклонение</span>" +
-            '<strong>' + DashUi.escapeHtml(String(Math.round(delay)) + " р.д.") + "</strong>" +
+            "<span>" + DashUi.escapeHtml(delayCaption) + "</span>" +
+            '<strong>' + DashUi.escapeHtml(statusLabel) + "</strong>" +
             "</div>" +
             "</article>"
           );
@@ -1610,6 +1653,17 @@
       buildKpiTileBodyHtml(tile, hasPf, pfPeriod) +
       buildKpiTileMetricsSectionHtml(tile, hasPf, planFactShown, factShown, planFactLabel) +
       "</section>"
+    );
+  }
+
+  function commercialServiceBreakdownLinkHtml(tile) {
+    var id = tile && tile.kpi_id != null ? String(tile.kpi_id).trim().toUpperCase() : "";
+    var view = id === "KD-M1" ? "money" : id === "KD-M2" ? "ship" : id === "KD-M3" ? "dog" : "";
+    if (!view) return "";
+    return (
+      '<button type="button" class="kpi-tile-breakdown-link" data-plan-fact-view="' +
+      view +
+      '">Коммерческой службы</button>'
     );
   }
 
@@ -2028,6 +2082,165 @@
     );
   }
 
+  function slaDeptRag(pct) {
+    var value = Number(pct);
+    if (!isFinite(value) || isNaN(value)) return "red";
+    if (value >= 100) return "green";
+    if (value >= 90) return "yellow";
+    return "red";
+  }
+
+  function formatSlaDeptValue(plan, fact) {
+    var planNum = Number(plan);
+    var factNum = Number(fact);
+    if (!isFinite(planNum) || isNaN(planNum)) planNum = 0;
+    if (!isFinite(factNum) || isNaN(factNum)) factNum = 0;
+    var pct = planNum > 0 ? (factNum / planNum) * 100 : 0;
+    var pctText =
+      typeof MockData !== "undefined" && MockData && typeof MockData.formatKpiPercentLabel === "function"
+        ? MockData.formatKpiPercentLabel(pct)
+        : String(Math.round(pct * 10) / 10).replace(".", ",");
+    return formatKpiTilePlainNumber(planNum) + " / " + formatKpiTilePlainNumber(factNum) + " шт · " + pctText + "%";
+  }
+
+  function formatTurnoverCount(value) {
+    var number = Number(value);
+    if (!isFinite(number) || isNaN(number)) number = 0;
+    if (Math.abs(number - Math.round(number)) < 0.001) return String(Math.round(number));
+    return String(Math.round(number * 10) / 10).replace(".", ",");
+  }
+
+  function formatTurnoverPercent(value) {
+    var number = Number(value);
+    if (!isFinite(number) || isNaN(number)) number = 0;
+    var rounded = Math.round(number * 10) / 10;
+    return String(rounded).replace(".", ",");
+  }
+
+  function buildKpiTileTurnoverDepartmentsHtml(tile) {
+    var rows = Array.isArray(tile && tile.turnover_rows) ? tile.turnover_rows : [];
+    if (!rows.length) {
+      return '<div class="kpi-tile-back-message">Нет данных по отделам.</div>';
+    }
+    return (
+      '<div class="kpi-tile-children-list">' +
+      rows
+        .map(function (row) {
+          var name = row && row.name != null ? String(row.name) : "";
+          var canNavigate = !!(row && row.navigable && name);
+          var tagName = canNavigate ? "a" : "div";
+          var extraClass = canNavigate ? " kpi-tile-child-link" : " kpi-tile-child-item--static";
+          var attrs = canNavigate
+            ? ' tabindex="0" data-department="' + DashUi.escapeHtml(name) + '"'
+            : "";
+          var chevron = canNavigate
+            ? '<svg class="kpi-tile-child-chevron" width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4.5 2.5L8 6L4.5 9.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+            : "";
+          var dismissed = Number(row && row.dismissed);
+          var rag = isFinite(dismissed) && dismissed > 0 ? "red" : "green";
+          var valueText =
+            formatTurnoverPercent(row && row.fact) +
+            "% · " +
+            formatTurnoverCount(row && row.dismissed) +
+            " из " +
+            formatTurnoverCount(row && row.staff);
+          return (
+            "<" +
+            tagName +
+            ' class="kpi-tile-child-item' +
+            extraClass +
+            '"' +
+            attrs +
+            ">" +
+            '<span class="kpi-tile-child-dot rag-dot rag-' +
+            rag +
+            '"></span>' +
+            '<span class="kpi-tile-child-name">' +
+            DashUi.escapeHtml(DashUi.capitalizeHeaderTitle(name)) +
+            "</span>" +
+            '<span class="kpi-tile-child-value" title="Текучесть · уволено из штата">' +
+            DashUi.escapeHtml(valueText) +
+            "</span>" +
+            chevron +
+            "</" +
+            tagName +
+            ">"
+          );
+        })
+        .join("") +
+      "</div>"
+    );
+  }
+
+  function buildKpiTileSlaDepartmentsHtml(tile) {
+    var planByDept = tile && tile.plan_by_dept && typeof tile.plan_by_dept === "object" ? tile.plan_by_dept : {};
+    var factByDept = tile && tile.fact_by_dept && typeof tile.fact_by_dept === "object" ? tile.fact_by_dept : {};
+    var names = Object.create(null);
+    Object.keys(planByDept).forEach(function (name) {
+      names[name] = true;
+    });
+    Object.keys(factByDept).forEach(function (name) {
+      names[name] = true;
+    });
+    var rows = Object.keys(names)
+      .map(function (name) {
+        var planValue = Number(planByDept[name]);
+        var factValue = Number(factByDept[name]);
+        var plan = isFinite(planValue) && !isNaN(planValue) ? planValue : 0;
+        var fact = isFinite(factValue) && !isNaN(factValue) ? factValue : 0;
+        var pct = plan > 0 ? (fact / plan) * 100 : 0;
+        return { name: name, plan: plan, fact: fact, pct: pct, rag: slaDeptRag(pct) };
+      })
+      .sort(function (a, b) {
+        var ragOrder = { red: 0, yellow: 1, green: 2 };
+        var ragDiff = (ragOrder[a.rag] || 0) - (ragOrder[b.rag] || 0);
+        if (ragDiff !== 0) return ragDiff;
+        return String(a.name || "").localeCompare(String(b.name || ""), "ru");
+      });
+    if (!rows.length) {
+      return '<div class="kpi-tile-back-message">Нет данных по отделам.</div>';
+    }
+    return (
+      '<div class="kpi-tile-children-list">' +
+      rows
+        .map(function (row) {
+          var canNavigate = String(row.name || "").trim() !== "Прочие подразделения";
+          var tagName = canNavigate ? "a" : "div";
+          var extraClass = canNavigate ? " kpi-tile-child-link" : " kpi-tile-child-item--static";
+          var attrs = canNavigate
+            ? ' tabindex="0" data-department="' + DashUi.escapeHtml(row.name) + '"'
+            : "";
+          var chevron = canNavigate
+            ? '<svg class="kpi-tile-child-chevron" width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4.5 2.5L8 6L4.5 9.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+            : "";
+          return (
+            "<" +
+            tagName +
+            ' class="kpi-tile-child-item' +
+            extraClass +
+            '"' +
+            attrs +
+            ">" +
+            '<span class="kpi-tile-child-dot rag-dot rag-' +
+            row.rag +
+            '"></span>' +
+            '<span class="kpi-tile-child-name">' +
+            DashUi.escapeHtml(DashUi.capitalizeHeaderTitle(row.name)) +
+            "</span>" +
+            '<span class="kpi-tile-child-value" title="План / факт, шт · доля в сроке">' +
+            DashUi.escapeHtml(formatSlaDeptValue(row.plan, row.fact)) +
+            "</span>" +
+            chevron +
+            "</" +
+            tagName +
+            ">"
+          );
+        })
+        .join("") +
+      "</div>"
+    );
+  }
+
   function buildKpiTileBackFaceHtml(tile, tileIndex) {
     var state = getTileDetailsState(tileIndex);
     var pres = MockData.getKpiTilePresentation(tile);
@@ -2076,6 +2289,13 @@
         '<div class="kpi-tile-back-head-actions">' +
         '<button type="button" class="kpi-tile-flip-action" aria-label="Вернуться к карточке">Назад</button>' +
         "</div></div>" +
+        (forceBackPlanFact ? buildKpiTileBackKpiPctSummaryHtml(tile, pres, showHelp, showPercent) : "") +
+        (hasPf && shouldRenderKpiTileBack(tile) && forceBackPlanFact
+          ? '<div class="kpi-tile-back-summary">' +
+            '<div class="kpi-tile-back-summary-item"><span class="kpi-tile-back-summary-label">План / факт</span><strong>' +
+            DashUi.escapeHtml(planFactShown) +
+            "</strong></div></div>"
+          : "") +
         '<div class="kpi-tile-back-section">' +
         '<div class="kpi-tile-back-section-title">' + DashUi.escapeHtml(projectListTitle) + "</div>" +
         buildKpiTileProjectDeviationsHtml(tile) +
@@ -2309,10 +2529,43 @@
           "</strong></div></div>"
         : "") +
       (hint ? '<p class="kpi-tile-back-hint">' + DashUi.escapeHtml(hint) + "</p>" : "") +
-      '<div class="kpi-tile-back-section">' +
-      '<div class="kpi-tile-back-section-title">Информация по отделам</div>' +
-      buildKpiTileChildrenHtml(state) +
-      "</div>"
+      (function () {
+        var kid = tile && (tile.kpi_id || tile.badge) ? String(tile.kpi_id || tile.badge).trim() : "";
+        var hasTurnoverDepts =
+          kid === "KD-M11" && Array.isArray(tile.turnover_rows) && tile.turnover_rows.length;
+        if (hasTurnoverDepts) {
+          return (
+            '<div class="kpi-tile-back-section">' +
+            '<div class="kpi-tile-back-section-title">Информация по отделам</div>' +
+            '<p class="kpi-tile-back-hint">Текучесть, % · уволено из штата на конец месяца</p>' +
+            buildKpiTileTurnoverDepartmentsHtml(tile) +
+            "</div>"
+          );
+        }
+        var hasSlaDepts =
+          kid === "KD-M10" &&
+          tile.plan_by_dept &&
+          typeof tile.plan_by_dept === "object" &&
+          Object.keys(tile.plan_by_dept).length;
+        if (hasSlaDepts) {
+          return (
+            '<div class="kpi-tile-back-section">' +
+            '<div class="kpi-tile-back-section-title">Информация по отделам</div>' +
+            '<p class="kpi-tile-back-hint">План / факт, шт · доля в сроке</p>' +
+            buildKpiTileSlaDepartmentsHtml(tile) +
+            "</div>"
+          );
+        }
+        return (
+          '<div class="kpi-tile-back-section">' +
+          '<div class="kpi-tile-back-section-head">' +
+          '<div class="kpi-tile-back-section-title">Информация по отделам</div>' +
+          commercialServiceBreakdownLinkHtml(tile) +
+          "</div>" +
+          buildKpiTileChildrenHtml(state) +
+          "</div>"
+        );
+      })()
     );
   }
 
@@ -2760,6 +3013,9 @@
       }
       if (!hasPf) {
         el.classList.add("kpi-tile--pct-only");
+      }
+      if (hasExpectedPlan && hasPf && !hasCustomPlanFactRows) {
+        el.classList.add("kpi-tile--has-expected");
       }
       if (hasCustomPlanFactRows) {
         el.classList.add("kpi-tile--split-plan-fact");

@@ -2202,12 +2202,41 @@ article.kpi-tile[data-no-flip="1"] {
   gap: 8px;
 }
 
+.kpi-tile-back-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
 .kpi-tile-back-section-title {
   font-size: 0.72rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   color: var(--muted);
+}
+
+.kpi-tile-breakdown-link {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: #2563eb;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.2;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+  text-align: right;
+}
+
+.kpi-tile-breakdown-link:hover,
+.kpi-tile-breakdown-link:focus-visible {
+  color: #1d4ed8;
+  outline: none;
 }
 
 /* Подразделения на обороте QD-M1 (articles): карточки с подписью План / Факт */
@@ -2892,6 +2921,30 @@ article.kpi-tile[data-no-flip="1"] {
   font-weight: 600;
 }
 
+.kpi-tile-forecast-fact {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-top: 6px;
+  color: #111827;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1.15;
+}
+
+.kpi-tile-forecast-fact-label {
+  color: #111827;
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+
+.kpi-tile-forecast-fact-value {
+  color: #111827;
+  font-size: 0.92rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
 .kpi-tile-plan-delta {
   flex: 0 0 auto;
   min-width: 58px;
@@ -2998,6 +3051,27 @@ article.kpi-tile[data-no-flip="1"] {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* «За месяц» добавляет строку периода, и «Ожидаемо» уезжает за край карточки. */
+.kpi-tile.kpi-tile--has-expected,
+.kpi-tile.kpi-tile--has-expected .kpi-tile-inner {
+  min-height: 336px;
+}
+
+.kpi-tile--has-expected .kpi-tile-modern-numbers {
+  min-width: 168px;
+}
+
+.kpi-tile--has-expected .kpi-tile-modern-number-row {
+  grid-template-columns: auto auto;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.kpi-tile--has-expected .kpi-tile-modern-number-row strong {
+  overflow: visible;
+  text-overflow: unset;
 }
 
 /* Light KPI system overrides: flat cards, muted accents, stable spacing. */

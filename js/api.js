@@ -1100,7 +1100,7 @@
           var kid = kpiId != null ? String(kpiId).trim().toUpperCase() : "";
           if (kid === "LOG-M2" || kid === "LOG-M5") return "руб.";
           if (kid === "OD-M1" || kid === "OD-M3.1" || kid === "OD-M3.2") return "руб.";
-          if (kid === "KD-M11") return "чел.";
+          if (kid === "KD-M11") return "%";
           if (/^QD-M\d+$/i.test(kid)) {
             var unitText = value != null ? String(value).trim() : "";
             if (!unitText || unitText === "%") return "шт.";
@@ -1220,6 +1220,7 @@
             item.plan_by_dept && typeof item.plan_by_dept === "object"
               ? item.plan_by_dept
               : null,
+          turnover_rows: Array.isArray(item.turnover_rows) ? item.turnover_rows : [],
           fact_by_dept:
             item.fact_by_dept && typeof item.fact_by_dept === "object"
               ? item.fact_by_dept
@@ -1529,15 +1530,24 @@
     }
   }
 
+  function isProductionDeputyOutputPeriodTile(id) {
+    var normalized = id != null ? String(id).trim().toUpperCase() : "";
+    return /^(PD-M1\.[12]\.)(W|M|T)$/.test(normalized);
+  }
+
   function applyMonthlyDataToTilesAtPeriod(tiles, year, month) {
     if (!Array.isArray(tiles) || !tiles.length) return;
     tiles.forEach(function (tile) {
       if (!tile || !Array.isArray(tile.monthly_data)) return;
       // HRD-M2/M4/Q4 и гСПП ФОТ: plan/fact из last_full_month_row в applyPlanFact — не затирать.
       if (isSupHrdLateMonthKpiId(tile.kpi_id) || isGsppFotKpiId(tile.kpi_id)) return;
-      // PD-M1.*.W/T: бэкенд уже отдал недельный/итоговый план; в monthly_data всегда месячные поля.
-      if (isProductionDeputyWeeklyOrTotalTile(tile.kpi_id)) return;
+      // PD-M1.*.W/M/T: неделя, месяц и итого — разные колонки одного документа.
+      // monthly_data месяца затирала бы план и факт недели и итого.
+      if (isProductionDeputyOutputPeriodTile(tile.kpi_id)) return;
       var point = findTileMonthlyDataPoint(tile.monthly_data, year, month);
+      if (!point) {
+        point = findLatestTileMonthlyDataPointUpTo(tile.monthly_data, year, month);
+      }
       if (!point) return;
       var isLogM2 = String(tile.kpi_id || "").trim().toUpperCase() === "LOG-M2";
       if (point.plan !== undefined) tile.plan = point.plan;
@@ -3478,8 +3488,16 @@
       }
     }
     if (isCommercialHigherIsBetterPlanFactKpiId(id)) {
+      var commercialFact = Number(point.fact);
+      var commercialExpected = Number(point.expected_plan);
+      var hasCommercialFact = isFinite(commercialFact) && !isNaN(commercialFact);
+      var hasCommercialExpected = isFinite(commercialExpected) && !isNaN(commercialExpected);
+      var commercialForecast =
+        hasCommercialFact || hasCommercialExpected
+          ? (hasCommercialFact ? commercialFact : 0) + (hasCommercialExpected ? commercialExpected : 0)
+          : point.fact;
       var commercialRag =
-        higherBetterRagFromPlanFact(point.plan, point.fact) ||
+        higherBetterRagFromPlanFact(point.plan, commercialForecast) ||
         (pct != null ? higherBetterRagFromPct(pct) : null);
       if (commercialRag) {
         applyBackendTileColor(tile, commercialRag);
@@ -3587,16 +3605,6 @@
     if (item.pct_higher_is_better === true) return true;
     var dir = item.rag_direction != null ? String(item.rag_direction).trim().toLowerCase() : "";
     return dir === "higher_better" || dir === "higher_is_better";
-  }
-
-  function isProductionDeputyOutputPeriodTile(id) {
-    var normalized = id != null ? String(id).trim().toUpperCase() : "";
-    return /^(PD-M1\.[12]\.)(W|M|T)$/.test(normalized);
-  }
-
-  function isProductionDeputyWeeklyOrTotalTile(id) {
-    var normalized = id != null ? String(id).trim().toUpperCase() : "";
-    return /^(PD-M1\.[12]\.)(W|T)$/.test(normalized);
   }
 
   /**

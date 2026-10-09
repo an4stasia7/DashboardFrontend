@@ -1258,6 +1258,13 @@
         handleKpiTileCacheRefresh(lastKpiTiles[+ixRefresh]);
         return;
       }
+      var breakdownBtn = e.target.closest(".kpi-tile-breakdown-link");
+      if (breakdownBtn && kpiContainerEl.contains(breakdownBtn)) {
+        e.preventDefault();
+        e.stopPropagation();
+        openCommercialPlanFactBreakdown(breakdownBtn.getAttribute("data-plan-fact-view") || "money");
+        return;
+      }
       var childBtn = e.target.closest(".kpi-tile-child-link");
       if (childBtn && kpiContainerEl.contains(childBtn)) {
         e.preventDefault();
@@ -1313,7 +1320,7 @@
       if (e.key !== "Enter" && e.key !== " ") return;
       var art = e.target.closest("article.kpi-tile");
       if (!art || !kpiContainerEl.contains(art)) return;
-      if (e.target.closest(".kpi-tile-child-link, .kpi-tile-help, .kpi-tile-flip-action, .kpi-tile-drag-handle, .kpi-tile-cache-refresh")) return;
+      if (e.target.closest(".kpi-tile-child-link, .kpi-tile-help, .kpi-tile-flip-action, .kpi-tile-drag-handle, .kpi-tile-cache-refresh, .kpi-tile-breakdown-link")) return;
       e.preventDefault();
       var ix = art.getAttribute("data-kpi-tile-index");
       if (ix == null || !lastKpiTiles || lastKpiTiles[+ix] == null) return;
@@ -1960,6 +1967,8 @@
       if (kpiIdUpper === "KD-M8") return tile;
       if (kpiIdUpper === "PD-M3.F1" || kpiIdUpper === "PD-M3.F2") return tile;
       if (kpiIdUpper === "OD-M3.2" || kpiIdUpper === "LOG-M3.F" || kpiIdUpper === "TD-M6") return tile;
+      if (kpiIdUpper === "KD-M11") return tile;
+      if (isGsppFotKpiId(kpiId)) return tile;
       if (tile.__priorMonthMergedFromKpiAll) return tile;
       var prevPoint = resolvePriorMonthFotPoint(tile, prevYm.year, prevYm.month);
       if (!prevPoint) return tile;
@@ -3061,9 +3070,15 @@
       var next = Object.assign({}, tile);
       var plan = parseNumberLoose(tile.plan);
       var fact = parseNumberLoose(tile.fact);
+      var expected = parseNumberLoose(tile.expected_plan);
+      var forecast = fact == null && expected == null ? null : (fact || 0) + (expected || 0);
+      if (forecast != null && plan != null && Math.abs(plan) > 0) {
+        next.kpi_pct = (forecast / Math.abs(plan)) * 100;
+        next.percent = next.kpi_pct;
+      }
       var rag =
-        higherBetterRagFromPlanFact(tile.plan, tile.fact) ||
-        higherBetterRagFromPct(tile.kpi_pct != null ? tile.kpi_pct : tile.percent);
+        higherBetterRagFromPlanFact(tile.plan, forecast != null ? forecast : tile.fact) ||
+        higherBetterRagFromPct(next.kpi_pct != null ? next.kpi_pct : tile.percent);
       if (rag) {
         next.rag = rag;
         next.color = rag;
@@ -3371,6 +3386,60 @@
         kpiPct = (withoutAgg / extraSums.portfolio_count) * 100;
       }
     }
+    var turnoverRows = null;
+    if (item && String(item.kpi_id || "").trim() === "KD-M11") {
+      var latestTurnover = bucket
+        .slice()
+        .sort(function (a, b) { return Number(a.month) - Number(b.month); })
+        .pop();
+      var staffEnd = latestTurnover ? parseNumberLoose(latestTurnover.staff_units) : null;
+      var dismissedSum = 0;
+      bucket.forEach(function (point) {
+        var dismissedValue = parseNumberLoose(point && point.dismissed);
+        if (dismissedValue != null) dismissedSum += dismissedValue;
+      });
+      hasPlan = false;
+      plan = 0;
+      hasFact = true;
+      fact = staffEnd != null && staffEnd > 0 ? (dismissedSum / staffEnd) * 100 : 0;
+      kpiPct = fact;
+      var staffByName = {};
+      var dismissedByName = {};
+      var metaByName = {};
+      var nameOrder = [];
+      (latestTurnover && Array.isArray(latestTurnover.turnover_rows) ? latestTurnover.turnover_rows : []).forEach(function (row) {
+        var deptName = row && row.name != null ? String(row.name) : "";
+        if (!deptName || staffByName[deptName] != null) return;
+        staffByName[deptName] = parseNumberLoose(row.staff) || 0;
+        metaByName[deptName] = row;
+        nameOrder.push(deptName);
+      });
+      bucket.forEach(function (point) {
+        (point && Array.isArray(point.turnover_rows) ? point.turnover_rows : []).forEach(function (row) {
+          var deptName = row && row.name != null ? String(row.name) : "";
+          if (!deptName) return;
+          if (metaByName[deptName] == null) {
+            metaByName[deptName] = row;
+            nameOrder.push(deptName);
+            staffByName[deptName] = parseNumberLoose(row.staff) || 0;
+          }
+          dismissedByName[deptName] = (dismissedByName[deptName] || 0) + (parseNumberLoose(row.dismissed) || 0);
+        });
+      });
+      turnoverRows = nameOrder.map(function (deptName) {
+        var staffValue = staffByName[deptName] || 0;
+        var dismissedValue = dismissedByName[deptName] || 0;
+        var meta = metaByName[deptName] || {};
+        return {
+          name: deptName,
+          staff: staffValue,
+          dismissed: dismissedValue,
+          fact: staffValue > 0 ? Math.round((dismissedValue / staffValue) * 1000) / 10 : 0,
+          navigable: meta.navigable === true,
+          structure_guid: meta.structure_guid != null ? String(meta.structure_guid) : "",
+        };
+      });
+    }
     var limitRag = isBudgetFotLimitKpiItem(item) ? planFactLimitRag(plan, fact) : null;
     var turnoverRag = isTurnoverKpiItem(item) ? turnoverLimitRagFromPct(kpiPct) : null;
     var shareRag = isMrk06ShareKpiItem(item) ? mrk06ShareRagFromPct(kpiPct) : null;
@@ -3379,9 +3448,20 @@
       : isServheadLowerBetterKpiItem(item)
         ? servheadLowerBetterRagFromPct(kpiPct)
         : null;
+    if (isCommercialHigherIsBetterPlanFactKpiItem(item) && hasPlan && Math.abs(plan) > 0.000001) {
+      var commercialForecast =
+        (hasFact ? fact : 0) + (extraHas.expected_plan ? extraSums.expected_plan : 0);
+      if (hasFact || extraHas.expected_plan) {
+        kpiPct = (commercialForecast / Math.abs(plan)) * 100;
+      }
+    }
     var commercialPlanFactRag = isCommercialHigherIsBetterPlanFactKpiItem(item)
-      ? higherBetterRagFromPlanFact(hasPlan ? plan : null, hasFact ? fact : null) ||
-        higherBetterRagFromPct(kpiPct)
+      ? higherBetterRagFromPlanFact(
+          hasPlan ? plan : null,
+          isCommercialHigherIsBetterPlanFactKpiItem(item) && (hasFact || extraHas.expected_plan)
+            ? (hasFact ? fact : 0) + (extraHas.expected_plan ? extraSums.expected_plan : 0)
+            : (hasFact ? fact : null)
+        ) || higherBetterRagFromPct(kpiPct)
       : null;
     var mrk04Rag = isMrk04YoyKpiItem(item) ? higherBetterRagFromPct(kpiPct) : null;
 
@@ -3421,6 +3501,7 @@
       pct_total: pctTotal,
       plan_by_dept: Object.keys(planByDept).length ? planByDept : null,
       fact_by_dept: Object.keys(factByDept).length ? factByDept : null,
+      turnover_rows: turnoverRows,
       articles: articlesFromBucket ? articlesFromBucket.slice() : null,
       kpi_pct: kpiPct,
       has_data: isCommercialHigherIsBetterPlanFactKpiItem(item)
@@ -3511,7 +3592,7 @@
       var kid = kpiId != null ? String(kpiId).trim().toUpperCase() : "";
       if (kid === "LOG-M2" || kid === "LOG-M5") return "руб.";
       if (kid === "OD-M1" || kid === "OD-M3.1" || kid === "OD-M3.2") return "руб.";
-      if (kid === "KD-M11") return "чел.";
+      if (kid === "KD-M11") return "%";
       if (/^QD-M\d+$/.test(kid)) {
         var unitText = value != null ? String(value).trim() : "";
         if (!unitText || unitText === "%") return "шт.";
@@ -3684,6 +3765,12 @@
           : rawItem.fact_by_dept && typeof rawItem.fact_by_dept === "object"
             ? rawItem.fact_by_dept
             : null,
+      turnover_rows:
+        point && Array.isArray(point.turnover_rows)
+          ? point.turnover_rows
+          : Array.isArray(rawItem.turnover_rows)
+            ? rawItem.turnover_rows
+            : [],
       pct_client:
         point && point.pct_client != null
           ? point.pct_client
@@ -4131,6 +4218,13 @@
       }
     }
 
+    var showPlanFactTabs =
+      shouldUseCommercialDirectorOverdueDebtEnhancements() || isBoardChairCommercialBlockContext();
+    ["money", "ship", "dog"].forEach(function (viewName) {
+      var button = document.querySelector('.claims-table-switcher-btn[data-claims-view="' + viewName + '"]');
+      if (!button) return;
+      button.hidden = !showPlanFactTabs;
+    });
     updateClaimsTableSwitcherUi(showClaimsSwitcher);
     updatePsdTableAmountFilterBarVisibility();
     updateServheadSurveysPeriodFilterVisibility(
@@ -4227,8 +4321,92 @@
     applyClaimsTableView(activeClaimsTableView);
   }
 
+  function isPlanFactBreakdownView(view) {
+    return view === "money" || view === "ship" || view === "dog";
+  }
+
+  function openCommercialPlanFactBreakdown(view) {
+    var nextView = isPlanFactBreakdownView(view) ? view : "claims";
+    activeClaimsTableView = nextView;
+    updateClaimsTableSwitcherUi(shouldUseClaimsAndLawsuitsSwitcher() || isPlanFactBreakdownView(nextView));
+    applyClaimsTableView(nextView);
+    var tablesRow = document.querySelector(".tables-row");
+    if (tablesRow && typeof tablesRow.scrollIntoView === "function") {
+      tablesRow.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
+
+  function renderPlanFactBreakdownTable(view) {
+    var tableId =
+      view === "money" ? "table-plan-fact-money" : view === "ship" ? "table-plan-fact-ship" : view === "dog" ? "table-plan-fact-dog" : "";
+    var tableKey =
+      view === "money" ? "KD-T-MONEY" : view === "ship" ? "KD-T-SHIP" : view === "dog" ? "KD-T-DOG" : "";
+    var table = tableId ? document.getElementById(tableId) : null;
+    if (!table || !tableKey) return;
+    var source = Array.isArray(lastApiTableRows) ? lastApiTableRows : [];
+    var rows = source.filter(function (item) {
+      var key = item && item.tableKey != null ? String(item.tableKey).trim().toUpperCase() : "";
+      return key === tableKey && item.raw && item.raw.__tableEmptyMarker !== true;
+    });
+    var fact = 0;
+    var expected = 0;
+    var body = rows
+      .map(function (item) {
+        var raw = item.raw || {};
+        var amount = Number(raw.amount);
+        var kind = raw.kind != null ? String(raw.kind) : "";
+        if (!isNaN(amount)) {
+          if (kind === "Ожидаемо") expected += amount;
+          else fact += amount;
+        }
+        var cells = [
+          raw.date || "—",
+          raw.department || "—",
+          raw.partner || "—",
+          raw.document || raw.name || "—",
+          kind || "—",
+          isNaN(amount)
+            ? "—"
+            : amount.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        ];
+        return (
+          "<tr>" +
+          cells
+            .map(function (value, index) {
+              var cls = index === 5 ? ' class="dashboard-table-cell--number"' : "";
+              return "<td" + cls + ">" + DashUi.escapeHtml(String(value)) + "</td>";
+            })
+            .join("") +
+          "</tr>"
+        );
+      })
+      .join("");
+    if (!body) {
+      body =
+        '<tr><td colspan="6">Расшифровка за выбранный месяц ещё не готова. Обновите дашборд чуть позже.</td></tr>';
+    }
+    var forecast = fact + expected;
+    function money(value) {
+      return value.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+    table.innerHTML =
+      "<thead><tr><th>Дата</th><th>Отдел</th><th>Партнер</th><th>Документ</th><th>Вид</th><th>Сумма, руб.</th></tr></thead>" +
+      "<tbody>" +
+      body +
+      "</tbody>" +
+      "<tfoot><tr><th colspan=\"5\">Факт " +
+      money(fact) +
+      " · Ожидаемо " +
+      money(expected) +
+      " · Прогноз " +
+      money(forecast) +
+      '</th><th class="dashboard-table-cell--number">' +
+      money(forecast) +
+      "</th></tr></tfoot>";
+  }
+
   function applyClaimsTableView(view) {
-    var nextView = view === "lawsuits" ? "lawsuits" : view === "process" ? "process" : "claims";
+    var nextView = view === "lawsuits" ? "lawsuits" : view === "process" ? "process" : isPlanFactBreakdownView(view) ? view : "claims";
     activeClaimsTableView = nextView;
 
     var wrappers = document.querySelectorAll('[data-claims-view]');
@@ -4264,6 +4442,9 @@
       }
     }
 
+    if (isPlanFactBreakdownView(nextView)) {
+      renderPlanFactBreakdownTable(nextView);
+    }
     if (claimsTableHelpWrapEl) {
       claimsTableHelpWrapEl.hidden =
         shouldUseQualdirDefectTables() ||
@@ -4272,7 +4453,8 @@
         shouldUseDevserviceProjectDeviationsTables() ||
         shouldUseHrdLateVacanciesTable() ||
         shouldUseServheadClientsTable() ||
-        nextView === "lawsuits";
+        nextView === "lawsuits" ||
+        isPlanFactBreakdownView(nextView);
     }
     if (nextView === "lawsuits") {
       hideClaimsTableHelpPopover();
