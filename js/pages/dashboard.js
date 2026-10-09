@@ -191,10 +191,17 @@
       return nextOpts;
     }
     var ps = DashboardMonthNav.getPeriodState();
-    var month = ps && ps.currentPeriodMonth != null ? Number(ps.currentPeriodMonth) : null;
-    var year = ps && ps.currentPeriodYear != null ? Number(ps.currentPeriodYear) : null;
+    var requestPeriod =
+      typeof DashboardMonthNav.getRequestPeriod === "function"
+        ? DashboardMonthNav.getRequestPeriod()
+        : null;
+    var month = requestPeriod && requestPeriod.month != null ? Number(requestPeriod.month) : null;
+    var year = requestPeriod && requestPeriod.year != null ? Number(requestPeriod.year) : null;
     if ((month == null || isNaN(month) || year == null || isNaN(year)) && ps && Array.isArray(ps.availableMonths) && ps.availableMonths.length) {
-      var lastSlot = ps.availableMonths[ps.availableMonths.length - 1];
+      var lastSlot =
+        typeof DashboardMonthNav.pickDefaultMonthSlot === "function"
+          ? DashboardMonthNav.pickDefaultMonthSlot(ps.availableMonths)
+          : ps.availableMonths[ps.availableMonths.length - 1];
       month = lastSlot && lastSlot.month != null ? Number(lastSlot.month) : month;
       year = lastSlot && lastSlot.year != null ? Number(lastSlot.year) : year;
     }
@@ -595,8 +602,12 @@
         }
         if (typeof DashboardMonthNav !== "undefined" && DashboardMonthNav && typeof DashboardMonthNav.getPeriodState === "function") {
           var ps = DashboardMonthNav.getPeriodState();
-          if (ps && ps.currentPeriodMonth != null) opts.month = Number(ps.currentPeriodMonth);
-          if (ps && ps.currentPeriodYear != null) opts.year = Number(ps.currentPeriodYear);
+          var requestPeriod =
+            typeof DashboardMonthNav.getRequestPeriod === "function"
+              ? DashboardMonthNav.getRequestPeriod()
+              : ps;
+          if (requestPeriod && requestPeriod.month != null) opts.month = Number(requestPeriod.month);
+          if (requestPeriod && requestPeriod.year != null) opts.year = Number(requestPeriod.year);
         }
         return Api.fetchKpis(attachActivePeriodToRequestOptions(opts));
       },
@@ -681,6 +692,13 @@
         getDepartmentForCurrentKpiContext: getDepartmentForCurrentKpiContext,
         getViewContextUser: function () {
           return viewContextUser;
+        },
+        allowsFutureMonthPaging: function () {
+          return (
+            selectedViewId === "self" &&
+            isCommercialDirectorUser(sessionUser) &&
+            isCommercialDirectorUser(viewContextUser)
+          );
         },
         onPeriodChange: function () {
           if (typeof DashboardKpiTiles !== "undefined" && DashboardKpiTiles && typeof DashboardKpiTiles.resetPager === "function") {
@@ -829,11 +847,11 @@
       return Promise.resolve({ name: cn, tiles: [] });
     }
     var fetchOpts = { department: cn };
-    if (typeof DashboardMonthNav !== "undefined" && DashboardMonthNav.getPeriodState) {
-      var ps = DashboardMonthNav.getPeriodState();
-      if (ps && ps.currentPeriodMonth != null && ps.currentPeriodYear != null) {
-        fetchOpts.month = Number(ps.currentPeriodMonth);
-        fetchOpts.year = Number(ps.currentPeriodYear);
+    if (typeof DashboardMonthNav !== "undefined" && DashboardMonthNav.getRequestPeriod) {
+      var requestPeriod = DashboardMonthNav.getRequestPeriod();
+      if (requestPeriod && requestPeriod.month != null && requestPeriod.year != null) {
+        fetchOpts.month = Number(requestPeriod.month);
+        fetchOpts.year = Number(requestPeriod.year);
       }
     }
     return Api.fetchKpis(fetchOpts)
@@ -961,15 +979,15 @@
   }
 
   function getKpiTileRefreshPeriod() {
-    var ps =
+    var requestPeriod =
       typeof DashboardMonthNav !== "undefined" &&
       DashboardMonthNav &&
-      typeof DashboardMonthNav.getPeriodState === "function"
-        ? DashboardMonthNav.getPeriodState()
+      typeof DashboardMonthNav.getRequestPeriod === "function"
+        ? DashboardMonthNav.getRequestPeriod()
         : null;
     return {
-      month: ps && ps.currentPeriodMonth != null ? Number(ps.currentPeriodMonth) : null,
-      year: ps && ps.currentPeriodYear != null ? Number(ps.currentPeriodYear) : null,
+      month: requestPeriod && requestPeriod.month != null ? Number(requestPeriod.month) : null,
+      year: requestPeriod && requestPeriod.year != null ? Number(requestPeriod.year) : null,
     };
   }
 
@@ -2860,6 +2878,22 @@
     return "red";
   }
 
+  function metdM1ProductionPlanRag(plan, fact, pct) {
+    var planValue = parseNumberLoose(plan);
+    var factValue = parseNumberLoose(fact);
+    if (planValue != null && factValue != null && Math.abs(planValue - factValue) < 1e-9) return "green";
+    var ratio = null;
+    if (planValue != null && factValue != null && Math.abs(planValue) > 1e-9) {
+      ratio = (factValue / planValue) * 100;
+    } else {
+      ratio = parseNumberLoose(pct);
+    }
+    if (ratio == null) return null;
+    if (ratio >= 100) return "green";
+    if (ratio >= 90) return "yellow";
+    return "red";
+  }
+
   function higherBetterRagFromPlanFact(plan, fact) {
     var planValue = parseNumberLoose(plan);
     var factValue = parseNumberLoose(fact);
@@ -3024,6 +3058,7 @@
         return { start: (q - 1) * 3 + 1, end: q * 3 };
       });
       bucket = filtered.filter(function (point) {
+        if (point && point.future_month === true) return false;
         var pointMonth = Number(point.month);
         for (var i = 0; i < ranges.length; i++) {
           if (pointMonth >= ranges[i].start && pointMonth <= ranges[i].end) return true;
@@ -3033,6 +3068,7 @@
     } else {
       var startMonth = 1;
       bucket = filtered.filter(function (point) {
+        if (point && point.future_month === true) return false;
         var pointMonth = Number(point.month);
         return pointMonth >= startMonth && pointMonth <= m;
       });
@@ -3703,6 +3739,21 @@
     }
     if (!normalizedTile.last_full_month_row && rawItem.last_full_month_row) {
       normalizedTile.last_full_month_row = rawItem.last_full_month_row;
+    }
+    var metdId = normalizedTile.kpi_id != null ? String(normalizedTile.kpi_id).trim().toUpperCase() : "";
+    if (metdId === "METD-M1" || metdId === "МЕТ-M1") {
+      var metdRag = metdM1ProductionPlanRag(
+        normalizedTile.plan,
+        normalizedTile.fact,
+        normalizedTile.kpi_pct != null ? normalizedTile.kpi_pct : normalizedTile.percent
+      );
+      if (metdRag) {
+        normalizedTile.rag = metdRag;
+        normalizedTile.color = metdRag;
+      }
+      normalizedTile.green_threshold = "≥100%";
+      normalizedTile.yellow_threshold = "90–99,9%";
+      normalizedTile.red_threshold = "<90%";
     }
     return normalizedTile;
   }
