@@ -4882,6 +4882,161 @@
     callDataLoader("loadKpiTilesAndChartsForView", [options]);
   }
 
+  var PSD_REFRESH_HOURS = [6, 13, 17];
+  var psdRefreshTimer = null;
+  var psdRefreshPolling = false;
+
+  function isPsdDashboardOpen() {
+    if (!isBoardChairUser(sessionUser)) return false;
+    if (typeof document !== "undefined" && document.visibilityState === "hidden") return false;
+    if (isChairmanOverviewVisible()) return false;
+    if (selectedViewId === "self") return true;
+    return isViewingChairmanCatalogDashboard();
+  }
+
+  function nextPsdRefreshAt(from) {
+    var now = from || new Date();
+    var best = null;
+    for (var dayOffset = 0; dayOffset < 2; dayOffset++) {
+      for (var i = 0; i < PSD_REFRESH_HOURS.length; i++) {
+        var candidate = new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          now.getDate() + dayOffset,
+          PSD_REFRESH_HOURS[i],
+          0,
+          0,
+          0
+        );
+        if (candidate.getTime() <= now.getTime() + 1500) continue;
+        if (!best || candidate.getTime() < best.getTime()) best = candidate;
+      }
+    }
+    return best;
+  }
+
+  function psdRefreshSlotKey(scheduledAt) {
+    var month = String(scheduledAt.getMonth() + 1);
+    var day = String(scheduledAt.getDate());
+    if (month.length < 2) month = "0" + month;
+    if (day.length < 2) day = "0" + day;
+    var hour = String(scheduledAt.getHours());
+    if (hour.length < 2) hour = "0" + hour;
+    return "psd-dashboard-refresh:" + scheduledAt.getFullYear() + "-" + month + "-" + day + "-" + hour;
+  }
+
+  function psdRefreshRequestOptions() {
+    var period = getKpiTileRefreshPeriod();
+    var opts = {
+      department: (sessionUser && sessionUser.department) || "",
+      for: getChairmanDashboardCatalogId() || "my_dashboard",
+    };
+    if (period.month != null && !isNaN(period.month)) opts.month = period.month;
+    if (period.year != null && !isNaN(period.year)) opts.year = period.year;
+    return opts;
+  }
+
+  function reloadOpenPsdDashboard() {
+    if (!isPsdDashboardOpen()) return;
+    if (Api && typeof Api.clearKpiGetMemoryCache === "function") {
+      Api.clearKpiGetMemoryCache();
+    }
+    loadKpiTilesAndChartsForView({ preserveViewState: true });
+  }
+
+  function pollPsdDashboardRefresh(opts, attempt) {
+    if (!Api || typeof Api.fetchChairmanDashboardRefreshStatus !== "function") {
+      psdRefreshPolling = false;
+      return;
+    }
+    if (attempt > 360) {
+      psdRefreshPolling = false;
+      return;
+    }
+    setTimeout(function () {
+      Api.fetchChairmanDashboardRefreshStatus(opts).then(function (res) {
+        if (!res || !res.ok) {
+          psdRefreshPolling = false;
+          return;
+        }
+        if (res.status === "running") {
+          pollPsdDashboardRefresh(opts, attempt + 1);
+          return;
+        }
+        psdRefreshPolling = false;
+        if (res.status === "succeeded") reloadOpenPsdDashboard();
+      }).catch(function () {
+        psdRefreshPolling = false;
+      });
+    }, 5000);
+  }
+
+  function startPsdDashboardRefresh() {
+    if (psdRefreshPolling || !Api || typeof Api.refreshChairmanDashboard !== "function") return;
+    if (!isPsdDashboardOpen()) return;
+    var opts = psdRefreshRequestOptions();
+    psdRefreshPolling = true;
+    Api.refreshChairmanDashboard(opts).then(function (res) {
+      if (!res || !res.ok) {
+        psdRefreshPolling = false;
+        return;
+      }
+      if (res.status === "succeeded") {
+        psdRefreshPolling = false;
+        reloadOpenPsdDashboard();
+        return;
+      }
+      if (res.status === "running") {
+        pollPsdDashboardRefresh(opts, 0);
+        return;
+      }
+      psdRefreshPolling = false;
+    }).catch(function () {
+      psdRefreshPolling = false;
+    });
+  }
+
+  function runPsdScheduledRefresh(scheduledAt) {
+    var late = Date.now() - scheduledAt.getTime();
+    if (late > 2 * 60 * 1000) {
+      schedulePsdDashboardRefresh();
+      return;
+    }
+    if (!isPsdDashboardOpen()) {
+      psdRefreshTimer = setTimeout(function () {
+        runPsdScheduledRefresh(scheduledAt);
+      }, 15000);
+      return;
+    }
+    var slotKey = psdRefreshSlotKey(scheduledAt);
+    try {
+      if (window.sessionStorage && window.sessionStorage.getItem(slotKey)) {
+        schedulePsdDashboardRefresh();
+        return;
+      }
+      if (window.sessionStorage) window.sessionStorage.setItem(slotKey, "1");
+    } catch (e) {
+      /* ignore */
+    }
+    startPsdDashboardRefresh();
+    schedulePsdDashboardRefresh();
+  }
+
+  function schedulePsdDashboardRefresh() {
+    if (psdRefreshTimer) {
+      clearTimeout(psdRefreshTimer);
+      psdRefreshTimer = null;
+    }
+    if (!isBoardChairUser(sessionUser)) return;
+    var next = nextPsdRefreshAt(new Date());
+    if (!next) return;
+    var delay = Math.max(1000, next.getTime() - Date.now());
+    psdRefreshTimer = setTimeout(function () {
+      psdRefreshTimer = null;
+      runPsdScheduledRefresh(next);
+    }, delay);
+  }
+
   viewTargets = [{ id: "self", label: "Мой дашборд", user: sessionUser }];
   selectedViewId = "self";
   viewContextUser = sessionUser;
@@ -4894,6 +5049,7 @@
   }
 
   var isBoardChairSession = isBoardChairUser(sessionUser);
+  if (isBoardChairSession) schedulePsdDashboardRefresh();
   /* ПСД: до решения об обзоре не грузим полный дашборд (иначе hideLoading откроет #dash-content). */
   if (isBoardChairSession) {
     showLoading();
