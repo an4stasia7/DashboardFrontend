@@ -282,6 +282,10 @@
     return kpiUrl().replace(/\/+$/, "") + "/cache-refresh/";
   }
 
+  function chairmanDashboardRefreshUrl() {
+    return kpiUrl().replace(/\/+$/, "") + "/chairman-dashboard-refresh/";
+  }
+
   function clearKpiGetMemoryCache() {
     kpiGetMemoryCache = Object.create(null);
   }
@@ -4029,6 +4033,19 @@
     }, "POST /api/kpi/cache-refresh/");
   }
 
+  function refreshChairmanDashboard(options) {
+    return performKpiCacheRefreshRequest(chairmanDashboardRefreshUrl(), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(options || {}),
+    }, "POST /api/kpi/chairman-dashboard-refresh/");
+  }
+
+  function fetchChairmanDashboardRefreshStatus(options) {
+    var url = appendQueryParams(chairmanDashboardRefreshUrl(), options || {});
+    return performKpiCacheRefreshRequest(url, { method: "GET" }, "GET /api/kpi/chairman-dashboard-refresh/");
+  }
+
   function fetchKpiTileCacheRefreshStatus(options) {
     var url = appendQueryParams(kpiCacheRefreshUrl(), options || {});
     if (options && options.kpi_id != null && String(options.kpi_id).trim() !== "") {
@@ -4452,6 +4469,8 @@
     fetchKpiAll: fetchKpiAll,
     refreshKpiTileCache: refreshKpiTileCache,
     fetchKpiTileCacheRefreshStatus: fetchKpiTileCacheRefreshStatus,
+    refreshChairmanDashboard: refreshChairmanDashboard,
+    fetchChairmanDashboardRefreshStatus: fetchChairmanDashboardRefreshStatus,
     clearKpiGetMemoryCache: clearKpiGetMemoryCache,
     fetchImmediateSubordinates: fetchImmediateSubordinates,
     fetchKpiStructure: fetchKpiStructure,
