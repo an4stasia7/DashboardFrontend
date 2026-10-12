@@ -1805,7 +1805,7 @@
         return tile;
       }
       if (kpiId === "PD-M3.F1" || kpiId === "PD-M3.F2") return tile;
-      if (kpiId === "OD-M3.2" || kpiId === "TD-M6" || kpiId === "KD-M11") return tile;
+      if (kpiId === "OD-M3.2" || kpiId === "TD-M6" || kpiId === "KD-M11" || kpiId === "OD-Q2") return tile;
       if (isGsppFotKpiId(kpiId)) return tile;
       if (tile.__priorMonthMergedFromKpiAll) return tile;
       var monthly = tile.monthly_data;
@@ -1823,6 +1823,7 @@
         next.kpi_pst = prevPoint.kpi_pct;
         next.percent = prevPoint.kpi_pct;
       }
+      if (Array.isArray(prevPoint.turnover_rows)) next.turnover_rows = prevPoint.turnover_rows;
       if (isTurnoverKpiItem(next)) {
         var turnoverPct = parseNumberLoose(prevPoint.kpi_pct);
         if (turnoverPct == null) {
@@ -1835,7 +1836,7 @@
             next.percent = turnoverPct;
           }
         }
-        var turnoverRag = turnoverLimitRagFromPct(turnoverPct);
+        var turnoverRag = turnoverRagForItem(next, turnoverPct);
         if (turnoverRag) {
           next.rag = turnoverRag;
           next.color = turnoverRag;
@@ -2677,7 +2678,7 @@
     return currentTiles.map(function (tile) {
       if (!tile || !isFotOrPersonnelTurnoverKpiTitle(tile.title)) return tile;
       var id = tile.kpi_id != null ? String(tile.kpi_id).trim() : "";
-      if (id === "TD-M6") return tile;
+      if (id === "TD-M6" || id === "OD-Q2" || id === "KD-M11") return tile;
       var src = id && byId[id] ? byId[id] : byTitle[normalizeKpiTitleForMatch(tile.title)];
       if (!src) return tile;
       var next = Object.assign({}, tile);
@@ -2689,6 +2690,7 @@
         next.kpi_pst = src.kpi_pct;
         next.percent = src.kpi_pct;
       }
+      if (Array.isArray(src.turnover_rows)) next.turnover_rows = src.turnover_rows;
       if (isTurnoverKpiItem(next)) {
         var turnoverPct = parseNumberLoose(src.kpi_pct);
         if (turnoverPct == null) {
@@ -2701,7 +2703,7 @@
             next.percent = turnoverPct;
           }
         }
-        var turnoverRag = turnoverLimitRagFromPct(turnoverPct);
+        var turnoverRag = turnoverRagForItem(next, turnoverPct);
         if (turnoverRag) {
           next.rag = turnoverRag;
           next.color = turnoverRag;
@@ -2971,6 +2973,20 @@
     return "red";
   }
 
+  function companyTurnoverRagFromPct(pct) {
+    var value = parseNumberLoose(pct);
+    if (value == null) return null;
+    if (value <= 5) return "green";
+    if (value <= 7) return "yellow";
+    return "red";
+  }
+
+  function turnoverRagForItem(item, pct) {
+    var id = item && item.kpi_id != null ? String(item.kpi_id).trim().toUpperCase() : "";
+    if (id === "OD-Q2") return companyTurnoverRagFromPct(pct);
+    return turnoverLimitRagFromPct(pct);
+  }
+
   function isPointInTimeDebtKpiItem(item) {
     if (!item || typeof item !== "object") return false;
     var id = item.kpi_id != null ? String(item.kpi_id).trim().toUpperCase() : "";
@@ -3222,7 +3238,7 @@
       }
     }
     var turnoverRows = null;
-    if (item && String(item.kpi_id || "").trim() === "KD-M11") {
+    if (item && (String(item.kpi_id || "").trim() === "KD-M11" || String(item.kpi_id || "").trim() === "OD-Q2")) {
       var latestTurnover = bucket
         .slice()
         .sort(function (a, b) { return Number(a.month) - Number(b.month); })
@@ -3276,7 +3292,7 @@
       });
     }
     var limitRag = isBudgetFotLimitKpiItem(item) ? planFactLimitRag(plan, fact) : null;
-    var turnoverRag = isTurnoverKpiItem(item) ? turnoverLimitRagFromPct(kpiPct) : null;
+    var turnoverRag = isTurnoverKpiItem(item) ? turnoverRagForItem(item, kpiPct) : null
     var shareRag = isMrk06ShareKpiItem(item) ? mrk06ShareRagFromPct(kpiPct) : null;
     if (isCommercialHigherIsBetterPlanFactKpiItem(item) && hasPlan && Math.abs(plan) > 0.000001) {
       var commercialForecast =
@@ -3422,7 +3438,7 @@
       var kid = kpiId != null ? String(kpiId).trim().toUpperCase() : "";
       if (kid === "LOG-M2" || kid === "LOG-M5") return "руб.";
       if (kid === "OD-M1" || kid === "OD-M3.1" || kid === "OD-M3.2") return "руб.";
-      if (kid === "KD-M11") return "%";
+      if (kid === "KD-M11" || kid === "OD-Q2") return "%";
       if (/^QD-M\d+$/.test(kid)) {
         var unitText = value != null ? String(value).trim() : "";
         if (!unitText || unitText === "%") return "шт.";

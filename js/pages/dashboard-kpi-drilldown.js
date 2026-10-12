@@ -371,7 +371,7 @@
         clicked.plan_by_dept &&
         typeof clicked.plan_by_dept === "object" &&
         Object.keys(clicked.plan_by_dept).length) ||
-      (clickedId === "KD-M11" &&
+      ((clickedId === "KD-M11" || clickedId === "OD-Q2") &&
         Array.isArray(clicked.turnover_rows) &&
         clicked.turnover_rows.length)
     ) {

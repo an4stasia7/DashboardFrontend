@@ -152,6 +152,10 @@
       factOnly: true,
       hideKpiPercent: true,
     },
+    "OD-Q2": {
+      factOnly: true,
+      hideKpiPercent: true,
+    },
     "FND-T3": {
       // Три процентные пилюли: общее, клиенты и поставщики.
       dualRatioOverview: true,
