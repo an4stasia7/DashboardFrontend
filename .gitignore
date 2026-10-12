@@ -4,6 +4,7 @@ out/
 *.log
 .DS_Store
 json.txt
+
+# Local backend address. Already tracked; skip-worktree keeps edits unpushed.
 config.json
 js/config.js
-js/config.js.dev.bak
