@@ -28,14 +28,14 @@
   var resetForm = document.getElementById("reset-request-form");
   var registerDepartment = document.getElementById("register-department");
 
-  /** @type {Array<{nickname:string,department:string}>} */
+  /** @type {Array<{nickname:string,department:string,position:string}>} */
   var usersCache = [];
 
   /** Подавление обработчика input при программной подстановке текста */
   var suppressSearchInput = false;
 
   var PLACEHOLDER_LOADING = "Загрузка списка…";
-  var PLACEHOLDER_READY = "Введите логин или найдите по имени/отделу…";
+  var PLACEHOLDER_READY = "Введите логин или выберите из списка";
 
   function setSubmitLabel(text) {
     var label = submitBtn ? submitBtn.querySelector(".auth-btn-text") : null;
@@ -103,7 +103,7 @@
         ? "Отправьте заявку администратору"
         : isReset
           ? "Запросите новый пароль"
-          : "Пожалуйста, выберите пользователя и введите пароль";
+          : "Введите ФИО и пароль из 1С или выберите себя из списка";
     }
     clearError();
   }
@@ -123,10 +123,16 @@
     });
   }
 
+  function userPosition(u) {
+    var pos = u && u.position != null ? String(u.position).trim() : "";
+    if (pos) return pos;
+    var dept = u && u.department != null ? String(u.department).trim() : "";
+    return dept || "—";
+  }
+
   function formatUserLine(u) {
     if (!u || !u.nickname) return "";
-    var meta = u.department != null && String(u.department).trim() ? String(u.department).trim() : "—";
-    return String(u.nickname).trim() + " — " + meta;
+    return String(u.nickname).trim() + " — " + userPosition(u);
   }
 
   function closeNicknamePanel() {
@@ -164,21 +170,31 @@
   function getLoginNickname() {
     var selected = nickHidden ? String(nickHidden.value).trim() : "";
     if (selected) return selected;
-    return nickSearch ? String(nickSearch.value || "").trim() : "";
+    var typed = nickSearch ? String(nickSearch.value || "").trim() : "";
+    if (!typed) return "";
+    var sep = " — ";
+    var cut = typed.indexOf(sep);
+    var head = cut === -1 ? typed : typed.slice(0, cut).trim();
+    for (var i = 0; i < usersCache.length; i++) {
+      var nick = String(usersCache[i].nickname || "").trim();
+      if (nick === typed || nick === head) return nick;
+    }
+    return head || typed;
   }
 
   function userMatchesQuery(u, q) {
     if (!q) return true;
     var nick = (u.nickname || "").toLowerCase();
-    var dep = (u.department || "").toLowerCase();
-    return nick.indexOf(q) !== -1 || dep.indexOf(q) !== -1;
+    var pos = (u.position || "").toLowerCase();
+    var dept = (u.department || "").toLowerCase();
+    return nick.indexOf(q) !== -1 || pos.indexOf(q) !== -1 || dept.indexOf(q) !== -1;
   }
 
   /**
    * Записывает выбранного пользователя в hidden input и строку в поле поиска.
    * @param {string} nickname — значение для отправки формы
    * @param {string} nickLine — первая строка (ник)
-   * @param {string} [metaLine] — отдел
+   * @param {string} [metaLine] — должность
    */
   function setSelection(nickname, nickLine, metaLine) {
     if (!nickHidden || !nickSearch) return;
@@ -193,7 +209,7 @@
 
   function renderOptionButton(u) {
     var nick = u.nickname;
-    var meta = u.department || "—";
+    var meta = userPosition(u);
     var btn = document.createElement("button");
     btn.type = "button";
     btn.className = "nickname-combo-option";
@@ -275,7 +291,8 @@
     }
     usersCache.push({
       nickname: n,
-      department: metaSecondLine != null ? String(metaSecondLine).trim() : "",
+      position: metaSecondLine != null ? String(metaSecondLine).trim() : "",
+      department: "",
     });
     rebuildListFiltered();
   }
@@ -298,7 +315,7 @@
     });
     if (list.length !== 1) return;
     var u = list[0];
-    setSelection(u.nickname, u.nickname, u.department || "—");
+    setSelection(u.nickname, u.nickname, userPosition(u));
     closeNicknamePanel();
   }
 
@@ -419,16 +436,23 @@
         return;
       }
       list.sort(function (a, b) {
-        var da = (a.department || "").localeCompare(b.department || "", "ru");
-        if (da !== 0) return da;
         return (a.nickname || "").localeCompare(b.nickname || "", "ru");
       });
       populateUserSelect(list);
       nickSearch.disabled = false;
       var contInfo = typeof Auth.getContinueAsInfo === "function" ? Auth.getContinueAsInfo() : null;
       if (contInfo && contInfo.nickname) {
-        var metaInfo = (contInfo.displayName || contInfo.nickname || "").trim();
-        ensureNicknameOption(contInfo.nickname, metaInfo);
+        var fromList = null;
+        for (var ci = 0; ci < usersCache.length; ci++) {
+          if (usersCache[ci].nickname === contInfo.nickname) {
+            fromList = usersCache[ci];
+            break;
+          }
+        }
+        var metaInfo = fromList
+          ? userPosition(fromList)
+          : (contInfo.displayName || contInfo.nickname || "").trim();
+        if (!fromList) ensureNicknameOption(contInfo.nickname, metaInfo);
         setSelection(contInfo.nickname, contInfo.nickname, metaInfo || "—");
       }
     });
@@ -521,7 +545,7 @@
     var nickname = getLoginNickname();
     var password = document.getElementById("password").value;
     if (!nickname) {
-      showError("Введите логин или выберите пользователя из списка");
+      showError("Введите ФИО или выберите пользователя из списка");
       return;
     }
     var remember = document.getElementById("remember-me");

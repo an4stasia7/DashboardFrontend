@@ -4220,6 +4220,14 @@
       body =
         '<tr><td colspan="6">Расшифровка за выбранный месяц ещё не готова. Обновите дашборд чуть позже.</td></tr>';
     }
+    var periodLabel = "";
+    if (typeof DashboardMonthNav !== "undefined" && DashboardMonthNav && typeof DashboardMonthNav.getPeriodState === "function") {
+      var periodState = DashboardMonthNav.getPeriodState();
+      var periodMonth = periodState && periodState.currentPeriodMonth != null ? Number(periodState.currentPeriodMonth) : null;
+      var periodYear = periodState && periodState.currentPeriodYear != null ? Number(periodState.currentPeriodYear) : null;
+      var periodNames = ["", "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
+      if (periodNames[periodMonth] && periodYear) periodLabel = periodNames[periodMonth] + " " + periodYear + " · ";
+    }
     var forecast = fact + expected;
     var showForecast =
       typeof DashboardMonthNav !== "undefined" &&
@@ -4235,7 +4243,9 @@
       "<tbody>" +
       body +
       "</tbody>" +
-      "<tfoot><tr><th colspan=\"5\">Факт " +
+      "<tfoot><tr><th colspan=\"5\">" +
+      periodLabel +
+      "Факт " +
       money(fact) +
       " · Ожидаемо " +
       money(expected) +

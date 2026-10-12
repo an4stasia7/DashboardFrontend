@@ -51,12 +51,12 @@
       <section class="auth-login-center">
         <div class="auth-card auth-login-card">
       <h1 id="auth-title">Вход в систему</h1>
-      <p class="sub" id="auth-subtitle">Пожалуйста, выберите пользователя и введите пароль</p>
+      <p class="sub" id="auth-subtitle">Выберите себя из списка и введите пароль</p>
       <div id="auth-error" class="auth-error" role="alert"></div>
       <section class="auth-screen" id="login-screen">
         <form id="login-form" novalidate>
           <div class="auth-field">
-            <label for="nickname-search">Пользователь</label>
+            <label for="nickname-search">Логин</label>
             <div class="nickname-combo" id="nickname-combo">
               <span class="auth-input-icon" aria-hidden="true">
                 <img src="temp/icons/people.png" alt="" />
@@ -86,7 +86,7 @@
               <span class="auth-input-icon" aria-hidden="true">
                 <img src="temp/icons/block.png" alt="" />
               </span>
-              <input id="password" name="password" type="password" autocomplete="current-password" required />
+              <input id="password" name="password" type="password" autocomplete="current-password" placeholder="Пароль" required />
               <button
                 type="button"
                 class="auth-password-toggle"
@@ -125,7 +125,7 @@
             <span class="auth-btn-text">Войти в систему</span>
           </button>
         </form>
-        <div class="auth-actions-row" aria-label="Дополнительные действия">
+        <div class="auth-actions-row" aria-label="Дополнительные действия" hidden>
           <button type="button" class="auth-link-button" id="show-register-form">Зарегистрироваться</button>
           <button type="button" class="auth-link-button" id="show-reset-form">Сбросить пароль</button>
         </div>
