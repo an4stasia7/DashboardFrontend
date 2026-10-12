@@ -584,6 +584,99 @@ ipcMain.handle("app:open-external", async function (_event, targetUrl) {
   return true;
 });
 
+/** Учётные данные входа в дашборд. Только в памяти процесса, на диск не пишутся. */
+var onecSessionLogin = null;
+
+function onecClientPath() {
+  var roots = ["C:\\Program Files (x86)\\1cv8", "C:\\Program Files\\1cv8"];
+  var found = [];
+  for (var i = 0; i < roots.length; i++) {
+    if (!fs.existsSync(roots[i])) continue;
+    var versions;
+    try {
+      versions = fs.readdirSync(roots[i]);
+    } catch (err) {
+      continue;
+    }
+    for (var j = 0; j < versions.length; j++) {
+      var exe = path.join(roots[i], versions[j], "bin", "1cv8c.exe");
+      if (fs.existsSync(exe)) found.push(exe);
+    }
+  }
+  found.sort();
+  return found.length ? found[found.length - 1] : "";
+}
+
+function quoteOnecValue(value) {
+  return '"' + String(value == null ? "" : value).replace(/"/g, "") + '"';
+}
+
+function parseE1cUrl(target) {
+  var match = String(target || "").match(/^e1c:\/\/server\/([^/]+)\/([^#]+)#(.+)$/i);
+  if (!match) return null;
+  return { server: match[1], base: match[2], nav: match[3] };
+}
+
+function openOnecReport(targetUrl) {
+  var parsed = parseE1cUrl(targetUrl);
+  if (!parsed) return Promise.resolve({ ok: false, error: "Некорректная ссылка 1С" });
+  if (!onecSessionLogin || !onecSessionLogin.username || !onecSessionLogin.password) {
+    return Promise.resolve({
+      ok: false,
+      error: "Чтобы открыть 1С под вашей учётной записью, выйдите и войдите снова, введя пароль.",
+    });
+  }
+  var exe = onecClientPath();
+  if (!exe) return Promise.resolve({ ok: false, error: "Не найден установленный клиент 1С." });
+  var args = [
+    "ENTERPRISE",
+    "/S" + quoteOnecValue(parsed.server + "\\" + parsed.base),
+    "/N" + quoteOnecValue(onecSessionLogin.username),
+    "/P" + quoteOnecValue(onecSessionLogin.password),
+    "/WA-",
+    "/URL" + quoteOnecValue(parsed.nav),
+  ];
+  return new Promise(function (resolve) {
+    var child;
+    try {
+      child = spawn(exe, args, {
+        detached: true,
+        stdio: "ignore",
+        windowsHide: false,
+        windowsVerbatimArguments: true,
+      });
+    } catch (err) {
+      resolve({ ok: false, error: "Не удалось запустить 1С" });
+      return;
+    }
+    child.once("error", function () {
+      resolve({ ok: false, error: "Не удалось запустить 1С" });
+    });
+    child.once("spawn", function () {
+      child.unref();
+      resolve({ ok: true });
+    });
+  });
+}
+
+ipcMain.handle("app:remember-onec-login", function (_event, payload) {
+  var username = payload && payload.username != null ? String(payload.username).trim() : "";
+  var password = payload && payload.password != null ? String(payload.password) : "";
+  if (!username || !password) return false;
+  onecSessionLogin = { username: username, password: password };
+  return true;
+});
+
+ipcMain.handle("app:open-onec-report", function (_event, payload) {
+  var targetUrl = typeof payload === "string" ? payload : payload && payload.url;
+  var username = payload && payload.username != null ? String(payload.username).trim() : "";
+  var password = payload && payload.password != null ? String(payload.password) : "";
+  if (username && password) {
+    onecSessionLogin = { username: username, password: password };
+  }
+  return openOnecReport(targetUrl);
+});
+
 ipcMain.handle("app:get-update-mode", function () {
   return {
     mode: getUpdateMode(),
