@@ -1109,7 +1109,7 @@
           var kid = kpiId != null ? String(kpiId).trim().toUpperCase() : "";
           if (kid === "LOG-M2" || kid === "LOG-M5") return "руб.";
           if (kid === "OD-M1" || kid === "OD-M3.1" || kid === "OD-M3.2") return "руб.";
-          if (kid === "KD-M11") return "%";
+          if (kid === "KD-M11" || kid === "OD-Q2") return "%";
           if (/^QD-M\d+$/i.test(kid)) {
             var unitText = value != null ? String(value).trim() : "";
             if (!unitText || unitText === "%") return "шт.";
@@ -3868,6 +3868,9 @@
         ensureQualdirPieceCountUnits(tile);
         if (ownMonthly.expected_plan !== undefined) tile.expected_plan = ownMonthly.expected_plan;
         if (Array.isArray(ownMonthly.plan_fact_rows)) tile.plan_fact_rows = ownMonthly.plan_fact_rows;
+        if (Array.isArray(ownMonthly.turnover_rows)) {
+          tile.turnover_rows = ownMonthly.turnover_rows;
+        }
         if (Array.isArray(ownMonthly.project_deviation_rows)) {
           tile.project_deviation_rows = ownMonthly.project_deviation_rows;
         }

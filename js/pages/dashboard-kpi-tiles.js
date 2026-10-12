@@ -2169,7 +2169,20 @@
             ? '<svg class="kpi-tile-child-chevron" width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M4.5 2.5L8 6L4.5 9.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>'
             : "";
           var dismissed = Number(row && row.dismissed);
-          var rag = isFinite(dismissed) && dismissed > 0 ? "red" : "green";
+          var tileId = tile && (tile.kpi_id || tile.badge) ? String(tile.kpi_id || tile.badge).trim() : "";
+          var turnoverPct = Number(row && row.fact);
+          var rag =
+            tileId === "OD-Q2"
+              ? !isFinite(turnoverPct) || isNaN(turnoverPct)
+                ? "red"
+                : turnoverPct <= 5
+                  ? "green"
+                  : turnoverPct <= 7
+                    ? "yellow"
+                    : "red"
+              : isFinite(dismissed) && dismissed > 0
+                ? "red"
+                : "green";
           var valueText =
             formatTurnoverPercent(row && row.fact) +
             "% · " +
@@ -2564,7 +2577,9 @@
       (function () {
         var kid = tile && (tile.kpi_id || tile.badge) ? String(tile.kpi_id || tile.badge).trim() : "";
         var hasTurnoverDepts =
-          kid === "KD-M11" && Array.isArray(tile.turnover_rows) && tile.turnover_rows.length;
+          (kid === "KD-M11" || kid === "OD-Q2") &&
+          Array.isArray(tile.turnover_rows) &&
+          tile.turnover_rows.length;
         if (hasTurnoverDepts) {
           return (
             '<div class="kpi-tile-back-section">' +

@@ -749,7 +749,28 @@
    * Единая презентация плитки: число %, RAG и цвет диаграммы.
    * Приоритет: 1) rag/status из API, 2) пороги green_threshold/yellow_threshold, 3) заглушка по percent.
    */
+  function odRevenuePlanFactRag(tile) {
+    var id = tile && tile.kpi_id != null ? String(tile.kpi_id).trim().toUpperCase() : "";
+    if (id !== "OD-M1") return null;
+    var fact = finiteNumber(tile.fact);
+    var plan = finiteNumber(tile.plan);
+    if (fact == null || plan == null || !(Math.abs(plan) > 0)) return null;
+    var pct = (fact / Math.abs(plan)) * 100;
+    if (pct >= 100) return "green";
+    if (pct >= 95) return "yellow";
+    return "red";
+  }
+
   function getKpiTilePresentation(tile) {
+    var revenueRag = odRevenuePlanFactRag(tile);
+    if (revenueRag) {
+      return {
+        percent: parseTilePercent(tile),
+        rag: revenueRag,
+        fillColor: KPI_RAG_FILL[revenueRag],
+        ragFromApi: false,
+      };
+    }
     var percent = parseTilePercent(tile);
     var cfg = typeof global !== "undefined" && global.KPI_TILE_EXCEPTIONS ? global.KPI_TILE_EXCEPTIONS : null;
     var tileKey = tile && tile.kpi_id != null ? String(tile.kpi_id).trim() : "";
