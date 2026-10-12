@@ -141,6 +141,7 @@
         flippedTileIndices: flippedTileIndices,
         pendingFocus: pendingKpiTileFocus,
         matchFocusTarget: tileMatchesFocusTarget,
+        onecDepartment: getOnecReportContextKey,
         clearPendingFocus: function () {
           pendingKpiTileFocus = null;
         },
@@ -1338,7 +1339,7 @@
       if (e.key !== "Enter" && e.key !== " ") return;
       var art = e.target.closest("article.kpi-tile");
       if (!art || !kpiContainerEl.contains(art)) return;
-      if (e.target.closest(".kpi-tile-child-link, .kpi-tile-help, .kpi-tile-flip-action, .kpi-tile-drag-handle, .kpi-tile-cache-refresh, .kpi-tile-breakdown-link")) return;
+      if (e.target.closest(".kpi-tile-child-link, .kpi-tile-help, .kpi-tile-flip-action, .kpi-tile-drag-handle, .kpi-tile-cache-refresh, .kpi-tile-breakdown-link, .onec-report-btn")) return;
       e.preventDefault();
       var ix = art.getAttribute("data-kpi-tile-index");
       if (ix == null || !lastKpiTiles || lastKpiTiles[+ix] == null) return;
@@ -2555,6 +2556,7 @@
         preservePage: !!options.preservePage,
         getTileCacheRefreshState: getKpiTileCacheRefreshState,
         matchFocusTarget: tileMatchesFocusTarget,
+        onecDepartment: getOnecReportContextKey,
         clearPendingFocus: function () {
           pendingKpiTileFocus = null;
         },
@@ -4141,6 +4143,32 @@
     );
   }
 
+  function getOnecReportContextKey() {
+    if (shouldUseBoardChairExecutiveTables()) return "Председатель совета директоров / Мой дашборд";
+    if (isBoardChairCommercialBlockContext()) return "Председатель совета директоров / Коммерческий блок";
+    return (
+      getDepartmentForCurrentKpiContext() ||
+      lastKpiResponseDepartment ||
+      (viewContextUser && viewContextUser.department) ||
+      ""
+    );
+  }
+
+  function fillOnecSlot(slotId, kpiId, label) {
+    var slot = document.getElementById(slotId);
+    if (!slot) return;
+    var url =
+      typeof OnecReports !== "undefined" && OnecReports && typeof OnecReports.reportUrl === "function"
+        ? OnecReports.reportUrl(kpiId, getOnecReportContextKey())
+        : "";
+    slot.innerHTML = url && typeof OnecReports.buttonHtml === "function" ? OnecReports.buttonHtml(url, label) : "";
+  }
+
+  function syncCommercialOnecTableButtons() {
+    fillOnecSlot("overdue-debt-onec-slot", "KD-T-OVERDUE", "Просроченная ДЗ");
+    fillOnecSlot("protocol-overdue-onec-slot", "DEPT-T-PROTOCOL-OVERDUE", "Отклонения по протоколам");
+  }
+
   function updateDashboardTableTitlesForRole() {
     var isBoardChairOwnDashboard = shouldUseBoardChairExecutiveTables();
     var showClaimsSwitcher = shouldUseClaimsAndLawsuitsSwitcher();
@@ -4283,6 +4311,7 @@
       button.hidden = !showPlanFactTabs;
     });
     updateClaimsTableSwitcherUi(showClaimsSwitcher);
+    syncCommercialOnecTableButtons();
     updatePsdTableAmountFilterBarVisibility();
     updateServheadSurveysPeriodFilterVisibility(
       useServheadSurveysTable,
@@ -4442,6 +4471,14 @@
       body =
         '<tr><td colspan="6">Расшифровка за выбранный месяц ещё не готова. Обновите дашборд чуть позже.</td></tr>';
     }
+    var periodLabel = "";
+    if (typeof DashboardMonthNav !== "undefined" && DashboardMonthNav && typeof DashboardMonthNav.getPeriodState === "function") {
+      var periodState = DashboardMonthNav.getPeriodState();
+      var periodMonth = periodState && periodState.currentPeriodMonth != null ? Number(periodState.currentPeriodMonth) : null;
+      var periodYear = periodState && periodState.currentPeriodYear != null ? Number(periodState.currentPeriodYear) : null;
+      var periodNames = ["", "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
+      if (periodNames[periodMonth] && periodYear) periodLabel = periodNames[periodMonth] + " " + periodYear + " · ";
+    }
     var forecast = fact + expected;
     var showForecast =
       typeof DashboardMonthNav !== "undefined" &&
@@ -4457,7 +4494,9 @@
       "<tbody>" +
       body +
       "</tbody>" +
-      "<tfoot><tr><th colspan=\"5\">Факт " +
+      "<tfoot><tr><th colspan=\"5\">" +
+      periodLabel +
+      "Факт " +
       money(fact) +
       " · Ожидаемо " +
       money(expected) +

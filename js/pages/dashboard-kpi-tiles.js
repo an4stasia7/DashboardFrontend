@@ -419,6 +419,20 @@
     );
   }
 
+  function buildKpiTileOnecButtonHtml(tile) {
+    var reports = global.OnecReports;
+    if (!reports || typeof reports.buttonHtml !== "function" || typeof reports.reportUrl !== "function") {
+      return "";
+    }
+    var deptFn = getContext().onecDepartment;
+    var department = typeof deptFn === "function" ? deptFn() : "";
+    var kpiId = tile && (tile.kpi_id || tile.badge) ? String(tile.kpi_id || tile.badge).trim() : "";
+    var url = reports.reportUrl(kpiId, department);
+    if (!url) return "";
+    var label = tile && tile.title ? String(tile.title) : kpiId;
+    return reports.buttonHtml(url, label);
+  }
+
   function buildKpiTileBadgeRowHtml(tile) {
     var helpHtml = shouldShowKpiTileHelp(tile) ? buildKpiTileHelpButtonHtml() : "";
     return (
@@ -430,6 +444,7 @@
       '<div class="kpi-tile-badge-actions">' +
       buildKpiTileRefreshButtonHtml(tile) +
       helpHtml +
+      buildKpiTileOnecButtonHtml(tile) +
       "</div>" +
       buildKpiTileDragHandleHtml() +
       "</div>" +

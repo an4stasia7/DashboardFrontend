@@ -32,6 +32,15 @@ contextBridge.exposeInMainWorld("electronApp", {
   openExternal: function (targetUrl) {
     return ipcRenderer.invoke("app:open-external", targetUrl);
   },
+  rememberOnecLogin: function (username, password) {
+    return ipcRenderer.invoke("app:remember-onec-login", {
+      username: username,
+      password: password,
+    });
+  },
+  openOnecReport: function (targetUrl) {
+    return ipcRenderer.invoke("app:open-onec-report", targetUrl);
+  },
   runSelfUpdate: function () {
     return ipcRenderer.invoke("app:run-self-update");
   },

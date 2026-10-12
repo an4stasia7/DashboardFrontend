@@ -508,10 +508,11 @@
   }
 
   function normalizeKpiUserEntry(u) {
-    if (!u || typeof u !== "object") return { nickname: "", department: "" };
+    if (!u || typeof u !== "object") return { nickname: "", department: "", position: "" };
     return {
       nickname: u.nickname != null ? String(u.nickname).trim() : "",
       department: u.department != null ? String(u.department).trim() : "",
+      position: u.position != null ? String(u.position).trim() : "",
     };
   }
 
@@ -525,8 +526,8 @@
       return Promise.resolve({
         ok: true,
         users: [
-          { nickname: "User1", department: "Технический директор" },
-          { nickname: "User2", department: "Коммерческий директор" },
+          { nickname: "Иванов Иван Иванович", position: "Технический директор", department: "Технический директор" },
+          { nickname: "Петров Пётр Петрович", position: "Коммерческий директор", department: "коммерческий директор" },
         ],
         count: 2,
       });
@@ -2205,6 +2206,16 @@
         }
         if (!slice) slice = pickLatestTableMonthlyDataPoint(monthly);
       }
+    }
+
+    if (monthly && monthly.length && hasFilter && !slice && tab.rows_by_month) {
+      return {
+        rows: [],
+        columns: Array.isArray(tab.columns) ? tab.columns : null,
+        period: { year: filterYear, month: filterMonth },
+        name: tab.name != null ? String(tab.name) : "",
+        description: tab.description != null ? String(tab.description) : "",
+      };
     }
 
     if (slice) {
@@ -4837,8 +4848,11 @@
     ) {
       return "Неверный логин или пароль. Проверьте данные на сервере, раскладку и Caps Lock.";
     }
-    if (lower.indexOf("required") !== -1 || lower.indexOf("обязател") !== -1) {
-      return "Заполните логин и пароль.";
+    if (lower.indexOf("required") !== -1 || lower.indexOf("укажите логин") !== -1 || lower.indexOf("укажите фио") !== -1 || lower.indexOf("обязател") !== -1) {
+      return "Введите логин и пароль.";
+    }
+    if (lower.indexOf("неверный логин") !== -1) {
+      return "Неверное ФИО или пароль 1С. Проверьте раскладку и Caps Lock.";
     }
     return s;
   }
@@ -4944,9 +4958,12 @@
             };
           }
           if (res.status === 403) {
+            var fm = parseErrorBody(text);
+            if (data && data.error && fm && fm.indexOf("HTML") === -1) {
+              return { ok: false, error: fm };
+            }
             var forbiddenHint =
               "Доступ запрещён (403). Частые причины на Django: CSRF (в config.js: SEND_DJANGO_CSRF_TOKEN: true и FETCH_CREDENTIALS: «include», на сервере — CORS с Access-Control-Allow-Credentials и выдача csrftoken), ALLOWED_HOSTS, middleware, права на view. Уточните у бэкенда. Для UI без сервера — режим заглушек на входе.";
-            var fm = parseErrorBody(text);
             if (fm && fm.indexOf("<!DOCTYPE") !== -1) fm = "";
             return {
               ok: false,

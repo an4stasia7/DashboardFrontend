@@ -132,13 +132,34 @@
           /* ignore */
         }
       }
-      return { ok: true, user: user };
+      try {
+        sessionStorage.setItem(
+          "dashboard_onec_credentials",
+          JSON.stringify({
+            username: String(nickname || "").trim(),
+            password: String(password || ""),
+          })
+        );
+      } catch (e4) {
+        /* ignore */
+      }
+      var onecApp = global.electronApp;
+      var rememberOnec =
+        onecApp && typeof onecApp.rememberOnecLogin === "function"
+          ? onecApp.rememberOnecLogin(String(nickname || "").trim(), String(password || ""))
+          : null;
+      return Promise.resolve(rememberOnec)
+        .catch(function () {})
+        .then(function () {
+          return { ok: true, user: user };
+        });
     });
   }
 
   function logout() {
     try {
       sessionStorage.removeItem(SESSION_KEY);
+      sessionStorage.removeItem("dashboard_onec_credentials");
       localStorage.removeItem(SESSION_KEY);
       localStorage.removeItem(REMEMBER_KEY);
       /* REMEMBER_BACKUP_KEY, REMEMBER_EVER_KEY, CONTINUE_AS_* — для «Продолжить как» без пароля */
