@@ -2809,14 +2809,14 @@ article.kpi-tile[data-no-flip="1"] {
 }
 
 .onec-report-btn {
-  width: 18px;
-  height: 18px;
-  padding: 0;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 6px;
   margin: 0;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  background-color: transparent;
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.94);
+  background-color: rgba(255, 255, 255, 0.94);
   box-shadow: none;
   overflow: hidden;
   cursor: pointer;
@@ -2826,6 +2826,7 @@ article.kpi-tile[data-no-flip="1"] {
   flex-shrink: 0;
   line-height: 0;
   appearance: none;
+  color: #1d4ed8;
 }
 
 .onec-report-btn:hover,
@@ -2835,13 +2836,20 @@ article.kpi-tile[data-no-flip="1"] {
 }
 
 .onec-report-btn-icon {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   object-fit: contain;
-  object-position: left center;
+  object-position: center;
   display: block;
   pointer-events: none;
   background: transparent;
+}
+
+.onec-report-btn-text {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1;
 }
 
 .table-onec-slot {

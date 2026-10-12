@@ -3703,7 +3703,14 @@
   /** KD-M1 Деньги, KD-M2 Отгрузки, KD-M3 Договоры — чем выше факт относительно плана, тем лучше. */
   function isCommercialHigherIsBetterPlanFactKpiId(kpiId) {
     var id = kpiId != null ? String(kpiId).trim().toUpperCase() : "";
-    return id === "KD-M1" || id === "KD-M2" || id === "KD-M3";
+    return (
+      id === "KD-M1" ||
+      id === "KD-M2" ||
+      id === "KD-M3" ||
+      id === "MRK-01" ||
+      id === "MRK-02" ||
+      id === "MRK-03"
+    );
   }
 
   function higherBetterRagFromPct(pct) {

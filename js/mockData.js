@@ -761,6 +761,57 @@
     return "red";
   }
 
+  function isCommercialPlanFactTileId(id) {
+    return (
+      id === "KD-M1" ||
+      id === "KD-M2" ||
+      id === "KD-M3" ||
+      id === "MRK-01" ||
+      id === "MRK-02" ||
+      id === "MRK-03"
+    );
+  }
+
+  function commercialUsesForecastPeriod() {
+    return (
+      typeof DashboardMonthNav !== "undefined" &&
+      DashboardMonthNav &&
+      typeof DashboardMonthNav.selectedPeriodUsesCommercialForecast === "function" &&
+      DashboardMonthNav.selectedPeriodUsesCommercialForecast()
+    );
+  }
+
+  /** KD/MRK план отгрузок, договоров, денег: цвет по факту (или прогнозу факт+ожидаемо) к плану. */
+  function commercialPlanFactRag(tile) {
+    var id = tile && tile.kpi_id != null ? String(tile.kpi_id).trim().toUpperCase() : "";
+    if (!isCommercialPlanFactTileId(id)) return null;
+    var plan = finiteNumber(tile.plan);
+    var fact = finiteNumber(tile.fact);
+    var expected = finiteNumber(tile.expected_plan);
+    if (plan == null || !(Math.abs(plan) > 0)) return null;
+    var compared = fact;
+    if (commercialUsesForecastPeriod()) {
+      if (fact == null && expected == null) return null;
+      compared = (fact || 0) + (expected || 0);
+    }
+    if (compared == null) return null;
+    var pct = (compared / Math.abs(plan)) * 100;
+    if (pct >= 100) return "green";
+    if (pct >= 90) return "yellow";
+    return "red";
+  }
+
+  /** MRK-06 доля Газпром + БМИ: чем ниже, тем лучше. */
+  function mrk06ShareRag(tile) {
+    var id = tile && tile.kpi_id != null ? String(tile.kpi_id).trim().toUpperCase() : "";
+    if (id !== "MRK-06") return null;
+    var pct = parseTilePercent(tile);
+    if (pct == null) return null;
+    if (pct <= 70) return "green";
+    if (pct <= 75) return "yellow";
+    return "red";
+  }
+
   function getKpiTilePresentation(tile) {
     var revenueRag = odRevenuePlanFactRag(tile);
     if (revenueRag) {
@@ -768,6 +819,24 @@
         percent: parseTilePercent(tile),
         rag: revenueRag,
         fillColor: KPI_RAG_FILL[revenueRag],
+        ragFromApi: false,
+      };
+    }
+    var planFactRag = commercialPlanFactRag(tile);
+    if (planFactRag) {
+      return {
+        percent: parseTilePercent(tile),
+        rag: planFactRag,
+        fillColor: KPI_RAG_FILL[planFactRag],
+        ragFromApi: false,
+      };
+    }
+    var gazpromRag = mrk06ShareRag(tile);
+    if (gazpromRag) {
+      return {
+        percent: parseTilePercent(tile),
+        rag: gazpromRag,
+        fillColor: KPI_RAG_FILL[gazpromRag],
         ragFromApi: false,
       };
     }

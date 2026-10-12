@@ -1,6 +1,6 @@
 {
   "name": "dashboard-desktop",
-  "version": "1.3.4",
+  "version": "1.3.6",
   "description": "Управленческий дашборд — desktop (Electron)",
   "main": "main.js",
   "author": "Dashboard",
@@ -25,6 +25,7 @@
       "*.html",
       "css/**/*",
       "js/**/*",
+      "img/**/*",
       "temp/**/*",
       "node_modules/katex/dist/katex.min.css",
       "node_modules/katex/dist/katex.min.js",

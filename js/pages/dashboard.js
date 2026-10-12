@@ -3049,7 +3049,14 @@
   function isCommercialHigherIsBetterPlanFactKpiItem(item) {
     if (!item || typeof item !== "object") return false;
     var id = item.kpi_id != null ? String(item.kpi_id).trim().toUpperCase() : "";
-    return id === "KD-M1" || id === "KD-M2" || id === "KD-M3";
+    return (
+      id === "KD-M1" ||
+      id === "KD-M2" ||
+      id === "KD-M3" ||
+      id === "MRK-01" ||
+      id === "MRK-02" ||
+      id === "MRK-03"
+    );
   }
 
   /** MRK-04 «Отношение отгрузок YoY»: чем выше %, тем лучше (≥100 зелёный). */

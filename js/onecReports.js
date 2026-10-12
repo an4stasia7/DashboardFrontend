@@ -218,10 +218,20 @@
 
   function reportUrl(kpiId, department) {
     var id = String(kpiId == null ? "" : kpiId).trim().toUpperCase();
+    if (!id) return "";
     var key = normDept(department);
-    var bucket = REPORTS_BY_DEPT[key];
-    if (!bucket || !id) return "";
-    return bucket[id] || "";
+    if (key && REPORTS_BY_DEPT[key] && REPORTS_BY_DEPT[key][id]) {
+      return REPORTS_BY_DEPT[key][id];
+    }
+    if (!key) return "";
+    var names = Object.keys(REPORTS_BY_DEPT);
+    for (var i = 0; i < names.length; i++) {
+      var name = names[i];
+      if (key === name || key.indexOf(name) !== -1 || name.indexOf(key) !== -1) {
+        if (REPORTS_BY_DEPT[name][id]) return REPORTS_BY_DEPT[name][id];
+      }
+    }
+    return "";
   }
 
   function escapeAttr(value) {
@@ -232,7 +242,7 @@
   }
 
   var ICON =
-    '<img class="onec-report-btn-icon" src="img/1c-logo.png?v=20261012-clear" alt="" draggable="false">';
+    '<img class="onec-report-btn-icon" src="img/1c-logo.png?v=20261012-pack" alt="" draggable="false" onerror="this.style.display=\'none\';var t=this.nextElementSibling;if(t)t.hidden=false;">';
 
   function buttonHtml(url, label) {
     if (!url) return "";
@@ -244,6 +254,7 @@
       escapeAttr(caption) +
       '" title="Открыть в 1С">' +
       ICON +
+      '<span class="onec-report-btn-text" hidden>1С</span>' +
       "</button>"
     );
   }
