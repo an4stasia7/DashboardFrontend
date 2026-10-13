@@ -1360,8 +1360,12 @@
       overviewRule.ariaLabel != null && String(overviewRule.ariaLabel).trim()
         ? String(overviewRule.ariaLabel).trim()
         : "Показатель контроля";
+    var gridClass =
+      overviewRule.layout === "quad"
+        ? "kpi-tile-tender-grid kpi-tile-tender-grid--quad"
+        : "kpi-tile-tender-grid";
     var html =
-      '<div class="kpi-tile-tender-grid" role="group" aria-label="' + DashUi.escapeHtml(ariaLabel) + '">';
+      '<div class="' + gridClass + '" role="group" aria-label="' + DashUi.escapeHtml(ariaLabel) + '">';
 
     overviewRule.rows.forEach(function (row) {
       if (!row || !row.field) return;

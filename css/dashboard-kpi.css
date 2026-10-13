@@ -319,6 +319,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  flex-wrap: wrap;
   gap: 14px;
   margin: 0 0 14px;
   padding: 12px 14px;
@@ -332,6 +333,16 @@
   display: none !important;
 }
 
+.production-shop-switch__empty {
+  margin: -6px 0 14px;
+  color: var(--text-muted, #64748b);
+  font-size: 0.9rem;
+}
+
+.production-shop-switch__empty[hidden] {
+  display: none !important;
+}
+
 .production-shop-switch__label {
   color: var(--text-muted, #64748b);
   font-size: 0.88rem;
@@ -340,6 +351,8 @@
 
 .production-shop-switch__buttons {
   display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 6px;
   padding: 4px;
   border-radius: 999px;
@@ -1602,6 +1615,32 @@ article.kpi-tile[data-no-flip="1"] {
   flex-direction: column;
   gap: 6px;
   width: 100%;
+}
+
+.kpi-tile-tender-grid--quad {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.kpi-tile-tender-grid--quad .kpi-tile-tender-cell {
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 6px;
+  min-height: 64px;
+  padding: 8px 10px;
+}
+
+.kpi-tile-tender-grid--quad .kpi-tile-tender-label {
+  white-space: normal;
+  font-size: 0.75rem;
+  line-height: 1.2;
+}
+
+.kpi-tile-tender-grid--quad .kpi-tile-tender-value {
+  font-size: 1.2rem;
+  color: #475569;
 }
 
 .kpi-tile-tender-cell {

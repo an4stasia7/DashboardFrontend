@@ -2291,9 +2291,13 @@
     return tabKey != null && String(tabKey).trim().toUpperCase() === "SH-T2";
   }
 
+  function isServheadStagesTableTabKey(tabKey) {
+    return tabKey != null && String(tabKey).trim().toUpperCase() === "SH-T3";
+  }
+
   function isServheadClientsTableTabKey(tabKey) {
     var key = tabKey != null ? String(tabKey).trim().toUpperCase() : "";
-    if (isServheadSurveysTableTabKey(key)) return false;
+    if (isServheadSurveysTableTabKey(key) || isServheadStagesTableTabKey(key)) return false;
     return key === "SH-T1" || key.indexOf("SH-T") === 0;
   }
 
@@ -5079,6 +5083,7 @@
     hasServheadClientsTableInBody: hasServheadClientsTableInBody,
     hasServheadSurveysTableInBody: hasServheadSurveysTableInBody,
     isServheadClientsTableTabKey: isServheadClientsTableTabKey,
+    isServheadStagesTableTabKey: isServheadStagesTableTabKey,
     isServheadSurveysTableTabKey: isServheadSurveysTableTabKey,
     getTableTabMetaFromBody: getTableTabMetaFromBody,
   };

@@ -92,6 +92,10 @@
   var productionDeputySelectedShop = "pc1";
   var lastProductionDeputyRawTiles = null;
   var lastProductionDeputyRawChartIndicators = null;
+  /** servhead: «otp» — журнал ОТП (SH-*), «service» — сервисная служба (СЕР-*). */
+  var servheadSelectedSection = "otp";
+  var lastServheadRawTiles = null;
+  var lastServheadRawChartIndicators = null;
 
   function handleUnauthorized() {
     persistCurrentKpiTileOrder();
@@ -126,8 +130,17 @@
     DashboardKpiTileOrder.saveOrder(scopeKey, DashboardKpiTileOrder.extractOrderIds(lastKpiTiles));
   }
 
+  var FORM_WORK_TILE_IDS = { "QD-M1W": true, "QD-M5W": true, "QD-M8W": true };
+
+  function withoutFormWorkTiles(tiles) {
+    return (tiles || []).filter(function (tile) {
+      var id = tile && tile.kpi_id != null ? String(tile.kpi_id).trim().toUpperCase() : "";
+      return !FORM_WORK_TILE_IDS[id];
+    });
+  }
+
   function renderKpiTilesAsIs(tiles) {
-    lastKpiTiles = tiles && tiles.length ? tiles.slice() : null;
+    lastKpiTiles = withoutFormWorkTiles(tiles);
     flippedTileIndices.clear();
     if (typeof DashboardKpiDrilldown !== "undefined" && DashboardKpiDrilldown) {
       if (typeof DashboardKpiDrilldown.resetState === "function") {
@@ -553,9 +566,15 @@
         setLastApiChartIndicators: function (value) {
           if (isProductionDeputyDashboardContext() && value) {
             lastProductionDeputyRawChartIndicators = value;
+            lastServheadRawChartIndicators = null;
             lastApiChartIndicators = filterProductionDeputyChartIndicatorsByShop(value);
+          } else if (isServheadDashboardContext() && value) {
+            lastProductionDeputyRawChartIndicators = null;
+            lastServheadRawChartIndicators = value;
+            lastApiChartIndicators = filterServheadChartIndicatorsBySection(value);
           } else {
             lastProductionDeputyRawChartIndicators = null;
+            lastServheadRawChartIndicators = null;
             lastApiChartIndicators = value;
           }
         },
@@ -1071,7 +1090,9 @@
   }
 
   function rerenderKpiTilesForCacheRefreshState() {
-    if (lastProductionDeputyRawTiles && lastProductionDeputyRawTiles.length) {
+    if (lastServheadRawTiles && lastServheadRawTiles.length) {
+      renderKpiTiles(lastServheadRawTiles, { preservePage: true });
+    } else if (lastProductionDeputyRawTiles && lastProductionDeputyRawTiles.length) {
       renderKpiTiles(lastProductionDeputyRawTiles, { preservePage: true });
     } else if (lastKpiTiles && lastKpiTiles.length) {
       renderKpiTiles(lastKpiTiles, { preservePage: true });
@@ -2233,7 +2254,7 @@
     if (!Array.isArray(rows)) return false;
     for (var i = 0; i < rows.length; i++) {
       var key = rows[i] && rows[i].tableKey != null ? String(rows[i].tableKey).trim().toUpperCase() : "";
-      if (key === "SH-T2") continue;
+      if (key === "SH-T2" || key === "SH-T3") continue;
       if (key === "SH-T1" || key.indexOf("SH-T") === 0) return true;
     }
     return false;
@@ -2462,6 +2483,196 @@
     initTables();
   }
 
+  function normalizeServheadSectionKey(value) {
+    return value === "service" ? "service" : "otp";
+  }
+
+  function servheadSectionLabel(section) {
+    return normalizeServheadSectionKey(section) === "service" ? "Сервисная служба" : "ОТП";
+  }
+
+  function servheadAppealsSectionActive() {
+    return normalizeServheadSectionKey(servheadSelectedSection) === "otp";
+  }
+
+  function kpiIdServheadSection(kpiId) {
+    var id = kpiId != null ? String(kpiId).trim().toUpperCase() : "";
+    if (!id) return "";
+    if (id === "SH-M6" || id === "SH-M8" || id === "SH-T3") return "service";
+    if (
+      id === "SH-M1" ||
+      id === "SH-M2" ||
+      id === "SH-M3" ||
+      id === "SH-M4" ||
+      id === "SH-M5" ||
+      id === "SH-T1" ||
+      id === "SH-T2" ||
+      id === "SH-C1" ||
+      id === "SH-C2" ||
+      id.indexOf("OTP-") === 0 ||
+      id.indexOf("ОТП-") === 0
+    ) {
+      return "otp";
+    }
+    if (id.indexOf("SH-M") === 0 || id.indexOf("SH-T") === 0 || id.indexOf("SH-C") === 0) return "otp";
+    if (
+      id.indexOf("СЕР-") === 0 ||
+      id.indexOf("CEP-") === 0 ||
+      id.indexOf("SER-") === 0 ||
+      id.indexOf("SVC-") === 0
+    ) {
+      return "service";
+    }
+    return "";
+  }
+
+  function tileServheadSection(tile) {
+    if (!tile) return "";
+    var fromId = kpiIdServheadSection(tile.kpi_id);
+    if (fromId) return fromId;
+    var text = [tile.source, tile.title, tile.name, tile.description]
+      .join(" ")
+      .toLocaleLowerCase("ru-RU");
+    if (text.indexOf("отп") !== -1) return "otp";
+    if (text.indexOf("сервисн") !== -1) return "service";
+    return "";
+  }
+
+  function hasServheadSectionTiles(tiles) {
+    if (!Array.isArray(tiles)) return false;
+    for (var i = 0; i < tiles.length; i++) {
+      if (tileServheadSection(tiles[i])) return true;
+    }
+    return false;
+  }
+
+  function filterServheadTilesBySection(tiles) {
+    if (!Array.isArray(tiles)) return tiles || [];
+    var selected = normalizeServheadSectionKey(servheadSelectedSection);
+    return tiles.filter(function (tile) {
+      var section = tileServheadSection(tile);
+      return !section || section === selected;
+    });
+  }
+
+  function indicatorServheadSection(indicator) {
+    if (!indicator) return "";
+    var fromId = kpiIdServheadSection(indicator.id) || kpiIdServheadSection(indicator.kpi_id);
+    if (fromId) return fromId;
+    var label = String(
+      (indicator.optionLabel || indicator.option_label || indicator.name || indicator.title) || ""
+    ).toLocaleLowerCase("ru-RU");
+    if (label.indexOf("отп") !== -1) return "otp";
+    if (label.indexOf("сервисн") !== -1) return "service";
+    return "";
+  }
+
+  function filterServheadChartIndicatorsBySection(indicators) {
+    if (!indicators || typeof indicators !== "object") return indicators;
+    var selected = normalizeServheadSectionKey(servheadSelectedSection);
+    var next = Object.assign({}, indicators);
+    ["line", "bar", "donut"].forEach(function (key) {
+      if (!Array.isArray(indicators[key])) return;
+      next[key] = indicators[key].filter(function (indicator) {
+        var section = indicatorServheadSection(indicator);
+        return !section || section === selected;
+      });
+    });
+    return next;
+  }
+
+  function ensureServheadSectionSwitch() {
+    var block = document.querySelector(".dash-kpi-tiles-block");
+    var kpiContainer = document.getElementById("kpi-container");
+    if (!block || !kpiContainer) return null;
+    var existing = document.getElementById("servhead-section-switch");
+    if (existing) return existing;
+
+    var wrap = document.createElement("div");
+    wrap.className = "production-shop-switch";
+    wrap.id = "servhead-section-switch";
+    wrap.hidden = true;
+    wrap.setAttribute("role", "group");
+    wrap.setAttribute("aria-label", "Выбор подразделения");
+    wrap.innerHTML =
+      '<span class="production-shop-switch__label">Подразделение</span>' +
+      '<div class="production-shop-switch__buttons">' +
+      '<button type="button" class="production-shop-switch__btn" data-servhead-section="otp">ОТП</button>' +
+      '<button type="button" class="production-shop-switch__btn" data-servhead-section="service">Сервисная служба</button>' +
+      "</div>";
+    var emptyNote = document.createElement("p");
+    emptyNote.className = "production-shop-switch__empty";
+    emptyNote.id = "servhead-section-empty";
+    emptyNote.hidden = true;
+    block.insertBefore(wrap, kpiContainer);
+    block.insertBefore(emptyNote, kpiContainer);
+    wrap.addEventListener("click", function (event) {
+      var btn = event.target && event.target.closest ? event.target.closest("[data-servhead-section]") : null;
+      if (!btn) return;
+      var section = normalizeServheadSectionKey(btn.getAttribute("data-servhead-section"));
+      if (section === normalizeServheadSectionKey(servheadSelectedSection)) return;
+      servheadSelectedSection = section;
+      applyServheadSectionSelection();
+    });
+    return wrap;
+  }
+
+  function updateServheadSectionSwitchVisibility(show, tiles) {
+    var switchEl = ensureServheadSectionSwitch();
+    var emptyNote = document.getElementById("servhead-section-empty");
+    var chartsRow = document.querySelector(".charts-row");
+    if (!switchEl) return;
+    switchEl.hidden = !show;
+    var buttons = switchEl.querySelectorAll("[data-servhead-section]");
+    var selected = normalizeServheadSectionKey(servheadSelectedSection);
+    for (var i = 0; i < buttons.length; i++) {
+      var btn = buttons[i];
+      var active = normalizeServheadSectionKey(btn.getAttribute("data-servhead-section")) === selected;
+      btn.classList.toggle("is-active", active);
+      btn.setAttribute("aria-pressed", active ? "true" : "false");
+    }
+    if (emptyNote) {
+      var showEmpty = !!show && (!tiles || !tiles.length);
+      emptyNote.hidden = !showEmpty;
+      emptyNote.textContent = showEmpty
+        ? "Для раздела «" + servheadSectionLabel(selected) + "» показатели пока не пришли."
+        : "";
+    }
+    if (chartsRow) {
+      if (!show) {
+        chartsRow.hidden = false;
+      } else if (selected === "otp") {
+        chartsRow.hidden = false;
+      } else {
+        var indicators = lastApiChartIndicators;
+        var hasCharts =
+          indicators &&
+          ((Array.isArray(indicators.line) && indicators.line.length) ||
+            (Array.isArray(indicators.bar) && indicators.bar.length) ||
+            (Array.isArray(indicators.donut) && indicators.donut.length));
+        chartsRow.hidden = !hasCharts;
+      }
+    }
+  }
+
+  function applyServheadSectionSelection() {
+    if (lastServheadRawChartIndicators) {
+      lastApiChartIndicators = filterServheadChartIndicatorsBySection(lastServheadRawChartIndicators);
+    }
+    if (lastServheadRawTiles) {
+      renderKpiTiles(lastServheadRawTiles);
+    } else {
+      updateServheadSectionSwitchVisibility(true, []);
+    }
+    var chartsRow = document.querySelector(".charts-row");
+    if (chartsRow && chartsRow.hidden) {
+      destroyAllDashboardCharts();
+    } else if (typeof initCharts === "function") {
+      initCharts();
+    }
+    initTables();
+  }
+
   function getCurrentSelectedQuartersForTiles() {
     if (typeof DashboardMonthNav === "undefined" || !DashboardMonthNav || typeof DashboardMonthNav.getPeriodState !== "function") {
       return [];
@@ -2525,18 +2736,32 @@
    */
   function renderKpiTiles(tiles, options) {
     options = options || {};
-    var sourceTiles = tiles && tiles.length ? tiles : [];
+    var sourceTiles = withoutFormWorkTiles(tiles && tiles.length ? tiles : []);
     var showProductionShopSwitch =
       isProductionDeputyDashboardContext() && hasProductionDeputyShopTiles(sourceTiles);
     var showChiefAccountantSwitch =
       !showProductionShopSwitch && isChiefAccountantDashboardContext() && hasChiefAccountantTiles(sourceTiles);
+    var showServheadSectionSwitch =
+      !showProductionShopSwitch &&
+      !showChiefAccountantSwitch &&
+      isServheadDashboardContext() &&
+      (hasServheadDashboardTiles(sourceTiles) ||
+        hasServheadSectionTiles(sourceTiles) ||
+        shouldUseServheadClientsTable());
     if (showProductionShopSwitch) {
       lastProductionDeputyRawTiles = sourceTiles.slice();
+      lastServheadRawTiles = null;
       sourceTiles = filterProductionDeputyTilesByShop(sourceTiles);
     } else if (showChiefAccountantSwitch) {
       lastProductionDeputyRawTiles = sourceTiles.slice();
+      lastServheadRawTiles = null;
+    } else if (showServheadSectionSwitch) {
+      lastProductionDeputyRawTiles = null;
+      lastServheadRawTiles = sourceTiles.slice();
+      sourceTiles = filterServheadTilesBySection(sourceTiles);
     } else {
       lastProductionDeputyRawTiles = null;
+      lastServheadRawTiles = null;
     }
     updateProductionShopSwitchVisibility(
       showProductionShopSwitch || showChiefAccountantSwitch,
@@ -2547,6 +2772,7 @@
     tiles = normalizeCommercialHigherIsBetterPlanFactTiles(tiles);
     tiles = applyKpiTileOrderPreference(tiles);
     lastKpiTiles = tiles && tiles.length ? tiles : null;
+    updateServheadSectionSwitchVisibility(showServheadSectionSwitch, lastKpiTiles);
     flippedTileIndices.clear();
     if (typeof DashboardKpiDrilldown !== "undefined" && DashboardKpiDrilldown) {
       if (typeof DashboardKpiDrilldown.resetState === "function") {
@@ -3219,13 +3445,13 @@
   function isServheadHigherBetterKpiItem(item) {
     if (!item || typeof item !== "object") return false;
     var id = item.kpi_id != null ? String(item.kpi_id).trim().toUpperCase() : "";
-    return id === "SH-M1" || id === "SH-M4";
+    return id === "SH-M1" || id === "SH-M4" || id === "SH-M6";
   }
 
   function isServheadLowerBetterKpiItem(item) {
     if (!item || typeof item !== "object") return false;
     var id = item.kpi_id != null ? String(item.kpi_id).trim().toUpperCase() : "";
-    return id === "SH-M2" || id === "SH-M3" || id === "SH-M5";
+    return id === "SH-M2" || id === "SH-M3" || id === "SH-M5" || id === "SH-M8";
   }
 
   /** SH-M1/M4: ≥90 зелёный, 80–89,9 жёлтый, <80 красный (как rag_servhead_m1_pct). */
@@ -3356,6 +3582,7 @@
       dz_supplier: 0, kz_supplier: 0,
       dz_total: 0, kz_total: 0,
       portfolio_count: 0, deviation_count: 0, without_deviation_count: 0,
+      in_work_on_time: 0, in_work_overdue: 0, significant: 0,
     };
     var extraHas = {
       found: false, won: false, not_participating: false,
@@ -3364,6 +3591,7 @@
       dz_supplier: false, kz_supplier: false,
       dz_total: false, kz_total: false,
       portfolio_count: false, deviation_count: false, without_deviation_count: false,
+      in_work_on_time: false, in_work_overdue: false, significant: false,
     };
     var planByDept = {};
     var factByDept = {};
@@ -3569,6 +3797,9 @@
       portfolio_count: extraHas.portfolio_count ? extraSums.portfolio_count : null,
       deviation_count: extraHas.deviation_count ? extraSums.deviation_count : null,
       without_deviation_count: extraHas.without_deviation_count ? extraSums.without_deviation_count : null,
+      in_work_on_time: extraHas.in_work_on_time ? extraSums.in_work_on_time : null,
+      in_work_overdue: extraHas.in_work_overdue ? extraSums.in_work_overdue : null,
+      significant: extraHas.significant ? extraSums.significant : null,
       pct_client: pctClient,
       pct_supplier: pctSupplier,
       pct_total: pctTotal,
@@ -3987,6 +4218,13 @@
           normalizedTile[row.field] = inWorkSource[row.field];
         }
       });
+      var qualdirTileRule = qualdirCfg[qualdirKey];
+      if (qualdirTileRule && qualdirTileRule.hideKpiPercent && !qualdirTileRule.qualdirControlOverviewOnBack) {
+        normalizedTile.kpi_pct = null;
+        normalizedTile.percent = null;
+        normalizedTile.color = null;
+        normalizedTile.rag = null;
+      }
     }
     if (!normalizedTile.last_full_month_row && rawItem.last_full_month_row) {
       normalizedTile.last_full_month_row = rawItem.last_full_month_row;
@@ -4211,6 +4449,8 @@
     var useProductionDeputyProjectTables = isProductionDeputyDashboardContext();
     var useHrdLateVacanciesTable = shouldUseHrdLateVacanciesTable();
     var useServheadClientsTable = shouldUseServheadClientsTable();
+    var showServheadAppeals = useServheadClientsTable && servheadAppealsSectionActive();
+    var showServheadStages = useServheadClientsTable && !servheadAppealsSectionActive();
     var useServheadSurveysTable = hasServheadSurveysTable();
     var useServheadClientsOnlyTable = hasServheadClientsTableRows(lastApiTableRows);
     var useQualdirDefectTables = shouldUseQualdirDefectTables();
@@ -4249,7 +4489,9 @@
                 ? "Отклонения по проекту развития номенклатуры"
                 : useHrdLateVacanciesTable
                   ? "Вакансии, закрытые не в срок"
-                  : useServheadClientsTable
+                  : showServheadStages
+                    ? getApiTableTitle("SH-T3") || "Незавершённые этапы"
+                  : showServheadAppeals
                     ? useServheadClientsOnlyTable
                       ? getApiTableTitle("SH-T1") || "Ситуация по клиентам"
                       : getApiTableTitle("SH-T2") || "Анкеты удовлетворённости клиентов"
@@ -4262,7 +4504,7 @@
     }
 
     if (overdueDebtTableTitleEl) {
-      overdueDebtTableTitleEl.textContent = useServheadClientsTable && useServheadSurveysTable
+      overdueDebtTableTitleEl.textContent = showServheadAppeals && useServheadSurveysTable
         ? getApiTableTitle("SH-T2") || "Анкеты удовлетворённости клиентов"
         : useOpdirProjectTables
         ? useProductionDirectorProjectTables
@@ -4279,7 +4521,8 @@
       claimsTableHelpWrapEl.hidden =
         useQualdirDefectTables ||
         useHrdLateVacanciesTable ||
-        useServheadClientsTable ||
+        showServheadAppeals ||
+        showServheadStages ||
         useTechnicalTables ||
         useProjectMilestonesTables ||
         activeClaimsTableView === "lawsuits";
@@ -4288,7 +4531,9 @@
     if (claimsTableTitleTextEl && claimsTableTitleTextEl.closest) {
       var claimsPanel = claimsTableTitleTextEl.closest(".table-panel");
       if (claimsPanel) {
-        claimsPanel.hidden = hideDefaultCommercialTables;
+        claimsPanel.hidden =
+          hideDefaultCommercialTables ||
+          (useServheadClientsTable && !showServheadAppeals && !showServheadStages);
       }
     }
 
@@ -4323,7 +4568,7 @@
           isBoardChairCommercialBlockContext() ||
           useQualdirDefectTables ||
           useHrdLateVacanciesTable ||
-          (useServheadClientsTable && !useServheadSurveysTable) ||
+          (useServheadClientsTable && (!showServheadAppeals || !useServheadSurveysTable)) ||
           useTechnicalTables ||
           useProjectMilestonesTables ||
           useChiefConstructorTables ||
@@ -4343,14 +4588,16 @@
     syncCommercialOnecTableButtons();
     updatePsdTableAmountFilterBarVisibility();
     updateServheadSurveysPeriodFilterVisibility(
-      useServheadSurveysTable,
-      useServheadClientsOnlyTable
+      showServheadAppeals && useServheadSurveysTable,
+      showServheadAppeals && useServheadClientsOnlyTable
     );
     updateLogisticsClientDzFilterVisibility(isLogisticsDashboardContext());
 
     var tablesRow = document.querySelector(".tables-row");
     if (tablesRow) {
-      tablesRow.hidden = hideDefaultCommercialTables;
+      tablesRow.hidden =
+        hideDefaultCommercialTables ||
+        (useServheadClientsTable && !showServheadAppeals && !showServheadStages);
     }
   }
 
@@ -4633,6 +4880,9 @@
         technicalTablesMode: shouldUseTechnicalDeviationTables(),
         hrdLateVacanciesTableMode: shouldUseHrdLateVacanciesTable(),
         servheadClientsTableMode: shouldUseServheadClientsTable(),
+        servheadSection: isServheadDashboardContext()
+          ? normalizeServheadSectionKey(servheadSelectedSection)
+          : "",
         servheadSurveysTableInBody:
           typeof Api !== "undefined" &&
           Api &&

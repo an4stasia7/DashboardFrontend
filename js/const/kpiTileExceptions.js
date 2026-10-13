@@ -3,45 +3,57 @@
     "OD-M1": {
       backDeptAmounts: true,
     },
-    /** QD-M5: plan/fact на лице; детализация форм и ОТК-1 / ОТК-2 на обороте. */
+    /** QD-M5: строки на лице, как у QD-M7; ОТК-1 / ОТК-2 на обороте. */
     "QD-M5": {
       allowPartialPlanFact: true,
-      periodLabelPrefix: "Период",
-      qualdirControlOverviewOnBack: true,
+      hidePlanOnTile: true,
+      hideKpiPercent: true,
+      frontAccentColor: "#64748b",
       qualdirControlOverview: {
-        ariaLabel: "Формы",
+        ariaLabel: "Формы 03-18",
+        layout: "quad",
         rows: [
           { label: "Всего форм", field: "plan", useUnits: true },
-          { label: "Значимые формы", field: "significant", useUnits: true },
+          { label: "Выполнено", field: "fact", useUnits: true },
+          { label: "В работе по плану", field: "in_work_on_time", useUnits: true },
+          { label: "В работе просрочено", field: "in_work_overdue", useUnits: true },
         ],
       },
       backDefectDirections: true,
     },
-    /** QD-M1: plan/fact на лице; детализация форм и подразделения на обороте. */
+    /** QD-M1: строки на лице, как у QD-M7; подразделения на обороте. */
     "QD-M1": {
       allowPartialPlanFact: true,
+      hidePlanOnTile: true,
+      hideKpiPercent: true,
+      frontAccentColor: "#64748b",
       backArticlesDeptCount: true,
-      periodLabelPrefix: "Период",
-      qualdirControlOverviewOnBack: true,
       qualdirControlOverview: {
-        ariaLabel: "Формы",
+        ariaLabel: "Формы 03-19",
+        layout: "quad",
         rows: [
           { label: "Всего форм", field: "plan", useUnits: true },
-          { label: "Значимые формы", field: "significant", useUnits: true },
+          { label: "Выполнено", field: "fact", useUnits: true },
+          { label: "В работе по плану", field: "in_work_on_time", useUnits: true },
+          { label: "В работе просрочено", field: "in_work_overdue", useUnits: true },
         ],
       },
     },
-    /** QD-M8: plan/fact на лице; детализация форм и подразделения на обороте. */
+    /** QD-M8: строки на лице, как у QD-M7; подразделения на обороте. */
     "QD-M8": {
       allowPartialPlanFact: true,
+      hidePlanOnTile: true,
+      hideKpiPercent: true,
+      frontAccentColor: "#64748b",
       backArticlesDeptCount: true,
-      periodLabelPrefix: "Период",
-      qualdirControlOverviewOnBack: true,
       qualdirControlOverview: {
-        ariaLabel: "Формы",
+        ariaLabel: "Формы 03-17",
+        layout: "quad",
         rows: [
           { label: "Всего форм", field: "plan", useUnits: true },
-          { label: "Значимые формы", field: "significant", useUnits: true },
+          { label: "Выполнено", field: "fact", useUnits: true },
+          { label: "В работе по плану", field: "in_work_on_time", useUnits: true },
+          { label: "В работе просрочено", field: "in_work_overdue", useUnits: true },
         ],
       },
     },
@@ -290,6 +302,10 @@
       singleCountFromPlan: true,
     },
     "SH-M5": {
+      pctLowerIsBetter: true,
+    },
+    /** SH-M8: факт — задачи, срок которых уже прошёл и они не закрыты; меньше — лучше. */
+    "SH-M8": {
       pctLowerIsBetter: true,
     },
   };
