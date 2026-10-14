@@ -1752,6 +1752,9 @@
       if (Array.isArray(point.articles)) {
         tile.articles = point.articles.slice();
       }
+      if (Array.isArray(point.goals)) {
+        tile.goals = point.goals.slice();
+      }
       syncDepartmentsForTile(tile, year, month);
       syncDefectDirectionsForTile(tile, year, month);
       syncQualdirControlTileFieldsFromPoint(tile, point, year, month);
@@ -2118,9 +2121,38 @@
     );
   }
 
+  var TABLE_TITLE_MONTHS_RU = [
+    "",
+    "Январь",
+    "Февраль",
+    "Март",
+    "Апрель",
+    "Май",
+    "Июнь",
+    "Июль",
+    "Август",
+    "Сентябрь",
+    "Октябрь",
+    "Ноябрь",
+    "Декабрь",
+  ];
+
+  /** В названии таблицы месяц зашит («… — Октябрь 2026»). Подменяем его выбранным периодом. */
+  function alignTableTitleToPeriod(name, filterYear, filterMonth) {
+    var text = name != null ? String(name) : "";
+    var year = Number(filterYear);
+    var month = Number(filterMonth);
+    if (!text || isNaN(year) || isNaN(month) || month < 1 || month > 12) return text;
+    var label = TABLE_TITLE_MONTHS_RU[month] + " " + year;
+    return text.replace(
+      /(январ[ьяе]|феврал[ьяе]|март[ае]?|апрел[ьяе]|ма[йяе]|июн[ьяе]|июл[ьяе]|август[ае]?|сентябр[ьяе]|октябр[ьяе]|ноябр[ьяе]|декабр[ьяе])\s+(\d{4})/i,
+      label
+    );
+  }
+
   function emptyTableSliceForPeriod(tab, filterYear, filterMonth) {
     return {
-      name: tab && tab.name != null ? tab.name : "",
+      name: alignTableTitleToPeriod(tab && tab.name != null ? tab.name : "", filterYear, filterMonth),
       description: tab && tab.description != null ? tab.description : "",
       columns: tab && Array.isArray(tab.columns) ? tab.columns : null,
       period: { year: filterYear, month: filterMonth },
@@ -2179,7 +2211,11 @@
 
     var template = getMonthKeyedTableTemplateSlice(byMonth, tab);
     return {
-      name: template && template.name != null ? template.name : tab && tab.name,
+      name: alignTableTitleToPeriod(
+        template && template.name != null ? template.name : tab && tab.name,
+        filterYear,
+        filterMonth
+      ),
       description: template && template.description != null ? template.description : tab && tab.description,
       columns:
         template && Array.isArray(template.columns)
@@ -2226,17 +2262,18 @@
         rows: [],
         columns: Array.isArray(tab.columns) ? tab.columns : null,
         period: { year: filterYear, month: filterMonth },
-        name: tab.name != null ? String(tab.name) : "",
+        name: alignTableTitleToPeriod(tab.name != null ? String(tab.name) : "", filterYear, filterMonth),
         description: tab.description != null ? String(tab.description) : "",
       };
     }
 
     if (slice) {
+      var sliceName = slice.name != null && String(slice.name).trim() !== "" ? String(slice.name) : tab.name;
       return {
         rows: rowsObjectToArray(slice.rows),
         columns: Array.isArray(slice.columns) ? slice.columns : Array.isArray(tab.columns) ? tab.columns : null,
         period: slice,
-        name: tab.name != null ? String(tab.name) : "",
+        name: alignTableTitleToPeriod(sliceName != null ? String(sliceName) : "", filterYear, filterMonth),
         description: tab.description != null ? String(tab.description) : "",
       };
     }
@@ -2251,7 +2288,7 @@
         rows: [],
         columns: Array.isArray(tab.columns) ? tab.columns : null,
         period: { year: filterYear, month: filterMonth },
-        name: tab.name != null ? String(tab.name) : "",
+        name: alignTableTitleToPeriod(tab.name != null ? String(tab.name) : "", filterYear, filterMonth),
         description: tab.description != null ? String(tab.description) : "",
       };
     }
@@ -2260,7 +2297,11 @@
       rows: rowsObjectToArray(tab.rows),
       columns: Array.isArray(tab.columns) ? tab.columns : null,
       period: tab.period && typeof tab.period === "object" ? tab.period : null,
-      name: tab.name != null ? String(tab.name) : "",
+      name: alignTableTitleToPeriod(
+        tab.name != null ? String(tab.name) : "",
+        hasFilter ? filterYear : null,
+        hasFilter ? filterMonth : null
+      ),
       description: tab.description != null ? String(tab.description) : "",
     };
   }
@@ -2351,7 +2392,8 @@
     if (!wanted || !Object.prototype.hasOwnProperty.call(tables, wanted)) return null;
     var tab = tables[wanted];
     if (!tab || typeof tab !== "object") return null;
-    var view = resolveTableTabView(tab, filterYear, filterMonth);
+    var sourceTab = resolveTableSourceForPeriod(tables, wanted, tab, filterYear, filterMonth);
+    var view = resolveTableTabView(sourceTab || tab, filterYear, filterMonth);
     return {
       kpi_id: tab.kpi_id != null ? String(tab.kpi_id) : wanted,
       name: view.name || (tab.name != null ? String(tab.name).trim() : ""),

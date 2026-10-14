@@ -82,6 +82,24 @@
   var logisticsClientDzOverdueOnlyEl = document.getElementById("logistics-client-dz-overdue-only");
   var claimsTableSwitcherEl = document.getElementById("claims-table-switcher");
   var activeClaimsTableView = "claims";
+  var juristContractsFilter = { companyCode: "", goal: "" };
+  var juristContractsViewReady = false;
+  var JURIST_TILE_COMPANY = {
+    "YR-TD-Q": "td",
+    "YR-TD-S": "td",
+    "YR-AL-Q": "al",
+    "YR-AL-S": "al",
+    "YR-MG-Q": "mg",
+    "YR-MG-S": "mg",
+    "YR-AM-Q": "am",
+    "YR-AM-S": "am",
+  };
+  var JURIST_COMPANY_TITLES = {
+    td: "ООО НПО «Турбулентность-ДОН»",
+    al: "ООО «Алмаз»",
+    mg: "ООО «МГС»",
+    am: "ООО «Амурская легенда»",
+  };
   var debugJsonToggleBtnEl = document.getElementById("debug-kpi-json-toggle");
   var debugJsonSectionEl = document.getElementById("debug-kpi-json-section");
   var DONUT_CHARTS_PER_PAGE = 6;
@@ -262,6 +280,26 @@
 
   function updateMonthNavigatorUI() {
     callMonthNav("updateMonthNavigatorUI");
+  }
+
+  /** Юристы: в ответе снимок одного месяца, локальный кэш другого месяца подставит чужие договоры. */
+  function tilesUseSnapshotMonthPaging(tiles) {
+    if (!Array.isArray(tiles) || !tiles.length) return false;
+    var sawSnapshot = false;
+    for (var i = 0; i < tiles.length; i++) {
+      var tile = tiles[i];
+      if (!tile) continue;
+      var gran =
+        tile.data_granularity != null ? String(tile.data_granularity).trim().toLowerCase() : "";
+      var kid = tile.kpi_id != null ? String(tile.kpi_id).trim().toUpperCase() : "";
+      if (gran === "snapshot" || kid.indexOf("YR-") === 0) {
+        sawSnapshot = true;
+        continue;
+      }
+      if (gran && gran !== "snapshot") return false;
+      if (Array.isArray(tile.monthly_data) && tile.monthly_data.length > 1) return false;
+    }
+    return sawSnapshot;
   }
 
   function navigateToMonth(month, year) {
@@ -746,8 +784,14 @@
             loadKpiTilesAndChartsForView({ preserveViewState: true });
             return;
           }
+          if (tilesUseSnapshotMonthPaging(lastKpiTiles)) {
+            loadKpiTilesAndChartsForView({ preserveViewState: true });
+            return;
+          }
           var periodNeedsServerData =
-            shouldUseHrdLateVacanciesTable() || shouldUseGsppTechnicalTables();
+            shouldUseHrdLateVacanciesTable() ||
+            shouldUseGsppTechnicalTables() ||
+            shouldUseServheadClientsTable();
           if (!periodNeedsServerData && applyCurrentPeriodFromLastRawResponse()) {
             return;
           }
@@ -1285,6 +1329,7 @@
 
   /** Контейнер плиток KPI: `?` на обороте открывает модалку; клик по карточке — flip, по дочернему отделу — переход. */
   var kpiContainerEl = document.getElementById("kpi-container");
+  var juristTileClickTimer = null;
   if (kpiContainerEl) {
     kpiContainerEl.addEventListener("click", function (e) {
       var refreshBtn = e.target.closest(".kpi-tile-cache-refresh");
@@ -1354,7 +1399,36 @@
       hideKpiHelpPopover();
       var ix = art.getAttribute("data-kpi-tile-index");
       if (ix == null || !lastKpiTiles || lastKpiTiles[+ix] == null) return;
+      if (juristCompanyCodeFromTile(lastKpiTiles[+ix])) {
+        if (juristTileClickTimer) {
+          clearTimeout(juristTileClickTimer);
+          juristTileClickTimer = null;
+          return;
+        }
+        var tileIndex = +ix;
+        juristTileClickTimer = setTimeout(function () {
+          juristTileClickTimer = null;
+          openKpiTileDrilldown(tileIndex);
+        }, 220);
+        return;
+      }
       openKpiTileDrilldown(+ix);
+    });
+    kpiContainerEl.addEventListener("dblclick", function (e) {
+      var art = e.target.closest("article.kpi-tile");
+      if (!art || !kpiContainerEl.contains(art)) return;
+      if (e.target.closest("button, a, input, select, textarea, .kpi-tile-drag-handle")) return;
+      var ix = art.getAttribute("data-kpi-tile-index");
+      if (ix == null || !lastKpiTiles || lastKpiTiles[+ix] == null) return;
+      if (juristTileClickTimer) {
+        clearTimeout(juristTileClickTimer);
+        juristTileClickTimer = null;
+      }
+      var goalHit = e.target.closest(".kpi-tile-contract-goal");
+      var goal = goalHit && art.contains(goalHit) ? goalHit.getAttribute("data-contract-goal") || "" : "";
+      if (applyJuristContractsFilter(lastKpiTiles[+ix], goal)) {
+        e.preventDefault();
+      }
     });
     kpiContainerEl.addEventListener("keydown", function (e) {
       if (e.key !== "Enter" && e.key !== " ") return;
@@ -1574,7 +1648,19 @@
       if (!target || !claimsTableSwitcherEl.contains(target)) return;
       var view = target.getAttribute("data-claims-view") || "claims";
       if (view === activeClaimsTableView) return;
+      if (view === "contracts") juristContractsViewReady = true;
       applyClaimsTableView(view);
+    });
+  }
+
+  var juristContractsFilterResetEl = document.getElementById("jurist-contracts-filter-reset");
+  if (juristContractsFilterResetEl) {
+    juristContractsFilterResetEl.addEventListener("click", function () {
+      juristContractsFilter = { companyCode: "", goal: "" };
+      juristContractsViewReady = true;
+      activeClaimsTableView = "contracts";
+      initTables();
+      syncJuristContractsTileHighlight();
     });
   }
 
@@ -2796,6 +2882,7 @@
       });
       watchAutoRefreshingKpiTiles(lastKpiTiles);
     }
+    syncJuristContractsTileHighlight();
   }
 
   /* ---------- Таблицы дашборда ---------- */
@@ -2964,12 +3051,18 @@
       }
     }
     if (buttons.length >= 2) {
-      buttons[0].textContent = useQualdirDefectTables
-        ? "Внешний брак"
-        : buttons[0].getAttribute("data-default-label") || buttons[0].textContent;
-      buttons[1].textContent = useQualdirDefectTables
-        ? "Внутренний брак"
-        : buttons[1].getAttribute("data-default-label") || buttons[1].textContent;
+      var externalBtn = claimsTableSwitcherEl.querySelector('[data-claims-view="claims"]');
+      var internalBtn = claimsTableSwitcherEl.querySelector('[data-claims-view="lawsuits"]');
+      if (externalBtn) {
+        externalBtn.textContent = useQualdirDefectTables
+          ? "Внешний брак"
+          : externalBtn.getAttribute("data-default-label") || "Претензии";
+      }
+      if (internalBtn) {
+        internalBtn.textContent = useQualdirDefectTables
+          ? "Внутренний брак"
+          : internalBtn.getAttribute("data-default-label") || "Суды";
+      }
     }
   }
 
@@ -4393,12 +4486,82 @@
     );
   }
 
+  function hasJuristDashboardTiles(tiles) {
+    if (!Array.isArray(tiles)) return false;
+    for (var i = 0; i < tiles.length; i++) {
+      var id = tiles[i] && tiles[i].kpi_id != null ? String(tiles[i].kpi_id).trim().toUpperCase() : "";
+      if (id.indexOf("YR-") === 0) return true;
+    }
+    return false;
+  }
+
+  function isJuristDashboardContext() {
+    var currentDepartment = normalizeDashboardRole(getDepartmentForCurrentKpiContext());
+    var responseDepartment = normalizeDashboardRole(lastKpiResponseDepartment);
+    return (
+      currentDepartment === "юрисконсультант" ||
+      responseDepartment === "юрисконсультант" ||
+      hasJuristDashboardTiles(lastKpiTiles)
+    );
+  }
+
+  function juristCompanyCodeFromTile(tile) {
+    var id = tile && tile.kpi_id != null ? String(tile.kpi_id).trim().toUpperCase() : "";
+    return JURIST_TILE_COMPANY[id] || "";
+  }
+
+  function applyJuristContractsFilter(tile, goal) {
+    var code = juristCompanyCodeFromTile(tile);
+    if (!code) return false;
+    var nextGoal = goal != null ? String(goal).trim() : "";
+    var same = juristContractsFilter.companyCode === code && juristContractsFilter.goal === nextGoal;
+    juristContractsFilter = same ? { companyCode: "", goal: "" } : { companyCode: code, goal: nextGoal };
+    juristContractsViewReady = true;
+    activeClaimsTableView = "contracts";
+    initTables();
+    syncJuristContractsTileHighlight();
+    var tablesRow = document.querySelector(".tables-row");
+    if (tablesRow && typeof tablesRow.scrollIntoView === "function") {
+      tablesRow.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    return true;
+  }
+
+  function syncJuristContractsTileHighlight() {
+    var nodes = document.querySelectorAll("#kpi-container article.kpi-tile");
+    nodes.forEach(function (node) {
+      var ix = node.getAttribute("data-kpi-tile-index");
+      var tile = ix != null && lastKpiTiles ? lastKpiTiles[+ix] : null;
+      var code = juristCompanyCodeFromTile(tile);
+      node.classList.toggle(
+        "is-contracts-filter",
+        !!(juristContractsFilter.companyCode && code === juristContractsFilter.companyCode)
+      );
+    });
+  }
+
+  function updateJuristContractsFilterUi() {
+    var wrap = document.getElementById("jurist-contracts-filter");
+    var label = document.getElementById("jurist-contracts-filter-label");
+    if (!wrap) return;
+    var show = isJuristDashboardContext() && !!juristContractsFilter.companyCode;
+    wrap.hidden = !show;
+    if (!label) return;
+    if (!show) {
+      label.textContent = "";
+      return;
+    }
+    var title = JURIST_COMPANY_TITLES[juristContractsFilter.companyCode] || juristContractsFilter.companyCode;
+    label.textContent = juristContractsFilter.goal ? title + " · " + juristContractsFilter.goal : title;
+  }
+
   function shouldUseClaimsAndLawsuitsSwitcher() {
     if (shouldUseQualdirDefectTables()) return true;
     if (isProductionDirectorDashboardContext()) return true;
     if (shouldUseTechnicalTables()) return true;
     if (shouldUseCommercialDirectorOverdueDebtEnhancements()) return true;
     if (isBoardChairCommercialBlockContext()) return true;
+    if (isJuristDashboardContext()) return true;
     return isBoardChairUser(sessionUser) && selectedViewId === "self";
   }
 
@@ -4554,17 +4717,41 @@
     }
 
     updateQualdirClaimsTableSwitcherButtons(useQualdirDefectTables);
+    var contractsBtn = claimsTableSwitcherEl
+      ? claimsTableSwitcherEl.querySelector('[data-claims-view="contracts"]')
+      : null;
+    if (isJuristDashboardContext()) {
+      if (!juristContractsViewReady) {
+        activeClaimsTableView = "contracts";
+        juristContractsViewReady = true;
+      }
+      if (contractsBtn) {
+        contractsBtn.hidden = false;
+        contractsBtn.removeAttribute("hidden");
+      }
+    } else {
+      if (activeClaimsTableView === "contracts") activeClaimsTableView = "claims";
+      juristContractsViewReady = false;
+      juristContractsFilter = { companyCode: "", goal: "" };
+      if (contractsBtn) {
+        contractsBtn.hidden = true;
+        contractsBtn.setAttribute("hidden", "");
+      }
+    }
     if (claimsTableSwitcherEl && !useQualdirDefectTables) {
-      var switchButtons = claimsTableSwitcherEl.querySelectorAll(".claims-table-switcher-btn");
-      if (switchButtons && switchButtons.length >= 2) {
-        switchButtons[0].textContent = useOpdirProjectTables
+      var claimsSwitchBtn = claimsTableSwitcherEl.querySelector('[data-claims-view="claims"]');
+      var lawsuitsSwitchBtn = claimsTableSwitcherEl.querySelector('[data-claims-view="lawsuits"]');
+      if (claimsSwitchBtn) {
+        claimsSwitchBtn.textContent = useOpdirProjectTables
           ? useProductionDirectorProjectTables
             ? "Отклонения"
             : "Проекты"
           : useTechnicalTables
             ? "Внешний заказ"
             : "Претензии";
-        switchButtons[1].textContent = useOpdirProjectTables
+      }
+      if (lawsuitsSwitchBtn) {
+        lawsuitsSwitchBtn.textContent = useOpdirProjectTables
           ? useProductionDirectorProjectTables
             ? "Проекты улучшений"
             : "Проекты"
@@ -4582,6 +4769,7 @@
         overduePanel.hidden =
           hideDefaultCommercialTables ||
           isBoardChairCommercialBlockContext() ||
+          isJuristDashboardContext() ||
           useQualdirDefectTables ||
           useHrdLateVacanciesTable ||
           (useServheadClientsTable && (!showServheadAppeals || !useServheadSurveysTable)) ||
@@ -4799,7 +4987,16 @@
   }
 
   function applyClaimsTableView(view) {
-    var nextView = view === "lawsuits" ? "lawsuits" : view === "process" ? "process" : isPlanFactBreakdownView(view) ? view : "claims";
+    var nextView =
+      view === "lawsuits"
+        ? "lawsuits"
+        : view === "process"
+          ? "process"
+          : view === "contracts"
+            ? "contracts"
+            : isPlanFactBreakdownView(view)
+              ? view
+              : "claims";
     activeClaimsTableView = nextView;
 
     var wrappers = document.querySelectorAll('[data-claims-view]');
@@ -4847,11 +5044,13 @@
         shouldUseHrdLateVacanciesTable() ||
         shouldUseServheadClientsTable() ||
         nextView === "lawsuits" ||
+        nextView === "contracts" ||
         isPlanFactBreakdownView(nextView);
     }
     if (nextView === "lawsuits") {
       hideClaimsTableHelpPopover();
     }
+    updateJuristContractsFilterUi();
   }
 
   function initTables() {
@@ -4892,6 +5091,11 @@
         executiveMode: false,
         enhanceOverdueDebtTable: shouldUseCommercialDirectorOverdueDebtEnhancements(),
         enableLawsuitsTable: shouldUseClaimsAndLawsuitsSwitcher(),
+        juristContractsTableMode: isJuristDashboardContext(),
+        juristContractsFilter: {
+          companyCode: juristContractsFilter.companyCode,
+          goal: juristContractsFilter.goal,
+        },
         filterRowsMinAmountRub: psdTableMinRub,
         technicalTablesMode: shouldUseTechnicalDeviationTables(),
         hrdLateVacanciesTableMode: shouldUseHrdLateVacanciesTable(),
@@ -4921,6 +5125,7 @@
         getCacheRefreshStateForKpi: getCacheRefreshStateForKpiId,
       });
     }
+    syncJuristContractsTileHighlight();
   }
 
   function getVisibleDonutTiles(tiles) {

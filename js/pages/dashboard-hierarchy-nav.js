@@ -1000,7 +1000,7 @@
         renderStructureTree();
         return;
       }
-      structureCache = result.structure || {};
+      structureCache = ensureJuristInStructureTree(result.structure || {});
       structureHeadcount = null;
       renderStructureTree();
     });
@@ -1103,6 +1103,61 @@
     filterSidebarViewTabs();
   }
 
+  function isOperationalDirectorDepartment(name) {
+    return normalizeDashboardRole(name) === "операционный директор";
+  }
+
+  function isJuristDepartment(name) {
+    return normalizeDashboardRole(name) === "юрисконсультант";
+  }
+
+  /** Дашборд юриста есть, а в дереве с сервера его может не быть. Держим первым ребёнком ОД. */
+  function withJuristUnderOperationalDirector(parent, children) {
+    var list = Array.isArray(children) ? children.slice() : [];
+    if (!isOperationalDirectorDepartment(parent)) return list;
+    var juristIndex = -1;
+    for (var i = 0; i < list.length; i++) {
+      if (isJuristDepartment(list[i])) {
+        juristIndex = i;
+        break;
+      }
+    }
+    if (juristIndex === 0) return list;
+    var name = juristIndex >= 0 ? list[juristIndex] : "Юрисконсультант";
+    if (juristIndex >= 0) list.splice(juristIndex, 1);
+    list.unshift(name);
+    return list;
+  }
+
+  function placeJuristFirstInNode(node) {
+    var source = node && typeof node === "object" && !Array.isArray(node) ? node : {};
+    var ordered = {};
+    var juristKey = null;
+    Object.keys(source).forEach(function (name) {
+      if (juristKey == null && isJuristDepartment(name)) juristKey = name;
+    });
+    ordered[juristKey || "Юрисконсультант"] = juristKey ? source[juristKey] : {};
+    Object.keys(source).forEach(function (name) {
+      if (isJuristDepartment(name)) return;
+      ordered[name] = ensureJuristInStructureTree(source[name]);
+    });
+    return ordered;
+  }
+
+  function ensureJuristInStructureTree(tree) {
+    if (!tree || typeof tree !== "object" || Array.isArray(tree)) return tree;
+    var next = {};
+    Object.keys(tree).forEach(function (name) {
+      var child = tree[name];
+      if (isOperationalDirectorDepartment(name)) {
+        next[name] = placeJuristFirstInNode(child);
+        return;
+      }
+      next[name] = ensureJuristInStructureTree(child);
+    });
+    return next;
+  }
+
   function isUnimplementedSidebarDepartment(name) {
     var n = String(name || "")
       .toLowerCase()
@@ -1169,7 +1224,12 @@
           var atRoot = currentStack.length <= 1;
           var includeSelfFlag = atRoot && !isBoardChairUser(sessionUser);
           if (r && r.ok && r.immediate_children && r.immediate_children.length) {
-            setViewTargets(buildTargetsFromChildren(r.immediate_children, includeSelfFlag));
+            setViewTargets(
+              buildTargetsFromChildren(
+                withJuristUnderOperationalDirector(parent, r.immediate_children),
+                includeSelfFlag
+              )
+            );
           } else {
             setViewTargets(
               includeSelfFlag
@@ -1366,7 +1426,9 @@
           }
           if (r && r.ok && r.immediate_children && r.immediate_children.length) {
             setHierarchyStack([rootDept]);
-            resolve(buildTargetsFromChildren(r.immediate_children));
+            resolve(
+              buildTargetsFromChildren(withJuristUnderOperationalDirector(rootDept, r.immediate_children))
+            );
           } else {
             resolve([{ id: "self", label: "Мой дашборд", user: sessionUser }]);
           }

@@ -1343,13 +1343,14 @@
       var n = Number(value);
       return isNaN(n) ? 0 : Math.round(n);
     }
-    function cell(label, value, unit) {
+    function cell(label, value, unit, tone) {
       var shown =
         unit != null && String(unit).trim()
           ? formatKpiTileMetricValue(value, unit)
           : String(readCount(value));
+      var toneClass = tone === "green" || tone === "red" ? " kpi-tile-tender-cell--" + tone : "";
       return (
-        '<div class="kpi-tile-tender-cell">' +
+        '<div class="kpi-tile-tender-cell' + toneClass + '">' +
         '<span class="kpi-tile-tender-label">' + DashUi.escapeHtml(label) + "</span>" +
         '<span class="kpi-tile-tender-value">' + DashUi.escapeHtml(shown) + "</span>" +
         "</div>"
@@ -1385,7 +1386,7 @@
       } else {
         value = tile && tile[row.field];
       }
-      html += cell(row.label || row.field, readCount(value), row.useUnits ? units : null);
+      html += cell(row.label || row.field, readCount(value), row.useUnits ? units : null, row.tone);
     });
 
     return html + "</div>";
@@ -1799,16 +1800,43 @@
     );
   }
 
+  /** Цели договора за выбранный месяц, а не корневой снимок другого периода. */
+  function resolveContractGoalsList(tile) {
+    var periodState =
+      typeof DashboardMonthNav !== "undefined" && DashboardMonthNav && typeof DashboardMonthNav.getPeriodState === "function"
+        ? DashboardMonthNav.getPeriodState()
+        : null;
+    var targetYear = periodState && periodState.currentPeriodYear != null ? Number(periodState.currentPeriodYear) : null;
+    var targetMonth = periodState && periodState.currentPeriodMonth != null ? Number(periodState.currentPeriodMonth) : null;
+    var monthly = tile && Array.isArray(tile.monthly_data) ? tile.monthly_data : [];
+    if (targetYear != null && targetMonth != null && !isNaN(targetYear) && !isNaN(targetMonth)) {
+      for (var p = 0; p < monthly.length; p++) {
+        var candidate = monthly[p];
+        if (!candidate) continue;
+        if (
+          Number(candidate.year) === targetYear &&
+          Number(candidate.month) === targetMonth &&
+          Array.isArray(candidate.goals)
+        ) {
+          return candidate.goals;
+        }
+      }
+    }
+    if (tile && Array.isArray(tile.goals) && tile.goals.length) return tile.goals;
+    return resolveKpiTileMonthlyRows(tile, "goals");
+  }
+
   /** Лицо плитки суммы: отдельные суммы по целям, без общего итога. */
   function buildKpiTileContractGoalSumsHtml(tile) {
-    var list = tile && Array.isArray(tile.goals) ? tile.goals : [];
-    if (!list.length) list = resolveKpiTileMonthlyRows(tile, "goals");
+    var list = resolveContractGoalsList(tile);
     var units =
       tile && tile.units != null && String(tile.units).trim()
         ? String(tile.units).trim()
         : "руб.";
     var rows = list.filter(function (row) {
-      return row && typeof row === "object" && row.name != null && String(row.name).trim() !== "";
+      if (!row || typeof row !== "object" || row.name == null || String(row.name).trim() === "") return false;
+      var num = Number(row.sum);
+      return isFinite(num) && !isNaN(num) && num !== 0;
     });
     if (!rows.length) {
       return '<div class="kpi-tile-back-message">Нет данных</div>';
@@ -1820,7 +1848,9 @@
           var num = Number(row.sum);
           var value = isFinite(num) && !isNaN(num) ? num : 0;
           return (
-            '<div class="kpi-tile-tender-cell">' +
+            '<div class="kpi-tile-tender-cell kpi-tile-contract-goal" data-contract-goal="' +
+            DashUi.escapeHtml(String(row.name).trim()) +
+            '">' +
             '<span class="kpi-tile-tender-label">' +
             DashUi.escapeHtml(String(row.name).trim()) +
             "</span>" +
@@ -1844,7 +1874,7 @@
   }
 
   function buildKpiTileContractGoalsHtml(tile) {
-    var list = tile && Array.isArray(tile.goals) ? tile.goals : [];
+    var list = resolveContractGoalsList(tile);
     var metric = juristContractGoalMetric(tile);
     var units =
       tile && tile.units != null && String(tile.units).trim()
@@ -1853,7 +1883,10 @@
           ? "руб."
           : "шт.";
     var rows = list.filter(function (row) {
-      return row && typeof row === "object" && row.name != null && String(row.name).trim() !== "";
+      if (!row || typeof row !== "object" || row.name == null || String(row.name).trim() === "") return false;
+      var raw = metric === "sum" ? row.sum : row.count;
+      var num = Number(raw);
+      return isFinite(num) && !isNaN(num) && num !== 0;
     });
     if (!rows.length) {
       return '<div class="kpi-tile-back-message">Нет данных по целям договора.</div>';
@@ -1868,7 +1901,9 @@
           var value = isFinite(num) && !isNaN(num) ? (metric === "count" ? Math.round(num) : num) : 0;
           var line = name + " - " + formatKpiTileMetricValue(value, units);
           return (
-            '<div class="kpi-tile-article-row kpi-tile-article-row--dept-count" role="listitem">' +
+            '<div class="kpi-tile-article-row kpi-tile-article-row--dept-count kpi-tile-contract-goal" data-contract-goal="' +
+            DashUi.escapeHtml(name) +
+            '" role="listitem">' +
             '<span class="kpi-tile-article-row-line">' +
             DashUi.escapeHtml(line) +
             "</span></div>"
@@ -3177,6 +3212,10 @@
       el.setAttribute("data-kpi-tile-index", String(i));
       if (!shouldRenderKpiTileBack(tile)) {
         el.setAttribute("data-no-flip", "1");
+      }
+      var tileKpiId = tile && tile.kpi_id != null ? String(tile.kpi_id).trim().toUpperCase() : "";
+      if (tileKpiId.indexOf("YR-") === 0) {
+        el.classList.add("kpi-tile--filters-contracts");
       }
       if (!hasPf) {
         el.classList.add("kpi-tile--pct-only");

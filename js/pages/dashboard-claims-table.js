@@ -2661,7 +2661,12 @@
   function isClaimsTableRow(item) {
     var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
     var planFactKey = item && item.tableKey != null ? String(item.tableKey).trim().toUpperCase() : "";
-    if (planFactKey === "KD-T-MONEY" || planFactKey === "KD-T-SHIP" || planFactKey === "KD-T-DOG") {
+    if (
+      planFactKey === "KD-T-MONEY" ||
+      planFactKey === "KD-T-SHIP" ||
+      planFactKey === "KD-T-DOG" ||
+      planFactKey === "YR-T-CONTRACTS"
+    ) {
       return false;
     }
     if (!raw || isOverdueDebtRow(item) || isLawsuitsRow(item) || isProtocolOverdueRow(item) || isQualdirDefectRow(item) || isServheadClientsRow(item) || isServheadSurveysRow(item) || isHrdLateVacancyRow(item)) {
@@ -2680,6 +2685,91 @@
       raw.status != null ||
       raw.order_sum != null
     );
+  }
+
+  function isJuristContractsRow(item) {
+    var key = item && item.tableKey != null ? String(item.tableKey).trim().toUpperCase() : "";
+    return key === "YR-T-CONTRACTS";
+  }
+
+  function formatContractTableDate(value) {
+    var text = value != null ? String(value).trim() : "";
+    var match = /^(\d{4})-(\d{2})-(\d{2})/.exec(text);
+    return match ? match[3] + "." + match[2] + "." + match[1] : tableTextOrDash(text);
+  }
+
+  function renderJuristContractsTableRows(rows, filter) {
+    var tbody = document.querySelector("#table-jurist-contracts tbody");
+    if (!tbody) return;
+    tbody.innerHTML = "";
+    filter = filter || {};
+    var companyCode = filter.companyCode != null ? String(filter.companyCode).trim().toLowerCase() : "";
+    var goal = filter.goal != null ? String(filter.goal).trim().toLocaleLowerCase("ru-RU") : "";
+    rows.filter(isJuristContractsRow).forEach(function (item) {
+      var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
+      if (!raw || raw.__tableEmptyMarker === true) return;
+      var rowCompany = raw.company_code != null ? String(raw.company_code).trim().toLowerCase() : "";
+      var rowGoal = raw.goal != null ? String(raw.goal).trim().toLocaleLowerCase("ru-RU") : "";
+      if (companyCode && rowCompany !== companyCode) return;
+      if (goal && rowGoal !== goal) return;
+      var tr = document.createElement("tr");
+      var sumText = formatClaimsOrderSum(raw.sum);
+      var cells = [
+        tableTextOrDash(raw.company),
+        tableTextOrDash(raw.number),
+        tableTextOrDash(raw.name),
+        tableTextOrDash(raw.counterparty),
+        tableTextOrDash(raw.goal),
+        tableTextOrDash(raw.status),
+        formatContractTableDate(raw.start_date),
+        sumText,
+      ];
+      cells.forEach(function (value, cellIndex) {
+        var td = document.createElement("td");
+        td.textContent = value;
+        if (cellIndex === 6) td.setAttribute("data-order", raw.start_date != null ? String(raw.start_date) : "");
+        if (cellIndex === 7) {
+          var amount = Number(raw.sum);
+          td.setAttribute("data-order", isFinite(amount) && !isNaN(amount) ? String(amount) : "");
+          td.className = "dashboard-table-cell--number";
+        }
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+  }
+
+  function initJuristContractsDataTable() {
+    return initInteractiveDashboardTable({
+      tableSelector: "#table-jurist-contracts",
+      wrapperSelector: ".dashboard-table-wrap--contracts",
+      advancedSearchKey: "jurist-contracts-table-advanced",
+      columnConfigs: [
+        { index: 0, label: "Организация", type: "filter", searchType: "text" },
+        { index: 1, label: "Номер", type: "filter", searchType: "text" },
+        { index: 2, label: "Наименование", type: "filter", searchType: "text" },
+        { index: 3, label: "Контрагент", type: "filter", searchType: "text" },
+        { index: 4, label: "Цель договора", type: "filter", searchType: "text" },
+        { index: 5, label: "Статус", type: "filter", searchType: "text" },
+        { index: 6, label: "Действует с", type: "sort", searchType: "date" },
+        { index: 7, label: "Сумма, руб.", type: "sort", searchType: "number" },
+      ],
+      initialOrder: [[6, "desc"]],
+      columnDefs: [
+        { targets: [6, 7], orderable: true },
+      ],
+      footerCallback: function () {
+        var api = this.api();
+        var total = 0;
+        api.column(7, { search: "applied" }).nodes().each(function (cell) {
+          var order = cell.getAttribute("data-order");
+          var amount = Number(order);
+          if (isFinite(amount) && !isNaN(amount)) total += amount;
+        });
+        var footerCell = document.getElementById("contracts-table-total-sum");
+        if (footerCell) footerCell.textContent = formatClaimsOrderSum(total);
+      },
+    });
   }
 
   function isLogisticsClaimsRow(item) {
@@ -3893,6 +3983,7 @@
       "#table-lawsuits",
       "#table-qualdir-process",
       "#table-protocol-overdue",
+      "#table-jurist-contracts",
     ].forEach(destroyClaimsTableInstance);
   }
 
@@ -4112,6 +4203,7 @@
     var executiveMode = !!options.executiveMode;
     var enhanceOverdueDebtTable = !!options.enhanceOverdueDebtTable;
     var enableLawsuitsTable = !!options.enableLawsuitsTable;
+    var juristContractsTableMode = !!options.juristContractsTableMode;
     technicalTablesMode = !!options.technicalTablesMode;
     opdirProjectTableMode = !!options.opdirProjectTableMode;
     opdirProjectSecondTableDisabled = !!options.opdirProjectSecondTableDisabled;
@@ -4337,6 +4429,10 @@
     renderOverdueDebtTableRows(rows);
     initClaimsDataTable();
     initOverdueDebtDataTable();
+    if (juristContractsTableMode) {
+      renderJuristContractsTableRows(rows, options.juristContractsFilter || {});
+      initJuristContractsDataTable();
+    }
     if (enableLawsuitsTable) {
       renderLawsuitsTableRows(rows);
       initLawsuitsDataTable();
