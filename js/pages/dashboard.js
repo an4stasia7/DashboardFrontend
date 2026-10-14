@@ -4146,6 +4146,22 @@
           : Array.isArray(rawItem.articles)
             ? rawItem.articles.slice()
             : [],
+      goals: (function () {
+        if (point && Array.isArray(point.goals)) return point.goals.slice();
+        if (Array.isArray(rawItem.goals)) return rawItem.goals.slice();
+        if (
+          rawItem.last_full_month_row &&
+          typeof rawItem.last_full_month_row === "object" &&
+          Array.isArray(rawItem.last_full_month_row.goals)
+        ) {
+          return rawItem.last_full_month_row.goals.slice();
+        }
+        return [];
+      })(),
+      goals_title:
+        rawItem.goals_title != null && String(rawItem.goals_title).trim()
+          ? String(rawItem.goals_title).trim()
+          : "",
       tender_departments:
         point && Array.isArray(point.tender_departments)
           ? point.tender_departments

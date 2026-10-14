@@ -1240,6 +1240,15 @@
               : null,
           /** QD-M1 и др.: подразделения с планом/фактом на обороте плитки. */
           articles: Array.isArray(item.articles) ? item.articles : [],
+          goals: (function () {
+            if (Array.isArray(item.goals)) return item.goals;
+            if (lastFullMonthRow && Array.isArray(lastFullMonthRow.goals)) return lastFullMonthRow.goals;
+            return [];
+          })(),
+          goals_title:
+            item.goals_title != null && String(item.goals_title).trim()
+              ? String(item.goals_title).trim()
+              : "",
           last_full_month_row: lastFullMonthRow,
           departments: tileDepartments,
           defect_direction_departments: defectDirectionDepartments,

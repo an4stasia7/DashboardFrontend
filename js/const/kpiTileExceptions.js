@@ -308,5 +308,18 @@
     "SH-M8": {
       pctLowerIsBetter: true,
     },
+    /**
+     * Юрисконсультант.
+     * Количество: одно число на лице, цели на обороте.
+     * Сумма: отдельные суммы по целям на лице, оборота нет.
+     */
+    "YR-TD-Q": { factOnly: true, hideKpiPercent: true, backContractGoals: true },
+    "YR-TD-S": { hideKpiPercent: true, frontContractGoalSums: true, disableBack: true },
+    "YR-AL-Q": { factOnly: true, hideKpiPercent: true, backContractGoals: true },
+    "YR-AL-S": { hideKpiPercent: true, frontContractGoalSums: true, disableBack: true },
+    "YR-MG-Q": { factOnly: true, hideKpiPercent: true, backContractGoals: true },
+    "YR-MG-S": { hideKpiPercent: true, frontContractGoalSums: true, disableBack: true },
+    "YR-AM-Q": { factOnly: true, hideKpiPercent: true, backContractGoals: true },
+    "YR-AM-S": { hideKpiPercent: true, frontContractGoalSums: true, disableBack: true },
   };
 })(typeof window !== "undefined" ? window : globalThis);

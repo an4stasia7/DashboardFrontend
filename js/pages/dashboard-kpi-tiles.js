@@ -210,6 +210,11 @@
     return !!(rule && rule.backArticlesDeptCount);
   }
 
+  function shouldRenderKpiTileBackContractGoals(tile) {
+    var rule = getKpiTileException(tile);
+    return !!(rule && rule.backContractGoals);
+  }
+
   function shouldRenderKpiTileBackDefectDirections(tile) {
     var rule = getKpiTileException(tile);
     return !!(rule && rule.backDefectDirections);
@@ -1637,6 +1642,13 @@
         "</div>"
       );
     }
+    if (rule && rule.frontContractGoalSums) {
+      return (
+        '<div class="kpi-tile-metrics kpi-tile-metrics--tender" aria-label="Сумма договоров по целям">' +
+        buildKpiTileContractGoalSumsHtml(tile) +
+        "</div>"
+      );
+    }
     if (rule && rule.factOnly && !shouldHidePlanOnTile(tile)) {
       return (
         '<div class="kpi-tile-metrics kpi-tile-metrics--pf-only" aria-label="Факт">' +
@@ -1775,6 +1787,86 @@
       breakdown
         .map(function (item) {
           var line = item.label + " - " + formatKpiTileMetricValue(item.value, units);
+          return (
+            '<div class="kpi-tile-article-row kpi-tile-article-row--dept-count" role="listitem">' +
+            '<span class="kpi-tile-article-row-line">' +
+            DashUi.escapeHtml(line) +
+            "</span></div>"
+          );
+        })
+        .join("") +
+      "</div>"
+    );
+  }
+
+  /** Лицо плитки суммы: отдельные суммы по целям, без общего итога. */
+  function buildKpiTileContractGoalSumsHtml(tile) {
+    var list = tile && Array.isArray(tile.goals) ? tile.goals : [];
+    if (!list.length) list = resolveKpiTileMonthlyRows(tile, "goals");
+    var units =
+      tile && tile.units != null && String(tile.units).trim()
+        ? String(tile.units).trim()
+        : "руб.";
+    var rows = list.filter(function (row) {
+      return row && typeof row === "object" && row.name != null && String(row.name).trim() !== "";
+    });
+    if (!rows.length) {
+      return '<div class="kpi-tile-back-message">Нет данных</div>';
+    }
+    return (
+      '<div class="kpi-tile-tender-grid kpi-tile-tender-grid--goal-sums" role="group" aria-label="Сумма договоров по целям">' +
+      rows
+        .map(function (row) {
+          var num = Number(row.sum);
+          var value = isFinite(num) && !isNaN(num) ? num : 0;
+          return (
+            '<div class="kpi-tile-tender-cell">' +
+            '<span class="kpi-tile-tender-label">' +
+            DashUi.escapeHtml(String(row.name).trim()) +
+            "</span>" +
+            '<span class="kpi-tile-tender-value">' +
+            DashUi.escapeHtml(formatKpiTileMetricValue(value, units)) +
+            "</span></div>"
+          );
+        })
+        .join("") +
+      "</div>"
+    );
+  }
+
+  /** Оборот плиток юриста: «Цель договора» из API `goals`. */
+  function juristContractGoalMetric(tile) {
+    var kid = tile && tile.kpi_id != null ? String(tile.kpi_id).trim().toUpperCase() : "";
+    if (kid.slice(-2) === "-S") return "sum";
+    var units = tile && tile.units != null ? String(tile.units).toLowerCase() : "";
+    if (units.indexOf("руб") !== -1) return "sum";
+    return "count";
+  }
+
+  function buildKpiTileContractGoalsHtml(tile) {
+    var list = tile && Array.isArray(tile.goals) ? tile.goals : [];
+    var metric = juristContractGoalMetric(tile);
+    var units =
+      tile && tile.units != null && String(tile.units).trim()
+        ? String(tile.units).trim()
+        : metric === "sum"
+          ? "руб."
+          : "шт.";
+    var rows = list.filter(function (row) {
+      return row && typeof row === "object" && row.name != null && String(row.name).trim() !== "";
+    });
+    if (!rows.length) {
+      return '<div class="kpi-tile-back-message">Нет данных по целям договора.</div>';
+    }
+    return (
+      '<div class="kpi-tile-articles-list kpi-tile-articles-list--dept-count" role="list">' +
+      rows
+        .map(function (row) {
+          var name = String(row.name).trim();
+          var raw = metric === "sum" ? row.sum : row.count;
+          var num = Number(raw);
+          var value = isFinite(num) && !isNaN(num) ? (metric === "count" ? Math.round(num) : num) : 0;
+          var line = name + " - " + formatKpiTileMetricValue(value, units);
           return (
             '<div class="kpi-tile-article-row kpi-tile-article-row--dept-count" role="listitem">' +
             '<span class="kpi-tile-article-row-line">' +
@@ -2459,6 +2551,23 @@
         '<div class="kpi-tile-back-section kpi-tile-back-section--dual">' +
         '<div class="kpi-tile-back-section-title">По направлениям ОТК</div>' +
         buildKpiTileDefectDirectionsBackHtml(tile) +
+        "</div>" +
+        (hint ? '<p class="kpi-tile-back-hint">' + DashUi.escapeHtml(hint) + "</p>" : "")
+      );
+    }
+    if (shouldRenderKpiTileBackContractGoals(tile)) {
+      var goalsTitle =
+        tile && tile.goals_title != null && String(tile.goals_title).trim()
+          ? String(tile.goals_title).trim()
+          : "Цель договора";
+      return (
+        buildKpiTileBackHeadHtml(tile, code, period) +
+        buildKpiTileBackKpiPctSummaryHtml(tile, pres, showHelp, showPercent) +
+        '<div class="kpi-tile-back-section kpi-tile-back-section--dual">' +
+        '<div class="kpi-tile-back-section-title">' +
+        DashUi.escapeHtml(goalsTitle) +
+        "</div>" +
+        buildKpiTileContractGoalsHtml(tile) +
         "</div>" +
         (hint ? '<p class="kpi-tile-back-hint">' + DashUi.escapeHtml(hint) + "</p>" : "")
       );

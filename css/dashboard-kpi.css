@@ -1617,6 +1617,10 @@ article.kpi-tile[data-no-flip="1"] {
   width: 100%;
 }
 
+.kpi-tile-tender-grid--goal-sums .kpi-tile-tender-label {
+  white-space: normal;
+}
+
 .kpi-tile-tender-grid--quad {
   display: grid;
   grid-template-columns: 1fr 1fr;
