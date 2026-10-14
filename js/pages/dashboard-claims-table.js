@@ -2751,7 +2751,7 @@
         { index: 3, label: "Контрагент", type: "filter", searchType: "text" },
         { index: 4, label: "Цель договора", type: "filter", searchType: "text" },
         { index: 5, label: "Статус", type: "filter", searchType: "text" },
-        { index: 6, label: "Действует с", type: "sort", searchType: "date" },
+        { index: 6, label: "от", type: "sort", searchType: "date" },
         { index: 7, label: "Сумма, руб.", type: "sort", searchType: "number" },
       ],
       initialOrder: [[6, "desc"]],
