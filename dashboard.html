@@ -400,6 +400,16 @@
               <button
                 type="button"
                 class="claims-table-switcher-btn"
+                data-claims-view="enforcement"
+                role="tab"
+                aria-selected="false"
+                hidden
+              >
+                Исполнительное производство
+              </button>
+              <button
+                type="button"
+                class="claims-table-switcher-btn"
                 data-claims-view="process"
                 role="tab"
                 aria-selected="false"
@@ -532,6 +542,40 @@
                 <tr>
                   <th colspan="7">Итого</th>
                   <th id="contracts-table-total-sum">0,00</th>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          <div
+            class="dashboard-table-wrap dashboard-table-wrap--claims dashboard-table-wrap--enforcement"
+            data-claims-view="enforcement"
+            hidden
+          >
+            <table id="table-jurist-enforcement" class="dashboard-table" aria-label="Исполнительное производство">
+              <thead>
+                <tr>
+                  <th>Номер</th>
+                  <th>Дата</th>
+                  <th>Контрагент</th>
+                  <th>Юрист</th>
+                  <th>Предмет спора</th>
+                  <th>Статус</th>
+                  <th>Роль ГК</th>
+                  <th>Номер дела</th>
+                  <th>Сумма требований</th>
+                  <th>Возбуждено</th>
+                  <th>ИЛ получен</th>
+                  <th>Подано в ФССП</th>
+                  <th>Взыскано</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+              <tfoot>
+                <tr>
+                  <th colspan="8">Итого</th>
+                  <th id="enforcement-table-total-sum">0,00</th>
+                  <th colspan="3"></th>
+                  <th id="enforcement-table-total-collected">0,00</th>
                 </tr>
               </tfoot>
             </table>
@@ -962,14 +1006,14 @@
     <script src="js/pages/dashboard-data-loader.js"></script>
     <script src="js/pages/dashboard-month-nav.js?v=20261009-past-month-fact"></script>
     <script src="js/pages/dashboard-kpi-tile-order.js"></script>
-    <script src="js/pages/dashboard-kpi-tiles.js?v=20261014-jurist-hide-zero"></script>
+    <script src="js/pages/dashboard-kpi-tiles.js?v=20261016-hide-generated-flag"></script>
     <script src="js/pages/dashboard-kpi-drilldown.js"></script>
-    <script src="js/pages/dashboard-claims-table.js?v=20261014-jurist-contracts"></script>
+    <script src="js/pages/dashboard-claims-table.js?v=20261016-enforcement"></script>
     <script src="js/pages/dashboard-charts.js"></script>
     <script src="js/pages/dashboard-viewport.js"></script>
     <script src="js/pages/dashboard-chairman-overview.js"></script>
     <script src="js/pages/dashboard-support.js"></script>
     <script src="js/pages/dashboard-ai-assistant.js"></script>
-    <script src="js/pages/dashboard.js?v=20261014-jurist-dblclick"></script>
+    <script src="js/pages/dashboard.js?v=20261016-enforcement"></script>
   </body>
 </html>

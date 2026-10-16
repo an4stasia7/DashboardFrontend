@@ -2665,7 +2665,8 @@
       planFactKey === "KD-T-MONEY" ||
       planFactKey === "KD-T-SHIP" ||
       planFactKey === "KD-T-DOG" ||
-      planFactKey === "YR-T-CONTRACTS"
+      planFactKey === "YR-T-CONTRACTS" ||
+      planFactKey === "YR-T-ENFORCEMENT"
     ) {
       return false;
     }
@@ -2736,6 +2737,96 @@
         tr.appendChild(td);
       });
       tbody.appendChild(tr);
+    });
+  }
+
+  function isJuristEnforcementRow(item) {
+    var key = item && item.tableKey != null ? String(item.tableKey).trim().toUpperCase() : "";
+    return key === "YR-T-ENFORCEMENT";
+  }
+
+  function formatEnforcementFlag(value) {
+    return value ? "Да" : "Нет";
+  }
+
+  function renderJuristEnforcementTableRows(rows) {
+    var tbody = document.querySelector("#table-jurist-enforcement tbody");
+    if (!tbody) return;
+    tbody.innerHTML = "";
+    rows.filter(isJuristEnforcementRow).forEach(function (item) {
+      var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
+      if (!raw || raw.__tableEmptyMarker === true) return;
+      var tr = document.createElement("tr");
+      var cells = [
+        tableTextOrDash(raw.number),
+        formatContractTableDate(raw.date),
+        tableTextOrDash(raw.counterparty),
+        tableTextOrDash(raw.lawyer),
+        tableTextOrDash(raw.subject),
+        tableTextOrDash(raw.status),
+        tableTextOrDash(raw.role),
+        tableTextOrDash(raw.case_number),
+        formatClaimsOrderSum(raw.amount),
+        formatContractTableDate(raw.opened_on),
+        formatEnforcementFlag(raw.writ_received),
+        formatEnforcementFlag(raw.filed_fssp),
+        formatClaimsOrderSum(raw.collected),
+      ];
+      cells.forEach(function (value, cellIndex) {
+        var td = document.createElement("td");
+        td.textContent = value;
+        if (cellIndex === 1) td.setAttribute("data-order", raw.date != null ? String(raw.date) : "");
+        if (cellIndex === 8 || cellIndex === 12) {
+          var amount = Number(cellIndex === 8 ? raw.amount : raw.collected);
+          td.setAttribute("data-order", isFinite(amount) && !isNaN(amount) ? String(amount) : "");
+          td.className = "dashboard-table-cell--number";
+        }
+        if (cellIndex === 9) td.setAttribute("data-order", raw.opened_on != null ? String(raw.opened_on) : "");
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+  }
+
+  function initJuristEnforcementDataTable() {
+    return initInteractiveDashboardTable({
+      tableSelector: "#table-jurist-enforcement",
+      wrapperSelector: ".dashboard-table-wrap--enforcement",
+      advancedSearchKey: "jurist-enforcement-table-advanced",
+      columnConfigs: [
+        { index: 0, label: "Номер", type: "filter", searchType: "text" },
+        { index: 1, label: "Дата", type: "sort", searchType: "date" },
+        { index: 2, label: "Контрагент", type: "filter", searchType: "text" },
+        { index: 3, label: "Юрист", type: "filter", searchType: "text" },
+        { index: 4, label: "Предмет спора", type: "filter", searchType: "text" },
+        { index: 5, label: "Статус", type: "filter", searchType: "text" },
+        { index: 6, label: "Роль ГК", type: "filter", searchType: "text" },
+        { index: 7, label: "Номер дела", type: "filter", searchType: "text" },
+        { index: 8, label: "Сумма требований", type: "sort", searchType: "number" },
+        { index: 9, label: "Возбуждено", type: "sort", searchType: "date" },
+        { index: 10, label: "ИЛ получен", type: "filter", searchType: "text" },
+        { index: 11, label: "Подано в ФССП", type: "filter", searchType: "text" },
+        { index: 12, label: "Взыскано", type: "sort", searchType: "number" },
+      ],
+      initialOrder: [[1, "desc"]],
+      columnDefs: [
+        { targets: [1, 8, 9, 12], orderable: true },
+      ],
+      footerCallback: function () {
+        var api = this.api();
+        function sumColumn(index) {
+          var total = 0;
+          api.column(index, { search: "applied" }).nodes().each(function (cell) {
+            var amount = Number(cell.getAttribute("data-order"));
+            if (isFinite(amount) && !isNaN(amount)) total += amount;
+          });
+          return total;
+        }
+        var sumCell = document.getElementById("enforcement-table-total-sum");
+        var collectedCell = document.getElementById("enforcement-table-total-collected");
+        if (sumCell) sumCell.textContent = formatClaimsOrderSum(sumColumn(8));
+        if (collectedCell) collectedCell.textContent = formatClaimsOrderSum(sumColumn(12));
+      },
     });
   }
 
@@ -4432,6 +4523,8 @@
     if (juristContractsTableMode) {
       renderJuristContractsTableRows(rows, options.juristContractsFilter || {});
       initJuristContractsDataTable();
+      renderJuristEnforcementTableRows(rows);
+      initJuristEnforcementDataTable();
     }
     if (enableLawsuitsTable) {
       renderLawsuitsTableRows(rows);

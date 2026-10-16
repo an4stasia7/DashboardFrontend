@@ -4720,6 +4720,9 @@
     var contractsBtn = claimsTableSwitcherEl
       ? claimsTableSwitcherEl.querySelector('[data-claims-view="contracts"]')
       : null;
+    var enforcementBtn = claimsTableSwitcherEl
+      ? claimsTableSwitcherEl.querySelector('[data-claims-view="enforcement"]')
+      : null;
     if (isJuristDashboardContext()) {
       if (!juristContractsViewReady) {
         activeClaimsTableView = "contracts";
@@ -4729,13 +4732,23 @@
         contractsBtn.hidden = false;
         contractsBtn.removeAttribute("hidden");
       }
+      if (enforcementBtn) {
+        enforcementBtn.hidden = false;
+        enforcementBtn.removeAttribute("hidden");
+      }
     } else {
-      if (activeClaimsTableView === "contracts") activeClaimsTableView = "claims";
+      if (activeClaimsTableView === "contracts" || activeClaimsTableView === "enforcement") {
+        activeClaimsTableView = "claims";
+      }
       juristContractsViewReady = false;
       juristContractsFilter = { companyCode: "", goal: "" };
       if (contractsBtn) {
         contractsBtn.hidden = true;
         contractsBtn.setAttribute("hidden", "");
+      }
+      if (enforcementBtn) {
+        enforcementBtn.hidden = true;
+        enforcementBtn.setAttribute("hidden", "");
       }
     }
     if (claimsTableSwitcherEl && !useQualdirDefectTables) {
@@ -4994,6 +5007,8 @@
           ? "process"
           : view === "contracts"
             ? "contracts"
+            : view === "enforcement"
+              ? "enforcement"
             : isPlanFactBreakdownView(view)
               ? view
               : "claims";
@@ -5045,6 +5060,7 @@
         shouldUseServheadClientsTable() ||
         nextView === "lawsuits" ||
         nextView === "contracts" ||
+        nextView === "enforcement" ||
         isPlanFactBreakdownView(nextView);
     }
     if (nextView === "lawsuits") {

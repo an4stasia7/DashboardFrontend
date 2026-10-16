@@ -530,8 +530,9 @@
 
   function shouldShowKpiTileGeneratedFlag(tile) {
     if (!tile) return false;
+    // Процент или план/факт уже на плитке — знак «!» рядом с названием не нужен.
+    if (hasKpiTileDisplayableMetricValue(tile)) return false;
     if (isKpiTileGeneratedData(tile)) return true;
-    // has_data: false на бэке = сгенерированные/заглушечные данные, даже если plan/fact заполнены.
     return tile.has_data === false;
   }
 
