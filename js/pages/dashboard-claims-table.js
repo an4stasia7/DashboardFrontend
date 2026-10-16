@@ -2793,6 +2793,7 @@
       tableSelector: "#table-jurist-enforcement",
       wrapperSelector: ".dashboard-table-wrap--enforcement",
       advancedSearchKey: "jurist-enforcement-table-advanced",
+      useExplicitColumnConfigs: true,
       columnConfigs: [
         { index: 0, label: "Номер", type: "filter", searchType: "text" },
         { index: 1, label: "Дата", type: "sort", searchType: "date" },
@@ -2835,6 +2836,7 @@
       tableSelector: "#table-jurist-contracts",
       wrapperSelector: ".dashboard-table-wrap--contracts",
       advancedSearchKey: "jurist-contracts-table-advanced",
+      useExplicitColumnConfigs: true,
       columnConfigs: [
         { index: 0, label: "Организация", type: "filter", searchType: "text" },
         { index: 1, label: "Номер", type: "filter", searchType: "text" },
@@ -3179,6 +3181,10 @@
       columnDefs = [{ targets: "_all", orderDataType: "dom-text", orderable: false }].concat(columnDefs);
     }
 
+    var freshBodyHtml = "";
+    var freshBody = tableNode ? tableNode.querySelector("tbody") : null;
+    if (freshBody) freshBodyHtml = freshBody.innerHTML;
+
     var wrapper = table.closest(wrapperSelector);
     if (wrapper.length) {
       wrapper.find(".claims-column-filter-menu").remove();
@@ -3192,6 +3198,12 @@
     if (staleWrapper.length) {
       table.detach();
       staleWrapper.replaceWith(table);
+    }
+    // destroy() возвращает tbody к снимку первой инициализации и затирает
+    // строки, которые только что положил render.
+    if (tableNode && freshBodyHtml) {
+      var bodyAfterDestroy = tableNode.querySelector("tbody");
+      if (bodyAfterDestroy) bodyAfterDestroy.innerHTML = freshBodyHtml;
     }
 
     if (tableNode) {
