@@ -4,7 +4,6 @@
   var cfg = global.AppConfig || {};
   if (!cfg.APP_UPDATE_ENABLED) return;
 
-  var DISMISSED_KEY = "dashboard_app_update_dismissed_version";
   var BANNER_ID = "app-update-banner";
   var checkTimer = null;
   var currentVersion = null;
@@ -62,19 +61,15 @@
     return normalizeVersion(releaseInfo.tag_name || releaseInfo.name || releaseInfo.version || "");
   }
 
-  function getDismissedVersion() {
-    try {
-      return localStorage.getItem(DISMISSED_KEY) || "";
-    } catch (e) {
-      return "";
-    }
-  }
-
-  function setDismissedVersion(version) {
-    try {
-      localStorage.setItem(DISMISSED_KEY, normalizeVersion(version));
-    } catch (e) {
-      /* ignore */
+  function setPageLocked(locked) {
+    if (!document.body) return;
+    document.body.classList.toggle("app-update-locked", !!locked);
+    var nodes = document.body.children;
+    for (var i = 0; i < nodes.length; i++) {
+      var node = nodes[i];
+      if (!node || node.id === BANNER_ID) continue;
+      if (locked) node.setAttribute("inert", "");
+      else node.removeAttribute("inert");
     }
   }
 
@@ -83,6 +78,7 @@
     if (banner && banner.parentNode) {
       banner.parentNode.removeChild(banner);
     }
+    setPageLocked(false);
   }
 
   function openUpdateUrl() {
@@ -143,7 +139,6 @@
       removeBanner();
       return;
     }
-    if (normalizeVersion(getDismissedVersion()) === latestVersion) return;
     ensureBanner(currentVersion, latestVersion);
   }
 
@@ -358,20 +353,24 @@
     });
   }
 
+  function bannerMessage(versionNow, versionLatest) {
+    return (
+      "Вышла новая версия " +
+      versionLatest +
+      ". Сейчас установлена " +
+      versionNow +
+      ". Чтобы продолжить работу, обновите приложение."
+    );
+  }
+
   function ensureBanner(versionNow, versionLatest) {
     if (!document.body) return;
+    setPageLocked(true);
 
     var existing = document.getElementById(BANNER_ID);
     if (existing) {
       var textEl = existing.querySelector(".app-update-banner__text");
-      if (textEl) {
-        textEl.textContent =
-          "Вышла новая версия " +
-          versionLatest +
-          ". Сейчас установлена " +
-          versionNow +
-          ". Рекомендуется обновить приложение.";
-      }
+      if (textEl) textEl.textContent = bannerMessage(versionNow, versionLatest);
       existing.hidden = false;
       return;
     }
@@ -379,17 +378,17 @@
     var banner = document.createElement("section");
     banner.id = BANNER_ID;
     banner.className = "app-update-banner";
-    banner.setAttribute("role", "status");
-    banner.setAttribute("aria-live", "polite");
+    banner.setAttribute("role", "dialog");
+    banner.setAttribute("aria-modal", "true");
+    banner.setAttribute("aria-labelledby", "app-update-banner-text");
+
+    var card = document.createElement("div");
+    card.className = "app-update-banner__card";
 
     var text = document.createElement("div");
+    text.id = "app-update-banner-text";
     text.className = "app-update-banner__text";
-    text.textContent =
-      "Вышла новая версия " +
-      versionLatest +
-      ". Сейчас установлена " +
-      versionNow +
-      ". Рекомендуется обновить приложение.";
+    text.textContent = bannerMessage(versionNow, versionLatest);
 
     var status = document.createElement("div");
     status.className = "app-update-banner__status";
@@ -406,21 +405,14 @@
       runAutoUpdate();
     });
 
-    var laterBtn = document.createElement("button");
-    laterBtn.type = "button";
-    laterBtn.className = "app-update-banner__btn";
-    laterBtn.textContent = "Позже";
-    laterBtn.addEventListener("click", function () {
-      setDismissedVersion(versionLatest);
-      removeBanner();
-    });
-
     actions.appendChild(updateBtn);
-    actions.appendChild(laterBtn);
-    banner.appendChild(text);
-    banner.appendChild(status);
-    banner.appendChild(actions);
+    card.appendChild(text);
+    card.appendChild(status);
+    card.appendChild(actions);
+    banner.appendChild(card);
     document.body.appendChild(banner);
+    setPageLocked(true);
+    updateBtn.focus();
 
     if (updateInProgress) {
       setButtonsDisabled(true);
