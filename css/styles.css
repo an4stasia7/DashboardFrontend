@@ -3,8 +3,8 @@
 @import url("./auth.css");
 @import url("./guide.css");
 @import url("./dashboard-shell.css");
-@import url("./dashboard-kpi.css?v=20261012-onec-clear");
-@import url("./dashboard-data.css");
+@import url("./dashboard-kpi.css?v=20261030-dz-scroll");
+@import url("./dashboard-data.css?v=20261030-dz-scroll");
 @import url("./dialogs.css");
 @import url("./debug.css");
 @import url("./update-banner.css?v=20261020-update-lock");

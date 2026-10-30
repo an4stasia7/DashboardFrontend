@@ -368,6 +368,7 @@
         flippedTileIndices: flippedTileIndices,
         getTileDetailsState: getKpiTileDetailsState,
         getTileCacheRefreshState: getKpiTileCacheRefreshState,
+        tileOpensTable: commercialTileTableView,
         onBeforePageChange: closeKpiTileDrilldown,
         onTilesReordered: handleKpiTilesReordered,
       });
@@ -1202,6 +1203,16 @@
         }
         return;
       }
+      var detailsBtn = e.target.closest(".kpi-tile-details-action");
+      if (detailsBtn && kpiContainerEl.contains(detailsBtn)) {
+        e.preventDefault();
+        e.stopPropagation();
+        var artDetails = detailsBtn.closest("article.kpi-tile");
+        var ixDetails = artDetails && artDetails.getAttribute("data-kpi-tile-index");
+        if (ixDetails == null) return;
+        openKpiTileDrilldown(+ixDetails);
+        return;
+      }
       var flipBtn = e.target.closest(".kpi-tile-flip-action");
       if (flipBtn && kpiContainerEl.contains(flipBtn)) {
         e.preventDefault();
@@ -1231,16 +1242,34 @@
       hideKpiHelpPopover();
       var ix = art.getAttribute("data-kpi-tile-index");
       if (ix == null || !lastKpiTiles || lastKpiTiles[+ix] == null) return;
+      if (art.classList.contains("is-flipped")) {
+        openKpiTileDrilldown(+ix);
+        return;
+      }
+      var tableView = commercialTileTableView(lastKpiTiles[+ix]);
+      if (tableView) {
+        openCommercialPlanFactBreakdown(tableView);
+        return;
+      }
       openKpiTileDrilldown(+ix);
     });
     kpiContainerEl.addEventListener("keydown", function (e) {
       if (e.key !== "Enter" && e.key !== " ") return;
       var art = e.target.closest("article.kpi-tile");
       if (!art || !kpiContainerEl.contains(art)) return;
-      if (e.target.closest(".kpi-tile-child-link, .kpi-tile-help, .kpi-tile-flip-action, .kpi-tile-drag-handle, .kpi-tile-cache-refresh, .kpi-tile-breakdown-link, .onec-report-btn")) return;
+      if (e.target.closest(".kpi-tile-child-link, .kpi-tile-help, .kpi-tile-flip-action, .kpi-tile-details-action, .kpi-tile-drag-handle, .kpi-tile-cache-refresh, .kpi-tile-breakdown-link, .onec-report-btn")) return;
       e.preventDefault();
       var ix = art.getAttribute("data-kpi-tile-index");
       if (ix == null || !lastKpiTiles || lastKpiTiles[+ix] == null) return;
+      if (art.classList.contains("is-flipped")) {
+        openKpiTileDrilldown(+ix);
+        return;
+      }
+      var tableView = commercialTileTableView(lastKpiTiles[+ix]);
+      if (tableView) {
+        openCommercialPlanFactBreakdown(tableView);
+        return;
+      }
       openKpiTileDrilldown(+ix);
     });
     kpiContainerEl.addEventListener(
@@ -3909,6 +3938,7 @@
     if (isProductionDirectorDashboardContext()) return true;
     if (shouldUseTechnicalTables()) return true;
     if (shouldUseCommercialDirectorOverdueDebtEnhancements()) return true;
+    if (isCommercialFamilyDashboardContext()) return true;
     if (isBoardChairCommercialBlockContext()) return true;
     return isBoardChairUser(sessionUser) && selectedViewId === "self";
   }
@@ -4098,8 +4128,10 @@
     }
 
     var showPlanFactTabs =
-      shouldUseCommercialDirectorOverdueDebtEnhancements() || isBoardChairCommercialBlockContext();
-    ["money", "ship", "dog"].forEach(function (viewName) {
+      isCommercialFamilyDashboardContext() ||
+      shouldUseCommercialDirectorOverdueDebtEnhancements() ||
+      isBoardChairCommercialBlockContext();
+    ["money", "ship", "dog", "dz"].forEach(function (viewName) {
       var button = document.querySelector('.claims-table-switcher-btn[data-claims-view="' + viewName + '"]');
       if (!button) return;
       button.hidden = !showPlanFactTabs;
@@ -4205,15 +4237,66 @@
     return view === "money" || view === "ship" || view === "dog";
   }
 
+  function isCommercialBreakdownView(view) {
+    return isPlanFactBreakdownView(view) || view === "dz" || view === "overdue";
+  }
+
+  function hasCommercialKdTiles(tiles) {
+    if (!Array.isArray(tiles)) return false;
+    for (var i = 0; i < tiles.length; i++) {
+      var id = tiles[i] && tiles[i].kpi_id != null ? String(tiles[i].kpi_id).trim().toUpperCase() : "";
+      if (id === "KD-M1" || id === "KD-M2" || id === "KD-M3" || id === "KD-M4" || id === "KD-M5") return true;
+    }
+    return false;
+  }
+
+  function isCommercialFamilyDashboardContext() {
+    if (shouldUseBoardChairExecutiveTables() || isBoardChairCommercialBlockContext()) return false;
+    if (isBoardChairUser(sessionUser) && selectedViewId === "self") return false;
+    if (shouldUseCommercialDirectorOverdueDebtEnhancements()) return true;
+    return hasCommercialKdTiles(lastKpiTiles);
+  }
+
+  function commercialTileTableView(tile) {
+    if (!isCommercialFamilyDashboardContext()) return "";
+    var id = tile && tile.kpi_id != null ? String(tile.kpi_id).trim().toUpperCase() : "";
+    if (id === "KD-M1") return "money";
+    if (id === "KD-M2") return "ship";
+    if (id === "KD-M3") return "dog";
+    if (id === "KD-M4") return "dz";
+    if (id === "KD-M5") return "overdue";
+    return "";
+  }
+
+  function scrollDashboardTableIntoView(target) {
+    if (!target || typeof target.scrollIntoView !== "function") return;
+    document.querySelectorAll(".table-panel.is-scroll-target").forEach(function (node) {
+      node.classList.remove("is-scroll-target");
+    });
+    var panel = target.classList && target.classList.contains("table-panel")
+      ? target
+      : target.closest && target.closest(".table-panel");
+    if (panel) panel.classList.add("is-scroll-target");
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
+    window.setTimeout(function () {
+      if (panel) panel.classList.remove("is-scroll-target");
+    }, 1600);
+  }
+
   function openCommercialPlanFactBreakdown(view) {
-    var nextView = isPlanFactBreakdownView(view) ? view : "claims";
+    if (view === "overdue") {
+      var overdueTitle = document.getElementById("overdue-debt-table-title");
+      var overduePanel = overdueTitle && overdueTitle.closest ? overdueTitle.closest(".table-panel") : null;
+      scrollDashboardTableIntoView(overduePanel || document.querySelector(".tables-row"));
+      return;
+    }
+    var nextView = isPlanFactBreakdownView(view) || view === "dz" ? view : "claims";
     activeClaimsTableView = nextView;
-    updateClaimsTableSwitcherUi(shouldUseClaimsAndLawsuitsSwitcher() || isPlanFactBreakdownView(nextView));
+    updateClaimsTableSwitcherUi(shouldUseClaimsAndLawsuitsSwitcher() || isCommercialBreakdownView(nextView));
     applyClaimsTableView(nextView);
     var tablesRow = document.querySelector(".tables-row");
-    if (tablesRow && typeof tablesRow.scrollIntoView === "function") {
-      tablesRow.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
+    var firstPanel = tablesRow ? tablesRow.querySelector(".table-panel") : null;
+    scrollDashboardTableIntoView(firstPanel || tablesRow);
   }
 
   function renderPlanFactBreakdownTable(view) {
@@ -4300,8 +4383,57 @@
       "</th></tr></tfoot>";
   }
 
+  function renderDzBreakdownTable() {
+    var table = document.getElementById("table-dz");
+    if (!table) return;
+    var source = Array.isArray(lastApiTableRows) ? lastApiTableRows : [];
+    var rows = source.filter(function (item) {
+      var key = item && item.tableKey != null ? String(item.tableKey).trim().toUpperCase() : "";
+      return key === "KD-T-DZ" && item.raw && item.raw.__tableEmptyMarker !== true;
+    });
+    var total = 0;
+    var body = rows
+      .map(function (item) {
+        var raw = item.raw || {};
+        var amount = Number(raw.amount);
+        if (!isNaN(amount)) total += amount;
+        var cells = [
+          raw.order_num || raw.order_number || "—",
+          raw.counterparty || raw.partner_name || raw.partner || "—",
+          raw.department || raw["Подразделение"] || raw.dept_name || "—",
+          raw.payment_date || "—",
+          isNaN(amount)
+            ? "—"
+            : amount.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        ];
+        return (
+          "<tr>" +
+          cells
+            .map(function (value, index) {
+              var cls = index === 4 ? ' class="dashboard-table-cell--number"' : "";
+              return "<td" + cls + ">" + DashUi.escapeHtml(String(value)) + "</td>";
+            })
+            .join("") +
+          "</tr>"
+        );
+      })
+      .join("");
+    if (!body) {
+      body = '<tr><td colspan="5">Расшифровка дебиторской задолженности за выбранный месяц ещё не готова.</td></tr>';
+    }
+    var totalText = total.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    table.innerHTML =
+      "<thead><tr><th>№ Заказа клиента</th><th>Контрагент</th><th>Подразделение</th><th>Дата оплаты</th><th>Сумма, руб.</th></tr></thead>" +
+      "<tbody>" +
+      body +
+      "</tbody>" +
+      '<tfoot><tr><th colspan="4">Итого</th><th class="dashboard-table-cell--number">' +
+      totalText +
+      "</th></tr></tfoot>";
+  }
+
   function applyClaimsTableView(view) {
-    var nextView = view === "lawsuits" ? "lawsuits" : view === "process" ? "process" : isPlanFactBreakdownView(view) ? view : "claims";
+    var nextView = view === "lawsuits" ? "lawsuits" : view === "process" ? "process" : (isPlanFactBreakdownView(view) || view === "dz") ? view : "claims";
     activeClaimsTableView = nextView;
 
     var wrappers = document.querySelectorAll('[data-claims-view]');
@@ -4340,6 +4472,9 @@
     if (isPlanFactBreakdownView(nextView)) {
       renderPlanFactBreakdownTable(nextView);
     }
+    if (nextView === "dz") {
+      renderDzBreakdownTable();
+    }
     if (claimsTableHelpWrapEl) {
       claimsTableHelpWrapEl.hidden =
         shouldUseQualdirDefectTables() ||
@@ -4349,7 +4484,8 @@
         shouldUseHrdLateVacanciesTable() ||
         shouldUseServheadClientsTable() ||
         nextView === "lawsuits" ||
-        isPlanFactBreakdownView(nextView);
+        isPlanFactBreakdownView(nextView) ||
+        nextView === "dz";
     }
     if (nextView === "lawsuits") {
       hideClaimsTableHelpPopover();

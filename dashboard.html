@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Главная — дашборд</title>
-    <link rel="stylesheet" href="css/styles.css?v=20261012-onec-clear" />
+    <link rel="stylesheet" href="css/styles.css?v=20261030-dz-scroll" />
     <link rel="stylesheet" href="node_modules/katex/dist/katex.min.css" />
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/jquery.dataTables.min.css" />
   </head>
@@ -425,6 +425,16 @@
               >
                 Договоры
               </button>
+              <button
+                type="button"
+                class="claims-table-switcher-btn"
+                data-claims-view="dz"
+                role="tab"
+                aria-selected="false"
+                hidden
+              >
+                Дебиторка
+              </button>
             </nav>
             <span class="table-title-help-wrap" id="claims-table-help-wrap">
               <button
@@ -567,6 +577,13 @@
             hidden
           >
             <table id="table-plan-fact-dog" class="dashboard-table" aria-label="Расшифровка договоров"></table>
+          </div>
+          <div
+            class="dashboard-table-wrap dashboard-table-wrap--claims dashboard-table-wrap--plan-fact"
+            data-claims-view="dz"
+            hidden
+          >
+            <table id="table-dz" class="dashboard-table" aria-label="Дебиторская задолженность"></table>
           </div>
           <div
             class="dashboard-table-wrap dashboard-table-wrap--claims dashboard-table-wrap--qualdir-process"
@@ -919,14 +936,14 @@
     <script src="js/pages/dashboard-data-loader.js"></script>
     <script src="js/pages/dashboard-month-nav.js?v=20261009-past-month-fact"></script>
     <script src="js/pages/dashboard-kpi-tile-order.js"></script>
-    <script src="js/pages/dashboard-kpi-tiles.js?v=20261012-all-tiles"></script>
+    <script src="js/pages/dashboard-kpi-tiles.js?v=20261030-dz-scroll"></script>
     <script src="js/pages/dashboard-kpi-drilldown.js"></script>
-    <script src="js/pages/dashboard-claims-table.js?v=20260810-log-dz2"></script>
+    <script src="js/pages/dashboard-claims-table.js?v=20261030-dz-scroll"></script>
     <script src="js/pages/dashboard-charts.js"></script>
     <script src="js/pages/dashboard-viewport.js"></script>
     <script src="js/pages/dashboard-chairman-overview.js"></script>
     <script src="js/pages/dashboard-support.js"></script>
     <script src="js/pages/dashboard-ai-assistant.js"></script>
-    <script src="js/pages/dashboard.js?v=20261012-all-tiles"></script>
+    <script src="js/pages/dashboard.js?v=20261030-dz-scroll"></script>
   </body>
 </html>

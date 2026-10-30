@@ -2565,7 +2565,7 @@
   function isClaimsTableRow(item) {
     var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
     var planFactKey = item && item.tableKey != null ? String(item.tableKey).trim().toUpperCase() : "";
-    if (planFactKey === "KD-T-MONEY" || planFactKey === "KD-T-SHIP" || planFactKey === "KD-T-DOG") {
+    if (planFactKey === "KD-T-MONEY" || planFactKey === "KD-T-SHIP" || planFactKey === "KD-T-DOG" || planFactKey === "KD-T-DZ") {
       return false;
     }
     if (!raw || isOverdueDebtRow(item) || isLawsuitsRow(item) || isProtocolOverdueRow(item) || isQualdirDefectRow(item) || isServheadClientsRow(item) || isServheadSurveysRow(item) || isHrdLateVacancyRow(item)) {
