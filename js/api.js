@@ -42,8 +42,15 @@
       status: status,
       body: body,
     };
-    if (!global.__apiDebugJsonLog) global.__apiDebugJsonLog = [];
-    global.__apiDebugJsonLog.push(entry);
+    if (global.DashDebug && typeof global.DashDebug.appendDebugLogEntry === "function") {
+      global.DashDebug.appendDebugLogEntry(entry);
+    } else {
+      if (!global.__apiDebugJsonLog) global.__apiDebugJsonLog = [];
+      global.__apiDebugJsonLog.push(entry);
+      while (global.__apiDebugJsonLog.length > 20) {
+        global.__apiDebugJsonLog.shift();
+      }
+    }
     if (typeof global.ApiDebugLog === "function") {
       try {
         global.ApiDebugLog();

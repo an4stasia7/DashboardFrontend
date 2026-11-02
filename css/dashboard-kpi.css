@@ -1810,7 +1810,7 @@ article.kpi-tile[data-no-flip="1"] {
 .kpi-tile-badge-actions {
   display: flex;
   flex-direction: row;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
@@ -2877,6 +2877,19 @@ article.kpi-tile[data-no-flip="1"] {
   display: block;
   pointer-events: none;
   background: transparent;
+}
+
+.kpi-tile .onec-report-btn {
+  width: 28px;
+  height: 28px;
+  overflow: visible;
+}
+
+.kpi-tile .onec-report-btn-icon {
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+  object-position: center;
 }
 
 .table-onec-slot {

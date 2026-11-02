@@ -20,19 +20,22 @@
 
   /** Ручная запись в общий журнал отладки (mock, отсутствие Api и т.п.). */
   function pushDashboardDebugNote(source, message) {
-    if (!window.__apiDebugJsonLog) window.__apiDebugJsonLog = [];
-    window.__apiDebugJsonLog.push({
+    var entry = {
       at: new Date().toISOString(),
       source: source || "dashboard",
       method: "",
       url: "",
       status: "",
       body: { _note: message },
-    });
+    };
+    if (DashDebug && typeof DashDebug.appendDebugLogEntry === "function") {
+      DashDebug.appendDebugLogEntry(entry);
+    } else {
+      if (!window.__apiDebugJsonLog) window.__apiDebugJsonLog = [];
+      window.__apiDebugJsonLog.push(entry);
+    }
     if (DashDebug && typeof DashDebug.scheduleRenderDebugJsonLogPanel === "function") {
       DashDebug.scheduleRenderDebugJsonLogPanel();
-    } else {
-      DashDebug.renderDebugJsonLogPanel();
     }
   }
 
@@ -78,6 +81,8 @@
   var logisticsClientDzOverdueOnlyEl = document.getElementById("logistics-client-dz-overdue-only");
   var claimsTableSwitcherEl = document.getElementById("claims-table-switcher");
   var activeClaimsTableView = "claims";
+  var activeDebtTableView = "dz";
+  var commercialBreakdownDefaulted = false;
   var debugJsonToggleBtnEl = document.getElementById("debug-kpi-json-toggle");
   var debugJsonSectionEl = document.getElementById("debug-kpi-json-section");
   var DONUT_CHARTS_PER_PAGE = 6;
@@ -260,6 +265,9 @@
     debugJsonSectionEl.hidden = !expanded;
     debugJsonToggleBtnEl.setAttribute("aria-expanded", expanded ? "true" : "false");
     debugJsonToggleBtnEl.textContent = expanded ? "Скрыть блок для разработчика" : "Для разработчика";
+    if (expanded && DashDebug && typeof DashDebug.renderDebugJsonLogPanel === "function") {
+      DashDebug.renderDebugJsonLogPanel();
+    }
   }
 
   function getSessionUserDepartment() {
@@ -1481,6 +1489,15 @@
       var view = target.getAttribute("data-claims-view") || "claims";
       if (view === activeClaimsTableView) return;
       applyClaimsTableView(view);
+    });
+  }
+
+  var debtTableSwitcherEl = document.getElementById("debt-table-switcher");
+  if (debtTableSwitcherEl) {
+    debtTableSwitcherEl.addEventListener("click", function (e) {
+      var target = e.target && e.target.closest ? e.target.closest("[data-debt-view]") : null;
+      if (!target || !debtTableSwitcherEl.contains(target)) return;
+      applyDebtTableView(target.getAttribute("data-debt-view") || "dz");
     });
   }
 
@@ -4131,11 +4148,20 @@
       isCommercialFamilyDashboardContext() ||
       shouldUseCommercialDirectorOverdueDebtEnhancements() ||
       isBoardChairCommercialBlockContext();
-    ["money", "ship", "dog", "dz"].forEach(function (viewName) {
+    ["money", "dog", "ship"].forEach(function (viewName) {
       var button = document.querySelector('.claims-table-switcher-btn[data-claims-view="' + viewName + '"]');
       if (!button) return;
       button.hidden = !showPlanFactTabs;
     });
+    if (
+      showPlanFactTabs &&
+      isCommercialFamilyDashboardContext() &&
+      !commercialBreakdownDefaulted &&
+      (activeClaimsTableView === "claims" || activeClaimsTableView === "dz")
+    ) {
+      commercialBreakdownDefaulted = true;
+      activeClaimsTableView = "money";
+    }
     updateClaimsTableSwitcherUi(showClaimsSwitcher);
     syncCommercialOnecTableButtons();
     updatePsdTableAmountFilterBarVisibility();
@@ -4144,6 +4170,7 @@
       useServheadClientsOnlyTable
     );
     updateLogisticsClientDzFilterVisibility(isLogisticsDashboardContext());
+    updateDebtTableSwitcher();
 
     var tablesRow = document.querySelector(".tables-row");
     if (tablesRow) {
@@ -4284,13 +4311,14 @@
   }
 
   function openCommercialPlanFactBreakdown(view) {
-    if (view === "overdue") {
-      var overdueTitle = document.getElementById("overdue-debt-table-title");
-      var overduePanel = overdueTitle && overdueTitle.closest ? overdueTitle.closest(".table-panel") : null;
-      scrollDashboardTableIntoView(overduePanel || document.querySelector(".tables-row"));
+    if (view === "overdue" || view === "dz") {
+      applyDebtTableView(view === "overdue" ? "overdue" : "dz");
+      var debtTitle = document.getElementById("debt-table-switcher") || document.getElementById("overdue-debt-table-title");
+      var debtPanel = debtTitle && debtTitle.closest ? debtTitle.closest(".table-panel") : null;
+      scrollDashboardTableIntoView(debtPanel || document.querySelector(".tables-row"));
       return;
     }
-    var nextView = isPlanFactBreakdownView(view) || view === "dz" ? view : "claims";
+    var nextView = isPlanFactBreakdownView(view) ? view : "claims";
     activeClaimsTableView = nextView;
     updateClaimsTableSwitcherUi(shouldUseClaimsAndLawsuitsSwitcher() || isCommercialBreakdownView(nextView));
     applyClaimsTableView(nextView);
@@ -4419,7 +4447,7 @@
       })
       .join("");
     if (!body) {
-      body = '<tr><td colspan="5">Расшифровка дебиторской задолженности за выбранный месяц ещё не готова.</td></tr>';
+      body = '<tr><td colspan="5">Дебиторская задолженность за выбранный месяц ещё не готова.</td></tr>';
     }
     var totalText = total.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     table.innerHTML =
@@ -4432,8 +4460,40 @@
       "</th></tr></tfoot>";
   }
 
+  function applyDebtTableView(view) {
+    var nextView = view === "overdue" ? "overdue" : "dz";
+    activeDebtTableView = nextView;
+    document.querySelectorAll("[data-debt-view]").forEach(function (node) {
+      if (!node || node.tagName === "NAV" || node.tagName === "BUTTON") return;
+      node.hidden = node.getAttribute("data-debt-view") !== nextView;
+    });
+    var buttons = document.querySelectorAll("#debt-table-switcher [data-debt-view]");
+    buttons.forEach(function (btn) {
+      var match = btn.getAttribute("data-debt-view") === nextView;
+      btn.setAttribute("aria-selected", match ? "true" : "false");
+      btn.classList.toggle("is-active", match);
+    });
+    if (nextView === "dz") renderDzBreakdownTable();
+  }
+
+  function updateDebtTableSwitcher() {
+    var commercial = isCommercialFamilyDashboardContext();
+    var switcher = document.getElementById("debt-table-switcher");
+    var title = document.getElementById("overdue-debt-table-title");
+    if (switcher) switcher.hidden = !commercial;
+    if (title) title.hidden = !!commercial;
+    if (!commercial) {
+      document.querySelectorAll("[data-debt-view]").forEach(function (node) {
+        if (!node || node.tagName === "NAV" || node.tagName === "BUTTON") return;
+        node.hidden = node.getAttribute("data-debt-view") !== "overdue";
+      });
+      return;
+    }
+    applyDebtTableView(activeDebtTableView || "dz");
+  }
+
   function applyClaimsTableView(view) {
-    var nextView = view === "lawsuits" ? "lawsuits" : view === "process" ? "process" : (isPlanFactBreakdownView(view) || view === "dz") ? view : "claims";
+    var nextView = view === "lawsuits" ? "lawsuits" : view === "process" ? "process" : isPlanFactBreakdownView(view) ? view : "claims";
     activeClaimsTableView = nextView;
 
     var wrappers = document.querySelectorAll('[data-claims-view]');
@@ -4471,9 +4531,6 @@
 
     if (isPlanFactBreakdownView(nextView)) {
       renderPlanFactBreakdownTable(nextView);
-    }
-    if (nextView === "dz") {
-      renderDzBreakdownTable();
     }
     if (claimsTableHelpWrapEl) {
       claimsTableHelpWrapEl.hidden =
@@ -4945,8 +5002,6 @@
   updateTopBarForView();
   if (DashDebug && typeof DashDebug.scheduleRenderDebugJsonLogPanel === "function") {
     DashDebug.scheduleRenderDebugJsonLogPanel();
-  } else {
-    DashDebug.renderDebugJsonLogPanel();
   }
 
   var isBoardChairSession = isBoardChairUser(sessionUser);

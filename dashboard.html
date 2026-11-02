@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Главная — дашборд</title>
-    <link rel="stylesheet" href="css/styles.css?v=20261030-dz-scroll" />
+    <link rel="stylesheet" href="css/styles.css?v=20261030-tile-actions" />
     <link rel="stylesheet" href="node_modules/katex/dist/katex.min.css" />
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/jquery.dataTables.min.css" />
   </head>
@@ -370,50 +370,12 @@
               <button
                 type="button"
                 class="claims-table-switcher-btn"
-                data-claims-view="claims"
-                role="tab"
-                aria-selected="true"
-              >
-                Претензии
-              </button>
-              <button
-                type="button"
-                class="claims-table-switcher-btn"
-                data-claims-view="lawsuits"
-                role="tab"
-                aria-selected="false"
-              >
-                Суды
-              </button>
-              <button
-                type="button"
-                class="claims-table-switcher-btn"
-                data-claims-view="process"
-                role="tab"
-                aria-selected="false"
-                hidden
-              >
-                Процессные несоответствия
-              </button>
-              <button
-                type="button"
-                class="claims-table-switcher-btn"
                 data-claims-view="money"
                 role="tab"
                 aria-selected="false"
                 hidden
               >
                 Деньги
-              </button>
-              <button
-                type="button"
-                class="claims-table-switcher-btn"
-                data-claims-view="ship"
-                role="tab"
-                aria-selected="false"
-                hidden
-              >
-                Отгрузки
               </button>
               <button
                 type="button"
@@ -428,12 +390,40 @@
               <button
                 type="button"
                 class="claims-table-switcher-btn"
-                data-claims-view="dz"
+                data-claims-view="ship"
                 role="tab"
                 aria-selected="false"
                 hidden
               >
-                Дебиторка
+                Отгрузки
+              </button>
+              <button
+                type="button"
+                class="claims-table-switcher-btn"
+                data-claims-view="lawsuits"
+                role="tab"
+                aria-selected="false"
+              >
+                Суды
+              </button>
+              <button
+                type="button"
+                class="claims-table-switcher-btn"
+                data-claims-view="claims"
+                role="tab"
+                aria-selected="true"
+              >
+                Претензии
+              </button>
+              <button
+                type="button"
+                class="claims-table-switcher-btn"
+                data-claims-view="process"
+                role="tab"
+                aria-selected="false"
+                hidden
+              >
+                Процессные несоответствия
               </button>
             </nav>
             <span class="table-title-help-wrap" id="claims-table-help-wrap">
@@ -579,13 +569,6 @@
             <table id="table-plan-fact-dog" class="dashboard-table" aria-label="Расшифровка договоров"></table>
           </div>
           <div
-            class="dashboard-table-wrap dashboard-table-wrap--claims dashboard-table-wrap--plan-fact"
-            data-claims-view="dz"
-            hidden
-          >
-            <table id="table-dz" class="dashboard-table" aria-label="Дебиторская задолженность"></table>
-          </div>
-          <div
             class="dashboard-table-wrap dashboard-table-wrap--claims dashboard-table-wrap--qualdir-process"
             data-claims-view="process"
             hidden
@@ -607,6 +590,32 @@
         <section class="table-panel">
           <h2 class="table-panel-title">
             <span id="overdue-debt-table-title">Расшифровка просроченной дебиторской задолженности</span>
+            <nav
+              id="debt-table-switcher"
+              class="claims-table-switcher"
+              role="tablist"
+              aria-label="Дебиторская задолженность"
+              hidden
+            >
+              <button
+                type="button"
+                class="claims-table-switcher-btn"
+                data-debt-view="dz"
+                role="tab"
+                aria-selected="true"
+              >
+                Дебиторская задолженность
+              </button>
+              <button
+                type="button"
+                class="claims-table-switcher-btn"
+                data-debt-view="overdue"
+                role="tab"
+                aria-selected="false"
+              >
+                Просроченная дебиторская задолженность
+              </button>
+            </nav>
             <span id="overdue-debt-onec-slot" class="table-onec-slot"></span>
             <span
               id="psd-table-amount-filter-wrap-overdue"
@@ -663,7 +672,14 @@
               </button>
             </span>
           </h2>
-          <div class="dashboard-table-wrap dashboard-table-wrap--claims dashboard-table-wrap--overdue-debt">
+          <div
+            class="dashboard-table-wrap dashboard-table-wrap--claims dashboard-table-wrap--plan-fact"
+            data-debt-view="dz"
+            hidden
+          >
+            <table id="table-dz" class="dashboard-table" aria-label="Дебиторская задолженность"></table>
+          </div>
+          <div class="dashboard-table-wrap dashboard-table-wrap--claims dashboard-table-wrap--overdue-debt" data-debt-view="overdue">
             <table id="table-overdue-debt" class="dashboard-table" aria-label="Расшифровка просроченной дебиторской задолженности">
               <thead>
                 <tr>
@@ -936,14 +952,14 @@
     <script src="js/pages/dashboard-data-loader.js"></script>
     <script src="js/pages/dashboard-month-nav.js?v=20261009-past-month-fact"></script>
     <script src="js/pages/dashboard-kpi-tile-order.js"></script>
-    <script src="js/pages/dashboard-kpi-tiles.js?v=20261030-dz-scroll"></script>
+    <script src="js/pages/dashboard-kpi-tiles.js?v=20261030-tile-actions"></script>
     <script src="js/pages/dashboard-kpi-drilldown.js"></script>
-    <script src="js/pages/dashboard-claims-table.js?v=20261030-dz-scroll"></script>
+    <script src="js/pages/dashboard-claims-table.js?v=20261030-dz-match"></script>
     <script src="js/pages/dashboard-charts.js"></script>
     <script src="js/pages/dashboard-viewport.js"></script>
     <script src="js/pages/dashboard-chairman-overview.js"></script>
     <script src="js/pages/dashboard-support.js"></script>
     <script src="js/pages/dashboard-ai-assistant.js"></script>
-    <script src="js/pages/dashboard.js?v=20261030-dz-scroll"></script>
+    <script src="js/pages/dashboard.js?v=20261030-dz-match"></script>
   </body>
 </html>

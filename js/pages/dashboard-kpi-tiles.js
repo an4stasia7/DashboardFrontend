@@ -374,8 +374,8 @@
       buildKpiTileRefreshButtonHtml(tile) +
       helpHtml +
       buildKpiTileOnecButtonHtml(tile) +
-      buildKpiTileDetailsButtonHtml(tile) +
       "</div>" +
+      buildKpiTileDetailsButtonHtml(tile) +
       buildKpiTileDragHandleHtml() +
       "</div>" +
       "</div>"
