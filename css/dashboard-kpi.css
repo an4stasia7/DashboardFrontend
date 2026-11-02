@@ -1871,6 +1871,7 @@ article.kpi-tile[data-no-flip="1"] {
 .kpi-tile-badge-actions {
   display: flex;
   flex-direction: row;
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: flex-end;
   gap: 8px;
@@ -1931,6 +1932,33 @@ article.kpi-tile[data-no-flip="1"] {
 .kpi-tile-cache-refresh:disabled {
   cursor: default;
   opacity: 0.72;
+}
+
+.kpi-tile-details-action {
+  height: 32px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  background: rgba(255, 255, 255, 0.94);
+  color: #475569;
+  padding: 0 10px;
+  margin: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.08);
+}
+
+.kpi-tile-details-action:hover,
+.kpi-tile-details-action:focus-visible {
+  border-color: var(--accent-blue, #2b5ca6);
+  color: var(--accent-blue, #2b5ca6);
+  outline: none;
 }
 
 .kpi-tile-cache-refresh.is-cooldown {
@@ -2869,6 +2897,13 @@ article.kpi-tile[data-no-flip="1"] {
   box-shadow: none;
 }
 
+.kpi-tile-details-action {
+  height: 28px;
+  padding: 0 8px;
+  font-size: 11px;
+  box-shadow: none;
+}
+
 .onec-report-btn {
   min-width: 28px;
   height: 28px;
@@ -2911,6 +2946,19 @@ article.kpi-tile[data-no-flip="1"] {
   font-weight: 700;
   letter-spacing: 0.02em;
   line-height: 1;
+}
+
+.kpi-tile .onec-report-btn {
+  width: 28px;
+  height: 28px;
+  overflow: visible;
+}
+
+.kpi-tile .onec-report-btn-icon {
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
+  object-position: center;
 }
 
 .table-onec-slot {

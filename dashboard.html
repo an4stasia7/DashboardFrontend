@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Главная — дашборд</title>
-    <link rel="stylesheet" href="css/styles.css?v=20261014-jurist-contracts-rows" />
+    <link rel="stylesheet" href="css/styles.css?v=20261102-merge-cursor" />
     <link rel="stylesheet" href="node_modules/katex/dist/katex.min.css" />
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/jquery.dataTables.min.css" />
   </head>
@@ -380,42 +380,12 @@
               <button
                 type="button"
                 class="claims-table-switcher-btn"
-                data-claims-view="claims"
-                data-default-label="Претензии"
-                role="tab"
-                aria-selected="true"
-              >
-                Претензии
-              </button>
-              <button
-                type="button"
-                class="claims-table-switcher-btn"
-                data-claims-view="lawsuits"
-                data-default-label="Суды"
-                role="tab"
-                aria-selected="false"
-              >
-                Суды
-              </button>
-              <button
-                type="button"
-                class="claims-table-switcher-btn"
                 data-claims-view="enforcement"
                 role="tab"
                 aria-selected="false"
                 hidden
               >
                 Исполнительное производство
-              </button>
-              <button
-                type="button"
-                class="claims-table-switcher-btn"
-                data-claims-view="process"
-                role="tab"
-                aria-selected="false"
-                hidden
-              >
-                Процессные несоответствия
               </button>
               <button
                 type="button"
@@ -446,6 +416,36 @@
                 hidden
               >
                 Договоры
+              </button>
+              <button
+                type="button"
+                class="claims-table-switcher-btn"
+                data-claims-view="lawsuits"
+                data-default-label="Суды"
+                role="tab"
+                aria-selected="false"
+              >
+                Суды
+              </button>
+              <button
+                type="button"
+                class="claims-table-switcher-btn"
+                data-claims-view="claims"
+                data-default-label="Претензии"
+                role="tab"
+                aria-selected="true"
+              >
+                Претензии
+              </button>
+              <button
+                type="button"
+                class="claims-table-switcher-btn"
+                data-claims-view="process"
+                role="tab"
+                aria-selected="false"
+                hidden
+              >
+                Процессные несоответствия
               </button>
             </nav>
             <span id="jurist-contracts-filter" class="jurist-contracts-filter" hidden>
@@ -677,6 +677,32 @@
         <section class="table-panel">
           <h2 class="table-panel-title">
             <span id="overdue-debt-table-title">Расшифровка просроченной дебиторской задолженности</span>
+            <nav
+              id="debt-table-switcher"
+              class="claims-table-switcher"
+              role="tablist"
+              aria-label="Дебиторская задолженность"
+              hidden
+            >
+              <button
+                type="button"
+                class="claims-table-switcher-btn"
+                data-debt-view="dz"
+                role="tab"
+                aria-selected="true"
+              >
+                Дебиторская задолженность
+              </button>
+              <button
+                type="button"
+                class="claims-table-switcher-btn"
+                data-debt-view="overdue"
+                role="tab"
+                aria-selected="false"
+              >
+                Просроченная дебиторская задолженность
+              </button>
+            </nav>
             <span id="overdue-debt-onec-slot" class="table-onec-slot"></span>
             <span
               id="psd-table-amount-filter-wrap-overdue"
@@ -733,7 +759,14 @@
               </button>
             </span>
           </h2>
-          <div class="dashboard-table-wrap dashboard-table-wrap--claims dashboard-table-wrap--overdue-debt">
+          <div
+            class="dashboard-table-wrap dashboard-table-wrap--claims dashboard-table-wrap--plan-fact"
+            data-debt-view="dz"
+            hidden
+          >
+            <table id="table-dz" class="dashboard-table" aria-label="Дебиторская задолженность"></table>
+          </div>
+          <div class="dashboard-table-wrap dashboard-table-wrap--claims dashboard-table-wrap--overdue-debt" data-debt-view="overdue">
             <table id="table-overdue-debt" class="dashboard-table" aria-label="Расшифровка просроченной дебиторской задолженности">
               <thead>
                 <tr>
@@ -743,13 +776,16 @@
                   <th>Подразделение</th>
                   <th>Причина</th>
                   <th>Действие</th>
+                  <th>Дата контакта</th>
+                  <th>Дата следующего контакта</th>
+                  <th>Менеджер</th>
                   <th>Сумма, руб</th>
                 </tr>
               </thead>
               <tbody></tbody>
               <tfoot>
                 <tr>
-                  <th colspan="6">Итого</th>
+                  <th colspan="9">Итого</th>
                   <th id="overdue-debt-table-total-sum">0,00</th>
                 </tr>
               </tfoot>
@@ -990,7 +1026,7 @@
     <script src="js/const/kpiTileExceptions.js?v=20261014-form-tone"></script>
     <script src="js/mockData.js?v=20261012-mrk-rag"></script>
     <script src="js/auth.js?v=20261012-onec-client"></script>
-    <script src="js/api.js?v=20261014-sht3-month"></script>
+    <script src="js/api.js?v=20261102-merge-cursor"></script>
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
     <!-- Явная версия: с code.highcharts.com без версии иногда подтягивается HC12+ с иными требованиями -->
@@ -999,21 +1035,21 @@
     <script src="node_modules/katex/dist/katex.min.js"></script>
     <script src="js/utils/dash-ui-leaf.js"></script>
     <script src="js/utils/dash-latex.js"></script>
-    <script src="js/pages/dash-debug-log.js"></script>
+    <script src="js/pages/dash-debug-log.js?v=20261102-merge-cursor"></script>
     <script src="js/pages/dashboard-hierarchy-nav.js"></script>
     <script src="js/pages/dashboard-aggregation.js"></script>
     <script src="js/pages/dashboard-request-builder.js"></script>
     <script src="js/pages/dashboard-data-loader.js"></script>
     <script src="js/pages/dashboard-month-nav.js?v=20261009-past-month-fact"></script>
     <script src="js/pages/dashboard-kpi-tile-order.js"></script>
-    <script src="js/pages/dashboard-kpi-tiles.js?v=20261016-hide-generated-flag"></script>
+    <script src="js/pages/dashboard-kpi-tiles.js?v=20261102-merge-cursor"></script>
     <script src="js/pages/dashboard-kpi-drilldown.js"></script>
-    <script src="js/pages/dashboard-claims-table.js?v=20261016-enforcement"></script>
+    <script src="js/pages/dashboard-claims-table.js?v=20261102-merge-cursor"></script>
     <script src="js/pages/dashboard-charts.js"></script>
     <script src="js/pages/dashboard-viewport.js"></script>
     <script src="js/pages/dashboard-chairman-overview.js"></script>
     <script src="js/pages/dashboard-support.js"></script>
     <script src="js/pages/dashboard-ai-assistant.js"></script>
-    <script src="js/pages/dashboard.js?v=20261016-enforcement"></script>
+    <script src="js/pages/dashboard.js?v=20261102-merge-cursor"></script>
   </body>
 </html>

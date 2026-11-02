@@ -486,6 +486,11 @@
   display: none !important;
 }
 
+.table-panel.is-scroll-target {
+  outline: 2px solid rgba(43, 92, 166, 0.45);
+  outline-offset: 2px;
+}
+
 .table-panel {
   background:
     linear-gradient(145deg, rgba(255, 255, 255, 0.58), rgba(245, 248, 252, 0.34) 52%, rgba(255, 255, 255, 0.46)),

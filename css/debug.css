@@ -119,6 +119,24 @@
   margin-top: 6px;
 }
 
+.debug-json-log-expand-body {
+  appearance: none;
+  border: 1px solid #475569;
+  background: #1e293b;
+  color: #cbd5e1;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.debug-json-log-expand-body:hover,
+.debug-json-log-expand-body:focus-visible {
+  background: #334155;
+  outline: none;
+}
+
 /* JSON tree viewer */
 .json-tree-root {
   background: #0f172a;

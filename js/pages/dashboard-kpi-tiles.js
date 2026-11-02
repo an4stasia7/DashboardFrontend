@@ -438,6 +438,15 @@
     return reports.buttonHtml(url, label);
   }
 
+  function buildKpiTileDetailsButtonHtml(tile) {
+    var opener = getContext().tileOpensTable;
+    var view = typeof opener === "function" ? opener(tile) : "";
+    if (!view) return "";
+    return (
+      '<button type="button" class="kpi-tile-details-action" aria-label="Подробнее">Подробнее</button>'
+    );
+  }
+
   function buildKpiTileBadgeRowHtml(tile) {
     var helpHtml = shouldShowKpiTileHelp(tile) ? buildKpiTileHelpButtonHtml() : "";
     return (
@@ -451,6 +460,7 @@
       helpHtml +
       buildKpiTileOnecButtonHtml(tile) +
       "</div>" +
+      buildKpiTileDetailsButtonHtml(tile) +
       buildKpiTileDragHandleHtml() +
       "</div>" +
       "</div>"
