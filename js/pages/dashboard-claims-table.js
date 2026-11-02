@@ -102,7 +102,7 @@
 
   function updateOverdueDebtTotalRow(dataTableApi) {
     var total = 0;
-    var amountCellIndex = logisticsClientDebtTableMode ? 5 : logisticsSupplierDebtTableMode ? 4 : 6;
+    var amountCellIndex = logisticsClientDebtTableMode ? 5 : logisticsSupplierDebtTableMode ? 4 : 9;
     if (dataTableApi && typeof dataTableApi.rows === "function") {
       dataTableApi
         .rows({ search: "applied" })
@@ -317,6 +317,9 @@
     "Подразделение",
     "Причина",
     "Действие",
+    "Дата контакта",
+    "Дата следующего контакта",
+    "Менеджер",
     "Сумма, руб",
   ];
   var DEPT_PROTOCOL_OVERDUE_HEADERS = [
@@ -2826,11 +2829,17 @@
           ),
           tableTextOrDash(raw.reason),
           tableTextOrDash(raw.action),
+          tableTextOrDash(raw.contact_date),
+          tableTextOrDash(raw.next_contact_date),
+          tableTextOrDash(raw.manager),
           formatClaimsOrderSum(raw.amount),
         ].forEach(function (value, cellIndex) {
           var td = document.createElement("td");
           td.textContent = value;
-          if (cellIndex === 6) {
+          if (cellIndex === 6 || cellIndex === 7) {
+            td.className = "dashboard-table-cell--date";
+          }
+          if (cellIndex === 9) {
             td.setAttribute("data-order", getClaimsOrderSumSortValue(raw.amount));
           }
           tr.appendChild(td);

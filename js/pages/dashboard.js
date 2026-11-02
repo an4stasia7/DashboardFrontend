@@ -2599,13 +2599,17 @@
         }
       }
     }
-    if (buttons.length >= 2) {
-      buttons[0].textContent = useQualdirDefectTables
+    var claimsBtn = claimsTableSwitcherEl.querySelector('[data-claims-view="claims"]');
+    var lawsuitsBtn = claimsTableSwitcherEl.querySelector('[data-claims-view="lawsuits"]');
+    if (claimsBtn) {
+      claimsBtn.textContent = useQualdirDefectTables
         ? "Внешний брак"
-        : buttons[0].getAttribute("data-default-label") || buttons[0].textContent;
-      buttons[1].textContent = useQualdirDefectTables
+        : claimsBtn.getAttribute("data-default-label") || "Претензии";
+    }
+    if (lawsuitsBtn) {
+      lawsuitsBtn.textContent = useQualdirDefectTables
         ? "Внутренний брак"
-        : buttons[1].getAttribute("data-default-label") || buttons[1].textContent;
+        : lawsuitsBtn.getAttribute("data-default-label") || "Суды";
     }
   }
 
@@ -4106,22 +4110,25 @@
 
     updateQualdirClaimsTableSwitcherButtons(useQualdirDefectTables);
     if (claimsTableSwitcherEl && !useQualdirDefectTables) {
-      var switchButtons = claimsTableSwitcherEl.querySelectorAll(".claims-table-switcher-btn");
-      if (switchButtons && switchButtons.length >= 2) {
-        switchButtons[0].textContent = useOpdirProjectTables
+      var claimsTab = claimsTableSwitcherEl.querySelector('[data-claims-view="claims"]');
+      var lawsuitsTab = claimsTableSwitcherEl.querySelector('[data-claims-view="lawsuits"]');
+      if (claimsTab) {
+        claimsTab.textContent = useOpdirProjectTables
           ? useProductionDirectorProjectTables
             ? "Отклонения"
             : "Проекты"
           : useTechnicalTables
             ? "Внешний заказ"
-            : "Претензии";
-        switchButtons[1].textContent = useOpdirProjectTables
+            : claimsTab.getAttribute("data-default-label") || "Претензии";
+      }
+      if (lawsuitsTab) {
+        lawsuitsTab.textContent = useOpdirProjectTables
           ? useProductionDirectorProjectTables
             ? "Проекты улучшений"
             : "Проекты"
           : useTechnicalTables
             ? "Улучшение и развитие"
-            : "Суды";
+            : lawsuitsTab.getAttribute("data-default-label") || "Суды";
       }
     }
 
@@ -4148,7 +4155,7 @@
       isCommercialFamilyDashboardContext() ||
       shouldUseCommercialDirectorOverdueDebtEnhancements() ||
       isBoardChairCommercialBlockContext();
-    ["money", "dog", "ship"].forEach(function (viewName) {
+    ["money", "ship", "dog"].forEach(function (viewName) {
       var button = document.querySelector('.claims-table-switcher-btn[data-claims-view="' + viewName + '"]');
       if (!button) return;
       button.hidden = !showPlanFactTabs;
@@ -4372,10 +4379,6 @@
         );
       })
       .join("");
-    if (!body) {
-      body =
-        '<tr><td colspan="6">Расшифровка за выбранный месяц ещё не готова. Обновите дашборд чуть позже.</td></tr>';
-    }
     var periodLabel = "";
     if (typeof DashboardMonthNav !== "undefined" && DashboardMonthNav && typeof DashboardMonthNav.getPeriodState === "function") {
       var periodState = DashboardMonthNav.getPeriodState();
@@ -4383,6 +4386,13 @@
       var periodYear = periodState && periodState.currentPeriodYear != null ? Number(periodState.currentPeriodYear) : null;
       var periodNames = ["", "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь", "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь"];
       if (periodNames[periodMonth] && periodYear) periodLabel = periodNames[periodMonth] + " " + periodYear + " · ";
+    }
+    if (!body) {
+      var missingPeriod = periodLabel ? periodLabel.replace(" · ", "") : "выбранный месяц";
+      body =
+        '<tr><td colspan="6">За ' +
+        DashUi.escapeHtml(missingPeriod) +
+        " построчная расшифровка ещё не собрана.</td></tr>";
     }
     var forecast = fact + expected;
     var showForecast =

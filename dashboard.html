@@ -380,16 +380,6 @@
               <button
                 type="button"
                 class="claims-table-switcher-btn"
-                data-claims-view="dog"
-                role="tab"
-                aria-selected="false"
-                hidden
-              >
-                Договоры
-              </button>
-              <button
-                type="button"
-                class="claims-table-switcher-btn"
                 data-claims-view="ship"
                 role="tab"
                 aria-selected="false"
@@ -400,7 +390,18 @@
               <button
                 type="button"
                 class="claims-table-switcher-btn"
+                data-claims-view="dog"
+                role="tab"
+                aria-selected="false"
+                hidden
+              >
+                Договоры
+              </button>
+              <button
+                type="button"
+                class="claims-table-switcher-btn"
                 data-claims-view="lawsuits"
+                data-default-label="Суды"
                 role="tab"
                 aria-selected="false"
               >
@@ -410,6 +411,7 @@
                 type="button"
                 class="claims-table-switcher-btn"
                 data-claims-view="claims"
+                data-default-label="Претензии"
                 role="tab"
                 aria-selected="true"
               >
@@ -689,13 +691,16 @@
                   <th>Подразделение</th>
                   <th>Причина</th>
                   <th>Действие</th>
+                  <th>Дата контакта</th>
+                  <th>Дата следующего контакта</th>
+                  <th>Менеджер</th>
                   <th>Сумма, руб</th>
                 </tr>
               </thead>
               <tbody></tbody>
               <tfoot>
                 <tr>
-                  <th colspan="6">Итого</th>
+                  <th colspan="9">Итого</th>
                   <th id="overdue-debt-table-total-sum">0,00</th>
                 </tr>
               </tfoot>
@@ -954,12 +959,12 @@
     <script src="js/pages/dashboard-kpi-tile-order.js"></script>
     <script src="js/pages/dashboard-kpi-tiles.js?v=20261030-tile-actions"></script>
     <script src="js/pages/dashboard-kpi-drilldown.js"></script>
-    <script src="js/pages/dashboard-claims-table.js?v=20261030-dz-match"></script>
+    <script src="js/pages/dashboard-claims-table.js?v=20261102-overdue-contacts"></script>
     <script src="js/pages/dashboard-charts.js"></script>
     <script src="js/pages/dashboard-viewport.js"></script>
     <script src="js/pages/dashboard-chairman-overview.js"></script>
     <script src="js/pages/dashboard-support.js"></script>
     <script src="js/pages/dashboard-ai-assistant.js"></script>
-    <script src="js/pages/dashboard.js?v=20261030-dz-match"></script>
+    <script src="js/pages/dashboard.js?v=20261102-tabs"></script>
   </body>
 </html>
