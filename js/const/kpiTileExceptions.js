@@ -321,5 +321,6 @@
     "YR-MG-S": { hideKpiPercent: true, frontContractGoalSums: true, disableBack: true },
     "YR-AM-Q": { factOnly: true, hideKpiPercent: true, backContractGoals: true },
     "YR-AM-S": { hideKpiPercent: true, frontContractGoalSums: true, disableBack: true },
+    "YR-SZ-Q": { factOnly: true, hideKpiPercent: true, backContractGoals: true },
   };
 })(typeof window !== "undefined" ? window : globalThis);

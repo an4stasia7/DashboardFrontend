@@ -94,6 +94,7 @@
     "YR-AM-Q": "am",
     "YR-AM-S": "am",
   };
+  var JURIST_GPH_GOAL = "Заключение договора ГПХ";
   var JURIST_COMPANY_TITLES = {
     td: "ООО НПО «Турбулентность-ДОН»",
     al: "ООО «Алмаз»",
@@ -1399,7 +1400,7 @@
       hideKpiHelpPopover();
       var ix = art.getAttribute("data-kpi-tile-index");
       if (ix == null || !lastKpiTiles || lastKpiTiles[+ix] == null) return;
-      if (juristCompanyCodeFromTile(lastKpiTiles[+ix])) {
+      if (isJuristContractsTile(lastKpiTiles[+ix])) {
         if (juristTileClickTimer) {
           clearTimeout(juristTileClickTimer);
           juristTileClickTimer = null;
@@ -4505,15 +4506,39 @@
     );
   }
 
+  function juristTileKpiId(tile) {
+    return tile && tile.kpi_id != null ? String(tile.kpi_id).trim().toUpperCase() : "";
+  }
+
   function juristCompanyCodeFromTile(tile) {
-    var id = tile && tile.kpi_id != null ? String(tile.kpi_id).trim().toUpperCase() : "";
-    return JURIST_TILE_COMPANY[id] || "";
+    return JURIST_TILE_COMPANY[juristTileKpiId(tile)] || "";
+  }
+
+  function isJuristContractsTile(tile) {
+    var id = juristTileKpiId(tile);
+    return !!JURIST_TILE_COMPANY[id] || id === "YR-SZ-Q";
+  }
+
+  function juristCompanyCodeByTitle(title) {
+    var wanted = title != null ? String(title).trim() : "";
+    var codes = Object.keys(JURIST_COMPANY_TITLES);
+    for (var i = 0; i < codes.length; i++) {
+      if (JURIST_COMPANY_TITLES[codes[i]] === wanted) return codes[i];
+    }
+    return "";
   }
 
   function applyJuristContractsFilter(tile, goal) {
-    var code = juristCompanyCodeFromTile(tile);
-    if (!code) return false;
+    var id = juristTileKpiId(tile);
+    var code = JURIST_TILE_COMPANY[id] || "";
     var nextGoal = goal != null ? String(goal).trim() : "";
+    if (id === "YR-SZ-Q") {
+      var companyFromBack = juristCompanyCodeByTitle(nextGoal);
+      code = companyFromBack;
+      nextGoal = JURIST_GPH_GOAL;
+    } else if (!code) {
+      return false;
+    }
     var same = juristContractsFilter.companyCode === code && juristContractsFilter.goal === nextGoal;
     juristContractsFilter = same ? { companyCode: "", goal: "" } : { companyCode: code, goal: nextGoal };
     juristContractsViewReady = true;
@@ -4532,10 +4557,14 @@
     nodes.forEach(function (node) {
       var ix = node.getAttribute("data-kpi-tile-index");
       var tile = ix != null && lastKpiTiles ? lastKpiTiles[+ix] : null;
+      var id = juristTileKpiId(tile);
       var code = juristCompanyCodeFromTile(tile);
+      var gphActive = juristContractsFilter.goal === JURIST_GPH_GOAL;
       node.classList.toggle(
         "is-contracts-filter",
-        !!(juristContractsFilter.companyCode && code === juristContractsFilter.companyCode)
+        id === "YR-SZ-Q"
+          ? gphActive && !juristContractsFilter.companyCode
+          : !!(juristContractsFilter.companyCode && code === juristContractsFilter.companyCode)
       );
     });
   }
@@ -4544,15 +4573,16 @@
     var wrap = document.getElementById("jurist-contracts-filter");
     var label = document.getElementById("jurist-contracts-filter-label");
     if (!wrap) return;
-    var show = isJuristDashboardContext() && !!juristContractsFilter.companyCode;
+    var show = isJuristDashboardContext() && !!(juristContractsFilter.companyCode || juristContractsFilter.goal);
     wrap.hidden = !show;
     if (!label) return;
     if (!show) {
       label.textContent = "";
       return;
     }
-    var title = JURIST_COMPANY_TITLES[juristContractsFilter.companyCode] || juristContractsFilter.companyCode;
-    label.textContent = juristContractsFilter.goal ? title + " · " + juristContractsFilter.goal : title;
+    var title = JURIST_COMPANY_TITLES[juristContractsFilter.companyCode] || "";
+    if (title && juristContractsFilter.goal) label.textContent = title + " · " + juristContractsFilter.goal;
+    else label.textContent = title || juristContractsFilter.goal;
   }
 
   function shouldUseClaimsAndLawsuitsSwitcher() {
