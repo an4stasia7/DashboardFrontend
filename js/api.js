@@ -4674,6 +4674,18 @@
       });
   }
 
+  /** GET /api/kpi/onec-link/ — найти документ строки в 1С, ответ { nav: "e1cib/data/..." }. */
+  function fetchOnecLink(params) {
+    var url = kpiUrl().replace(/\/+$/, "") + "/onec-link/";
+    var query = [];
+    ["settlement", "order_num", "document", "partner"].forEach(function (key) {
+      var value = params && params[key] != null ? String(params[key]).trim() : "";
+      if (value) query.push(key + "=" + encodeURIComponent(value));
+    });
+    if (query.length) url += "?" + query.join("&");
+    return jsonFetch(url, { method: "GET", headers: authHeaders() }, "GET /api/kpi/onec-link/");
+  }
+
   function refreshKpiTileCache(options) {
     var payload = Object.assign({}, options || {});
     return performKpiCacheRefreshRequest(kpiCacheRefreshUrl(), {
@@ -5119,6 +5131,7 @@
     fetchKpiAll: fetchKpiAll,
     refreshKpiTileCache: refreshKpiTileCache,
     fetchKpiTileCacheRefreshStatus: fetchKpiTileCacheRefreshStatus,
+    fetchOnecLink: fetchOnecLink,
     refreshChairmanDashboard: refreshChairmanDashboard,
     fetchChairmanDashboardRefreshStatus: fetchChairmanDashboardRefreshStatus,
     clearKpiGetMemoryCache: clearKpiGetMemoryCache,

@@ -3115,7 +3115,17 @@
           formatClaimsOrderSum(raw.amount),
         ].forEach(function (value, cellIndex) {
           var td = document.createElement("td");
-          td.textContent = value;
+          var opensOrder = cellIndex === 0 || ((cellIndex === 4 || cellIndex === 5) && value !== "—");
+          if (opensOrder && typeof OnecReports !== "undefined" && OnecReports && OnecReports.decorateDocCell) {
+            OnecReports.decorateDocCell(td, value, {
+              nav: raw.onec_nav,
+              settlement: raw.order_key,
+              order: orderNum,
+              partner: counterparty,
+            });
+          } else {
+            td.textContent = value;
+          }
           if (cellIndex === 6 || cellIndex === 7) {
             td.className = "dashboard-table-cell--date";
           }
@@ -4541,7 +4551,7 @@
     renderClaimsTableRows(rows);
     renderOverdueDebtTableRows(rows);
     initClaimsDataTable();
-    initOverdueDebtDataTable();
+    if (!enhanceOverdueDebtTable) initOverdueDebtDataTable();
     if (juristContractsTableMode) {
       renderJuristContractsTableRows(rows, options.juristContractsFilter || {});
       initJuristContractsDataTable();
@@ -4555,8 +4565,37 @@
     syncProtocolOverduePanel(rows, options);
   }
 
+  function refreshOverdueDebt(rows, options) {
+    if (logisticsClientDebtTableMode || logisticsSupplierDebtTableMode) return;
+    destroyClaimsTableInstance("#table-overdue-debt");
+    var table = document.getElementById("table-overdue-debt");
+    var tbody = table ? table.querySelector("tbody") : null;
+    if (!table || !tbody) return;
+    var overdueRows = Array.isArray(rows) ? rows.filter(isOverdueDebtRow) : [];
+    if (!overdueRows.length) {
+      setTableHeaders("table-overdue-debt", DEFAULT_OVERDUE_DEBT_HEADERS);
+      var message = options && options.emptyMessage ? String(options.emptyMessage) : "Нет строк по заданным фильтрам.";
+      tbody.innerHTML = '<tr><td colspan="10">' + escapeHtml(message) + "</td></tr>";
+      if (table.tFoot) {
+        table.tFoot.hidden = false;
+        var totalCell = document.getElementById("overdue-debt-table-total-sum");
+        if (totalCell) totalCell.textContent = "0,00";
+      }
+      var label = table.tFoot && table.tFoot.querySelector("th");
+      if (label) label.textContent = "Итого";
+      return;
+    }
+    renderOverdueDebtTableRows(overdueRows);
+    updateOverdueDebtTotalRow(null);
+    var footerLabel = table.tFoot && table.tFoot.querySelector("th");
+    if (footerLabel) {
+      footerLabel.textContent = options && options.filtered ? "По фильтру" : "Итого";
+    }
+  }
+
   global.DashboardClaimsTable = {
     init: init,
+    refreshOverdueDebt: refreshOverdueDebt,
     hasProtocolOverdueTableRows: hasProtocolOverdueTableRows,
   };
 })(typeof window !== "undefined" ? window : globalThis);

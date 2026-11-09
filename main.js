@@ -17,8 +17,9 @@ if (process.platform === "win32") {
 
 const http = require("http");
 const fs = require("fs");
+const os = require("os");
 const url = require("url");
-const { spawn } = require("child_process");
+const { spawn, execFile } = require("child_process");
 const { autoUpdater } = require("electron-updater");
 
 /** Корень приложения: HTML, css/, js/ */
@@ -617,25 +618,111 @@ function parseE1cUrl(target) {
   return { server: match[1], base: match[2], nav: match[3] };
 }
 
-function openOnecReport(targetUrl) {
-  var parsed = parseE1cUrl(targetUrl);
-  if (!parsed) return Promise.resolve({ ok: false, error: "Некорректная ссылка 1С" });
-  if (!onecSessionLogin || !onecSessionLogin.username || !onecSessionLogin.password) {
-    return Promise.resolve({
-      ok: false,
-      error: "Чтобы открыть 1С под вашей учётной записью, выйдите и войдите снова, введя пароль.",
-    });
+function onecUserFromCommandLine(commandLine) {
+  var text = String(commandLine || "");
+  var quoted = text.match(/\/N\s*"([^"]*)"/i);
+  if (quoted) return quoted[1].trim();
+  var plain = text.match(/\/N\s*(\S+)/i);
+  return plain ? plain[1].trim() : "";
+}
+
+function commandOpensInfobase(commandLine, server, base) {
+  var text = String(commandLine || "").toLowerCase().replace(/\//g, "\\").replace(/"/g, "");
+  var srv = String(server || "").toLowerCase();
+  var ib = String(base || "").toLowerCase();
+  if (!srv || !ib) return false;
+  if (text.indexOf(srv + "\\" + ib) !== -1) return true;
+  // Запуск из стартера 1С: /IBConnectionString"Srvr=""srv1"";Ref=""erp_pm"";"
+  return text.indexOf("srvr=" + srv + ";") !== -1 && text.indexOf("ref=" + ib + ";") !== -1;
+}
+
+function sameOnecAccount(left, right) {
+  return String(left || "").trim().toLocaleLowerCase("ru-RU") === String(right || "").trim().toLocaleLowerCase("ru-RU");
+}
+
+function listOnecProcesses() {
+  var script = [
+    "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8",
+    "$items = @(Get-CimInstance Win32_Process -Filter \"Name = '1cv8c.exe' OR Name = '1cv8.exe'\")",
+    "if (-not $items.Count) { '[]'; exit 0 }",
+    "$items | ForEach-Object { $o = Invoke-CimMethod -InputObject $_ -MethodName GetOwner -ErrorAction SilentlyContinue; [PSCustomObject]@{ ProcessId = $_.ProcessId; CommandLine = [string]$_.CommandLine; Owner = [string]$o.User } } | ConvertTo-Json -Compress",
+  ].join("; ");
+  return new Promise(function (resolve) {
+    execFile(
+      "powershell.exe",
+      ["-NoProfile", "-NonInteractive", "-Command", script],
+      { windowsHide: true, timeout: 12000, maxBuffer: 4 * 1024 * 1024 },
+      function (err, stdout) {
+        if (err) {
+          resolve([]);
+          return;
+        }
+        var text = String(stdout || "").trim();
+        if (!text) {
+          resolve([]);
+          return;
+        }
+        try {
+          var parsed = JSON.parse(text);
+          resolve(Array.isArray(parsed) ? parsed : [parsed]);
+        } catch (parseErr) {
+          resolve([]);
+        }
+      }
+    );
+  });
+}
+
+function findOpenOnecSession(parsed, username) {
+  return listOnecProcesses().then(function (processes) {
+    var found = null;
+    for (var i = 0; i < processes.length; i++) {
+      var row = processes[i] || {};
+      var commandLine = row.CommandLine || "";
+      if (!commandOpensInfobase(commandLine, parsed.server, parsed.base)) continue;
+      var onecUser = onecUserFromCommandLine(commandLine);
+      if (onecUser) {
+        if (!username || !sameOnecAccount(onecUser, username)) continue;
+      } else if (!sameOnecAccount(row.Owner, os.userInfo().username)) {
+        // Без /N вошли через окно 1С или по Windows: своим считаем клиент этого же пользователя Windows.
+        continue;
+      }
+      var pid = Number(row.ProcessId);
+      if (!pid) continue;
+      found = { pid: pid };
+    }
+    return found;
+  });
+}
+
+function reportNavWithContext(nav, context) {
+  var link = String(nav || "");
+  var parts = [];
+  var department = context && context.department != null ? String(context.department).trim() : "";
+  var year = context && context.year != null ? String(context.year).trim() : "";
+  var month = context && context.month != null ? String(context.month).trim() : "";
+  if (department) parts.push("Подразделение=" + encodeURIComponent(department));
+  if (/^\d{4}$/.test(year) && /^\d{1,2}$/.test(month)) {
+    var monthNum = String(Number(month));
+    parts.push("Год=" + year);
+    parts.push("Месяц=" + monthNum);
+    parts.push("Период=" + year + "-" + (monthNum.length === 1 ? "0" + monthNum : monthNum));
   }
-  var exe = onecClientPath();
-  if (!exe) return Promise.resolve({ ok: false, error: "Не найден установленный клиент 1С." });
-  var args = [
-    "ENTERPRISE",
-    "/S" + quoteOnecValue(parsed.server + "\\" + parsed.base),
-    "/N" + quoteOnecValue(onecSessionLogin.username),
-    "/P" + quoteOnecValue(onecSessionLogin.password),
-    "/WA-",
-    "/URL" + quoteOnecValue(parsed.nav),
-  ];
+  if (!parts.length) return link;
+  return link + (link.indexOf("?") >= 0 ? "&" : "?") + parts.join("&");
+}
+
+function focusOnecWindow(pid) {
+  if (!pid) return;
+  var script = [
+    "Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class DashOnecWin { [DllImport(\"user32.dll\")] public static extern bool SetForegroundWindow(IntPtr hWnd); [DllImport(\"user32.dll\")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow); }'",
+    "$p = Get-Process -Id " + String(pid) + " -ErrorAction SilentlyContinue",
+    "if ($p -and $p.MainWindowHandle -ne [IntPtr]::Zero) { [DashOnecWin]::ShowWindow($p.MainWindowHandle, 9) | Out-Null; [DashOnecWin]::SetForegroundWindow($p.MainWindowHandle) | Out-Null }",
+  ].join("; ");
+  execFile("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", script], { windowsHide: true, timeout: 8000 }, function () {});
+}
+
+function spawnOnec(exe, args) {
   return new Promise(function (resolve) {
     var child;
     try {
@@ -659,6 +746,55 @@ function openOnecReport(targetUrl) {
   });
 }
 
+function openOnecReport(targetUrl, context) {
+  var parsed = parseE1cUrl(targetUrl);
+  if (!parsed) return Promise.resolve({ ok: false, error: "Некорректная ссылка 1С" });
+  var exe = onecClientPath();
+  if (!exe) return Promise.resolve({ ok: false, error: "Не найден установленный клиент 1С." });
+  var username = onecSessionLogin && onecSessionLogin.username ? onecSessionLogin.username : "";
+  var nav = reportNavWithContext(parsed.nav, context);
+  var connection = "/S" + quoteOnecValue(parsed.server + "\\" + parsed.base);
+  var urlArg = "/URL" + quoteOnecValue(nav);
+  return findOpenOnecSession(parsed, username).then(function (session) {
+    if (session) {
+      return spawnOnec(exe, ["ENTERPRISE", connection, urlArg]).then(function (result) {
+        if (result && result.ok) {
+          setTimeout(function () {
+            focusOnecWindow(session.pid);
+          }, 400);
+          return { ok: true, reused: true };
+        }
+        return result;
+      });
+    }
+    if (!onecSessionLogin || !onecSessionLogin.username || !onecSessionLogin.password) {
+      return {
+        ok: false,
+        error: "Чтобы открыть 1С под вашей учётной записью, выйдите и войдите снова, введя пароль.",
+      };
+    }
+    var startup = [];
+    var department = context && context.department != null ? String(context.department).trim() : "";
+    var year = context && context.year != null ? String(context.year).trim() : "";
+    var month = context && context.month != null ? String(context.month).trim() : "";
+    if (department) startup.push("Подразделение=" + encodeURIComponent(department));
+    if (/^\d{4}$/.test(year) && /^\d{1,2}$/.test(month)) {
+      startup.push("Год=" + year);
+      startup.push("Месяц=" + String(Number(month)));
+    }
+    var args = [
+      "ENTERPRISE",
+      connection,
+      "/N" + quoteOnecValue(username),
+      "/P" + quoteOnecValue(onecSessionLogin.password),
+      "/WA-",
+      urlArg,
+    ];
+    if (startup.length) args.push("/C" + quoteOnecValue(startup.join(";")));
+    return spawnOnec(exe, args);
+  });
+}
+
 ipcMain.handle("app:remember-onec-login", function (_event, payload) {
   var username = payload && payload.username != null ? String(payload.username).trim() : "";
   var password = payload && payload.password != null ? String(payload.password) : "";
@@ -674,7 +810,12 @@ ipcMain.handle("app:open-onec-report", function (_event, payload) {
   if (username && password) {
     onecSessionLogin = { username: username, password: password };
   }
-  return openOnecReport(targetUrl);
+  var context = {
+    department: payload && payload.department != null ? payload.department : "",
+    year: payload && payload.year != null ? payload.year : "",
+    month: payload && payload.month != null ? payload.month : "",
+  };
+  return openOnecReport(targetUrl, context);
 });
 
 ipcMain.handle("app:get-update-mode", function () {
