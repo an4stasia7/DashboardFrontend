@@ -3328,6 +3328,7 @@
       var maxQ = qs[qs.length - 1];
       var startMonth = (minQ - 1) * 3 + 1;
       var endMonth = maxQ * 3;
+      if (qs.length === 1 && Math.ceil(m / 3) === qs[0] && m < endMonth) endMonth = m;
       return "Накопительно за " + label + " " + y + " (" + getMonthShortRu(startMonth) + "–" + getMonthShortRu(endMonth) + ")";
     }
     if (mode === "ytd") {
@@ -3708,6 +3709,7 @@
       bucket = filtered.filter(function (point) {
         if (point && point.future_month === true) return false;
         var pointMonth = Number(point.month);
+        if (qs.length === 1 && Math.ceil(m / 3) === qs[0] && pointMonth > m) return false;
         for (var i = 0; i < ranges.length; i++) {
           if (pointMonth >= ranges[i].start && pointMonth <= ranges[i].end) return true;
         }
@@ -5576,6 +5578,32 @@
     if (isPlanFactBreakdownView(view)) renderPlanFactBreakdownTable(view);
   }
 
+  function planFactFactByDepartment(view) {
+    var totals = Object.create(null);
+    planFactBreakdownRows(view).forEach(function (item) {
+      var raw = item.raw || {};
+      if (String(raw.kind || "") !== "Факт") return;
+      var amount = Number(raw.amount);
+      if (isNaN(amount)) return;
+      var dept = String(raw.department || "").trim();
+      totals[dept] = (totals[dept] || 0) + amount;
+    });
+    return totals;
+  }
+
+  function planFactConversionPct(view, department, facts) {
+    var dept = String(department || "").trim();
+    var money = facts.money[dept] || 0;
+    var ship = facts.ship[dept] || 0;
+    var dog = facts.dog[dept] || 0;
+    // Деньги уже получены. Договоры конвертируются в отгрузки, отгрузки — в деньги.
+    if (view === "money") return 100;
+    var numerator = view === "dog" ? ship : money;
+    var denominator = view === "dog" ? dog : ship;
+    if (!denominator) return null;
+    return (numerator / denominator) * 100;
+  }
+
   function renderPlanFactBreakdownTable(view) {
     var tableId =
       view === "money" ? "table-plan-fact-money" : view === "ship" ? "table-plan-fact-ship" : view === "dog" ? "table-plan-fact-dog" : "";
@@ -5591,8 +5619,19 @@
           return planFactRowMatchesFilter(item.raw || {}, filter, view);
         })
       : allRows;
+    var conversionFacts = {
+      money: planFactFactByDepartment("money"),
+      ship: planFactFactByDepartment("ship"),
+      dog: planFactFactByDepartment("dog"),
+    };
     var fact = 0;
     var expected = 0;
+    var converted = 0;
+    var showForecast =
+      typeof DashboardMonthNav !== "undefined" &&
+      DashboardMonthNav &&
+      typeof DashboardMonthNav.selectedPeriodUsesCommercialForecast === "function" &&
+      DashboardMonthNav.selectedPeriodUsesCommercialForecast();
     var body = rows
       .map(function (item) {
         var raw = item.raw || {};
@@ -5602,21 +5641,32 @@
           if (kind === "Ожидаемо") expected += amount;
           else fact += amount;
         }
+        var pct = planFactConversionPct(view, raw.department, conversionFacts);
+        var convertedAmount = !isNaN(amount) && pct != null ? Math.round(amount * pct) / 100 : null;
+        var countsInFooter = filterActive || showForecast || kind !== "Ожидаемо";
+        if (convertedAmount != null && countsInFooter) converted += convertedAmount;
+        function moneyCell(value) {
+          return isNaN(value)
+            ? "—"
+            : value.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
         var cells = [
           raw.date || "—",
           raw.department || "—",
           raw.partner || "—",
           raw.document || raw.name || "—",
           kind || "—",
-          isNaN(amount)
+          moneyCell(amount),
+          pct == null
             ? "—"
-            : amount.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+            : pct.toLocaleString("ru-RU", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + " %",
+          convertedAmount == null ? "—" : moneyCell(convertedAmount),
         ];
         return (
           "<tr>" +
           cells
             .map(function (value, index) {
-              var cls = index === 5 ? ' class="dashboard-table-cell--number"' : "";
+              var cls = index >= 5 ? ' class="dashboard-table-cell--number"' : "";
               if (index === 3) {
                 return "<td>" + onecDocHtml(value, { nav: raw.onec_nav, document: raw.document, partner: raw.partner }) + "</td>";
               }
@@ -5637,25 +5687,29 @@
     }
     if (!body) {
       if (filterActive && allRows.length) {
-        body = '<tr><td colspan="6">Нет строк по заданным фильтрам.</td></tr>';
+        body = '<tr><td colspan="8">Нет строк по заданным фильтрам.</td></tr>';
       } else {
         var missingPeriod = periodLabel ? periodLabel.replace(" · ", "") : "выбранный месяц";
         body =
-          '<tr><td colspan="6">За ' +
+          '<tr><td colspan="8">За ' +
           DashUi.escapeHtml(missingPeriod) +
           " построчная расшифровка ещё не собрана.</td></tr>";
       }
     }
     var forecast = fact + expected;
-    var showForecast =
-      typeof DashboardMonthNav !== "undefined" &&
-      DashboardMonthNav &&
-      typeof DashboardMonthNav.selectedPeriodUsesCommercialForecast === "function" &&
-      DashboardMonthNav.selectedPeriodUsesCommercialForecast();
     var total = filterActive ? fact + expected : showForecast ? forecast : fact;
+    var convertedShown = converted;
     function money(value) {
       return value.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
+    var blendedPct =
+      total && convertedShown != null
+        ? (convertedShown / total) * 100
+        : null;
+    var blendedText =
+      blendedPct == null
+        ? "—"
+        : blendedPct.toLocaleString("ru-RU", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + " %";
     var footerText = filterActive
       ? "По фильтру · " +
         planFactRowsLabel(rows.length) +
@@ -5670,7 +5724,7 @@
         money(expected) +
         (showForecast ? " · Прогноз " + money(forecast) : "");
     table.innerHTML =
-      "<thead><tr><th>Дата</th><th>Отдел</th><th>Партнер</th><th>Документ</th><th>Вид</th><th>Сумма, руб.</th></tr></thead>" +
+      "<thead><tr><th>Дата</th><th>Отдел</th><th>Партнер</th><th>Документ</th><th>Вид</th><th>Сумма, руб.</th><th>% Конверсии</th><th>Сумма с конверсией</th></tr></thead>" +
       "<tbody>" +
       body +
       "</tbody>" +
@@ -5678,6 +5732,10 @@
       footerText +
       '</th><th class="dashboard-table-cell--number">' +
       money(total) +
+      '</th><th class="dashboard-table-cell--number">' +
+      blendedText +
+      '</th><th class="dashboard-table-cell--number">' +
+      money(convertedShown) +
       "</th></tr></tfoot>";
   }
 
