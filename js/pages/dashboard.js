@@ -59,6 +59,9 @@
   var lastApiChartIndicators = null;
   /** Строки таблицы из API */
   var lastApiTableRows = null;
+  /** Фильтры расшифровок Деньги / Отгрузки / Договоры, отдельно для каждой вкладки. */
+  var planFactFilters = { money: null, ship: null, dog: null };
+  var planFactFilterSyncing = false;
   /** Последний raw-ответ KPI для локального пересчёта плиток ПСД */
   var lastRawKpiResponse = null;
   /** Подпись в шапке из поля department последнего успешного ответа KPI (json) */
@@ -1489,6 +1492,25 @@
       var view = target.getAttribute("data-claims-view") || "claims";
       if (view === activeClaimsTableView) return;
       applyClaimsTableView(view);
+    });
+  }
+
+  var planFactFilterOpenEl = document.getElementById("plan-fact-filter-open");
+  var planFactFilterDialogEl = document.getElementById("plan-fact-filter-dialog");
+  var planFactFilterFormEl = document.getElementById("plan-fact-filter-form");
+  if (planFactFilterOpenEl) {
+    planFactFilterOpenEl.addEventListener("click", function () {
+      openPlanFactFilterDialog();
+    });
+  }
+  if (planFactFilterFormEl) {
+    planFactFilterFormEl.addEventListener("input", onPlanFactFilterFormChanged);
+    planFactFilterFormEl.addEventListener("change", onPlanFactFilterFormChanged);
+  }
+  var planFactFilterResetEl = document.getElementById("plan-fact-filter-reset");
+  if (planFactFilterResetEl) {
+    planFactFilterResetEl.addEventListener("click", function () {
+      resetPlanFactFilter();
     });
   }
 
@@ -4334,6 +4356,240 @@
     scrollDashboardTableIntoView(firstPanel || tablesRow);
   }
 
+  function emptyPlanFactFilter() {
+    return {
+      q: "",
+      dateFrom: "",
+      dateTo: "",
+      department: "",
+      kind: "",
+      partner: "",
+      document: "",
+      amountFrom: "",
+      amountTo: "",
+    };
+  }
+
+  function getPlanFactFilter(view) {
+    if (!planFactFilters[view]) planFactFilters[view] = emptyPlanFactFilter();
+    return planFactFilters[view];
+  }
+
+  function planFactFilterIsActive(filter) {
+    return planFactActiveFilterCount(filter) > 0;
+  }
+
+  function planFactActiveFilterCount(filter) {
+    if (!filter) return 0;
+    var count = 0;
+    if (String(filter.q || "").trim()) count += 1;
+    if (filter.dateFrom || filter.dateTo) count += 1;
+    if (filter.department) count += 1;
+    if (filter.kind) count += 1;
+    if (String(filter.partner || "").trim()) count += 1;
+    if (String(filter.document || "").trim()) count += 1;
+    if (String(filter.amountFrom || "").trim() || String(filter.amountTo || "").trim()) count += 1;
+    return count;
+  }
+
+  function planFactDateKey(value) {
+    var text = String(value || "").trim();
+    var ru = text.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+    if (ru) return ru[3] + ru[2] + ru[1];
+    var iso = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (iso) return iso[1] + iso[2] + iso[3];
+    return "";
+  }
+
+  function parsePlanFactAmount(value) {
+    var text = String(value == null ? "" : value).trim().replace(/\s/g, "").replace(",", ".");
+    if (!text) return null;
+    var amount = Number(text);
+    return isNaN(amount) ? null : amount;
+  }
+
+  function planFactRowMatchesQuery(raw, amount, query) {
+    var q = String(query || "").trim().toLowerCase();
+    if (!q) return true;
+    var formatted = isNaN(amount)
+      ? ""
+      : amount.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    var hay = [raw.date, raw.department, raw.partner, raw.document, raw.name, raw.kind, formatted, isNaN(amount) ? "" : String(amount)]
+      .join(" ")
+      .toLowerCase();
+    if (hay.indexOf(q) !== -1) return true;
+    var digits = q.replace(/[^\d]/g, "");
+    if (digits.length < 2) return false;
+    var compact = hay.replace(/[^\d]/g, "");
+    return compact.indexOf(digits) !== -1;
+  }
+
+  function planFactRowMatchesFilter(raw, filter) {
+    if (!planFactFilterIsActive(filter)) return true;
+    var amount = Number(raw.amount);
+    if (!planFactRowMatchesQuery(raw, amount, filter.q)) return false;
+    var dateKey = planFactDateKey(raw.date);
+    var fromKey = planFactDateKey(filter.dateFrom);
+    var toKey = planFactDateKey(filter.dateTo);
+    if ((fromKey || toKey) && !dateKey) return false;
+    if (fromKey && dateKey < fromKey) return false;
+    if (toKey && dateKey > toKey) return false;
+    if (filter.department && String(raw.department || "") !== filter.department) return false;
+    if (filter.kind && String(raw.kind || "") !== filter.kind) return false;
+    var partnerQuery = String(filter.partner || "").trim().toLowerCase();
+    if (partnerQuery && String(raw.partner || "").toLowerCase().indexOf(partnerQuery) === -1) return false;
+    var documentQuery = String(filter.document || "").trim().toLowerCase();
+    var documentText = String(raw.document || raw.name || "").toLowerCase();
+    if (documentQuery && documentText.indexOf(documentQuery) === -1) return false;
+    var amountFrom = parsePlanFactAmount(filter.amountFrom);
+    var amountTo = parsePlanFactAmount(filter.amountTo);
+    if (amountFrom != null || amountTo != null) {
+      if (isNaN(amount)) return false;
+      if (amountFrom != null && amount < amountFrom) return false;
+      if (amountTo != null && amount > amountTo) return false;
+    }
+    return true;
+  }
+
+  function planFactBreakdownRows(view) {
+    var tableKey = view === "money" ? "KD-T-MONEY" : view === "ship" ? "KD-T-SHIP" : view === "dog" ? "KD-T-DOG" : "";
+    var source = Array.isArray(lastApiTableRows) ? lastApiTableRows : [];
+    return source.filter(function (item) {
+      var key = item && item.tableKey != null ? String(item.tableKey).trim().toUpperCase() : "";
+      return key === tableKey && item.raw && item.raw.__tableEmptyMarker !== true;
+    });
+  }
+
+  function uniquePlanFactValues(rows, field) {
+    var seen = Object.create(null);
+    var values = [];
+    rows.forEach(function (item) {
+      var raw = item.raw || {};
+      var value = field === "document" ? raw.document || raw.name || "" : raw[field] || "";
+      value = String(value).trim();
+      if (!value || value === "—" || seen[value]) return;
+      seen[value] = true;
+      values.push(value);
+    });
+    values.sort(function (a, b) {
+      return a.localeCompare(b, "ru");
+    });
+    return values;
+  }
+
+  function fillPlanFactFilterSelect(select, values, allLabel, current) {
+    if (!select) return;
+    var html = '<option value="">' + DashUi.escapeHtml(allLabel) + "</option>";
+    values.forEach(function (value) {
+      html += '<option value="' + DashUi.escapeHtml(value) + '">' + DashUi.escapeHtml(value) + "</option>";
+    });
+    select.innerHTML = html;
+    select.value = current && values.indexOf(current) !== -1 ? current : "";
+  }
+
+  function planFactFilterViewTitle(view) {
+    if (view === "ship") return "Отгрузки";
+    if (view === "dog") return "Договоры";
+    return "Деньги";
+  }
+
+  function readPlanFactFilterForm(view) {
+    var filter = getPlanFactFilter(view);
+    filter.q = planFactFilterFieldValue("plan-fact-filter-q");
+    filter.dateFrom = planFactFilterFieldValue("plan-fact-filter-date-from");
+    filter.dateTo = planFactFilterFieldValue("plan-fact-filter-date-to");
+    filter.department = planFactFilterFieldValue("plan-fact-filter-dept");
+    filter.kind = planFactFilterFieldValue("plan-fact-filter-kind");
+    filter.partner = planFactFilterFieldValue("plan-fact-filter-partner");
+    filter.document = planFactFilterFieldValue("plan-fact-filter-document");
+    filter.amountFrom = planFactFilterFieldValue("plan-fact-filter-amount-from");
+    filter.amountTo = planFactFilterFieldValue("plan-fact-filter-amount-to");
+  }
+
+  function planFactFilterFieldValue(id) {
+    var field = document.getElementById(id);
+    return field ? String(field.value || "") : "";
+  }
+
+  function writePlanFactFilterForm(view) {
+    var filter = getPlanFactFilter(view);
+    var rows = planFactBreakdownRows(view);
+    var kinds = uniquePlanFactValues(rows, "kind").sort(function (a, b) {
+      var order = { "Факт": 0, "Ожидаемо": 1 };
+      var ao = Object.prototype.hasOwnProperty.call(order, a) ? order[a] : 10;
+      var bo = Object.prototype.hasOwnProperty.call(order, b) ? order[b] : 10;
+      if (ao !== bo) return ao - bo;
+      return a.localeCompare(b, "ru");
+    });
+    planFactFilterSyncing = true;
+    var deptSelect = document.getElementById("plan-fact-filter-dept");
+    var kindSelect = document.getElementById("plan-fact-filter-kind");
+    fillPlanFactFilterSelect(deptSelect, uniquePlanFactValues(rows, "department"), "Все отделы", filter.department);
+    fillPlanFactFilterSelect(kindSelect, kinds, "Все виды", filter.kind);
+    var departmentBefore = filter.department;
+    var kindBefore = filter.kind;
+    if (deptSelect) filter.department = deptSelect.value;
+    if (kindSelect) filter.kind = kindSelect.value;
+    setPlanFactFilterField("plan-fact-filter-q", filter.q);
+    setPlanFactFilterField("plan-fact-filter-date-from", filter.dateFrom);
+    setPlanFactFilterField("plan-fact-filter-date-to", filter.dateTo);
+    setPlanFactFilterField("plan-fact-filter-partner", filter.partner);
+    setPlanFactFilterField("plan-fact-filter-document", filter.document);
+    setPlanFactFilterField("plan-fact-filter-amount-from", filter.amountFrom);
+    setPlanFactFilterField("plan-fact-filter-amount-to", filter.amountTo);
+    var subtitle = document.getElementById("plan-fact-filter-subtitle");
+    if (subtitle) subtitle.textContent = planFactFilterViewTitle(view);
+    planFactFilterSyncing = false;
+    if (departmentBefore !== filter.department || kindBefore !== filter.kind) {
+      updatePlanFactFilterButton();
+      renderPlanFactBreakdownTable(view);
+    }
+  }
+
+  function setPlanFactFilterField(id, value) {
+    var field = document.getElementById(id);
+    if (field) field.value = value || "";
+  }
+
+  function updatePlanFactFilterButton() {
+    var button = document.getElementById("plan-fact-filter-open");
+    if (!button) return;
+    var show = isPlanFactBreakdownView(activeClaimsTableView) && isCommercialFamilyDashboardContext();
+    button.hidden = !show;
+    if (!show) {
+      if (planFactFilterDialogEl && planFactFilterDialogEl.open) planFactFilterDialogEl.close();
+      return;
+    }
+    var count = planFactActiveFilterCount(getPlanFactFilter(activeClaimsTableView));
+    button.classList.toggle("is-active", count > 0);
+    var label = button.querySelector(".plan-fact-filter-open-label");
+    if (label) label.textContent = count ? "Фильтры · " + count : "Фильтры";
+    button.setAttribute("aria-label", count ? "Фильтры, выбрано условий: " + count : "Фильтры");
+  }
+
+  function openPlanFactFilterDialog() {
+    if (!planFactFilterDialogEl || !isPlanFactBreakdownView(activeClaimsTableView) || !isCommercialFamilyDashboardContext()) return;
+    writePlanFactFilterForm(activeClaimsTableView);
+    if (typeof planFactFilterDialogEl.showModal === "function" && !planFactFilterDialogEl.open) {
+      planFactFilterDialogEl.showModal();
+    }
+  }
+
+  function onPlanFactFilterFormChanged() {
+    if (planFactFilterSyncing || !isPlanFactBreakdownView(activeClaimsTableView)) return;
+    readPlanFactFilterForm(activeClaimsTableView);
+    updatePlanFactFilterButton();
+    renderPlanFactBreakdownTable(activeClaimsTableView);
+  }
+
+  function resetPlanFactFilter() {
+    if (!isPlanFactBreakdownView(activeClaimsTableView)) return;
+    planFactFilters[activeClaimsTableView] = emptyPlanFactFilter();
+    writePlanFactFilterForm(activeClaimsTableView);
+    updatePlanFactFilterButton();
+    renderPlanFactBreakdownTable(activeClaimsTableView);
+  }
+
   function renderPlanFactBreakdownTable(view) {
     var tableId =
       view === "money" ? "table-plan-fact-money" : view === "ship" ? "table-plan-fact-ship" : view === "dog" ? "table-plan-fact-dog" : "";
@@ -4341,11 +4597,14 @@
       view === "money" ? "KD-T-MONEY" : view === "ship" ? "KD-T-SHIP" : view === "dog" ? "KD-T-DOG" : "";
     var table = tableId ? document.getElementById(tableId) : null;
     if (!table || !tableKey) return;
-    var source = Array.isArray(lastApiTableRows) ? lastApiTableRows : [];
-    var rows = source.filter(function (item) {
-      var key = item && item.tableKey != null ? String(item.tableKey).trim().toUpperCase() : "";
-      return key === tableKey && item.raw && item.raw.__tableEmptyMarker !== true;
-    });
+    var allRows = planFactBreakdownRows(view);
+    var filter = getPlanFactFilter(view);
+    var filterActive = isCommercialFamilyDashboardContext() && planFactFilterIsActive(filter);
+    var rows = filterActive
+      ? allRows.filter(function (item) {
+          return planFactRowMatchesFilter(item.raw || {}, filter);
+        })
+      : allRows;
     var fact = 0;
     var expected = 0;
     var body = rows
@@ -4388,11 +4647,15 @@
       if (periodNames[periodMonth] && periodYear) periodLabel = periodNames[periodMonth] + " " + periodYear + " · ";
     }
     if (!body) {
-      var missingPeriod = periodLabel ? periodLabel.replace(" · ", "") : "выбранный месяц";
-      body =
-        '<tr><td colspan="6">За ' +
-        DashUi.escapeHtml(missingPeriod) +
-        " построчная расшифровка ещё не собрана.</td></tr>";
+      if (filterActive && allRows.length) {
+        body = '<tr><td colspan="6">Нет строк по заданным фильтрам.</td></tr>';
+      } else {
+        var missingPeriod = periodLabel ? periodLabel.replace(" · ", "") : "выбранный месяц";
+        body =
+          '<tr><td colspan="6">За ' +
+          DashUi.escapeHtml(missingPeriod) +
+          " построчная расшифровка ещё не собрана.</td></tr>";
+      }
     }
     var forecast = fact + expected;
     var showForecast =
@@ -4400,25 +4663,44 @@
       DashboardMonthNav &&
       typeof DashboardMonthNav.selectedPeriodUsesCommercialForecast === "function" &&
       DashboardMonthNav.selectedPeriodUsesCommercialForecast();
-    var total = showForecast ? forecast : fact;
+    var total = filterActive ? fact + expected : showForecast ? forecast : fact;
     function money(value) {
       return value.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
+    var footerText = filterActive
+      ? "По фильтру · " +
+        planFactRowsLabel(rows.length) +
+        " · " +
+        periodLabel +
+        "Сумма " +
+        money(total)
+      : periodLabel +
+        "Факт " +
+        money(fact) +
+        " · Ожидаемо " +
+        money(expected) +
+        (showForecast ? " · Прогноз " + money(forecast) : "");
     table.innerHTML =
       "<thead><tr><th>Дата</th><th>Отдел</th><th>Партнер</th><th>Документ</th><th>Вид</th><th>Сумма, руб.</th></tr></thead>" +
       "<tbody>" +
       body +
       "</tbody>" +
       "<tfoot><tr><th colspan=\"5\">" +
-      periodLabel +
-      "Факт " +
-      money(fact) +
-      " · Ожидаемо " +
-      money(expected) +
-      (showForecast ? " · Прогноз " + money(forecast) : "") +
+      footerText +
       '</th><th class="dashboard-table-cell--number">' +
       money(total) +
       "</th></tr></tfoot>";
+  }
+
+  function planFactRowsLabel(count) {
+    var n = Math.abs(count) % 100;
+    var n1 = n % 10;
+    var word = "строк";
+    if (!(n > 10 && n < 20)) {
+      if (n1 === 1) word = "строка";
+      else if (n1 > 1 && n1 < 5) word = "строки";
+    }
+    return count + " " + word;
   }
 
   function renderDzBreakdownTable() {
@@ -4541,6 +4823,10 @@
 
     if (isPlanFactBreakdownView(nextView)) {
       renderPlanFactBreakdownTable(nextView);
+    }
+    updatePlanFactFilterButton();
+    if (planFactFilterDialogEl && planFactFilterDialogEl.open && isPlanFactBreakdownView(nextView)) {
+      writePlanFactFilterForm(nextView);
     }
     if (claimsTableHelpWrapEl) {
       claimsTableHelpWrapEl.hidden =

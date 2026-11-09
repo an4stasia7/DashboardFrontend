@@ -632,6 +632,174 @@
   box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
 }
 
+.plan-fact-filter-open {
+  appearance: none;
+  border: 1px solid rgba(37, 99, 235, 0.35);
+  background: #ffffff;
+  color: #1d4ed8;
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1.2;
+  padding: 7px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.plan-fact-filter-open[hidden] {
+  display: none !important;
+}
+
+.plan-fact-filter-open:hover,
+.plan-fact-filter-open:focus-visible,
+.plan-fact-filter-open.is-active {
+  background: #eff6ff;
+  border-color: #1d4ed8;
+  outline: none;
+}
+
+.plan-fact-filter-dialog {
+  width: min(760px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  padding: 0;
+  border: none;
+  border-radius: 18px;
+  background: #ffffff;
+  color: var(--text);
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28);
+}
+
+.plan-fact-filter-dialog::backdrop {
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.plan-fact-filter-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin: 0;
+  padding: 22px 22px 18px;
+  overflow: auto;
+  max-height: calc(100vh - 32px);
+}
+
+.plan-fact-filter-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.plan-fact-filter-title {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+}
+
+.plan-fact-filter-subtitle {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.plan-fact-filter-close {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: #64748b;
+  font-size: 1.6rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.plan-fact-filter-close:hover,
+.plan-fact-filter-close:focus-visible {
+  background: #f1f5f9;
+  color: #0f172a;
+  outline: none;
+}
+
+.plan-fact-filter-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px 16px;
+}
+
+.plan-fact-filter-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  font-size: 0.92rem;
+  font-weight: 650;
+  color: #334155;
+}
+
+.plan-fact-filter-field input,
+.plan-fact-filter-field select {
+  width: 100%;
+  height: 44px;
+  border: 1px solid #d6dde8;
+  border-radius: 12px;
+  background: #ffffff;
+  color: var(--text);
+  font: inherit;
+  font-weight: 500;
+  padding: 0 12px;
+}
+
+.plan-fact-filter-field input:focus,
+.plan-fact-filter-field select:focus {
+  outline: 2px solid rgba(37, 99, 235, 0.35);
+  border-color: #2563eb;
+}
+
+.plan-fact-filter-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.plan-fact-filter-reset,
+.plan-fact-filter-apply {
+  appearance: none;
+  border-radius: 12px;
+  font: inherit;
+  font-weight: 700;
+  padding: 10px 16px;
+  cursor: pointer;
+}
+
+.plan-fact-filter-reset {
+  border: 1px solid #d6dde8;
+  background: #ffffff;
+  color: #334155;
+}
+
+.plan-fact-filter-apply {
+  border: 0;
+  background: #1d4ed8;
+  color: #ffffff;
+}
+
+.plan-fact-filter-reset:hover,
+.plan-fact-filter-reset:focus-visible,
+.plan-fact-filter-apply:hover,
+.plan-fact-filter-apply:focus-visible {
+  outline: none;
+  filter: brightness(0.97);
+}
+
+@media (max-width: 720px) {
+  .plan-fact-filter-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .table-title-help-wrap {
   position: relative;
   display: inline-flex;
