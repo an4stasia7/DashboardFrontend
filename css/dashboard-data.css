@@ -178,6 +178,22 @@
   height: 16px;
 }
 
+.onec-doc-link {
+  color: var(--accent-blue, #2b5ca6);
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.onec-doc-link:hover {
+  text-decoration-style: solid;
+}
+
+.onec-doc-link.is-loading {
+  cursor: progress;
+  opacity: 0.6;
+}
+
 .donut-charts-pager .kpi-tiles-pager-btn:hover:not(:disabled) {
   border-color: var(--accent-blue, #2b5ca6);
   color: var(--accent-blue, #2b5ca6);
@@ -383,6 +399,29 @@
 
 .psd-table-amount-filter-wrap[hidden] {
   display: none !important;
+}
+
+/* Чекбокс стоит сразу за «Фильтры». На узком окне он и кнопка 1С целиком уходят на следующую строку. */
+#dz-include-overdue-wrap {
+  margin-left: 0;
+  flex: 0 0 auto;
+}
+
+#dz-include-overdue-wrap .psd-table-amount-filter-label {
+  border-left: 0;
+  padding-left: 2px;
+  white-space: nowrap;
+}
+
+.table-panel-title:has(#debt-table-switcher) {
+  flex-wrap: wrap;
+  row-gap: 8px;
+}
+
+.table-panel-title:has(#debt-table-switcher) > .plan-fact-filter-open,
+.table-panel-title:has(#debt-table-switcher) > #dz-include-overdue-wrap,
+.table-panel-title:has(#debt-table-switcher) > .table-onec-slot {
+  flex: 0 0 auto;
 }
 
 .psd-table-amount-filter-label {
@@ -727,6 +766,14 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 14px 16px;
+}
+
+.plan-fact-filter-field--wide {
+  grid-column: 1 / -1;
+}
+
+.plan-fact-filter-field[hidden] {
+  display: none !important;
 }
 
 .plan-fact-filter-field {

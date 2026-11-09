@@ -234,12 +234,72 @@
   var ICON =
     '<img class="onec-report-btn-icon" src="img/1c-logo.png?v=20261012-clear" alt="" draggable="false">';
 
-  function buttonHtml(url, label) {
+  var MONTHS = [
+    ["январ", 1],
+    ["феврал", 2],
+    ["март", 3],
+    ["апрел", 4],
+    ["май", 5],
+    ["июн", 6],
+    ["июл", 7],
+    ["август", 8],
+    ["сентябр", 9],
+    ["октябр", 10],
+    ["ноябр", 11],
+    ["декабр", 12],
+  ];
+
+  function periodFromLabel(label) {
+    var text = String(label == null ? "" : label).toLocaleLowerCase("ru-RU");
+    var yearMatch = text.match(/((?:19|20)\d{2})/);
+    var iso = text.match(/((?:19|20)\d{2})-(\d{1,2})/);
+    if (iso) {
+      var isoMonth = parseInt(iso[2], 10);
+      if (isoMonth >= 1 && isoMonth <= 12) {
+        return { year: parseInt(iso[1], 10), month: isoMonth };
+      }
+    }
+    if (!yearMatch) return null;
+    var month = 0;
+    for (var i = 0; i < MONTHS.length; i++) {
+      if (text.indexOf(MONTHS[i][0]) !== -1) {
+        month = MONTHS[i][1];
+        break;
+      }
+    }
+    if (!month) return null;
+    return { year: parseInt(yearMatch[1], 10), month: month };
+  }
+
+  function currentDashboardPeriod() {
+    var nav = global.DashboardMonthNav;
+    if (!nav || typeof nav.getPeriodState !== "function") return null;
+    var state = nav.getPeriodState() || {};
+    var year = parseInt(state.currentPeriodYear, 10);
+    var month = parseInt(state.currentPeriodMonth, 10);
+    if (!year || !month || month < 1 || month > 12) return null;
+    return { year: year, month: month };
+  }
+
+  function buttonHtml(url, label, context) {
     if (!url) return "";
+    var ctx = context || {};
+    var period = null;
+    if (ctx.year && ctx.month) {
+      period = { year: Number(ctx.year), month: Number(ctx.month) };
+    } else {
+      period = periodFromLabel(ctx.periodLabel) || currentDashboardPeriod();
+    }
     var caption = label ? "Открыть отчёт в 1С: " + label : "Открыть отчёт в 1С";
     return (
       '<button type="button" class="onec-report-btn" data-onec-url="' +
       escapeAttr(url) +
+      '" data-onec-department="' +
+      escapeAttr(ctx.department || "") +
+      '" data-onec-year="' +
+      escapeAttr(period && period.year ? period.year : "") +
+      '" data-onec-month="' +
+      escapeAttr(period && period.month ? period.month : "") +
       '" aria-label="' +
       escapeAttr(caption) +
       '" title="Открыть в 1С">' +
@@ -248,8 +308,9 @@
     );
   }
 
-  function openReport(url) {
+  function openReport(url, context) {
     if (!url || !/^e1c:\/\//i.test(url)) return;
+    var ctx = context || {};
     var app = global.electronApp;
     if (app && typeof app.openOnecReport === "function") {
       var creds = null;
@@ -263,6 +324,9 @@
           url: url,
           username: creds && creds.username,
           password: creds && creds.password,
+          department: ctx.department || "",
+          year: ctx.year || "",
+          month: ctx.month || "",
         })
       ).then(function (result) {
         if (result && result.ok === false && result.error) {
@@ -283,21 +347,153 @@
     link.remove();
   }
 
+  /** База, в которой открываются документы строк (та же, что у отчётов). */
+  var ONEC_BASE = "e1c://server/srv1/erp_pm";
+  var DOC_ATTRS = ["nav", "settlement", "order", "document", "partner"];
+  var GENERIC_DOCUMENTS = {
+    "": 1, "—": 1, "платёж": 1, "комиссия": 1, "взаимозачёт": 1, "отгрузка": 1, "счёт-оферта": 1,
+    "договор": 1, "дозаказ": 1, "потенциальный договор": 1, "плановый платёж": 1, "заказ к отгрузке": 1,
+  };
+
+  function docTarget(target) {
+    var t = target || {};
+    var out = {};
+    DOC_ATTRS.forEach(function (key) {
+      out[key] = t[key] != null ? String(t[key]).trim() : "";
+    });
+    if (out.order === "?") out.order = "";
+    return out;
+  }
+
+  function hasDocTarget(target) {
+    var t = docTarget(target);
+    if (t.nav || t.settlement || t.order) return true;
+    return Boolean(t.document && !GENERIC_DOCUMENTS[t.document.toLocaleLowerCase("ru-RU")]);
+  }
+
+  function docLinkAttrs(t) {
+    return DOC_ATTRS.map(function (key) {
+      return t[key] ? " data-onec-" + key + '="' + escapeAttr(t[key]) + '"' : "";
+    }).join("");
+  }
+
+  /** HTML названия документа: ссылка в 1С, если документ можно найти, иначе просто текст. */
+  function docLinkHtml(text, target) {
+    var label = String(text == null ? "" : text);
+    var safe = escapeAttr(label).replace(/>/g, "&gt;");
+    if (!hasDocTarget(target)) return safe;
+    return (
+      '<a href="#" class="onec-doc-link"' +
+      docLinkAttrs(docTarget(target)) +
+      ' title="Открыть в 1С (клик по названию или двойной клик по строке)">' +
+      safe +
+      "</a>"
+    );
+  }
+
+  /** То же для ячейки, собранной через DOM. */
+  function decorateDocCell(td, text, target) {
+    if (!td) return;
+    if (!hasDocTarget(target)) {
+      td.textContent = String(text == null ? "" : text);
+      return;
+    }
+    td.innerHTML = docLinkHtml(text, target);
+  }
+
+  function targetFromLink(link) {
+    var t = {};
+    DOC_ATTRS.forEach(function (key) {
+      t[key] = link.getAttribute("data-onec-" + key) || "";
+    });
+    return t;
+  }
+
+  var lastDocOpen = { key: "", at: 0 };
+
+  function openDocument(target, link) {
+    var t = docTarget(target);
+    var key = DOC_ATTRS.map(function (k) {
+      return t[k];
+    }).join("|");
+    var now = Date.now();
+    // Двойной клик по ссылке — это ещё два click: 1С открываем один раз.
+    if (key === lastDocOpen.key && now - lastDocOpen.at < 2000) return;
+    lastDocOpen = { key: key, at: now };
+    if (t.nav) {
+      openReport(ONEC_BASE + "#" + t.nav, {});
+      return;
+    }
+    var api = global.Api;
+    if (!api || typeof api.fetchOnecLink !== "function") return;
+    if (link) link.classList.add("is-loading");
+    api
+      .fetchOnecLink({
+        settlement: t.settlement,
+        order_num: t.order,
+        document: t.document,
+        partner: t.partner,
+      })
+      .then(function (res) {
+        if (res && res.ok && res.data && res.data.nav) {
+          if (link) link.setAttribute("data-onec-nav", res.data.nav);
+          openReport(ONEC_BASE + "#" + res.data.nav, {});
+          return;
+        }
+        lastDocOpen = { key: "", at: 0 };
+        global.alert((res && res.error) || "Документ в 1С не найден");
+      })
+      .then(function () {
+        if (link) link.classList.remove("is-loading");
+      });
+  }
+
+  function onDocClick(event) {
+    var link = event.target && event.target.closest ? event.target.closest(".onec-doc-link") : null;
+    if (!link) return false;
+    event.preventDefault();
+    event.stopPropagation();
+    openDocument(targetFromLink(link), link);
+    return true;
+  }
+
+  function onDocDblClick(event) {
+    if (!event.target || !event.target.closest) return;
+    var row = event.target.closest("tr");
+    var link = row ? row.querySelector(".onec-doc-link") : null;
+    if (!link) return;
+    event.preventDefault();
+    if (global.getSelection) {
+      var sel = global.getSelection();
+      if (sel && typeof sel.removeAllRanges === "function") sel.removeAllRanges();
+    }
+    openDocument(targetFromLink(link), link);
+  }
+
   function onClick(event) {
+    if (onDocClick(event)) return;
     var btn = event.target && event.target.closest ? event.target.closest(".onec-report-btn") : null;
     if (!btn) return;
     event.preventDefault();
     event.stopPropagation();
-    openReport(btn.getAttribute("data-onec-url"));
+    openReport(btn.getAttribute("data-onec-url"), {
+      department: btn.getAttribute("data-onec-department") || "",
+      year: btn.getAttribute("data-onec-year") || "",
+      month: btn.getAttribute("data-onec-month") || "",
+    });
   }
 
   if (global.document && global.document.addEventListener) {
     global.document.addEventListener("click", onClick);
+    global.document.addEventListener("dblclick", onDocDblClick);
   }
 
   global.OnecReports = {
     reportUrl: reportUrl,
     buttonHtml: buttonHtml,
     openReport: openReport,
+    docLinkHtml: docLinkHtml,
+    decorateDocCell: decorateDocCell,
+    openDocument: openDocument,
   };
 })(typeof window !== "undefined" ? window : globalThis);

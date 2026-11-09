@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Главная — дашборд</title>
-    <link rel="stylesheet" href="css/styles.css?v=20261109-pf-filters" />
+    <link rel="stylesheet" href="css/styles.css?v=20261109-debt-wrap" />
     <link rel="stylesheet" href="node_modules/katex/dist/katex.min.css" />
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/jquery.dataTables.min.css" />
   </head>
@@ -626,6 +626,24 @@
                 Просроченная дебиторская задолженность
               </button>
             </nav>
+            <button
+              type="button"
+              id="debt-filter-open"
+              class="plan-fact-filter-open"
+              hidden
+            >
+              <span class="plan-fact-filter-open-label">Фильтры</span>
+            </button>
+            <span
+              id="dz-include-overdue-wrap"
+              class="psd-table-amount-filter-wrap"
+              hidden
+            >
+              <label class="psd-table-amount-filter-label" for="dz-include-overdue">
+                <input type="checkbox" id="dz-include-overdue" checked />
+                <span>Показывать просроченную</span>
+              </label>
+            </span>
             <span id="overdue-debt-onec-slot" class="table-onec-slot"></span>
             <span
               id="psd-table-amount-filter-wrap-overdue"
@@ -948,11 +966,11 @@
         </label>
         <div class="plan-fact-filter-grid">
           <label class="plan-fact-filter-field">
-            <span>Дата с</span>
+            <span id="plan-fact-filter-date-from-label">Дата с</span>
             <input id="plan-fact-filter-date-from" type="date" />
           </label>
           <label class="plan-fact-filter-field">
-            <span>Дата по</span>
+            <span id="plan-fact-filter-date-to-label">Дата по</span>
             <input id="plan-fact-filter-date-to" type="date" />
           </label>
           <label class="plan-fact-filter-field">
@@ -961,18 +979,18 @@
               <option value="">Все отделы</option>
             </select>
           </label>
-          <label class="plan-fact-filter-field">
+          <label class="plan-fact-filter-field" id="plan-fact-filter-kind-wrap">
             <span>Вид</span>
             <select id="plan-fact-filter-kind">
               <option value="">Все виды</option>
             </select>
           </label>
           <label class="plan-fact-filter-field">
-            <span>Партнёр</span>
+            <span id="plan-fact-filter-partner-label">Партнёр</span>
             <input id="plan-fact-filter-partner" type="text" placeholder="Введите название" autocomplete="off" />
           </label>
           <label class="plan-fact-filter-field">
-            <span>Документ</span>
+            <span id="plan-fact-filter-document-label">Документ</span>
             <input id="plan-fact-filter-document" type="text" placeholder="Номер документа" autocomplete="off" />
           </label>
           <label class="plan-fact-filter-field">
@@ -982,6 +1000,28 @@
           <label class="plan-fact-filter-field">
             <span>Сумма до, руб.</span>
             <input id="plan-fact-filter-amount-to" type="text" inputmode="decimal" placeholder="Без ограничения" autocomplete="off" />
+          </label>
+          <label class="plan-fact-filter-field" id="plan-fact-filter-days-from-wrap" hidden>
+            <span>Просрочка от, дн.</span>
+            <input id="plan-fact-filter-days-from" type="text" inputmode="numeric" placeholder="0" autocomplete="off" />
+          </label>
+          <label class="plan-fact-filter-field" id="plan-fact-filter-days-to-wrap" hidden>
+            <span>Просрочка до, дн.</span>
+            <input id="plan-fact-filter-days-to" type="text" inputmode="numeric" placeholder="Без ограничения" autocomplete="off" />
+          </label>
+          <label class="plan-fact-filter-field" id="plan-fact-filter-manager-wrap" hidden>
+            <span>Менеджер</span>
+            <select id="plan-fact-filter-manager">
+              <option value="">Все</option>
+            </select>
+          </label>
+          <label class="plan-fact-filter-field" id="plan-fact-filter-reason-wrap" hidden>
+            <span>Причина</span>
+            <input id="plan-fact-filter-reason" type="text" placeholder="Введите текст" autocomplete="off" />
+          </label>
+          <label class="plan-fact-filter-field plan-fact-filter-field--wide" id="plan-fact-filter-action-wrap" hidden>
+            <span>Действие</span>
+            <input id="plan-fact-filter-action" type="text" placeholder="Введите текст" autocomplete="off" />
           </label>
         </div>
         <div class="plan-fact-filter-actions">
@@ -1001,13 +1041,13 @@
     </dialog>
 
     <script src="js/config.js"></script>
-    <script src="js/onecReports.js?v=20261012-all-tiles"></script>
+    <script src="js/onecReports.js?v=20261109-onec-docs"></script>
     <script src="js/app-update-notifier.js"></script>
     <script src="js/app-version-label.js"></script>
     <script src="js/const/kpiTileExceptions.js?v=20261005-pd-q1-projects"></script>
     <script src="js/mockData.js?v=20261012-od-m1-color"></script>
     <script src="js/auth.js?v=20261012-onec-client"></script>
-    <script src="js/api.js?v=20261009-metd-m1-color"></script>
+    <script src="js/api.js?v=20261109-onec-docs"></script>
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
     <!-- Явная версия: с code.highcharts.com без версии иногда подтягивается HC12+ с иными требованиями -->
@@ -1023,14 +1063,14 @@
     <script src="js/pages/dashboard-data-loader.js"></script>
     <script src="js/pages/dashboard-month-nav.js?v=20261009-past-month-fact"></script>
     <script src="js/pages/dashboard-kpi-tile-order.js"></script>
-    <script src="js/pages/dashboard-kpi-tiles.js?v=20261030-tile-actions"></script>
+    <script src="js/pages/dashboard-kpi-tiles.js?v=20261109-onec-session"></script>
     <script src="js/pages/dashboard-kpi-drilldown.js"></script>
-    <script src="js/pages/dashboard-claims-table.js?v=20261102-overdue-contacts"></script>
+    <script src="js/pages/dashboard-claims-table.js?v=20261109-debt-layout"></script>
     <script src="js/pages/dashboard-charts.js"></script>
     <script src="js/pages/dashboard-viewport.js"></script>
     <script src="js/pages/dashboard-chairman-overview.js"></script>
     <script src="js/pages/dashboard-support.js"></script>
     <script src="js/pages/dashboard-ai-assistant.js"></script>
-    <script src="js/pages/dashboard.js?v=20261109-pf-filter-sum"></script>
+    <script src="js/pages/dashboard.js?v=20261109-debt-layout"></script>
   </body>
 </html>

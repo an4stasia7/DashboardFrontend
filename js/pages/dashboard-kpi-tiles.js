@@ -350,7 +350,10 @@
     var url = reports.reportUrl(kpiId, department);
     if (!url) return "";
     var label = tile && tile.title ? String(tile.title) : kpiId;
-    return reports.buttonHtml(url, label);
+    return reports.buttonHtml(url, label, {
+      department: department,
+      periodLabel: tile && tile.plan_fact_period_label,
+    });
   }
 
   function buildKpiTileDetailsButtonHtml(tile) {

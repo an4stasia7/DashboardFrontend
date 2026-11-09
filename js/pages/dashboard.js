@@ -59,9 +59,11 @@
   var lastApiChartIndicators = null;
   /** Строки таблицы из API */
   var lastApiTableRows = null;
-  /** Фильтры расшифровок Деньги / Отгрузки / Договоры, отдельно для каждой вкладки. */
-  var planFactFilters = { money: null, ship: null, dog: null };
+  /** Фильтры расшифровок Деньги / Отгрузки / Договоры / ДЗ / ПДЗ, отдельно для каждой вкладки. */
+  var planFactFilters = { money: null, ship: null, dog: null, dz: null, overdue: null };
   var planFactFilterSyncing = false;
+  var commercialFilterEditingView = "";
+  var dzIncludeOverdue = true;
   /** Последний raw-ответ KPI для локального пересчёта плиток ПСД */
   var lastRawKpiResponse = null;
   /** Подпись в шапке из поля department последнего успешного ответа KPI (json) */
@@ -1496,11 +1498,17 @@
   }
 
   var planFactFilterOpenEl = document.getElementById("plan-fact-filter-open");
+  var debtFilterOpenEl = document.getElementById("debt-filter-open");
   var planFactFilterDialogEl = document.getElementById("plan-fact-filter-dialog");
   var planFactFilterFormEl = document.getElementById("plan-fact-filter-form");
   if (planFactFilterOpenEl) {
     planFactFilterOpenEl.addEventListener("click", function () {
-      openPlanFactFilterDialog();
+      openPlanFactFilterDialog(activeClaimsTableView);
+    });
+  }
+  if (debtFilterOpenEl) {
+    debtFilterOpenEl.addEventListener("click", function () {
+      openPlanFactFilterDialog(activeDebtTableView === "overdue" ? "overdue" : "dz");
     });
   }
   if (planFactFilterFormEl) {
@@ -1511,6 +1519,14 @@
   if (planFactFilterResetEl) {
     planFactFilterResetEl.addEventListener("click", function () {
       resetPlanFactFilter();
+    });
+  }
+  var dzIncludeOverdueEl = document.getElementById("dz-include-overdue");
+  if (dzIncludeOverdueEl) {
+    dzIncludeOverdueEl.checked = true;
+    dzIncludeOverdueEl.addEventListener("change", function () {
+      dzIncludeOverdue = !!dzIncludeOverdueEl.checked;
+      if (isCommercialFamilyDashboardContext()) renderDzBreakdownTable();
     });
   }
 
@@ -4028,7 +4044,18 @@
       typeof OnecReports !== "undefined" && OnecReports && typeof OnecReports.reportUrl === "function"
         ? OnecReports.reportUrl(kpiId, getOnecReportContextKey())
         : "";
-    slot.innerHTML = url && typeof OnecReports.buttonHtml === "function" ? OnecReports.buttonHtml(url, label) : "";
+    var period = {};
+    if (typeof DashboardMonthNav !== "undefined" && DashboardMonthNav && typeof DashboardMonthNav.getPeriodState === "function") {
+      period = DashboardMonthNav.getPeriodState() || {};
+    }
+    slot.innerHTML =
+      url && typeof OnecReports.buttonHtml === "function"
+        ? OnecReports.buttonHtml(url, label, {
+            department: getOnecReportContextKey(),
+            year: period.currentPeriodYear,
+            month: period.currentPeriodMonth,
+          })
+        : "";
   }
 
   function syncCommercialOnecTableButtons() {
@@ -4367,7 +4394,20 @@
       document: "",
       amountFrom: "",
       amountTo: "",
+      daysFrom: "",
+      daysTo: "",
+      manager: "",
+      reason: "",
+      action: "",
     };
+  }
+
+  function isDebtFilterView(view) {
+    return view === "dz" || view === "overdue";
+  }
+
+  function isCommercialTableFilterView(view) {
+    return isPlanFactBreakdownView(view) || isDebtFilterView(view);
   }
 
   function getPlanFactFilter(view) {
@@ -4389,6 +4429,10 @@
     if (String(filter.partner || "").trim()) count += 1;
     if (String(filter.document || "").trim()) count += 1;
     if (String(filter.amountFrom || "").trim() || String(filter.amountTo || "").trim()) count += 1;
+    if (String(filter.daysFrom || "").trim() || String(filter.daysTo || "").trim()) count += 1;
+    if (filter.manager) count += 1;
+    if (String(filter.reason || "").trim()) count += 1;
+    if (String(filter.action || "").trim()) count += 1;
     return count;
   }
 
@@ -4408,15 +4452,53 @@
     return isNaN(amount) ? null : amount;
   }
 
-  function planFactRowMatchesQuery(raw, amount, query) {
-    var q = String(query || "").trim().toLowerCase();
-    if (!q) return true;
+  function commercialFilterHaystack(raw, amount, view) {
     var formatted = isNaN(amount)
       ? ""
       : amount.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    var hay = [raw.date, raw.department, raw.partner, raw.document, raw.name, raw.kind, formatted, isNaN(amount) ? "" : String(amount)]
-      .join(" ")
-      .toLowerCase();
+    var parts;
+    if (view === "dz") {
+      parts = [
+        raw.order_num,
+        raw.order_number,
+        raw.counterparty,
+        raw.partner_name,
+        raw.partner,
+        raw.department,
+        raw["Подразделение"],
+        raw.dept_name,
+        raw.payment_date,
+        formatted,
+        isNaN(amount) ? "" : String(amount),
+      ];
+    } else if (view === "overdue") {
+      parts = [
+        raw.order_num,
+        raw.order_number,
+        raw.counterparty,
+        raw.partner_name,
+        raw.department,
+        raw["Подразделение"],
+        raw.dept_name,
+        raw.reason,
+        raw.action,
+        raw.contact_date,
+        raw.next_contact_date,
+        raw.manager,
+        raw.days_overdue,
+        formatted,
+        isNaN(amount) ? "" : String(amount),
+      ];
+    } else {
+      parts = [raw.date, raw.department, raw.partner, raw.document, raw.name, raw.kind, formatted, isNaN(amount) ? "" : String(amount)];
+    }
+    return parts.join(" ").toLowerCase();
+  }
+
+  function planFactRowMatchesQuery(raw, amount, query, view) {
+    var q = String(query || "").trim().toLowerCase();
+    if (!q) return true;
+    var hay = commercialFilterHaystack(raw, amount, view);
     if (hay.indexOf(q) !== -1) return true;
     var digits = q.replace(/[^\d]/g, "");
     if (digits.length < 2) return false;
@@ -4424,29 +4506,70 @@
     return compact.indexOf(digits) !== -1;
   }
 
-  function planFactRowMatchesFilter(raw, filter) {
+  function commercialRowDateKeys(raw, view) {
+    if (view === "dz") return [planFactDateKey(raw.payment_date)];
+    if (view === "overdue") {
+      return [planFactDateKey(raw.contact_date), planFactDateKey(raw.next_contact_date), planFactDateKey(raw.order_date)].filter(Boolean);
+    }
+    return [planFactDateKey(raw.date)].filter(Boolean);
+  }
+
+  function commercialRowDepartment(raw) {
+    return String(raw.department || raw["Подразделение"] || raw.dept_name || raw.liquidated_dept_name || "").trim();
+  }
+
+  function commercialRowPartner(raw) {
+    return String(raw.partner || raw.counterparty || raw.partner_name || "").trim();
+  }
+
+  function commercialRowDocument(raw, view) {
+    if (view === "dz" || view === "overdue") return String(raw.order_num || raw.order_number || "").trim();
+    return String(raw.document || raw.name || "").trim();
+  }
+
+  function planFactRowMatchesFilter(raw, filter, view) {
     if (!planFactFilterIsActive(filter)) return true;
     var amount = Number(raw.amount);
-    if (!planFactRowMatchesQuery(raw, amount, filter.q)) return false;
-    var dateKey = planFactDateKey(raw.date);
+    if (!planFactRowMatchesQuery(raw, amount, filter.q, view)) return false;
     var fromKey = planFactDateKey(filter.dateFrom);
     var toKey = planFactDateKey(filter.dateTo);
-    if ((fromKey || toKey) && !dateKey) return false;
-    if (fromKey && dateKey < fromKey) return false;
-    if (toKey && dateKey > toKey) return false;
-    if (filter.department && String(raw.department || "") !== filter.department) return false;
+    if (fromKey || toKey) {
+      var dateKeys = commercialRowDateKeys(raw, view);
+      if (!dateKeys.length) return false;
+      var any = dateKeys.some(function (dateKey) {
+        if (fromKey && dateKey < fromKey) return false;
+        if (toKey && dateKey > toKey) return false;
+        return true;
+      });
+      if (!any) return false;
+    }
+    if (filter.department && commercialRowDepartment(raw) !== filter.department) return false;
     if (filter.kind && String(raw.kind || "") !== filter.kind) return false;
     var partnerQuery = String(filter.partner || "").trim().toLowerCase();
-    if (partnerQuery && String(raw.partner || "").toLowerCase().indexOf(partnerQuery) === -1) return false;
+    if (partnerQuery && commercialRowPartner(raw).toLowerCase().indexOf(partnerQuery) === -1) return false;
     var documentQuery = String(filter.document || "").trim().toLowerCase();
-    var documentText = String(raw.document || raw.name || "").toLowerCase();
-    if (documentQuery && documentText.indexOf(documentQuery) === -1) return false;
+    if (documentQuery && commercialRowDocument(raw, view).toLowerCase().indexOf(documentQuery) === -1) return false;
     var amountFrom = parsePlanFactAmount(filter.amountFrom);
     var amountTo = parsePlanFactAmount(filter.amountTo);
     if (amountFrom != null || amountTo != null) {
       if (isNaN(amount)) return false;
       if (amountFrom != null && amount < amountFrom) return false;
       if (amountTo != null && amount > amountTo) return false;
+    }
+    if (view === "overdue") {
+      var daysFrom = parsePlanFactAmount(filter.daysFrom);
+      var daysTo = parsePlanFactAmount(filter.daysTo);
+      if (daysFrom != null || daysTo != null) {
+        var days = Number(raw.days_overdue);
+        if (isNaN(days)) return false;
+        if (daysFrom != null && days < daysFrom) return false;
+        if (daysTo != null && days > daysTo) return false;
+      }
+      if (filter.manager && String(raw.manager || "").trim() !== filter.manager) return false;
+      var reasonQuery = String(filter.reason || "").trim().toLowerCase();
+      if (reasonQuery && String(raw.reason || "").toLowerCase().indexOf(reasonQuery) === -1) return false;
+      var actionQuery = String(filter.action || "").trim().toLowerCase();
+      if (actionQuery && String(raw.action || "").toLowerCase().indexOf(actionQuery) === -1) return false;
     }
     return true;
   }
@@ -4460,12 +4583,68 @@
     });
   }
 
-  function uniquePlanFactValues(rows, field) {
+  function dzBreakdownRows() {
+    var source = Array.isArray(lastApiTableRows) ? lastApiTableRows : [];
+    return source.filter(function (item) {
+      var key = item && item.tableKey != null ? String(item.tableKey).trim().toUpperCase() : "";
+      return key === "KD-T-DZ" && item.raw && item.raw.__tableEmptyMarker !== true;
+    });
+  }
+
+  function overdueBreakdownRows() {
+    var source = Array.isArray(lastApiTableRows) ? lastApiTableRows : [];
+    return source.filter(function (item) {
+      var key = item && item.tableKey != null ? String(item.tableKey).trim().toUpperCase() : "";
+      return key === "KD-T-OVERDUE" && item.raw && item.raw.__tableEmptyMarker !== true;
+    });
+  }
+
+  function overdueOrderKeys() {
+    var keys = { orders: Object.create(null), terms: Object.create(null), hasTerms: false };
+    overdueBreakdownRows().forEach(function (item) {
+      var raw = item.raw || {};
+      var orderKey = String(raw.order_key || "").trim().toLowerCase();
+      var orderNum = String(raw.order_num || raw.order_number || "").trim().toLowerCase();
+      if (orderKey) keys.orders[orderKey] = true;
+      if (orderNum) keys.orders["num:" + orderNum] = true;
+      var installments = raw.installments;
+      if (!Array.isArray(installments) || !installments.length) return;
+      keys.hasTerms = true;
+      installments.forEach(function (inst) {
+        var dateKey = planFactDateKey(inst && inst.planned_date);
+        if (!dateKey) return;
+        if (orderKey) keys.terms[orderKey + "|" + dateKey] = true;
+        if (orderNum) keys.terms["num:" + orderNum + "|" + dateKey] = true;
+      });
+    });
+    return keys;
+  }
+
+  function dzRowIsFromOverdue(raw, keys) {
+    if (!keys) return false;
+    var orderKey = String(raw.order_key || "").trim().toLowerCase();
+    var orderNum = String(raw.order_num || raw.order_number || "").trim().toLowerCase();
+    var dateKey = planFactDateKey(raw.payment_date);
+    if (dateKey && keys.hasTerms) {
+      if (orderKey && keys.terms[orderKey + "|" + dateKey]) return true;
+      if (orderNum && keys.terms["num:" + orderNum + "|" + dateKey]) return true;
+      return false;
+    }
+    if (orderKey && keys.orders[orderKey]) return true;
+    if (orderNum && keys.orders["num:" + orderNum]) return true;
+    return false;
+  }
+
+  function uniquePlanFactValues(rows, field, view) {
     var seen = Object.create(null);
     var values = [];
     rows.forEach(function (item) {
       var raw = item.raw || {};
-      var value = field === "document" ? raw.document || raw.name || "" : raw[field] || "";
+      var value = "";
+      if (field === "document") value = commercialRowDocument(raw, view);
+      else if (field === "department") value = commercialRowDepartment(raw);
+      else if (field === "partner") value = commercialRowPartner(raw);
+      else value = raw[field] || "";
       value = String(value).trim();
       if (!value || value === "—" || seen[value]) return;
       seen[value] = true;
@@ -4490,7 +4669,25 @@
   function planFactFilterViewTitle(view) {
     if (view === "ship") return "Отгрузки";
     if (view === "dog") return "Договоры";
+    if (view === "dz") return "Дебиторская задолженность";
+    if (view === "overdue") return "Просроченная дебиторская задолженность";
     return "Деньги";
+  }
+
+  function commercialFilterRows(view) {
+    if (view === "dz") return dzBreakdownRows();
+    if (view === "overdue") return overdueBreakdownRows();
+    return planFactBreakdownRows(view);
+  }
+
+  function setFilterFieldHidden(id, hidden) {
+    var node = document.getElementById(id);
+    if (node) node.hidden = !!hidden;
+  }
+
+  function setFilterLabel(id, text) {
+    var node = document.getElementById(id);
+    if (node) node.textContent = text;
   }
 
   function readPlanFactFilterForm(view) {
@@ -4499,11 +4696,16 @@
     filter.dateFrom = planFactFilterFieldValue("plan-fact-filter-date-from");
     filter.dateTo = planFactFilterFieldValue("plan-fact-filter-date-to");
     filter.department = planFactFilterFieldValue("plan-fact-filter-dept");
-    filter.kind = planFactFilterFieldValue("plan-fact-filter-kind");
+    filter.kind = view === "overdue" || view === "dz" ? "" : planFactFilterFieldValue("plan-fact-filter-kind");
     filter.partner = planFactFilterFieldValue("plan-fact-filter-partner");
     filter.document = planFactFilterFieldValue("plan-fact-filter-document");
     filter.amountFrom = planFactFilterFieldValue("plan-fact-filter-amount-from");
     filter.amountTo = planFactFilterFieldValue("plan-fact-filter-amount-to");
+    filter.daysFrom = view === "overdue" ? planFactFilterFieldValue("plan-fact-filter-days-from") : "";
+    filter.daysTo = view === "overdue" ? planFactFilterFieldValue("plan-fact-filter-days-to") : "";
+    filter.manager = view === "overdue" ? planFactFilterFieldValue("plan-fact-filter-manager") : "";
+    filter.reason = view === "overdue" ? planFactFilterFieldValue("plan-fact-filter-reason") : "";
+    filter.action = view === "overdue" ? planFactFilterFieldValue("plan-fact-filter-action") : "";
   }
 
   function planFactFilterFieldValue(id) {
@@ -4513,23 +4715,53 @@
 
   function writePlanFactFilterForm(view) {
     var filter = getPlanFactFilter(view);
-    var rows = planFactBreakdownRows(view);
-    var kinds = uniquePlanFactValues(rows, "kind").sort(function (a, b) {
-      var order = { "Факт": 0, "Ожидаемо": 1 };
-      var ao = Object.prototype.hasOwnProperty.call(order, a) ? order[a] : 10;
-      var bo = Object.prototype.hasOwnProperty.call(order, b) ? order[b] : 10;
-      if (ao !== bo) return ao - bo;
-      return a.localeCompare(b, "ru");
-    });
+    var rows = commercialFilterRows(view);
+    var overdueView = view === "overdue";
+    var debtView = isDebtFilterView(view);
     planFactFilterSyncing = true;
+    setFilterFieldHidden("plan-fact-filter-kind-wrap", debtView);
+    setFilterFieldHidden("plan-fact-filter-days-from-wrap", !overdueView);
+    setFilterFieldHidden("plan-fact-filter-days-to-wrap", !overdueView);
+    setFilterFieldHidden("plan-fact-filter-manager-wrap", !overdueView);
+    setFilterFieldHidden("plan-fact-filter-reason-wrap", !overdueView);
+    setFilterFieldHidden("plan-fact-filter-action-wrap", !overdueView);
+    setFilterLabel("plan-fact-filter-date-from-label", overdueView ? "Дата контакта с" : view === "dz" ? "Дата оплаты с" : "Дата с");
+    setFilterLabel("plan-fact-filter-date-to-label", overdueView ? "Дата контакта по" : view === "dz" ? "Дата оплаты по" : "Дата по");
+    setFilterLabel("plan-fact-filter-partner-label", debtView ? "Контрагент" : "Партнёр");
+    setFilterLabel("plan-fact-filter-document-label", debtView ? "№ заказа" : "Документ");
+    var search = document.getElementById("plan-fact-filter-q");
+    if (search) {
+      search.placeholder = overdueView
+        ? "Заказ, контрагент, причина, менеджер, сумма..."
+        : view === "dz"
+          ? "Заказ, контрагент, отдел, сумма..."
+          : "Название партнёра, номер документа, сумма...";
+    }
+    var documentInput = document.getElementById("plan-fact-filter-document");
+    if (documentInput) documentInput.placeholder = debtView ? "Номер заказа" : "Номер документа";
     var deptSelect = document.getElementById("plan-fact-filter-dept");
     var kindSelect = document.getElementById("plan-fact-filter-kind");
-    fillPlanFactFilterSelect(deptSelect, uniquePlanFactValues(rows, "department"), "Все отделы", filter.department);
-    fillPlanFactFilterSelect(kindSelect, kinds, "Все виды", filter.kind);
+    var managerSelect = document.getElementById("plan-fact-filter-manager");
+    fillPlanFactFilterSelect(deptSelect, uniquePlanFactValues(rows, "department", view), "Все отделы", filter.department);
+    if (!debtView) {
+      var kinds = uniquePlanFactValues(rows, "kind", view).sort(function (a, b) {
+        var order = { "Факт": 0, "Ожидаемо": 1 };
+        var ao = Object.prototype.hasOwnProperty.call(order, a) ? order[a] : 10;
+        var bo = Object.prototype.hasOwnProperty.call(order, b) ? order[b] : 10;
+        if (ao !== bo) return ao - bo;
+        return a.localeCompare(b, "ru");
+      });
+      fillPlanFactFilterSelect(kindSelect, kinds, "Все виды", filter.kind);
+    }
+    if (overdueView) {
+      fillPlanFactFilterSelect(managerSelect, uniquePlanFactValues(rows, "manager", view), "Все", filter.manager);
+    }
     var departmentBefore = filter.department;
     var kindBefore = filter.kind;
+    var managerBefore = filter.manager;
     if (deptSelect) filter.department = deptSelect.value;
-    if (kindSelect) filter.kind = kindSelect.value;
+    if (kindSelect && !debtView) filter.kind = kindSelect.value;
+    if (managerSelect && overdueView) filter.manager = managerSelect.value;
     setPlanFactFilterField("plan-fact-filter-q", filter.q);
     setPlanFactFilterField("plan-fact-filter-date-from", filter.dateFrom);
     setPlanFactFilterField("plan-fact-filter-date-to", filter.dateTo);
@@ -4537,12 +4769,20 @@
     setPlanFactFilterField("plan-fact-filter-document", filter.document);
     setPlanFactFilterField("plan-fact-filter-amount-from", filter.amountFrom);
     setPlanFactFilterField("plan-fact-filter-amount-to", filter.amountTo);
+    setPlanFactFilterField("plan-fact-filter-days-from", filter.daysFrom);
+    setPlanFactFilterField("plan-fact-filter-days-to", filter.daysTo);
+    setPlanFactFilterField("plan-fact-filter-reason", filter.reason);
+    setPlanFactFilterField("plan-fact-filter-action", filter.action);
     var subtitle = document.getElementById("plan-fact-filter-subtitle");
     if (subtitle) subtitle.textContent = planFactFilterViewTitle(view);
     planFactFilterSyncing = false;
-    if (departmentBefore !== filter.department || kindBefore !== filter.kind) {
+    if (
+      departmentBefore !== filter.department ||
+      kindBefore !== filter.kind ||
+      managerBefore !== filter.manager
+    ) {
       updatePlanFactFilterButton();
-      renderPlanFactBreakdownTable(view);
+      applyCommercialTableFilter(view);
     }
   }
 
@@ -4551,43 +4791,69 @@
     if (field) field.value = value || "";
   }
 
-  function updatePlanFactFilterButton() {
-    var button = document.getElementById("plan-fact-filter-open");
+  function paintFilterOpenButton(button, view) {
     if (!button) return;
-    var show = isPlanFactBreakdownView(activeClaimsTableView) && isCommercialFamilyDashboardContext();
-    button.hidden = !show;
-    if (!show) {
-      if (planFactFilterDialogEl && planFactFilterDialogEl.open) planFactFilterDialogEl.close();
-      return;
-    }
-    var count = planFactActiveFilterCount(getPlanFactFilter(activeClaimsTableView));
+    var count = planFactActiveFilterCount(getPlanFactFilter(view));
     button.classList.toggle("is-active", count > 0);
     var label = button.querySelector(".plan-fact-filter-open-label");
     if (label) label.textContent = count ? "Фильтры · " + count : "Фильтры";
     button.setAttribute("aria-label", count ? "Фильтры, выбрано условий: " + count : "Фильтры");
   }
 
-  function openPlanFactFilterDialog() {
-    if (!planFactFilterDialogEl || !isPlanFactBreakdownView(activeClaimsTableView) || !isCommercialFamilyDashboardContext()) return;
-    writePlanFactFilterForm(activeClaimsTableView);
+  function updatePlanFactFilterButton() {
+    var commercial = isCommercialFamilyDashboardContext();
+    var planFactButton = document.getElementById("plan-fact-filter-open");
+    var debtButton = document.getElementById("debt-filter-open");
+    var showPlanFact = commercial && isPlanFactBreakdownView(activeClaimsTableView);
+    var showDebt = commercial;
+    if (planFactButton) planFactButton.hidden = !showPlanFact;
+    if (debtButton) debtButton.hidden = !showDebt;
+    if (showPlanFact) paintFilterOpenButton(planFactButton, activeClaimsTableView);
+    if (showDebt) paintFilterOpenButton(debtButton, activeDebtTableView === "overdue" ? "overdue" : "dz");
+    if (planFactFilterDialogEl && planFactFilterDialogEl.open) {
+      if (!commercial || !isCommercialTableFilterView(commercialFilterEditingView)) {
+        planFactFilterDialogEl.close();
+      }
+    }
+  }
+
+  function openPlanFactFilterDialog(view) {
+    var nextView = isCommercialTableFilterView(view) ? view : "";
+    if (!planFactFilterDialogEl || !nextView || !isCommercialFamilyDashboardContext()) return;
+    commercialFilterEditingView = nextView;
+    writePlanFactFilterForm(nextView);
     if (typeof planFactFilterDialogEl.showModal === "function" && !planFactFilterDialogEl.open) {
       planFactFilterDialogEl.showModal();
     }
   }
 
   function onPlanFactFilterFormChanged() {
-    if (planFactFilterSyncing || !isPlanFactBreakdownView(activeClaimsTableView)) return;
-    readPlanFactFilterForm(activeClaimsTableView);
+    var view = commercialFilterEditingView || (isPlanFactBreakdownView(activeClaimsTableView) ? activeClaimsTableView : "");
+    if (planFactFilterSyncing || !isCommercialTableFilterView(view)) return;
+    readPlanFactFilterForm(view);
     updatePlanFactFilterButton();
-    renderPlanFactBreakdownTable(activeClaimsTableView);
+    applyCommercialTableFilter(view);
   }
 
   function resetPlanFactFilter() {
-    if (!isPlanFactBreakdownView(activeClaimsTableView)) return;
-    planFactFilters[activeClaimsTableView] = emptyPlanFactFilter();
-    writePlanFactFilterForm(activeClaimsTableView);
+    var view = commercialFilterEditingView || (isPlanFactBreakdownView(activeClaimsTableView) ? activeClaimsTableView : "");
+    if (!isCommercialTableFilterView(view)) return;
+    planFactFilters[view] = emptyPlanFactFilter();
+    writePlanFactFilterForm(view);
     updatePlanFactFilterButton();
-    renderPlanFactBreakdownTable(activeClaimsTableView);
+    applyCommercialTableFilter(view);
+  }
+
+  function applyCommercialTableFilter(view) {
+    if (view === "dz") {
+      renderDzBreakdownTable();
+      return;
+    }
+    if (view === "overdue") {
+      refreshOverdueBreakdownTable();
+      return;
+    }
+    if (isPlanFactBreakdownView(view)) renderPlanFactBreakdownTable(view);
   }
 
   function renderPlanFactBreakdownTable(view) {
@@ -4602,7 +4868,7 @@
     var filterActive = isCommercialFamilyDashboardContext() && planFactFilterIsActive(filter);
     var rows = filterActive
       ? allRows.filter(function (item) {
-          return planFactRowMatchesFilter(item.raw || {}, filter);
+          return planFactRowMatchesFilter(item.raw || {}, filter, view);
         })
       : allRows;
     var fact = 0;
@@ -4631,6 +4897,9 @@
           cells
             .map(function (value, index) {
               var cls = index === 5 ? ' class="dashboard-table-cell--number"' : "";
+              if (index === 3) {
+                return "<td>" + onecDocHtml(value, { nav: raw.onec_nav, document: raw.document, partner: raw.partner }) + "</td>";
+              }
               return "<td" + cls + ">" + DashUi.escapeHtml(String(value)) + "</td>";
             })
             .join("") +
@@ -4692,6 +4961,13 @@
       "</th></tr></tfoot>";
   }
 
+  function onecDocHtml(text, target) {
+    if (typeof OnecReports !== "undefined" && OnecReports && typeof OnecReports.docLinkHtml === "function") {
+      return OnecReports.docLinkHtml(text, target);
+    }
+    return DashUi.escapeHtml(String(text));
+  }
+
   function planFactRowsLabel(count) {
     var n = Math.abs(count) % 100;
     var n1 = n % 10;
@@ -4703,13 +4979,40 @@
     return count + " " + word;
   }
 
+  function refreshOverdueBreakdownTable() {
+    if (!isCommercialFamilyDashboardContext()) return;
+    if (typeof DashboardClaimsTable === "undefined" || !DashboardClaimsTable || typeof DashboardClaimsTable.refreshOverdueDebt !== "function") {
+      return;
+    }
+    var allRows = overdueBreakdownRows();
+    var filter = getPlanFactFilter("overdue");
+    var filterActive = isCommercialFamilyDashboardContext() && planFactFilterIsActive(filter);
+    var rows = filterActive
+      ? allRows.filter(function (item) {
+          return planFactRowMatchesFilter(item.raw || {}, filter, "overdue");
+        })
+      : allRows;
+    DashboardClaimsTable.refreshOverdueDebt(rows, {
+      filtered: filterActive,
+      emptyMessage:
+        filterActive && allRows.length
+          ? "Нет строк по заданным фильтрам."
+          : "Просроченная дебиторская задолженность за выбранный месяц ещё не готова.",
+    });
+  }
+
   function renderDzBreakdownTable() {
     var table = document.getElementById("table-dz");
     if (!table) return;
-    var source = Array.isArray(lastApiTableRows) ? lastApiTableRows : [];
-    var rows = source.filter(function (item) {
-      var key = item && item.tableKey != null ? String(item.tableKey).trim().toUpperCase() : "";
-      return key === "KD-T-DZ" && item.raw && item.raw.__tableEmptyMarker !== true;
+    var allRows = dzBreakdownRows();
+    var filter = getPlanFactFilter("dz");
+    var filterActive = isCommercialFamilyDashboardContext() && planFactFilterIsActive(filter);
+    var overdueKeys = !dzIncludeOverdue ? overdueOrderKeys() : null;
+    var rows = allRows.filter(function (item) {
+      var raw = item.raw || {};
+      if (overdueKeys && dzRowIsFromOverdue(raw, overdueKeys)) return false;
+      if (filterActive && !planFactRowMatchesFilter(raw, filter, "dz")) return false;
+      return true;
     });
     var total = 0;
     var body = rows
@@ -4731,6 +5034,18 @@
           cells
             .map(function (value, index) {
               var cls = index === 4 ? ' class="dashboard-table-cell--number"' : "";
+              if (index === 0) {
+                return (
+                  "<td>" +
+                  onecDocHtml(value, {
+                    nav: raw.onec_nav,
+                    settlement: raw.order_key,
+                    order: raw.order_num || raw.order_number,
+                    partner: raw.counterparty || raw.partner_name,
+                  }) +
+                  "</td>"
+                );
+              }
               return "<td" + cls + ">" + DashUi.escapeHtml(String(value)) + "</td>";
             })
             .join("") +
@@ -4739,15 +5054,24 @@
       })
       .join("");
     if (!body) {
-      body = '<tr><td colspan="5">Дебиторская задолженность за выбранный месяц ещё не готова.</td></tr>';
+      if ((filterActive || !dzIncludeOverdue) && allRows.length) {
+        body = '<tr><td colspan="5">Нет строк по заданным фильтрам.</td></tr>';
+      } else {
+        body = '<tr><td colspan="5">Дебиторская задолженность за выбранный месяц ещё не готова.</td></tr>';
+      }
     }
     var totalText = total.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    var footerLabel = filterActive || !dzIncludeOverdue
+      ? "По фильтру · " + planFactRowsLabel(rows.length)
+      : "Итого";
     table.innerHTML =
       "<thead><tr><th>№ Заказа клиента</th><th>Контрагент</th><th>Подразделение</th><th>Дата оплаты</th><th>Сумма, руб.</th></tr></thead>" +
       "<tbody>" +
       body +
       "</tbody>" +
-      '<tfoot><tr><th colspan="4">Итого</th><th class="dashboard-table-cell--number">' +
+      '<tfoot><tr><th colspan="4">' +
+      footerLabel +
+      '</th><th class="dashboard-table-cell--number">' +
       totalText +
       "</th></tr></tfoot>";
   }
@@ -4765,7 +5089,17 @@
       btn.setAttribute("aria-selected", match ? "true" : "false");
       btn.classList.toggle("is-active", match);
     });
+    var includeWrap = document.getElementById("dz-include-overdue-wrap");
+    if (includeWrap) includeWrap.hidden = !(isCommercialFamilyDashboardContext() && nextView === "dz");
+    var includeEl = document.getElementById("dz-include-overdue");
+    if (includeEl) includeEl.checked = dzIncludeOverdue;
+    updatePlanFactFilterButton();
+    if (planFactFilterDialogEl && planFactFilterDialogEl.open && isDebtFilterView(nextView)) {
+      commercialFilterEditingView = nextView;
+      writePlanFactFilterForm(nextView);
+    }
     if (nextView === "dz") renderDzBreakdownTable();
+    if (nextView === "overdue") refreshOverdueBreakdownTable();
   }
 
   function updateDebtTableSwitcher() {
@@ -4775,10 +5109,13 @@
     if (switcher) switcher.hidden = !commercial;
     if (title) title.hidden = !!commercial;
     if (!commercial) {
+      var includeWrap = document.getElementById("dz-include-overdue-wrap");
+      if (includeWrap) includeWrap.hidden = true;
       document.querySelectorAll("[data-debt-view]").forEach(function (node) {
         if (!node || node.tagName === "NAV" || node.tagName === "BUTTON") return;
         node.hidden = node.getAttribute("data-debt-view") !== "overdue";
       });
+      updatePlanFactFilterButton();
       return;
     }
     applyDebtTableView(activeDebtTableView || "dz");
@@ -4826,6 +5163,7 @@
     }
     updatePlanFactFilterButton();
     if (planFactFilterDialogEl && planFactFilterDialogEl.open && isPlanFactBreakdownView(nextView)) {
+      commercialFilterEditingView = nextView;
       writePlanFactFilterForm(nextView);
     }
     if (claimsTableHelpWrapEl) {
