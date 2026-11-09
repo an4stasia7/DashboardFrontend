@@ -76,6 +76,35 @@
     return String(q) + " кв.";
   }
 
+  function quarterPeriodLabel(q) {
+    if (q === 1) return "I квартал";
+    if (q === 2) return "II квартал";
+    if (q === 3) return "III квартал";
+    if (q === 4) return "IV квартал";
+    return "";
+  }
+
+  function syncQuarterToCurrentMonth() {
+    var q = computeQuarterFromMonth(currentPeriodMonth);
+    if (q) selectedQuarters = [q];
+  }
+
+  function quarterStepTarget(delta) {
+    var q = computeQuarterFromMonth(currentPeriodMonth);
+    var y = Number(currentPeriodYear);
+    if (!q || isNaN(y)) return null;
+    var nextQuarter = q + delta;
+    var nextYear = y;
+    if (nextQuarter < 1) {
+      nextQuarter = 4;
+      nextYear = y - 1;
+    } else if (nextQuarter > 4) {
+      nextQuarter = 1;
+      nextYear = y + 1;
+    }
+    return pickBestMonthForQuarter(nextQuarter, nextYear);
+  }
+
   function normalizeQuarterList(value) {
     var list = Array.isArray(value) ? value : [];
     var out = [];
@@ -518,32 +547,46 @@
 
     nav.hidden = false;
     var monthName = MONTH_NAMES_RU[currentPeriodMonth] || String(currentPeriodMonth);
-    if (label) label.textContent = monthName + " " + currentPeriodYear;
+    var quarterMode = (aggregationMode || "current") === "quarter";
+    if (quarterMode) syncQuarterToCurrentMonth();
+    var quarter = computeQuarterFromMonth(currentPeriodMonth);
+    if (label) {
+      label.textContent = quarterMode && quarter
+        ? quarterPeriodLabel(quarter) + " " + currentPeriodYear
+        : monthName + " " + currentPeriodYear;
+    }
     if (aggregationSelect) {
       aggregationSelect.hidden = !shouldShowAggregationModeSelect();
       aggregationSelect.value = aggregationMode || "current";
     }
     if (quarterWrap) {
-      var showQuarter = (aggregationMode || "current") === "quarter";
-      quarterWrap.hidden = !showQuarter;
-      if (!showQuarter) {
-        closeQuarterPopover();
-      } else {
-        var effective = normalizeQuarterList(selectedQuarters);
-        if (!effective.length) {
-          effective = [getDefaultSelectedQuarter()];
-          selectedQuarters = effective.slice();
-        }
-        renderQuarterOptionsIntoPopover();
-      }
+      quarterWrap.hidden = true;
+      closeQuarterPopover();
     }
     if (warning) {
       warning.hidden = !isIncompleteCurrentMonth(currentPeriodMonth, currentPeriodYear);
     }
 
     var idx = getCurrentMonthIndex();
-    if (prevBtn) prevBtn.disabled = idx <= 0;
-    if (nextBtn) nextBtn.disabled = idx < 0 || idx >= availableMonths.length - 1;
+    if (quarterMode) {
+      if (prevBtn) {
+        prevBtn.disabled = !quarterStepTarget(-1);
+        prevBtn.setAttribute("aria-label", "Предыдущий квартал");
+      }
+      if (nextBtn) {
+        nextBtn.disabled = !quarterStepTarget(1);
+        nextBtn.setAttribute("aria-label", "Следующий квартал");
+      }
+    } else {
+      if (prevBtn) {
+        prevBtn.disabled = idx <= 0;
+        prevBtn.setAttribute("aria-label", "Предыдущий месяц");
+      }
+      if (nextBtn) {
+        nextBtn.disabled = idx < 0 || idx >= availableMonths.length - 1;
+        nextBtn.setAttribute("aria-label", "Следующий месяц");
+      }
+    }
   }
 
   function navigateToMonth(month, year, options) {
@@ -551,6 +594,7 @@
     currentPeriodMonth = month;
     currentPeriodYear = year;
     var agg = aggregationMode || "current";
+    if (agg === "quarter") syncQuarterToCurrentMonth();
     if ((agg === "current" || agg === "month") && !options.preserveCurrentModeSnapshot) {
       rememberCurrentModePeriod();
     }
@@ -641,6 +685,11 @@
     var nextBtn = document.getElementById("month-nav-next");
     if (prevBtn) {
       prevBtn.addEventListener("click", function () {
+        if ((aggregationMode || "current") === "quarter") {
+          var prevQuarter = quarterStepTarget(-1);
+          if (prevQuarter) navigateToMonth(prevQuarter.month, prevQuarter.year, { preserveCurrentModeSnapshot: true });
+          return;
+        }
         var idx = getCurrentMonthIndex();
         if (idx > 0) {
           var prev = availableMonths[idx - 1];
@@ -650,6 +699,11 @@
     }
     if (nextBtn) {
       nextBtn.addEventListener("click", function () {
+        if ((aggregationMode || "current") === "quarter") {
+          var nextQuarter = quarterStepTarget(1);
+          if (nextQuarter) navigateToMonth(nextQuarter.month, nextQuarter.year, { preserveCurrentModeSnapshot: true });
+          return;
+        }
         var idx = getCurrentMonthIndex();
         if (idx >= 0 && idx < availableMonths.length - 1) {
           var next = availableMonths[idx + 1];
@@ -667,13 +721,10 @@
           restoreCurrentModePeriod();
         }
         aggregationMode = nextMode;
+        if (nextMode === "quarter") syncQuarterToCurrentMonth();
         updateMonthNavigatorUI();
         onAggregationModeChange(nextMode);
-        if (nextMode === "quarter") {
-          openQuarterPopover();
-        } else {
-          closeQuarterPopover();
-        }
+        closeQuarterPopover();
       });
     }
 
