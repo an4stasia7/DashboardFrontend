@@ -749,9 +749,6 @@
     if (forecastNum != null) {
       var potentialNum = readFiniteTileNumber(tile && tile.potential);
       if (potentialNum == null || potentialNum < 0) potentialNum = 0;
-      if (expectedNum != null && potentialNum > expectedNum) potentialNum = expectedNum;
-      var expectedShown = expectedNum == null ? null : Math.max(expectedNum - potentialNum, 0);
-      var expectedShownParts = splitKpiTileValueAndUnit(formatKpiTileMetricValue(expectedShown, units), units);
       var potentialParts = splitKpiTileValueAndUnit(formatKpiTileMetricValue(potentialNum, units), units);
       function forecastCell(label, parts) {
         var text = parts && parts.value ? parts.value + (parts.unit ? " " + parts.unit : "") : "—";
@@ -766,7 +763,7 @@
       bottomNumbersHtml =
         '<div class="kpi-tile-forecast-grid">' +
         forecastCell("План", planParts) +
-        forecastCell("Ожидаемо", expectedShownParts) +
+        forecastCell("Ожидаемо", expectedParts) +
         forecastCell("Факт", factParts) +
         forecastCell("Потенциал", potentialParts) +
         "</div>";

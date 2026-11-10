@@ -743,15 +743,25 @@ function focusOnecWindow(pid) {
 }
 
 function spawnOnec(exe, args) {
+  // Путь 1cv8c.exe лежит в "Program Files". Если отдать его Node с
+  // windowsVerbatimArguments, кавычки вокруг exe пропадают, 1С не видит
+  // /N и /P и показывает окно входа. cmd.exe без пробела в пути собирает
+  // командную строку в том виде, который понимает 1С: /N"имя" /P"пароль".
+  var command = ['"' + exe + '"'].concat(args).join(" ");
+  command = command.replace(/%/g, "%%");
   return new Promise(function (resolve) {
     var child;
     try {
-      child = spawn(exe, args, {
-        detached: true,
-        stdio: "ignore",
-        windowsHide: false,
-        windowsVerbatimArguments: true,
-      });
+      child = spawn(
+        "C:\\Windows\\System32\\cmd.exe",
+        ["/d", "/s", "/c", '"' + command + '"'],
+        {
+          detached: true,
+          stdio: "ignore",
+          windowsHide: true,
+          windowsVerbatimArguments: true,
+        }
+      );
     } catch (err) {
       resolve({ ok: false, error: "Не удалось запустить 1С" });
       return;
