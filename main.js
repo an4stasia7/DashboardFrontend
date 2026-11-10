@@ -707,7 +707,7 @@ function reportFilterParts(context, encode) {
   put("Конец", ctx.end);
   put("ДатаОтчета", ctx.asof);
   put("ПодразделениеСписок", ctx.departments);
-  put("ОбщийСтандартныйПериод", ctx.start && ctx.end ? ctx.start + ".." + ctx.end : "");
+  put("ОбщийСтандартныйПериод", ctx.start && ctx.end ? ctx.start + "-" + ctx.end : "");
   return parts;
 }
 
