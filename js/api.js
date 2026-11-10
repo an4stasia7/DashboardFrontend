@@ -951,13 +951,11 @@
     var view = commercialFutureViewPeriod(year, month);
     applyPlanFactFromJsonLastPeriodToTiles(body, tiles, view.tileYear, view.tileMonth);
     applyMonthlyDataToTilesAtPeriod(tiles, view.tileYear, view.tileMonth);
-    var tableRows = buildTableRowsFromApiResponse(body, view.chartYear, view.chartMonth);
-    if (view.future) {
-      tableRows = tableRows.filter(function (row) {
-        var key = row && row.tableKey != null ? String(row.tableKey).trim().toUpperCase() : "";
-        return key !== "KD-T-MONEY" && key !== "KD-T-SHIP" && key !== "KD-T-DOG";
-      });
-    }
+    var tableRows = buildTableRowsFromApiResponse(
+      body,
+      view.future ? view.tileYear : view.chartYear,
+      view.future ? view.tileMonth : view.chartMonth
+    );
     return {
       tiles: tiles,
       chartIndicators: buildChartIndicatorsFromApiResponse(body, view.chartYear, view.chartMonth),

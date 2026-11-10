@@ -5578,30 +5578,10 @@
     if (isPlanFactBreakdownView(view)) renderPlanFactBreakdownTable(view);
   }
 
-  function planFactFactByDepartment(view) {
-    var totals = Object.create(null);
-    planFactBreakdownRows(view).forEach(function (item) {
-      var raw = item.raw || {};
-      if (String(raw.kind || "") !== "Факт") return;
-      var amount = Number(raw.amount);
-      if (isNaN(amount)) return;
-      var dept = String(raw.department || "").trim();
-      totals[dept] = (totals[dept] || 0) + amount;
-    });
-    return totals;
-  }
-
-  function planFactConversionPct(view, department, facts) {
-    var dept = String(department || "").trim();
-    var money = facts.money[dept] || 0;
-    var ship = facts.ship[dept] || 0;
-    var dog = facts.dog[dept] || 0;
-    // Деньги уже получены. Договоры конвертируются в отгрузки, отгрузки — в деньги.
-    if (view === "money") return 100;
-    var numerator = view === "dog" ? ship : money;
-    var denominator = view === "dog" ? dog : ship;
-    if (!denominator) return null;
-    return (numerator / denominator) * 100;
+  function planFactConversionPct(raw) {
+    if (!raw || raw.conversion_pct == null || raw.conversion_pct === "") return null;
+    var pct = Number(raw.conversion_pct);
+    return isNaN(pct) ? null : pct;
   }
 
   function renderPlanFactBreakdownTable(view) {
@@ -5619,11 +5599,6 @@
           return planFactRowMatchesFilter(item.raw || {}, filter, view);
         })
       : allRows;
-    var conversionFacts = {
-      money: planFactFactByDepartment("money"),
-      ship: planFactFactByDepartment("ship"),
-      dog: planFactFactByDepartment("dog"),
-    };
     var fact = 0;
     var expected = 0;
     var converted = 0;
@@ -5641,7 +5616,7 @@
           if (kind === "Ожидаемо") expected += amount;
           else fact += amount;
         }
-        var pct = planFactConversionPct(view, raw.department, conversionFacts);
+        var pct = planFactConversionPct(raw);
         var convertedAmount = !isNaN(amount) && pct != null ? Math.round(amount * pct) / 100 : null;
         var countsInFooter = filterActive || showForecast || kind !== "Ожидаемо";
         if (convertedAmount != null && countsInFooter) converted += convertedAmount;
@@ -5659,7 +5634,7 @@
           moneyCell(amount),
           pct == null
             ? "—"
-            : pct.toLocaleString("ru-RU", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + " %",
+            : pct.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " %",
           convertedAmount == null ? "—" : moneyCell(convertedAmount),
         ];
         return (
@@ -5709,7 +5684,7 @@
     var blendedText =
       blendedPct == null
         ? "—"
-        : blendedPct.toLocaleString("ru-RU", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + " %";
+        : blendedPct.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " %";
     var footerText = filterActive
       ? "По фильтру · " +
         planFactRowsLabel(rows.length) +

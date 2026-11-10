@@ -282,13 +282,91 @@
   }
 
   function currentDashboardPeriod() {
+    var range = reportPeriodRange();
+    return range ? { year: range.year, month: range.month } : null;
+  }
+
+  var COMMERCIAL_DEPTS = [
+    ["отдел вэд", "49480c10-e401-11e8-8283-ac1f6b05524d"],
+    ["овэд", "49480c10-e401-11e8-8283-ac1f6b05524d"],
+    ["отдел внешнеэкономической деятельности", "49480c10-e401-11e8-8283-ac1f6b05524d"],
+    ["отдел продаж эталонного оборудования и услуг", "34497ef7-810f-11e4-80d6-001e67112509"],
+    ["опэоиу", "34497ef7-810f-11e4-80d6-001e67112509"],
+    ["отдел продаж бми", "9edaa7d4-37a5-11ee-93d3-6cb31113810e"],
+    ["отдел по работе с ключевыми клиентами", "639ec87b-67b6-11eb-8523-ac1f6b05524d"],
+    ["отдел дилерских продаж", "7587c178-92f6-11f0-96f9-6cb31113810e"],
+    ["одп", "7587c178-92f6-11f0-96f9-6cb31113810e"],
+    ["отдел по работе с пао газпром", "bd7b5184-9f9c-11e4-80da-001e67112509"],
+  ];
+  var COMMERCIAL_GUIDS = [
+    "49480c10-e401-11e8-8283-ac1f6b05524d",
+    "34497ef7-810f-11e4-80d6-001e67112509",
+    "9edaa7d4-37a5-11ee-93d3-6cb31113810e",
+    "639ec87b-67b6-11eb-8523-ac1f6b05524d",
+    "7587c178-92f6-11f0-96f9-6cb31113810e",
+    "bd7b5184-9f9c-11e4-80da-001e67112509",
+  ];
+
+  function pad2(value) {
+    var text = String(value);
+    return text.length < 2 ? "0" + text : text;
+  }
+
+  function isoDate(year, month, day) {
+    return year + "-" + pad2(month) + "-" + pad2(day);
+  }
+
+  function lastDay(year, month) {
+    return new Date(year, month, 0).getDate();
+  }
+
+  function reportPeriodRange() {
     var nav = global.DashboardMonthNav;
     if (!nav || typeof nav.getPeriodState !== "function") return null;
     var state = nav.getPeriodState() || {};
     var year = parseInt(state.currentPeriodYear, 10);
     var month = parseInt(state.currentPeriodMonth, 10);
     if (!year || !month || month < 1 || month > 12) return null;
-    return { year: year, month: month };
+    var mode = String(state.aggregationMode || "current");
+    var startMonth = month;
+    var endMonth = month;
+    if (mode === "quarter") {
+      startMonth = Math.floor((month - 1) / 3) * 3 + 1;
+    } else if (mode === "ytd") {
+      startMonth = 1;
+    }
+    var end = isoDate(year, endMonth, lastDay(year, endMonth));
+    var today = new Date();
+    var todayIso = isoDate(today.getFullYear(), today.getMonth() + 1, today.getDate());
+    return {
+      year: year,
+      month: endMonth,
+      start: isoDate(year, startMonth, 1),
+      end: end,
+      asof: end > todayIso ? todayIso : end,
+    };
+  }
+
+  function commercialDepartmentGuids(department) {
+    var key = normDept(department);
+    for (var i = 0; i < COMMERCIAL_DEPTS.length; i++) {
+      if (COMMERCIAL_DEPTS[i][0] === key) return [COMMERCIAL_DEPTS[i][1]];
+    }
+    return COMMERCIAL_GUIDS.slice();
+  }
+
+  function liveReportContext(department) {
+    var range = reportPeriodRange() || {};
+    var guids = commercialDepartmentGuids(department);
+    return {
+      department: department || "",
+      departments: guids.join(","),
+      year: range.year || "",
+      month: range.month || "",
+      start: range.start || "",
+      end: range.end || "",
+      asof: range.asof || "",
+    };
   }
 
   function buttonHtml(url, label, context) {
@@ -336,8 +414,12 @@
           username: creds && creds.username,
           password: creds && creds.password,
           department: ctx.department || "",
+          departments: ctx.departments || "",
           year: ctx.year || "",
           month: ctx.month || "",
+          start: ctx.start || "",
+          end: ctx.end || "",
+          asof: ctx.asof || "",
         })
       ).then(function (result) {
         if (result && result.ok === false && result.error) {
@@ -487,11 +569,10 @@
     if (!btn) return;
     event.preventDefault();
     event.stopPropagation();
-    openReport(btn.getAttribute("data-onec-url"), {
-      department: btn.getAttribute("data-onec-department") || "",
-      year: btn.getAttribute("data-onec-year") || "",
-      month: btn.getAttribute("data-onec-month") || "",
-    });
+    openReport(
+      btn.getAttribute("data-onec-url"),
+      liveReportContext(btn.getAttribute("data-onec-department") || "")
+    );
   }
 
   if (global.document && global.document.addEventListener) {
