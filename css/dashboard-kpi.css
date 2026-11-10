@@ -2966,6 +2966,104 @@ article.kpi-tile[data-no-flip="1"] {
   align-items: end;
 }
 
+.kpi-tile-modern-metrics--forecast {
+  grid-template-areas:
+    "value value"
+    "grid grid";
+  gap: 8px 0;
+}
+
+.kpi-tile--has-expected .kpi-tile-face--front {
+  padding: 14px 16px 12px;
+}
+
+.kpi-tile--has-expected .kpi-tile-badge-row {
+  top: 12px;
+  right: 14px;
+}
+
+.kpi-tile--has-expected .tile-body {
+  min-height: 72px;
+  gap: 1px;
+}
+
+.kpi-tile--has-expected .kpi-tile-metrics {
+  padding-top: 6px;
+  border-top: 0;
+}
+
+.kpi-tile-modern-metrics--forecast .kpi-tile-modern-value {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 6px;
+  row-gap: 0;
+}
+
+.kpi-tile-modern-metrics--forecast .kpi-tile-modern-value-label {
+  flex: 1 0 100%;
+}
+
+.kpi-tile-modern-metrics--forecast .kpi-tile-modern-value-number {
+  font-size: clamp(1.7rem, 2.4vw, 2.15rem);
+}
+
+.kpi-tile-modern-metrics--forecast .kpi-tile-modern-value-unit {
+  font-size: 0.95rem;
+}
+
+.kpi-tile-forecast-grid {
+  grid-area: grid;
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 0;
+}
+
+.kpi-tile-forecast-grid::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 1px;
+  background: #e6ebf2;
+  transform: translateX(-0.5px);
+}
+
+.kpi-tile-forecast-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.kpi-tile-forecast-cell span {
+  color: #64748b;
+  font-size: 0.68rem;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.kpi-tile-forecast-cell strong {
+  color: #172033;
+  font-size: 0.98rem;
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.kpi-tile-forecast-cell:nth-child(odd) {
+  padding-right: 12px;
+}
+
+.kpi-tile-forecast-cell:nth-child(even) {
+  align-items: flex-start;
+  text-align: left;
+  padding-left: 14px;
+}
+
 .kpi-tile-modern-metrics--fact-only {
   grid-template-columns: minmax(0, 1fr);
   grid-template-areas:
@@ -3150,7 +3248,7 @@ article.kpi-tile[data-no-flip="1"] {
 /* «За месяц» добавляет строку периода, и «Ожидаемо» уезжает за край карточки. */
 .kpi-tile.kpi-tile--has-expected,
 .kpi-tile.kpi-tile--has-expected .kpi-tile-inner {
-  min-height: 336px;
+  min-height: 292px;
 }
 
 .kpi-tile--has-expected .kpi-tile-modern-numbers {

@@ -745,21 +745,36 @@
     }
     var deltaHtml = hidePlanOnTile ? "" : buildKpiTilePlanDeltaHtml(deltaTile, heroNum, planNum);
     var factLineHtml = "";
-    if (forecastNum != null) {
-      factLineHtml =
-        '<span class="kpi-tile-forecast-fact">' +
-        '<span class="kpi-tile-forecast-fact-label">Факт</span>' +
-        '<span class="kpi-tile-forecast-fact-value">' +
-        DashUi.escapeHtml(factParts.value + (factParts.unit ? " " + factParts.unit : "")) +
-        "</span></span>";
-    }
-    var hasExpected =
-      !hidePlanOnTile &&
-      (typeof DashUi !== "undefined" && DashUi && typeof DashUi.kpiTilePlanFactValuePresent === "function"
-        ? DashUi.kpiTilePlanFactValuePresent(expected)
-        : expected != null);
     var bottomNumbersHtml = "";
-    if (!hidePlanOnTile) {
+    if (forecastNum != null) {
+      var potentialNum = readFiniteTileNumber(tile && tile.potential);
+      if (potentialNum == null || potentialNum < 0) potentialNum = 0;
+      if (expectedNum != null && potentialNum > expectedNum) potentialNum = expectedNum;
+      var expectedShown = expectedNum == null ? null : Math.max(expectedNum - potentialNum, 0);
+      var expectedShownParts = splitKpiTileValueAndUnit(formatKpiTileMetricValue(expectedShown, units), units);
+      var potentialParts = splitKpiTileValueAndUnit(formatKpiTileMetricValue(potentialNum, units), units);
+      function forecastCell(label, parts) {
+        var text = parts && parts.value ? parts.value + (parts.unit ? " " + parts.unit : "") : "—";
+        return (
+          '<div class="kpi-tile-forecast-cell"><span>' +
+          DashUi.escapeHtml(label) +
+          "</span><strong>" +
+          DashUi.escapeHtml(text) +
+          "</strong></div>"
+        );
+      }
+      bottomNumbersHtml =
+        '<div class="kpi-tile-forecast-grid">' +
+        forecastCell("План", planParts) +
+        forecastCell("Ожидаемо", expectedShownParts) +
+        forecastCell("Факт", factParts) +
+        forecastCell("Потенциал", potentialParts) +
+        "</div>";
+    } else if (!hidePlanOnTile) {
+      var hasExpected =
+        typeof DashUi !== "undefined" && DashUi && typeof DashUi.kpiTilePlanFactValuePresent === "function"
+          ? DashUi.kpiTilePlanFactValuePresent(expected)
+          : expected != null;
       bottomNumbersHtml =
         '<div class="kpi-tile-modern-numbers">' +
         '<div class="kpi-tile-modern-number-row"><span>План</span><strong>' +
@@ -790,7 +805,7 @@
       "</strong>" +
       deltaHtml +
       "</div>" +
-      buildKpiTileSparklineHtml(tile) +
+      (forecastNum != null ? "" : buildKpiTileSparklineHtml(tile)) +
       bottomNumbersHtml +
       "</div>"
     );

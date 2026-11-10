@@ -3219,7 +3219,7 @@
     var hasExplicitHasDataFlag = false;
     var extraSums = {
       found: 0, won: 0, not_participating: 0,
-      expected_plan: 0,
+      expected_plan: 0, potential: 0,
       dz_client: 0, kz_client: 0,
       dz_supplier: 0, kz_supplier: 0,
       dz_total: 0, kz_total: 0,
@@ -3227,7 +3227,7 @@
     };
     var extraHas = {
       found: false, won: false, not_participating: false,
-      expected_plan: false,
+      expected_plan: false, potential: false,
       dz_client: false, kz_client: false,
       dz_supplier: false, kz_supplier: false,
       dz_total: false, kz_total: false,
@@ -3420,6 +3420,7 @@
             : (Math.abs(kpiPct - (displayPlan != null ? displayPlan : 5)) < 0.000001 ? "yellow" : "red"))
           : (mrk04Rag || shareRag || turnoverRag || limitRag || commercialPlanFactRag),
       expected_plan: extraHas.expected_plan ? extraSums.expected_plan : null,
+      potential: extraHas.potential ? extraSums.potential : null,
       found: extraHas.found ? extraSums.found : null,
       won: extraHas.won ? extraSums.won : null,
       not_participating: extraHas.not_participating ? extraSums.not_participating : null,
@@ -3610,6 +3611,12 @@
           ? point.expected_plan
           : rawItem.expected_plan != null
             ? rawItem.expected_plan
+            : null,
+      potential:
+        point && point.potential != null
+          ? point.potential
+          : rawItem.potential != null
+            ? rawItem.potential
             : null,
       found:
         point && point.found != null

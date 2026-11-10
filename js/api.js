@@ -1188,6 +1188,7 @@
           plan: item.plan,
           fact: item.fact,
           expected_plan: item.expected_plan != null ? item.expected_plan : null,
+          potential: item.potential != null ? item.potential : null,
           found: item.found != null ? item.found : null,
           won: item.won != null ? item.won : null,
           not_participating:
@@ -1619,6 +1620,7 @@
       if (point.plan !== undefined) tile.plan = point.plan;
       if (point.fact !== undefined) tile.fact = point.fact;
       if (point.expected_plan !== undefined) tile.expected_plan = point.expected_plan;
+      if (point.potential !== undefined) tile.potential = point.potential;
       if (point.forecast !== undefined) tile.forecast = point.forecast;
       if (point.plan_full !== undefined) tile.plan_full = point.plan_full;
       if (point.kpi_pct !== undefined) {
@@ -3293,6 +3295,7 @@
           }
         }
         if (ownMonthly.expected_plan !== undefined) tile.expected_plan = ownMonthly.expected_plan;
+        if (ownMonthly.potential !== undefined) tile.potential = ownMonthly.potential;
         if (Array.isArray(ownMonthly.plan_fact_rows)) tile.plan_fact_rows = ownMonthly.plan_fact_rows;
         if (Array.isArray(ownMonthly.turnover_rows)) {
           tile.turnover_rows = ownMonthly.turnover_rows;
