@@ -695,19 +695,39 @@ function findOpenOnecSession(parsed, username) {
   });
 }
 
-function reportNavWithContext(nav, context) {
-  var link = String(nav || "");
+function reportFilterParts(context, encode) {
+  var ctx = context || {};
   var parts = [];
-  var department = context && context.department != null ? String(context.department).trim() : "";
-  var year = context && context.year != null ? String(context.year).trim() : "";
-  var month = context && context.month != null ? String(context.month).trim() : "";
-  if (department) parts.push("Подразделение=" + encodeURIComponent(department));
-  if (/^\d{4}$/.test(year) && /^\d{1,2}$/.test(month)) {
-    var monthNum = String(Number(month));
-    parts.push("Год=" + year);
-    parts.push("Месяц=" + monthNum);
-    parts.push("Период=" + year + "-" + (monthNum.length === 1 ? "0" + monthNum : monthNum));
+  function put(name, value) {
+    var text = value != null ? String(value).trim() : "";
+    if (!text) return;
+    parts.push(name + "=" + (encode ? encodeURIComponent(text) : text));
   }
+  put("Начало", ctx.start);
+  put("Конец", ctx.end);
+  put("ДатаОтчета", ctx.asof);
+  put("ПодразделениеСписок", ctx.departments);
+  put("ОбщийСтандартныйПериод", ctx.start && ctx.end ? ctx.start + ".." + ctx.end : "");
+  return parts;
+}
+
+function reportAppLink(nav) {
+  var link = String(nav || "");
+  if (link.indexOf("828eac1f6b05524d11e977bbd6e9da00") !== -1) {
+    return "e1cib/app/Отчет.ТД_ПланФактПродаж?КлючВарианта=ОсновнойТаблица&СформироватьПриОткрытии=Истина";
+  }
+  if (link.indexOf("82afac1f6b05524d11ea069f8cb9451f") !== -1) {
+    return "e1cib/app/Отчет.ЗадолженностьКлиентовПоСрокам?КлючВарианта=ccb4e716-5242-49a1-b94b-e3779cbed01d&СформироватьПриОткрытии=Истина";
+  }
+  return link;
+}
+
+function reportNavWithContext(nav, context) {
+  var link = reportAppLink(nav);
+  if (link.indexOf("e1cib/data/Документ.") === 0 || link.indexOf("e1cib/data/Справочник.Соглашения") === 0) {
+    return link;
+  }
+  var parts = reportFilterParts(context, true);
   if (!parts.length) return link;
   return link + (link.indexOf("?") >= 0 ? "&" : "?") + parts.join("&");
 }
@@ -752,46 +772,38 @@ function openOnecReport(targetUrl, context) {
   var exe = onecClientPath();
   if (!exe) return Promise.resolve({ ok: false, error: "Не найден установленный клиент 1С." });
   var username = onecSessionLogin && onecSessionLogin.username ? onecSessionLogin.username : "";
+  var password = onecSessionLogin && onecSessionLogin.password ? onecSessionLogin.password : "";
   var nav = reportNavWithContext(parsed.nav, context);
   var connection = "/S" + quoteOnecValue(parsed.server + "\\" + parsed.base);
   var urlArg = "/URL" + quoteOnecValue(nav);
+  if (!username || !password) {
+    return Promise.resolve({
+      ok: false,
+      error: "Чтобы открыть 1С под вашей учётной записью, выйдите и войдите снова, введя пароль.",
+    });
+  }
+  // /N и /P нужны и когда база уже открыта: без них второй процесс
+  // останавливается на окне пароля и не передаёт ссылку в текущую сессию.
+  var args = [
+    "ENTERPRISE",
+    connection,
+    "/N" + quoteOnecValue(username),
+    "/P" + quoteOnecValue(password),
+    "/WA-",
+    urlArg,
+  ];
+  var startup = reportFilterParts(context, false);
+  if (startup.length) args.push("/C" + quoteOnecValue(startup.join(";")));
   return findOpenOnecSession(parsed, username).then(function (session) {
-    if (session) {
-      return spawnOnec(exe, ["ENTERPRISE", connection, urlArg]).then(function (result) {
-        if (result && result.ok) {
-          setTimeout(function () {
-            focusOnecWindow(session.pid);
-          }, 400);
-          return { ok: true, reused: true };
-        }
-        return result;
-      });
-    }
-    if (!onecSessionLogin || !onecSessionLogin.username || !onecSessionLogin.password) {
-      return {
-        ok: false,
-        error: "Чтобы открыть 1С под вашей учётной записью, выйдите и войдите снова, введя пароль.",
-      };
-    }
-    var startup = [];
-    var department = context && context.department != null ? String(context.department).trim() : "";
-    var year = context && context.year != null ? String(context.year).trim() : "";
-    var month = context && context.month != null ? String(context.month).trim() : "";
-    if (department) startup.push("Подразделение=" + encodeURIComponent(department));
-    if (/^\d{4}$/.test(year) && /^\d{1,2}$/.test(month)) {
-      startup.push("Год=" + year);
-      startup.push("Месяц=" + String(Number(month)));
-    }
-    var args = [
-      "ENTERPRISE",
-      connection,
-      "/N" + quoteOnecValue(username),
-      "/P" + quoteOnecValue(onecSessionLogin.password),
-      "/WA-",
-      urlArg,
-    ];
-    if (startup.length) args.push("/C" + quoteOnecValue(startup.join(";")));
-    return spawnOnec(exe, args);
+    return spawnOnec(exe, args).then(function (result) {
+      if (result && result.ok && session) {
+        setTimeout(function () {
+          focusOnecWindow(session.pid);
+        }, 400);
+        return { ok: true, reused: true };
+      }
+      return result;
+    });
   });
 }
 
@@ -812,8 +824,12 @@ ipcMain.handle("app:open-onec-report", function (_event, payload) {
   }
   var context = {
     department: payload && payload.department != null ? payload.department : "",
+    departments: payload && payload.departments != null ? payload.departments : "",
     year: payload && payload.year != null ? payload.year : "",
     month: payload && payload.month != null ? payload.month : "",
+    start: payload && payload.start != null ? payload.start : "",
+    end: payload && payload.end != null ? payload.end : "",
+    asof: payload && payload.asof != null ? payload.asof : "",
   };
   return openOnecReport(targetUrl, context);
 });
