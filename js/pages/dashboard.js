@@ -4035,12 +4035,19 @@
     );
   }
 
+  global.getOnecReportDepartment = function () {
+    return getOnecReportContextKey();
+  };
+
   function getOnecReportContextKey() {
     if (shouldUseBoardChairExecutiveTables()) return "Председатель совета директоров / Мой дашборд";
     if (isBoardChairCommercialBlockContext()) return "Председатель совета директоров / Коммерческий блок";
+    // Отдел с открытого дашборда, а не подразделение учётной записи.
+    // Иначе с экрана ключевых клиентов в 1С уходит отдел дилерских продаж.
+    var viewed = lastKpiResponseDepartment != null ? String(lastKpiResponseDepartment).trim() : "";
+    if (viewed) return viewed;
     return (
       getDepartmentForCurrentKpiContext() ||
-      lastKpiResponseDepartment ||
       (viewContextUser && viewContextUser.department) ||
       ""
     );

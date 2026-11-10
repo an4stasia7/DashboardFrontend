@@ -303,7 +303,7 @@
   }
 
   function isoDate(year, month, day) {
-    return year + "-" + pad2(month) + "-" + pad2(day);
+    return pad2(day) + "." + pad2(month) + "." + year;
   }
 
   function lastDay(year, month) {
@@ -325,15 +325,19 @@
     } else if (mode === "ytd") {
       startMonth = 1;
     }
-    var end = isoDate(year, endMonth, lastDay(year, endMonth));
+    var endDay = lastDay(year, endMonth);
+    var end = isoDate(year, endMonth, endDay);
     var today = new Date();
-    var todayIso = isoDate(today.getFullYear(), today.getMonth() + 1, today.getDate());
+    var todayYear = today.getFullYear();
+    var todayMonth = today.getMonth() + 1;
+    var todayDay = today.getDate();
+    var endIsFuture = year * 10000 + endMonth * 100 + endDay > todayYear * 10000 + todayMonth * 100 + todayDay;
     return {
       year: year,
       month: endMonth,
       start: isoDate(year, startMonth, 1),
       end: end,
-      asof: end > todayIso ? todayIso : end,
+      asof: endIsFuture ? isoDate(todayYear, todayMonth, todayDay) : end,
     };
   }
 
@@ -558,10 +562,11 @@
     if (!btn) return;
     event.preventDefault();
     event.stopPropagation();
-    openReport(
-      btn.getAttribute("data-onec-url"),
-      liveReportContext(btn.getAttribute("data-onec-department") || "")
-    );
+    var department = btn.getAttribute("data-onec-department") || "";
+    if (typeof global.getOnecReportDepartment === "function") {
+      department = global.getOnecReportDepartment() || department;
+    }
+    openReport(btn.getAttribute("data-onec-url"), liveReportContext(department));
   }
 
   if (global.document && global.document.addEventListener) {
