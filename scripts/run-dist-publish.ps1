@@ -28,19 +28,34 @@ function Resolve-GhToken {
   return ""
 }
 
+function Test-CanClearDir {
+  param([string]$Path)
+  if (-not (Test-Path -LiteralPath $Path)) {
+    return $true
+  }
+  try {
+    Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction Stop
+    return $true
+  } catch {
+    Write-Warning "Не удалось очистить ${Path}: $($_.Exception.Message)"
+    return $false
+  }
+}
+
 function Prepare-NsisBuildEnvironment {
   param(
-    [string]$RepoRoot
+    [string]$RepoRoot,
+    [string]$OutDir
   )
 
-  $ebTemp = Join-Path $RepoRoot "dist\.electron-builder-temp"
+  $ebTemp = Join-Path $OutDir ".electron-builder-temp"
   New-Item -ItemType Directory -Force -Path $ebTemp | Out-Null
   $env:TEMP = $ebTemp
   $env:TMP = $ebTemp
 
-  Get-ChildItem -LiteralPath (Join-Path $RepoRoot "dist") -Filter "*.nsis.7z" -ErrorAction SilentlyContinue |
+  Get-ChildItem -LiteralPath $OutDir -Filter "*.nsis.7z" -ErrorAction SilentlyContinue |
     Remove-Item -Force -ErrorAction SilentlyContinue
-  Get-ChildItem -LiteralPath (Join-Path $RepoRoot "dist") -Filter "__uninstaller-nsis-*.exe" -ErrorAction SilentlyContinue |
+  Get-ChildItem -LiteralPath $OutDir -Filter "__uninstaller-nsis-*.exe" -ErrorAction SilentlyContinue |
     Remove-Item -Force -ErrorAction SilentlyContinue
 
   $drive = [System.IO.Path]::GetPathRoot($ebTemp)
@@ -77,7 +92,16 @@ if (-not (Test-Path -LiteralPath $builder)) {
   Write-Error "Не найден electron-builder: $builder. Сначала выполни npm install."
 }
 
-Prepare-NsisBuildEnvironment -RepoRoot $repoRoot
+$outDir = Join-Path $repoRoot "dist"
+$winUnpacked = Join-Path $outDir "win-unpacked"
+if (-not (Test-CanClearDir -Path $winUnpacked)) {
+  $outDir = Join-Path $env:LOCALAPPDATA "DashboardDesktop\builder-out"
+  Write-Host "dist\win-unpacked занят (часто это Cursor). Собираю в $outDir"
+  New-Item -ItemType Directory -Force -Path $outDir | Out-Null
+  $null = Test-CanClearDir -Path (Join-Path $outDir "win-unpacked")
+}
+
+Prepare-NsisBuildEnvironment -RepoRoot $repoRoot -OutDir $outDir
 
 $prepareConfig = Join-Path $repoRoot "scripts\prepare-release-config.ps1"
 $restoreConfig = Join-Path $repoRoot "scripts\restore-dev-config.ps1"
@@ -89,7 +113,7 @@ if (-not $?) {
 $code = 1
 try {
   Write-Host "Starting electron-builder (win, publish always)..."
-  & $builder @("--win", "--publish", "always")
+  & $builder @("--win", "--publish", "always", "-c.directories.output=$outDir")
   if ($?) {
     $code = 0
   } elseif ($null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0) {

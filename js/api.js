@@ -1166,6 +1166,8 @@
             item.plan_fact_period_label != null
               ? String(item.plan_fact_period_label)
               : null,
+          kpi_period:
+            item.kpi_period && typeof item.kpi_period === "object" ? item.kpi_period : null,
           monthly_data: Array.isArray(item.monthly_data) ? item.monthly_data : [],
           period_aggregates:
             item.period_aggregates && typeof item.period_aggregates === "object"
@@ -1187,6 +1189,30 @@
           kpi_pct_is_deviation: item.kpi_pct_is_deviation === true,
           plan: item.plan,
           fact: item.fact,
+          revenue:
+            item.revenue != null
+              ? item.revenue
+              : lastFullMonthRow && lastFullMonthRow.revenue != null
+                ? lastFullMonthRow.revenue
+                : null,
+          ssc:
+            item.ssc != null
+              ? item.ssc
+              : lastFullMonthRow && lastFullMonthRow.ssc != null
+                ? lastFullMonthRow.ssc
+                : null,
+          employees:
+            item.employees != null
+              ? item.employees
+              : lastFullMonthRow && lastFullMonthRow.employees != null
+                ? lastFullMonthRow.employees
+                : null,
+          vacancies:
+            item.vacancies != null
+              ? item.vacancies
+              : lastFullMonthRow && lastFullMonthRow.vacancies != null
+                ? lastFullMonthRow.vacancies
+                : null,
           expected_plan: item.expected_plan != null ? item.expected_plan : null,
           potential: item.potential != null ? item.potential : null,
           found: item.found != null ? item.found : null,
@@ -1220,6 +1246,15 @@
               : null,
           /** QD-M1 и др.: подразделения с планом/фактом на обороте плитки. */
           articles: Array.isArray(item.articles) ? item.articles : [],
+          goals: (function () {
+            if (Array.isArray(item.goals)) return item.goals;
+            if (lastFullMonthRow && Array.isArray(lastFullMonthRow.goals)) return lastFullMonthRow.goals;
+            return [];
+          })(),
+          goals_title:
+            item.goals_title != null && String(item.goals_title).trim()
+              ? String(item.goals_title).trim()
+              : "",
           last_full_month_row: lastFullMonthRow,
           departments: tileDepartments,
           defect_direction_departments: defectDirectionDepartments,
@@ -1227,6 +1262,9 @@
           pct_supplier: item.pct_supplier != null ? item.pct_supplier : null,
           pct_total: item.pct_total != null ? item.pct_total : null,
           has_data: hasData,
+          generated_data: item.generated_data === true,
+          is_generated: item.is_generated === true,
+          synthetic_data: item.synthetic_data === true,
           description: hintFields.description,
           hint: hintFields.description,
           source: hintFields.source,
@@ -1357,6 +1395,58 @@
       if (Number(point.year) === y && Number(point.month) === m) return point;
     }
     return null;
+  }
+
+  /** Есть ли в monthly_data точка ровно за year/month (не «ближайший» месяц). */
+  function monthlyDataCoversYearMonth(monthlyData, year, month) {
+    return !!findTileMonthlyDataPoint(monthlyData, year, month);
+  }
+
+  function tileCoversSelectedPeriod(tile, year, month) {
+    if (!tile || typeof tile !== "object") return false;
+    if (Array.isArray(tile.monthly_data) && tile.monthly_data.length && monthlyDataCoversYearMonth(tile.monthly_data, year, month)) {
+      return true;
+    }
+    var kid = tile.kpi_id != null ? String(tile.kpi_id).trim().toUpperCase() : "";
+    if ((isSupHrdLateMonthKpiId(kid) || isGsppFotKpiId(kid)) && tileHasLastFullMonthRowData(tile, kid)) {
+      return true;
+    }
+    if (
+      tile.kpi_period &&
+      String(tile.kpi_period.type || "").toLowerCase() === "last_full_month" &&
+      tileHasLastFullMonthRowData(tile, kid)
+    ) {
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Raw KPI JSON покрывает выбранный месяц: у плиток с monthly_data есть точка за этот месяц.
+   * Иначе локальный пересчёт из кэша другого месяца подставляет чужие plan/fact.
+   */
+  function kpiResponseCoversYearMonth(body, year, month) {
+    var unwrapped = unwrapKpiResponseBody(body, "");
+    if (!unwrapped || typeof unwrapped !== "object") return false;
+    var y = Number(year);
+    var m = Number(month);
+    if (isNaN(y) || isNaN(m) || m < 1 || m > 12) return false;
+    var tilesBlock = unwrapped[KPI_JSON_KEY_TILES];
+    var items =
+      tilesBlock && Array.isArray(tilesBlock.items)
+        ? tilesBlock.items
+        : Array.isArray(tilesBlock)
+          ? tilesBlock
+          : [];
+    var checked = 0;
+    for (var i = 0; i < items.length; i++) {
+      var item = items[i];
+      if (!item || typeof item !== "object") continue;
+      if (!Array.isArray(item.monthly_data) || !item.monthly_data.length) continue;
+      checked++;
+      if (!tileCoversSelectedPeriod(item, y, m)) return false;
+    }
+    return checked > 0;
   }
 
   /** Последний месяц в monthly_data не позже выбранного (или последний с plan/fact). */
@@ -1602,8 +1692,8 @@
     var futureView = isPeriodAfterToday(year, month) && allowsCommercialFutureMonthPaging();
     tiles.forEach(function (tile) {
       if (!tile || !Array.isArray(tile.monthly_data)) return;
-      // HRD-M2/M4/Q4 уже выставлены из last_full_month_row в applyPlanFact — не затирать.
-      if (isSupHrdLateMonthKpiId(tile.kpi_id)) return;
+      // HRD-M2/M4/Q4 и гСПП ФОТ: plan/fact из last_full_month_row в applyPlanFact — не затирать.
+      if (isSupHrdLateMonthKpiId(tile.kpi_id) || isGsppFotKpiId(tile.kpi_id)) return;
       // PD-M1.*.W/M/T: неделя, месяц и итого — разные колонки одного документа.
       // monthly_data месяца затирала бы план и факт недели и итого.
       if (isProductionDeputyOutputPeriodTile(tile.kpi_id)) return;
@@ -1619,6 +1709,10 @@
       var isLogM2 = String(tile.kpi_id || "").trim().toUpperCase() === "LOG-M2";
       if (point.plan !== undefined) tile.plan = point.plan;
       if (point.fact !== undefined) tile.fact = point.fact;
+      if (point.revenue !== undefined) tile.revenue = point.revenue;
+      if (point.ssc !== undefined) tile.ssc = point.ssc;
+      if (point.employees !== undefined) tile.employees = point.employees;
+      if (point.vacancies !== undefined) tile.vacancies = point.vacancies;
       if (point.expected_plan !== undefined) tile.expected_plan = point.expected_plan;
       if (point.potential !== undefined) tile.potential = point.potential;
       if (point.forecast !== undefined) tile.forecast = point.forecast;
@@ -1654,16 +1748,19 @@
       var metdId = String(tile.kpi_id || "").trim().toUpperCase();
       if (metdId === "METD-M1" || metdId === "МЕТ-M1") {
         applyMetdM1ProductionPlanColor(tile);
-      } else if (point.color != null && String(point.color).trim() !== "") {
-        applyBackendTileColor(tile, point.color);
       } else if (point.future_month === true) {
         var futureRag = ragForCommercialFutureTile(tile);
         if (futureRag) applyBackendTileColor(tile, futureRag);
+      } else {
+        syncTileColorFromMonthlyPoint(tile, point, { useMonthFilter: true });
       }
       var label = formatPlanFactPeriodFromMonthlyPoint(point);
       if (label) tile.plan_fact_period_label = label;
       if (Array.isArray(point.articles)) {
         tile.articles = point.articles.slice();
+      }
+      if (Array.isArray(point.goals)) {
+        tile.goals = point.goals.slice();
       }
       syncDepartmentsForTile(tile, year, month);
       syncDefectDirectionsForTile(tile, year, month);
@@ -1763,6 +1860,381 @@
     return best;
   }
 
+  function isMonthKeyedTablesContainerKey(tabKey) {
+    var key = tabKey != null ? String(tabKey).trim().toUpperCase() : "";
+    return key.indexOf("-BY-MONTH") !== -1;
+  }
+
+  /** Таблица-словарь: ключи «1»…«12», значения — срезы с rows/columns (HRD-T-M1-LATE-VACANCIES-BY-MONTH). */
+  function isMonthKeyedTableMap(tab) {
+    if (!tab || typeof tab !== "object" || Array.isArray(tab)) return false;
+    if (Array.isArray(tab.monthly_data) && tab.monthly_data.length) return false;
+    if (tab.rows != null) return false;
+    if (Array.isArray(tab.columns) && tab.columns.length) return false;
+    var keys = Object.keys(tab);
+    if (!keys.length) return false;
+    for (var i = 0; i < keys.length; i++) {
+      var n = Number(keys[i]);
+      if (isNaN(n) || n < 1 || n > 12) return false;
+      if (!tab[keys[i]] || typeof tab[keys[i]] !== "object") return false;
+    }
+    return true;
+  }
+
+  function pickMonthKeyedTableSlice(tabMap, filterYear, filterMonth) {
+    if (!isMonthKeyedTableMap(tabMap)) return null;
+    var month = Number(filterMonth);
+    if (isNaN(month) || month < 1 || month > 12) return null;
+    var slice = tabMap[String(month)] != null ? tabMap[String(month)] : tabMap[month];
+    if (!slice || typeof slice !== "object") return null;
+    if (filterYear != null && slice.period && slice.period.year != null) {
+      if (Number(slice.period.year) !== Number(filterYear)) return null;
+    }
+    return slice;
+  }
+
+  function getMonthKeyedTableCompanionKey(tabKey) {
+    var key = tabKey != null ? String(tabKey).trim() : "";
+    if (!key || isMonthKeyedTablesContainerKey(key)) return "";
+    return key + "-BY-MONTH";
+  }
+
+  function getMonthKeyedTableTemplateSlice(tabMap, fallbackTab) {
+    if (!isMonthKeyedTableMap(tabMap)) return fallbackTab;
+    var keys = Object.keys(tabMap)
+      .map(function (k) {
+        return Number(k);
+      })
+      .filter(function (n) {
+        return !isNaN(n);
+      })
+      .sort(function (a, b) {
+        return a - b;
+      });
+    if (keys.length && tabMap[String(keys[0])]) return tabMap[String(keys[0])];
+    return fallbackTab;
+  }
+
+  var SH_T1_MONTH_SHORT_RU = [
+    null,
+    "янв.",
+    "февр.",
+    "март",
+    "апр.",
+    "май",
+    "июнь",
+    "июль",
+    "авг.",
+    "сент.",
+    "окт.",
+    "нояб.",
+    "дек.",
+  ];
+
+  function parseTableCountLoose(value) {
+    if (value == null || value === "") return 0;
+    if (typeof value === "number" && isFinite(value)) return Math.round(value);
+    var n = Number(String(value).replace(/\s/g, "").replace(",", "."));
+    return isFinite(n) && !isNaN(n) ? Math.round(n) : 0;
+  }
+
+  function getSelectedQuartersForTableAggregation() {
+    if (
+      typeof DashboardMonthNav !== "undefined" &&
+      DashboardMonthNav &&
+      typeof DashboardMonthNav.getPeriodState === "function"
+    ) {
+      var ps = DashboardMonthNav.getPeriodState();
+      if (ps && Array.isArray(ps.selectedQuarters)) return ps.selectedQuarters;
+    }
+    return [];
+  }
+
+  function getShT1AggregationMonths(mode, filterMonth, selectedQuarters) {
+    var m = Number(filterMonth);
+    if (isNaN(m) || m < 1 || m > 12) return [];
+    if (mode === "ytd") {
+      var ytdMonths = [];
+      for (var i = 1; i <= m; i++) ytdMonths.push(i);
+      return ytdMonths;
+    }
+    if (mode === "quarter") {
+      var qs = (Array.isArray(selectedQuarters) ? selectedQuarters : [])
+        .map(function (v) {
+          return parseInt(String(v), 10);
+        })
+        .filter(function (q) {
+          return !isNaN(q) && q >= 1 && q <= 4;
+        })
+        .sort(function (a, b) {
+          return a - b;
+        });
+      if (!qs.length) qs = [Math.ceil(m / 3)];
+      var out = [];
+      var seen = Object.create(null);
+      qs.forEach(function (q) {
+        var start = (q - 1) * 3 + 1;
+        var end = q * 3;
+        for (var mm = start; mm <= end; mm++) {
+          if (seen[mm]) continue;
+          seen[mm] = true;
+          out.push(mm);
+        }
+      });
+      return out;
+    }
+    return [];
+  }
+
+  function buildShT1AggregatedTableTitle(mode, year, month, selectedQuarters) {
+    var y = Number(year);
+    var m = Number(month);
+    if (mode === "ytd") {
+      return (
+        "Обращения по клиентам — накопительно с начала " +
+        y +
+        " г. (янв.–" +
+        (SH_T1_MONTH_SHORT_RU[m] || String(m)) +
+        ")"
+      );
+    }
+    var qs = (Array.isArray(selectedQuarters) ? selectedQuarters : [])
+      .map(function (v) {
+        return parseInt(String(v), 10);
+      })
+      .filter(function (q) {
+        return !isNaN(q) && q >= 1 && q <= 4;
+      })
+      .sort(function (a, b) {
+        return a - b;
+      });
+    if (!qs.length) qs = [Math.ceil(m / 3)];
+    var roman = ["I", "II", "III", "IV"];
+    var label = qs
+      .map(function (q) {
+        return (roman[q - 1] || String(q)) + " кв.";
+      })
+      .join(", ");
+    var startMonth = (qs[0] - 1) * 3 + 1;
+    var endMonth = qs[qs.length - 1] * 3;
+    return (
+      "Обращения по клиентам — накопительно за " +
+      label +
+      " " +
+      y +
+      " (" +
+      (SH_T1_MONTH_SHORT_RU[startMonth] || String(startMonth)) +
+      "–" +
+      (SH_T1_MONTH_SHORT_RU[endMonth] || String(endMonth)) +
+      ")"
+    );
+  }
+
+  /**
+   * Только SH-T1: сумма срезов SH-T1-BY-MONTH по клиенту для ytd/quarter.
+   * Другие таблицы не трогаем.
+   */
+  function aggregateShT1TableFromByMonth(byMonth, filterYear, filterMonth, mode) {
+    if (!isMonthKeyedTableMap(byMonth)) return null;
+    if (mode !== "ytd" && mode !== "quarter") return null;
+    var selectedQuarters = getSelectedQuartersForTableAggregation();
+    var months = getShT1AggregationMonths(mode, filterMonth, selectedQuarters);
+    if (!months.length) return null;
+
+    var byClient = Object.create(null);
+    var columns = null;
+    var template = null;
+    var usedMonths = [];
+
+    months.forEach(function (monthNum) {
+      var slice = pickMonthKeyedTableSlice(byMonth, filterYear, monthNum);
+      if (!slice) {
+        slice = byMonth[String(monthNum)] != null ? byMonth[String(monthNum)] : byMonth[monthNum];
+      }
+      if (!slice || typeof slice !== "object") return;
+      usedMonths.push(monthNum);
+      if (!template) template = slice;
+      if (!columns && Array.isArray(slice.columns) && slice.columns.length) {
+        columns = slice.columns.slice();
+      }
+      var rows = Array.isArray(slice.rows) ? slice.rows : [];
+      rows.forEach(function (row) {
+        if (!row || typeof row !== "object") return;
+        var clientName = row["Клиент"] != null ? String(row["Клиент"]).trim() : "";
+        var clientKey =
+          row.client_key != null && String(row.client_key).trim()
+            ? String(row.client_key).trim()
+            : clientName || "__empty__";
+        if (!byClient[clientKey]) {
+          byClient[clientKey] = {
+            Клиент: clientName || "—",
+            "Всего обращений": 0,
+            "В срок": 0,
+            "Не в срок": 0,
+            client_key: row.client_key != null ? row.client_key : null,
+          };
+        }
+        var bucket = byClient[clientKey];
+        bucket["Всего обращений"] += parseTableCountLoose(row["Всего обращений"]);
+        bucket["В срок"] += parseTableCountLoose(row["В срок"]);
+        bucket["Не в срок"] += parseTableCountLoose(row["Не в срок"]);
+        if ((!bucket["Клиент"] || bucket["Клиент"] === "—") && clientName) {
+          bucket["Клиент"] = clientName;
+        }
+      });
+    });
+
+    if (!usedMonths.length) return null;
+
+    var mergedRows = Object.keys(byClient).map(function (key) {
+      return byClient[key];
+    });
+    mergedRows.sort(function (a, b) {
+      var diff = Number(b["Всего обращений"]) - Number(a["Всего обращений"]);
+      if (diff) return diff;
+      return String(a["Клиент"]).localeCompare(String(b["Клиент"]), "ru");
+    });
+
+    var totals = { total: 0, on_time: 0, late: 0 };
+    mergedRows.forEach(function (row) {
+      totals.total += Number(row["Всего обращений"]) || 0;
+      totals.on_time += Number(row["В срок"]) || 0;
+      totals.late += Number(row["Не в срок"]) || 0;
+    });
+
+    return {
+      kpi_id: "SH-T1",
+      name: buildShT1AggregatedTableTitle(mode, filterYear, filterMonth, selectedQuarters),
+      periodicity: template && template.periodicity != null ? template.periodicity : "ежемесячно",
+      description: template && template.description != null ? template.description : "",
+      period: {
+        year: Number(filterYear),
+        month: Number(filterMonth),
+        aggregation_mode: mode,
+        months: usedMonths.slice(),
+      },
+      columns: columns || ["Клиент", "Всего обращений", "В срок", "Не в срок"],
+      rows: mergedRows,
+      totals: totals,
+    };
+  }
+
+  function tablePeriodMatchesFilter(period, filterYear, filterMonth) {
+    if (!period || typeof period !== "object") return true;
+    if (filterYear == null || filterMonth == null) return true;
+    if (period.year == null || period.month == null) return true;
+    return (
+      Number(period.year) === Number(filterYear) && Number(period.month) === Number(filterMonth)
+    );
+  }
+
+  var TABLE_TITLE_MONTHS_RU = [
+    "",
+    "Январь",
+    "Февраль",
+    "Март",
+    "Апрель",
+    "Май",
+    "Июнь",
+    "Июль",
+    "Август",
+    "Сентябрь",
+    "Октябрь",
+    "Ноябрь",
+    "Декабрь",
+  ];
+
+  /** В названии таблицы месяц зашит («… — Октябрь 2026»). Подменяем его выбранным периодом. */
+  function alignTableTitleToPeriod(name, filterYear, filterMonth) {
+    var text = name != null ? String(name) : "";
+    var year = Number(filterYear);
+    var month = Number(filterMonth);
+    if (!text || isNaN(year) || isNaN(month) || month < 1 || month > 12) return text;
+    var label = TABLE_TITLE_MONTHS_RU[month] + " " + year;
+    return text.replace(
+      /(январ[ьяе]|феврал[ьяе]|март[ае]?|апрел[ьяе]|ма[йяе]|июн[ьяе]|июл[ьяе]|август[ае]?|сентябр[ьяе]|октябр[ьяе]|ноябр[ьяе]|декабр[ьяе])\s+(\d{4})/i,
+      label
+    );
+  }
+
+  function emptyTableSliceForPeriod(tab, filterYear, filterMonth) {
+    return {
+      name: alignTableTitleToPeriod(tab && tab.name != null ? tab.name : "", filterYear, filterMonth),
+      description: tab && tab.description != null ? tab.description : "",
+      columns: tab && Array.isArray(tab.columns) ? tab.columns : null,
+      period: { year: filterYear, month: filterMonth },
+      rows: [],
+    };
+  }
+
+  /** Плоский снимок таблицы (rows без monthly_data / *-BY-MONTH): только если period совпадает с фильтром. */
+  function flatTableSourceForPeriod(tab, filterYear, filterMonth) {
+    if (!tab || typeof tab !== "object") return tab;
+    var hasFilter =
+      filterYear != null &&
+      filterMonth != null &&
+      !isNaN(filterYear) &&
+      !isNaN(filterMonth) &&
+      filterMonth >= 1 &&
+      filterMonth <= 12;
+    if (!hasFilter) return tab;
+    if (Array.isArray(tab.monthly_data) && tab.monthly_data.length) return tab;
+    if (tablePeriodMatchesFilter(tab.period, filterYear, filterMonth)) return tab;
+    return emptyTableSliceForPeriod(tab, filterYear, filterMonth);
+  }
+
+  /**
+   * Для таблиц с companion *-BY-MONTH подставляет срез выбранного месяца вместо
+   * плоского снимка «последнего полного месяца» (HRD-T-M1-LATE-VACANCIES).
+   * SH-T1 в режимах ytd/quarter — сумма срезов по клиенту.
+   */
+  function resolveTableSourceForPeriod(tables, tabKey, tab, filterYear, filterMonth) {
+    var hasFilter =
+      filterYear != null &&
+      filterMonth != null &&
+      !isNaN(filterYear) &&
+      !isNaN(filterMonth) &&
+      filterMonth >= 1 &&
+      filterMonth <= 12;
+    if (!hasFilter || !tables || !tabKey) return tab;
+
+    var companionKey = getMonthKeyedTableCompanionKey(tabKey);
+    if (!companionKey || !Object.prototype.hasOwnProperty.call(tables, companionKey)) {
+      return flatTableSourceForPeriod(tab, filterYear, filterMonth);
+    }
+
+    var byMonth = tables[companionKey];
+    var tabKeyNorm = String(tabKey).trim().toUpperCase();
+    if (tabKeyNorm === "SH-T1") {
+      var aggMode = getClientAggregationMode();
+      if (aggMode === "ytd" || aggMode === "quarter") {
+        var aggregated = aggregateShT1TableFromByMonth(byMonth, filterYear, filterMonth, aggMode);
+        if (aggregated) return aggregated;
+      }
+    }
+
+    var slice = pickMonthKeyedTableSlice(byMonth, filterYear, filterMonth);
+    if (slice) return slice;
+
+    var template = getMonthKeyedTableTemplateSlice(byMonth, tab);
+    return {
+      name: alignTableTitleToPeriod(
+        template && template.name != null ? template.name : tab && tab.name,
+        filterYear,
+        filterMonth
+      ),
+      description: template && template.description != null ? template.description : tab && tab.description,
+      columns:
+        template && Array.isArray(template.columns)
+          ? template.columns
+          : tab && Array.isArray(tab.columns)
+            ? tab.columns
+            : null,
+      period: { year: filterYear, month: filterMonth },
+      rows: [],
+    };
+  }
+
   /**
    * Прикладная таблица: плоские rows или срез monthly_data по year/month (как у плиток KPI).
    */
@@ -1797,17 +2269,33 @@
         rows: [],
         columns: Array.isArray(tab.columns) ? tab.columns : null,
         period: { year: filterYear, month: filterMonth },
-        name: tab.name != null ? String(tab.name) : "",
+        name: alignTableTitleToPeriod(tab.name != null ? String(tab.name) : "", filterYear, filterMonth),
         description: tab.description != null ? String(tab.description) : "",
       };
     }
 
     if (slice) {
+      var sliceName = slice.name != null && String(slice.name).trim() !== "" ? String(slice.name) : tab.name;
       return {
         rows: rowsObjectToArray(slice.rows),
         columns: Array.isArray(slice.columns) ? slice.columns : Array.isArray(tab.columns) ? tab.columns : null,
         period: slice,
-        name: tab.name != null ? String(tab.name) : "",
+        name: alignTableTitleToPeriod(sliceName != null ? String(sliceName) : "", filterYear, filterMonth),
+        description: tab.description != null ? String(tab.description) : "",
+      };
+    }
+
+    if (
+      hasFilter &&
+      tab.rows != null &&
+      (!monthly || !monthly.length) &&
+      !tablePeriodMatchesFilter(tab.period, filterYear, filterMonth)
+    ) {
+      return {
+        rows: [],
+        columns: Array.isArray(tab.columns) ? tab.columns : null,
+        period: { year: filterYear, month: filterMonth },
+        name: alignTableTitleToPeriod(tab.name != null ? String(tab.name) : "", filterYear, filterMonth),
         description: tab.description != null ? String(tab.description) : "",
       };
     }
@@ -1816,7 +2304,11 @@
       rows: rowsObjectToArray(tab.rows),
       columns: Array.isArray(tab.columns) ? tab.columns : null,
       period: tab.period && typeof tab.period === "object" ? tab.period : null,
-      name: tab.name != null ? String(tab.name) : "",
+      name: alignTableTitleToPeriod(
+        tab.name != null ? String(tab.name) : "",
+        hasFilter ? filterYear : null,
+        hasFilter ? filterMonth : null
+      ),
       description: tab.description != null ? String(tab.description) : "",
     };
   }
@@ -1856,9 +2348,13 @@
     return tabKey != null && String(tabKey).trim().toUpperCase() === "SH-T2";
   }
 
+  function isServheadStagesTableTabKey(tabKey) {
+    return tabKey != null && String(tabKey).trim().toUpperCase() === "SH-T3";
+  }
+
   function isServheadClientsTableTabKey(tabKey) {
     var key = tabKey != null ? String(tabKey).trim().toUpperCase() : "";
-    if (isServheadSurveysTableTabKey(key)) return false;
+    if (isServheadSurveysTableTabKey(key) || isServheadStagesTableTabKey(key)) return false;
     return key === "SH-T1" || key.indexOf("SH-T") === 0;
   }
 
@@ -1903,7 +2399,8 @@
     if (!wanted || !Object.prototype.hasOwnProperty.call(tables, wanted)) return null;
     var tab = tables[wanted];
     if (!tab || typeof tab !== "object") return null;
-    var view = resolveTableTabView(tab, filterYear, filterMonth);
+    var sourceTab = resolveTableSourceForPeriod(tables, wanted, tab, filterYear, filterMonth);
+    var view = resolveTableTabView(sourceTab || tab, filterYear, filterMonth);
     return {
       kpi_id: tab.kpi_id != null ? String(tab.kpi_id) : wanted,
       name: view.name || (tab.name != null ? String(tab.name).trim() : ""),
@@ -2620,6 +3117,29 @@
     return best;
   }
 
+  /** Как pickLatestMonthlyPointWithPlanAndFact, но не позже filterYear/filterMonth. */
+  function pickLatestMonthlyPointWithPlanAndFactUpTo(points, year, month) {
+    if (!points || !points.length) return null;
+    var y = Number(year);
+    var m = Number(month);
+    var hasTarget = !isNaN(y) && !isNaN(m) && m >= 1 && m <= 12;
+    var targetKey = hasTarget ? y * 100 + m : Infinity;
+    var best = null;
+    var bestKey = -1;
+    for (var i = 0; i < points.length; i++) {
+      var p = points[i];
+      if (!planFactPointHasBoth(p)) continue;
+      var k = monthlyPointSortKey(p);
+      if (k < 0) continue;
+      if (hasTarget && k > targetKey) continue;
+      if (k >= bestKey) {
+        bestKey = k;
+        best = p;
+      }
+    }
+    return best;
+  }
+
   function pickLatestMonthlyPointWithAnyPlanFact(points) {
     if (!points || !points.length) return null;
     var best = null;
@@ -2849,8 +3369,10 @@
     var normalized = getTablesMapFromBody({ "\u0422\u0430\u0431\u043b\u0438\u0446\u044b": tables });
     if (!normalized || typeof normalized !== "object") return;
     Object.keys(normalized).forEach(function (tk) {
+      if (isMonthKeyedTablesContainerKey(tk)) return;
       var tab = normalized[tk];
-      var view = resolveTableTabView(tab, filterYear, filterMonth);
+      var sourceTab = resolveTableSourceForPeriod(normalized, tk, tab, filterYear, filterMonth);
+      var view = resolveTableTabView(sourceTab, filterYear, filterMonth);
       var rows = view.rows;
       if (!rows || !rows.length) return;
       var resolvedTab = {
@@ -2948,6 +3470,33 @@
     return kid === "HRD-M2" || kid === "HRD-M4" || kid === "HRD-Q4";
   }
 
+  function normalizeKpiIdForApiCompare(kpiId) {
+    return String(kpiId == null ? "" : kpiId)
+      .trim()
+      .toUpperCase()
+      .replace(/\u041C/g, "M")
+      .replace(/\u0413/g, "G")
+      .replace(/\u0421/g, "S")
+      .replace(/\u041F/g, "P")
+      .replace(/[\s_]/g, "");
+  }
+
+  function isGsppFotKpiId(kpiId) {
+    var id = normalizeKpiIdForApiCompare(kpiId);
+    return id === "GSP-M3" || id === "GSPP-M3";
+  }
+
+  function tileHasLastFullMonthRowData(tile, kpiId) {
+    var lfm = tile && tile.last_full_month_row;
+    if (!lfm || typeof lfm !== "object") return false;
+    var kid = kpiId != null ? String(kpiId).trim().toUpperCase() : "";
+    return (
+      planFactValuePresent(lfm.plan) ||
+      planFactValuePresent(lfm.fact) ||
+      monthlyPointHasUsableFact(lfm, kid)
+    );
+  }
+
   function monthlyPointHasUsableFact(point, kpiId) {
     if (!point || !planFactValuePresent(point.fact)) return false;
     return true;
@@ -2984,14 +3533,12 @@
       if (!tile || !tile.kpi_id) return;
       var kidEarly = String(tile.kpi_id || "").trim().toUpperCase();
       var point = null;
-      // SUP HRD-M2/M4/Q4: всегда опора с бэка (last_full_month_row), иначе август
-      // без факта / fact=0 затирает плитку в «Нет данных из источника».
+      // HRD и гСПП ФОТ: last_full_month_row, если в monthly_data нет выбранного месяца.
       if (
-        isSupHrdLateMonthKpiId(kidEarly) &&
-        tile.last_full_month_row &&
-        typeof tile.last_full_month_row === "object" &&
-        (planFactValuePresent(tile.last_full_month_row.plan) ||
-          monthlyPointHasUsableFact(tile.last_full_month_row, kidEarly))
+        (isSupHrdLateMonthKpiId(kidEarly) || isGsppFotKpiId(kidEarly)) &&
+        tileHasLastFullMonthRowData(tile, kidEarly) &&
+        (!useMonthFilter ||
+          !monthlyDataCoversYearMonth(tile.monthly_data, filterYear, filterMonth))
       ) {
         point = tile.last_full_month_row;
       }
@@ -3007,6 +3554,22 @@
           point = isSupHrdLateMonthKpiId(kidEarly)
             ? pickLatestMonthlyPointWithUsableFact(tile.monthly_data, kidEarly)
             : pickLatestMonthlyPointWithPlanAndFact(tile.monthly_data);
+        }
+        // Незакрытый месяц: есть план, факта ещё нет — берём последний полный месяц.
+        if (
+          !isSupHrdLateMonthKpiId(kidEarly) &&
+          !isGsppFotKpiId(kidEarly) &&
+          useMonthFilter &&
+          point &&
+          planFactValuePresent(point.plan) &&
+          !planFactValuePresent(point.fact)
+        ) {
+          var completePoint = pickLatestMonthlyPointWithPlanAndFactUpTo(
+            tile.monthly_data,
+            filterYear,
+            filterMonth
+          );
+          if (completePoint) point = completePoint;
         }
       }
       if (
@@ -3106,23 +3669,90 @@
     return normalized ? normalized : null;
   }
 
-  function resolveBackendTileColor(tile, ownMonthly) {
-    if (ownMonthly && ownMonthly.color != null) {
-      return normalizeBackendTileColor(ownMonthly.color);
-    }
-    if (tile && tile.backend_color != null) {
-      return normalizeBackendTileColor(tile.backend_color);
-    }
-    if (tile && tile.color != null) {
-      return normalizeBackendTileColor(tile.color);
-    }
-    if (tile && tile.status_color != null) {
-      return normalizeBackendTileColor(tile.status_color);
-    }
-    if (tile && tile.rag != null) {
-      return normalizeBackendTileColor(tile.rag);
+  function clearStaleTileColorFields(tile) {
+    if (!tile) return;
+    tile.color = null;
+    tile.rag = null;
+    tile.backend_color = null;
+    tile.status_color = null;
+  }
+
+  function monthlyPointPctForColor(point) {
+    if (!point || typeof point !== "object") return null;
+    if (typeof point.kpi_pct === "number" && !isNaN(point.kpi_pct)) return point.kpi_pct;
+    var planN = Number(point.plan);
+    var factN = Number(point.fact);
+    if (isFinite(planN) && planN > 0 && isFinite(factN) && !isNaN(factN)) {
+      return (factN / planN) * 100;
     }
     return null;
+  }
+
+  /**
+   * Цвет плитки для выбранного месяца: monthly_data[].color, затем пороги/KPI-правила.
+   * При явном месяце не оставляет color/rag с верхнего уровня (last_full_month).
+   */
+  function syncTileColorFromMonthlyPoint(tile, point, options) {
+    options = options || {};
+    var useMonthFilter = !!options.useMonthFilter;
+    if (!tile || !point) return;
+
+    if (point.color != null && String(point.color).trim() !== "") {
+      applyBackendTileColor(tile, point.color);
+      return;
+    }
+
+    var id = tile.kpi_id != null ? String(tile.kpi_id).trim().toUpperCase() : "";
+    var pct = monthlyPointPctForColor(point);
+
+    if (isBudgetFotLimitKpiId(id, tile) && !isHigherIsBetterKpiItem(tile)) {
+      var pfRag = planFactLimitRag(point.plan, point.fact);
+      if (pfRag) {
+        applyBackendTileColor(tile, pfRag);
+        return;
+      }
+    }
+    if (isCommercialHigherIsBetterPlanFactKpiId(id)) {
+      var commercialFact = Number(point.fact);
+      var commercialExpected = Number(point.expected_plan);
+      var hasCommercialFact = isFinite(commercialFact) && !isNaN(commercialFact);
+      var hasCommercialExpected = isFinite(commercialExpected) && !isNaN(commercialExpected);
+      var commercialForecast =
+        hasCommercialFact || hasCommercialExpected
+          ? (hasCommercialFact ? commercialFact : 0) + (hasCommercialExpected ? commercialExpected : 0)
+          : point.fact;
+      var commercialRag =
+        higherBetterRagFromPlanFact(point.plan, commercialForecast) ||
+        (pct != null ? higherBetterRagFromPct(pct) : null);
+      if (commercialRag) {
+        applyBackendTileColor(tile, commercialRag);
+        return;
+      }
+    }
+    if (isTurnoverKpiTile(tile) && pct != null) {
+      var turnoverRag = turnoverLimitRagFromPct(pct);
+      if (turnoverRag) {
+        applyBackendTileColor(tile, turnoverRag);
+        return;
+      }
+    }
+
+    var MockData = global.MockData;
+    if (
+      pct != null &&
+      MockData &&
+      typeof MockData.deriveRagFromThresholds === "function"
+    ) {
+      var fromThresholds = MockData.deriveRagFromThresholds(tile, pct);
+      if (fromThresholds) {
+        applyBackendTileColor(tile, fromThresholds);
+        return;
+      }
+    }
+
+    if (useMonthFilter) {
+      clearStaleTileColorFields(tile);
+    }
   }
 
   function applyBackendTileColor(tile, color) {
@@ -3135,7 +3765,14 @@
   /** KD-M1 Деньги, KD-M2 Отгрузки, KD-M3 Договоры — чем выше факт относительно плана, тем лучше. */
   function isCommercialHigherIsBetterPlanFactKpiId(kpiId) {
     var id = kpiId != null ? String(kpiId).trim().toUpperCase() : "";
-    return id === "KD-M1" || id === "KD-M2" || id === "KD-M3";
+    return (
+      id === "KD-M1" ||
+      id === "KD-M2" ||
+      id === "KD-M3" ||
+      id === "MRK-01" ||
+      id === "MRK-02" ||
+      id === "MRK-03"
+    );
   }
 
   function higherBetterRagFromPct(pct) {
@@ -3236,9 +3873,37 @@
       if (isProductionDeputyOutputPeriodTile(id)) {
         return;
       }
+      // Выбранный месяц отсутствует в monthly_data (кэш другого периода) —
+      // не оставляем plan/fact чужого месяца под новой подписью периода.
+      if (
+        useMonthFilter &&
+        Array.isArray(tile.monthly_data) &&
+        tile.monthly_data.length > 0 &&
+        !monthlyDataCoversYearMonth(tile.monthly_data, filterYear, filterMonth) &&
+        !(
+          ownMonthly &&
+          (planFactValuePresent(ownMonthly.plan) || planFactValuePresent(ownMonthly.fact))
+        ) &&
+        !(
+          (isGsppFotKpiId(id) || isSupHrdLateMonthKpiId(String(id || "").trim().toUpperCase())) &&
+          tileHasLastFullMonthRowData(tile, id)
+        )
+      ) {
+        tile.plan = null;
+        tile.fact = null;
+        tile.kpi_pct = null;
+        tile.percent = null;
+        tile.has_data = false;
+        if (requestedPeriodLabel) tile.plan_fact_period_label = requestedPeriodLabel;
+        return;
+      }
       if (ownMonthly && !isProductionDeputyOutputPeriodTile(id)) {
         tile.plan = ownMonthly.plan;
         tile.fact = ownMonthly.fact;
+        if (ownMonthly.revenue !== undefined) tile.revenue = ownMonthly.revenue;
+        if (ownMonthly.ssc !== undefined) tile.ssc = ownMonthly.ssc;
+        if (ownMonthly.employees !== undefined) tile.employees = ownMonthly.employees;
+        if (ownMonthly.vacancies !== undefined) tile.vacancies = ownMonthly.vacancies;
         if (ownMonthly.force_unit != null) {
           tile.units = ownMonthly.force_unit;
           tile.unit = ownMonthly.force_unit;
@@ -3274,26 +3939,6 @@
           }
         }
         ensureQualdirPieceCountUnits(tile);
-        var backendColor = resolveBackendTileColor(tile, ownMonthly);
-        if (!backendColor) {
-          if (isBudgetFotLimitKpiId(id, tile) && !isHigherIsBetterKpiItem(tile)) {
-            var pfRag = planFactLimitRag(ownMonthly.plan, ownMonthly.fact);
-            if (pfRag) tile.rag = pfRag;
-          } else if (isCommercialHigherIsBetterPlanFactKpiId(id)) {
-            var commercialFact = Number(ownMonthly.fact);
-            var commercialExpected = Number(ownMonthly.expected_plan);
-            var hasCommercialFact = isFinite(commercialFact) && !isNaN(commercialFact);
-            var hasCommercialExpected = isFinite(commercialExpected) && !isNaN(commercialExpected);
-            var commercialForecast =
-              hasCommercialFact || hasCommercialExpected
-                ? (hasCommercialFact ? commercialFact : 0) + (hasCommercialExpected ? commercialExpected : 0)
-                : ownMonthly.fact;
-            var commercialRag =
-              higherBetterRagFromPlanFact(ownMonthly.plan, commercialForecast) ||
-              (ownMonthly.kpi_pct != null ? higherBetterRagFromPct(ownMonthly.kpi_pct) : null);
-            if (commercialRag) tile.rag = commercialRag;
-          }
-        }
         if (ownMonthly.expected_plan !== undefined) tile.expected_plan = ownMonthly.expected_plan;
         if (ownMonthly.potential !== undefined) tile.potential = ownMonthly.potential;
         if (Array.isArray(ownMonthly.plan_fact_rows)) tile.plan_fact_rows = ownMonthly.plan_fact_rows;
@@ -3328,10 +3973,6 @@
         if (ownMonthly.kpi_pct != null) {
           tile.percent = ownMonthly.kpi_pct;
           tile.kpi_pct = ownMonthly.kpi_pct;
-          if (!backendColor && isTurnoverKpiTile(tile)) {
-            var turnoverRag = turnoverLimitRagFromPct(ownMonthly.kpi_pct);
-            if (turnoverRag) tile.rag = turnoverRag;
-          }
         } else if (useMonthFilter) {
           tile.kpi_pct = null;
           tile.percent = null;
@@ -3344,8 +3985,8 @@
           if (mrk04MonthRag) {
             applyBackendTileColor(tile, mrk04MonthRag);
           }
-        } else if (backendColor) {
-          applyBackendTileColor(tile, backendColor);
+        } else {
+          syncTileColorFromMonthlyPoint(tile, ownMonthly, { useMonthFilter: useMonthFilter });
         }
         if (ownMonthly.plan_fact_period_label) tile.plan_fact_period_label = String(ownMonthly.plan_fact_period_label);
         if (
@@ -3780,6 +4421,7 @@
       periodMonth
     );
     Object.keys(tables).forEach(function (tk) {
+      if (isMonthKeyedTablesContainerKey(tk)) return;
       var tableMeta = tables[tk];
       var status = tableMeta && typeof tableMeta === "object" && !Array.isArray(tableMeta)
         ? tableMeta.cache_refresh_status
@@ -3794,7 +4436,8 @@
         return item && item.tk === tk;
       });
       if (hasRowsForTable) return;
-      var view = resolveTableTabView(tableMeta, periodYear, periodMonth);
+      var sourceTab = resolveTableSourceForPeriod(tables, tk, tableMeta, periodYear, periodMonth);
+      var view = resolveTableTabView(sourceTab, periodYear, periodMonth);
       var displayWhenEmpty = isServheadSurveysTableTabKey(tk);
       var hasCacheMeta = !!(status || refreshKpiId || updatedAt);
       if (!displayWhenEmpty && !hasCacheMeta) return;
@@ -4503,6 +5146,8 @@
     normalizeKpiListFromApiResponse: normalizeKpiListFromApiResponse,
     buildChartIndicatorsFromApiResponse: buildChartIndicatorsFromApiResponse,
     processKpiResponseBodyAtPeriod: processKpiResponseBodyAtPeriod,
+    kpiResponseCoversYearMonth: kpiResponseCoversYearMonth,
+    monthlyDataCoversYearMonth: monthlyDataCoversYearMonth,
     hasProtocolOverdueTableInBody: hasProtocolOverdueTableInBody,
     hasQualdirDefectTablesInBody: hasQualdirDefectTablesInBody,
     isQualdirDefectTableTabKey: isQualdirDefectTableTabKey,
@@ -4510,6 +5155,7 @@
     hasServheadClientsTableInBody: hasServheadClientsTableInBody,
     hasServheadSurveysTableInBody: hasServheadSurveysTableInBody,
     isServheadClientsTableTabKey: isServheadClientsTableTabKey,
+    isServheadStagesTableTabKey: isServheadStagesTableTabKey,
     isServheadSurveysTableTabKey: isServheadSurveysTableTabKey,
     getTableTabMetaFromBody: getTableTabMetaFromBody,
   };

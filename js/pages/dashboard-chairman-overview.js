@@ -1,8 +1,7 @@
 /**
- * @fileoverview Обзорный экран дашбордов председателя совета директоров.
- * Показывает карточки вида «Мой дашборд» / «Коммерческая служба» с кратким
- * перечислением плиток и их значений. Клик по карточке раскрывает её в полный
- * дашборд (плитки + графики + таблицы) через существующий data-loader.
+ * @fileoverview Лендинг дашбордов председателя совета директоров.
+ * На входе открывается коммерческий блок; сверху — компактная плашка основного
+ * блока с кнопкой перехода. «Назад» возвращает к коммерции.
  */
 (function (global) {
   var ctx = {};
@@ -76,7 +75,7 @@
   }
 
   function shouldShowOverview() {
-    // Для ПСД на входе показываем 2 блока (Мой дашборд + Коммерческий блок) в виде карточек.
+    // Для ПСД на корне держим лендинг: коммерческий блок целиком + плашка основного.
     // При drilldown в структуру обзор прячем и показываем полный дашборд.
     var user = getSessionUser();
     if (!isBoardChairUser(user)) return false;
@@ -88,11 +87,19 @@
     return call("getSelectedViewId", [], "self");
   }
 
+  function isCommercialViewSelected() {
+    var viewId = getSelectedViewId();
+    var sid = viewId != null ? String(viewId) : "";
+    if (sid.toLowerCase().indexOf("commerce") !== -1) return true;
+    var commercial = findCommercialTarget();
+    return !!(commercial && commercial.id && commercial.id === viewId);
+  }
+
   function shouldShowChairmanLanding() {
     var user = getSessionUser();
     if (!isBoardChairUser(user)) return false;
     if (!isRootHierarchy()) return false;
-    return getSelectedViewId() === "self";
+    return isCommercialViewSelected();
   }
 
   function ensureDom() {
@@ -115,7 +122,7 @@
     commercialSummaryEl = document.createElement("section");
     commercialSummaryEl.id = "dash-chairman-commercial-summary";
     commercialSummaryEl.className = "dash-chairman-commercial-summary";
-    commercialSummaryEl.setAttribute("aria-label", "Коммерческий блок");
+    commercialSummaryEl.setAttribute("aria-label", "Основной блок");
     commercialSummaryEl.hidden = true;
     anchor.parentNode.insertBefore(commercialSummaryEl, anchor);
     bindCommercialSummaryScroll();
@@ -461,7 +468,7 @@
     tryNext();
   }
 
-  function makeCommercialSummaryTile(tile, index) {
+  function makeCommercialSummaryTile(tile, index, options) {
     var item = document.createElement("article");
     var rag = normalizeRag(tile);
     item.className = "dash-chairman-commercial-tile rag-" + rag;
@@ -493,6 +500,11 @@
     body.appendChild(value);
     item.appendChild(body);
 
+    if (options && options.skipThemedIcons) {
+      img.hidden = true;
+      fallback.hidden = false;
+      return item;
+    }
     var color = rag === "gray" ? "grey" : rag;
     var folders = commercialIconFoldersForTile(tile, index);
     var candidates = [];
@@ -524,16 +536,28 @@
     return null;
   }
 
+  function findMainTarget() {
+    var targets = getTargets();
+    for (var i = 0; i < targets.length; i++) {
+      var t = targets[i];
+      if (!t) continue;
+      var cid = t.catalogId != null ? String(t.catalogId).trim().toLowerCase() : "";
+      var id = t.id != null ? String(t.id).trim() : "";
+      if (cid === "my_dashboard" || id === "self") return t;
+    }
+    return null;
+  }
+
   function commercialSummaryCacheKey(target) {
-    var catalogId = target && (target.catalogId || target.id) ? String(target.catalogId || target.id) : "commerce";
+    var catalogId = target && (target.catalogId || target.id) ? String(target.catalogId || target.id) : "my_dashboard";
     return "commercial-summary\0" + cacheKeyFor(catalogId);
   }
 
   function renderCommercialSummary(entry) {
     var root = ensureCommercialSummaryElement();
     if (!root) return;
-    var commercialTarget = findCommercialTarget();
-    if (!shouldShowChairmanLanding() || !commercialTarget) {
+    var mainTarget = findMainTarget();
+    if (!shouldShowChairmanLanding() || !mainTarget) {
       root.hidden = true;
       root.innerHTML = "";
       root.classList.remove("is-collapsed");
@@ -548,16 +572,16 @@
     titleWrap.className = "dash-chairman-commercial-title-wrap";
     var eyebrow = document.createElement("span");
     eyebrow.className = "dash-chairman-commercial-eyebrow";
-    eyebrow.textContent = "Коммерческий блок";
+    eyebrow.textContent = "Основной блок";
     titleWrap.appendChild(eyebrow);
     head.appendChild(titleWrap);
 
     var btn = document.createElement("button");
     btn.type = "button";
     btn.className = "dash-chairman-commercial-action";
-    btn.textContent = "Перейти в коммерческий блок";
+    btn.textContent = "Перейти в основной блок";
     btn.addEventListener("click", function () {
-      expandTarget(commercialTarget);
+      expandTarget(mainTarget);
     });
     head.appendChild(btn);
     root.appendChild(head);
@@ -573,18 +597,18 @@
     } else if (entry && entry.error) {
       var err = document.createElement("p");
       err.className = "dash-chairman-commercial-empty";
-      err.textContent = "Не удалось загрузить коммерческий блок.";
+      err.textContent = "Не удалось загрузить основной блок.";
       tilesRoot.appendChild(err);
     } else {
       var tiles = entry && Array.isArray(entry.tiles) ? entry.tiles.slice(0, 4) : [];
       if (!tiles.length) {
         var empty = document.createElement("p");
         empty.className = "dash-chairman-commercial-empty";
-        empty.textContent = "Нет данных коммерческого блока.";
+        empty.textContent = "Нет данных основного блока.";
         tilesRoot.appendChild(empty);
       } else {
         tiles.forEach(function (tile, index) {
-          tilesRoot.appendChild(makeCommercialSummaryTile(tile, index));
+          tilesRoot.appendChild(makeCommercialSummaryTile(tile, index, { skipThemedIcons: true }));
         });
       }
     }
@@ -600,7 +624,7 @@
   }
 
   function loadCommercialSummary() {
-    var target = findCommercialTarget();
+    var target = findMainTarget();
     if (!target || !shouldShowChairmanLanding()) {
       hideCommercialSummary();
       return Promise.resolve();
@@ -901,10 +925,13 @@
     if (!overviewBarEl) return;
     overviewBarEl.hidden = false;
     if (overviewBarTitleEl) {
+      var catalogId = target && target.catalogId != null ? String(target.catalogId).trim() : "";
       var t =
-        target && (target.label && String(target.label).trim()
-          ? String(target.label).trim()
-          : target.department || target.id || "");
+        catalogId === "my_dashboard"
+          ? "Основной блок"
+          : target && (target.label && String(target.label).trim()
+            ? String(target.label).trim()
+            : target.department || target.id || "");
       overviewBarTitleEl.textContent = t ? "Раскрыт раздел: " + capitalizeTitle(t) : "";
     }
   }
@@ -961,8 +988,8 @@
       hideCommercialSummary();
       return false;
     }
-    /* На входе ПСД больше не показываем две обзорные карточки:
-       оставляем обычный my_dashboard и добавляем компактный коммерческий блок сверху. */
+    /* На входе ПСД открываем коммерческий блок целиком
+       и добавляем компактную плашку основного блока сверху. */
     hide();
     hideExpandedBar();
     renderCommercialSummary({ loading: true });

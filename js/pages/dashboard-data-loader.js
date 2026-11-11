@@ -41,6 +41,12 @@
     return typeof fn === "function" ? !!fn() : false;
   }
 
+  function shouldApplyPeriodAggregationTiles() {
+    var fn = getContext().shouldApplyPeriodAggregationTiles;
+    if (typeof fn === "function") return !!fn();
+    return shouldUseChairmanAggregatedTiles() || isChairmanViewContext();
+  }
+
   function getActiveChairmanCatalogTarget() {
     var fn = getContext().getActiveChairmanCatalogTarget;
     return typeof fn === "function" ? fn() : null;
@@ -54,6 +60,17 @@
   function getChairmanDashboardCatalogId() {
     var fn = getContext().getChairmanDashboardCatalogId;
     return typeof fn === "function" ? fn() : "";
+  }
+
+  function getVirtualChairmanCatalogId() {
+    var catalogTarget = getActiveChairmanCatalogTarget();
+    var catalogId =
+      catalogTarget && catalogTarget.catalogId != null ? String(catalogTarget.catalogId).trim() : "";
+    if (!catalogId) {
+      catalogId = getChairmanDashboardCatalogId() || "";
+    }
+    if (!catalogId || catalogId === "my_dashboard") return "";
+    return catalogId;
   }
 
   function getDepartmentForCurrentKpiContext() {
@@ -490,7 +507,7 @@
     if (result.ok && result.tiles && result.tiles.length > 0) {
       var tilesToRender = result.tiles;
       if (
-        isChairmanViewContext() &&
+        shouldApplyPeriodAggregationTiles() &&
         typeof getContext().getChairmanAggregatedTilesFromRaw === "function"
       ) {
         var aggregated = getContext().getChairmanAggregatedTilesFromRaw(result.data || result.raw || null);
@@ -530,7 +547,7 @@
       if (cacheKey) rememberDrilldownKpiTiles(cacheKey, tilesToRender.slice());
       renderKpiTiles(tilesToRender, renderOptions);
     } else {
-      renderKpiTiles(getMockKpiTilesForRole(role), renderOptions);
+      renderKpiTiles(getVirtualChairmanCatalogId() ? [] : getMockKpiTilesForRole(role), renderOptions);
     }
     updateTopBarForView();
     hideLoading();
@@ -545,7 +562,24 @@
     cancelDeferredChartsAndTablesBoot();
     var staleResult = options && options.preserveViewState ? loadLastKpiResult() : null;
     if (staleResult) {
-      applyApiResult(staleResult, "local-cache", options);
+      var stalePeriod = getPeriodState();
+      var staleCovers =
+        typeof Api !== "undefined" &&
+        Api &&
+        typeof Api.kpiResponseCoversYearMonth === "function" &&
+        stalePeriod.currentPeriodYear != null &&
+        stalePeriod.currentPeriodMonth != null
+          ? Api.kpiResponseCoversYearMonth(
+              staleResult.raw || staleResult.data,
+              stalePeriod.currentPeriodYear,
+              stalePeriod.currentPeriodMonth
+            )
+          : true;
+      if (staleCovers) {
+        applyApiResult(staleResult, "local-cache", options);
+      } else {
+        showLoading();
+      }
     } else {
       showLoading();
     }
@@ -567,7 +601,7 @@
         currentPeriodYear: null,
       });
       updateMonthNavigatorUI();
-      renderKpiTiles(getMockKpiTilesForRole(role));
+      renderKpiTiles(getVirtualChairmanCatalogId() ? [] : getMockKpiTilesForRole(role));
       updateTopBarForView();
       hideLoading();
       bootChartsAndTablesDeferred();
@@ -589,40 +623,31 @@
       if (requestPeriod.year != null) periodOpts.year = requestPeriod.year;
     }
 
+    var virtualCatalogId = getVirtualChairmanCatalogId();
+    if (virtualCatalogId && isViewingChairmanCatalogDashboard()) {
+      if (getSessionApiMode() === "mock") {
+        pushDashboardDebugNote("UI (mock)", "Виртуальный блок ПСД — запросы KPI не выполняются");
+        fallback();
+        return;
+      }
+      var catalogOpts = { for: virtualCatalogId };
+      if (periodOpts.month != null) catalogOpts.month = periodOpts.month;
+      if (periodOpts.year != null) catalogOpts.year = periodOpts.year;
+      fetchKpis(catalogOpts)
+        .then(function (result) {
+          applyApiResult(result, undefined, options);
+        })
+        .catch(function () {
+          fallback();
+        });
+      return;
+    }
+
     if (!isSelf) {
       if (getSessionApiMode() === "mock") {
         pushDashboardDebugNote("UI (mock)", "Подчинённый вид — запросы KPI не выполняются");
         fallback();
         return;
-      }
-      if (isViewingChairmanCatalogDashboard()) {
-        var catalogTarget = getActiveChairmanCatalogTarget();
-        var catalogId =
-          catalogTarget && catalogTarget.catalogId != null ? String(catalogTarget.catalogId).trim() : "";
-        if (catalogId && catalogId !== "my_dashboard") {
-          var catalogOpts = { for: catalogId };
-          // Виртуальный блок: ?department= = подразделение ПСД из сессии, не label «Коммерческий блок».
-          var viewUser = getViewContextUser() || {};
-          var catalogDept =
-            viewUser.department != null && String(viewUser.department).trim()
-              ? String(viewUser.department).trim()
-              : catalogTarget.viewDepartment != null && String(catalogTarget.viewDepartment).trim()
-                ? String(catalogTarget.viewDepartment).trim()
-                : catalogTarget.department != null && String(catalogTarget.department).trim()
-                  ? String(catalogTarget.department).trim()
-                  : "";
-          if (catalogDept) catalogOpts.department = catalogDept;
-          if (periodOpts.month != null) catalogOpts.month = periodOpts.month;
-          if (periodOpts.year != null) catalogOpts.year = periodOpts.year;
-          fetchKpis(catalogOpts)
-            .then(function (result) {
-              applyApiResult(result);
-            })
-            .catch(function () {
-              fallback();
-            });
-          return;
-        }
       }
       var subDept = getDepartmentForCurrentKpiContext();
       if (subDept) {

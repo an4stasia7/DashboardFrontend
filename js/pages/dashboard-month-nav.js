@@ -413,6 +413,48 @@
     }]);
   }
 
+  /**
+   * Юристы отдают снимок одного месяца (`data_granularity: snapshot`), без истории в monthly_data
+   * и без графиков. Стрелки тогда некуда листать: в списке только текущий месяц.
+   * Для такого дашборда месяцы строим по календарю — прошлый год и текущий до сегодня.
+   * Сами цифры за выбранный месяц запрашиваются с сервера.
+   */
+  function tilesUseSnapshotMonthPaging(tiles) {
+    if (!Array.isArray(tiles) || !tiles.length) return false;
+    var sawSnapshot = false;
+    for (var i = 0; i < tiles.length; i++) {
+      var tile = tiles[i];
+      if (!tile) continue;
+      var gran =
+        tile.data_granularity != null ? String(tile.data_granularity).trim().toLowerCase() : "";
+      var kid = tile.kpi_id != null ? String(tile.kpi_id).trim().toUpperCase() : "";
+      if (gran === "snapshot" || kid.indexOf("YR-") === 0) {
+        sawSnapshot = true;
+        continue;
+      }
+      if (gran && gran !== "snapshot") return false;
+      if (Array.isArray(tile.monthly_data) && tile.monthly_data.length > 1) return false;
+    }
+    return sawSnapshot;
+  }
+
+  function collectSnapshotNavigableMonthSlots() {
+    var now = new Date();
+    var endYear = now.getFullYear();
+    var endMonth = now.getMonth() + 1;
+    var startYear = endYear - 1;
+    var slots = [];
+    for (var year = startYear; year <= endYear; year++) {
+      var lastMonth = year === endYear ? endMonth : 12;
+      for (var month = 1; month <= lastMonth; month++) {
+        var key = monthYearKey(year, month);
+        if (key < 0) continue;
+        slots.push({ month: month, year: year, key: key });
+      }
+    }
+    return slots;
+  }
+
   function getMonthNavigatorContextKey() {
     var viewId = getSelectedViewId() != null ? String(getSelectedViewId()) : "";
     var dept = getDepartmentForCurrentKpiContext();
@@ -499,6 +541,12 @@
       collectCommercialFutureMonthSlots(options.fallbackTiles)
     );
     availableMonths = ensureCurrentCalendarMonthSlot(availableMonths);
+    if (tilesUseSnapshotMonthPaging(options.fallbackTiles)) {
+      availableMonths = mergeAvailableMonthSlots(
+        availableMonths,
+        collectSnapshotNavigableMonthSlots()
+      );
+    }
     availableMonthsContextKey = nextContextKey;
     if (nextContextKey) {
       availableMonthsByContext[nextContextKey] = mergeAvailableMonthSlots([], availableMonths);

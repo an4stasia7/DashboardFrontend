@@ -450,6 +450,35 @@
     return !!root && !!dept && root === dept;
   }
 
+  function isChairmanCommerceTarget(target) {
+    if (!target) return false;
+    var cid = target.catalogId != null ? String(target.catalogId).trim().toLowerCase() : "";
+    var id = target.id != null ? String(target.id).trim().toLowerCase() : "";
+    var label = target.label != null ? String(target.label).trim().toLowerCase() : "";
+    return cid === "commerce" || id.indexOf("commerce") !== -1 || label.indexOf("коммер") !== -1;
+  }
+
+  function findChairmanLandingTarget() {
+    var chairmanTargets = getChairmanDashboardTargets();
+    if (!Array.isArray(chairmanTargets) || !chairmanTargets.length) return null;
+    for (var i = 0; i < chairmanTargets.length; i++) {
+      if (isChairmanCommerceTarget(chairmanTargets[i])) return chairmanTargets[i];
+    }
+    return chairmanTargets[0] || null;
+  }
+
+  function applyChairmanLandingView() {
+    var target = findChairmanLandingTarget();
+    if (!target) {
+      setSelectedViewId("self");
+      clearRememberedChairmanCatalogId();
+      return null;
+    }
+    setSelectedViewId(target.id);
+    if (target.catalogId != null) rememberChairmanCatalogId(target.catalogId);
+    return target;
+  }
+
   function findChairmanTargetByRootDepartment(rootDepartment) {
     var root = rootDepartment != null ? String(rootDepartment).trim() : "";
     if (!root) return null;
@@ -464,6 +493,11 @@
         var pdept = pref.department != null ? String(pref.department).trim() : "";
         if (pcid === rememberedChairmanCatalogId && (!pdept || pdept === root)) return pref;
       }
+    }
+    var landing = findChairmanLandingTarget();
+    if (landing) {
+      var landingDept = landing.department != null ? String(landing.department).trim() : "";
+      if (!landingDept || landingDept === root) return landing;
     }
     for (var i = 0; i < chairmanTargets.length; i++) {
       var target = chairmanTargets[i];
@@ -966,7 +1000,7 @@
         renderStructureTree();
         return;
       }
-      structureCache = result.structure || {};
+      structureCache = ensureJuristInStructureTree(result.structure || {});
       structureHeadcount = null;
       renderStructureTree();
     });
@@ -1069,6 +1103,61 @@
     filterSidebarViewTabs();
   }
 
+  function isOperationalDirectorDepartment(name) {
+    return normalizeDashboardRole(name) === "операционный директор";
+  }
+
+  function isJuristDepartment(name) {
+    return normalizeDashboardRole(name) === "юрисконсультант";
+  }
+
+  /** Дашборд юриста есть, а в дереве с сервера его может не быть. Держим первым ребёнком ОД. */
+  function withJuristUnderOperationalDirector(parent, children) {
+    var list = Array.isArray(children) ? children.slice() : [];
+    if (!isOperationalDirectorDepartment(parent)) return list;
+    var juristIndex = -1;
+    for (var i = 0; i < list.length; i++) {
+      if (isJuristDepartment(list[i])) {
+        juristIndex = i;
+        break;
+      }
+    }
+    if (juristIndex === 0) return list;
+    var name = juristIndex >= 0 ? list[juristIndex] : "Юрисконсультант";
+    if (juristIndex >= 0) list.splice(juristIndex, 1);
+    list.unshift(name);
+    return list;
+  }
+
+  function placeJuristFirstInNode(node) {
+    var source = node && typeof node === "object" && !Array.isArray(node) ? node : {};
+    var ordered = {};
+    var juristKey = null;
+    Object.keys(source).forEach(function (name) {
+      if (juristKey == null && isJuristDepartment(name)) juristKey = name;
+    });
+    ordered[juristKey || "Юрисконсультант"] = juristKey ? source[juristKey] : {};
+    Object.keys(source).forEach(function (name) {
+      if (isJuristDepartment(name)) return;
+      ordered[name] = ensureJuristInStructureTree(source[name]);
+    });
+    return ordered;
+  }
+
+  function ensureJuristInStructureTree(tree) {
+    if (!tree || typeof tree !== "object" || Array.isArray(tree)) return tree;
+    var next = {};
+    Object.keys(tree).forEach(function (name) {
+      var child = tree[name];
+      if (isOperationalDirectorDepartment(name)) {
+        next[name] = placeJuristFirstInNode(child);
+        return;
+      }
+      next[name] = ensureJuristInStructureTree(child);
+    });
+    return next;
+  }
+
   function isUnimplementedSidebarDepartment(name) {
     var n = String(name || "")
       .toLowerCase()
@@ -1135,7 +1224,12 @@
           var atRoot = currentStack.length <= 1;
           var includeSelfFlag = atRoot && !isBoardChairUser(sessionUser);
           if (r && r.ok && r.immediate_children && r.immediate_children.length) {
-            setViewTargets(buildTargetsFromChildren(r.immediate_children, includeSelfFlag));
+            setViewTargets(
+              buildTargetsFromChildren(
+                withJuristUnderOperationalDirector(parent, r.immediate_children),
+                includeSelfFlag
+              )
+            );
           } else {
             setViewTargets(
               includeSelfFlag
@@ -1258,8 +1352,12 @@
     departmentsExpanded = false;
     closeStructurePanel();
     clearSidebarSearchState();
-    clearRememberedChairmanCatalogId();
-    setSelectedViewId("self");
+    if (isBoardChairUser(sessionUser)) {
+      applyChairmanLandingView();
+    } else {
+      clearRememberedChairmanCatalogId();
+      setSelectedViewId("self");
+    }
     setViewContextUser(sessionUser);
     setHierarchyStack(rootDept ? [rootDept] : []);
     renderViewTabs();
@@ -1301,7 +1399,7 @@
               setChairmanDashboardTargets(targets);
               var selfDept = sessionUser && sessionUser.department != null ? String(sessionUser.department).trim() : "";
               setHierarchyStack(selfDept ? [selfDept] : []);
-              setSelectedViewId(resolveChairmanSelectedViewIdFromHierarchy(getHierarchyStack()));
+              applyChairmanLandingView();
               resolve([]);
               return;
             }
@@ -1328,7 +1426,9 @@
           }
           if (r && r.ok && r.immediate_children && r.immediate_children.length) {
             setHierarchyStack([rootDept]);
-            resolve(buildTargetsFromChildren(r.immediate_children));
+            resolve(
+              buildTargetsFromChildren(withJuristUnderOperationalDirector(rootDept, r.immediate_children))
+            );
           } else {
             resolve([{ id: "self", label: "Мой дашборд", user: sessionUser }]);
           }
@@ -1525,6 +1625,7 @@
 
   global.DashboardHierarchyNav = {
     activateSidebarSearchResult: activateSidebarSearchResult,
+    applyChairmanLandingView: applyChairmanLandingView,
     clearRememberedChairmanCatalogId: clearRememberedChairmanCatalogId,
     clearSidebarSearchState: clearSidebarSearchState,
     filterSidebarViewTabs: filterSidebarViewTabs,

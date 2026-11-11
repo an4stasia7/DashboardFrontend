@@ -214,6 +214,42 @@
     return "—";
   }
 
+  function formatDrilldownRevenuePerHeadFraction(tile) {
+    var revenue = tile && tile.revenue != null ? tile.revenue : null;
+    var ssc = tile && tile.ssc != null ? tile.ssc : null;
+    var lfr =
+      tile && tile.last_full_month_row && typeof tile.last_full_month_row === "object"
+        ? tile.last_full_month_row
+        : null;
+    if (revenue == null && lfr && lfr.revenue != null) revenue = lfr.revenue;
+    if (ssc == null && lfr && lfr.ssc != null) ssc = lfr.ssc;
+    var revNum = revenue != null && revenue !== "" ? Number(revenue) : NaN;
+    var sscNum = ssc != null && ssc !== "" ? Number(ssc) : NaN;
+    if (!isFinite(revNum) || isNaN(revNum) || !isFinite(sscNum) || isNaN(sscNum)) return "—";
+    return (
+      revNum.toLocaleString("ru-RU", { maximumFractionDigits: 2, minimumFractionDigits: 0 }) +
+      " / " +
+      sscNum.toLocaleString("ru-RU", { maximumFractionDigits: 1, minimumFractionDigits: 0 })
+    );
+  }
+
+  function formatDrilldownStaffingFraction(tile) {
+    var employees = tile && tile.employees != null ? tile.employees : null;
+    var vacancies = tile && tile.vacancies != null ? tile.vacancies : null;
+    var lfr =
+      tile && tile.last_full_month_row && typeof tile.last_full_month_row === "object"
+        ? tile.last_full_month_row
+        : null;
+    if (employees == null && lfr && lfr.employees != null) employees = lfr.employees;
+    if (vacancies == null && lfr && lfr.vacancies != null) vacancies = lfr.vacancies;
+    var empNum = employees != null && employees !== "" ? Number(employees) : NaN;
+    var vacNum = vacancies != null && vacancies !== "" ? Number(vacancies) : NaN;
+    if (!isFinite(empNum) || isNaN(empNum) || !isFinite(vacNum) || isNaN(vacNum)) return "—";
+    var empText = empNum.toLocaleString("ru-RU", { maximumFractionDigits: 0, minimumFractionDigits: 0 });
+    var vacText = vacNum.toLocaleString("ru-RU", { maximumFractionDigits: 0, minimumFractionDigits: 0 });
+    return empText + " / (" + empText + " + " + vacText + ")";
+  }
+
   function drillRowFromTile(deptName, tile, isCurrentContext) {
     var label = deptName != null ? String(deptName).trim() : "—";
     if (!tile) {
@@ -228,19 +264,23 @@
     }
     var pres = MockData.getKpiTilePresentation(tile);
     var rule = getTileExceptionRule(tile);
-    // KD-M4 / FND-T7: на обороте — сумма ДЗ в рублях, не % к лимиту.
+    // KD-M4 / FND-T7: сумма; HRD-M7: дробь выручка / чел.
     var valueLabel =
-      rule && rule.factOnly
-        ? formatDrilldownFactAmount(tile)
-        : (function () {
-            var pct =
-              tile.kpi_pct != null && typeof tile.kpi_pct === "number" && !isNaN(tile.kpi_pct)
-                ? tile.kpi_pct
-                : tile.kpi_pst != null && typeof tile.kpi_pst === "number" && !isNaN(tile.kpi_pst)
-                  ? tile.kpi_pst
-                  : pres.percent;
-            return MockData.formatKpiPercentLabel(pct) + "%";
-          })();
+      rule && rule.kpiRevenuePerHeadFraction
+        ? formatDrilldownRevenuePerHeadFraction(tile)
+        : rule && rule.kpiStaffingFraction
+          ? formatDrilldownStaffingFraction(tile)
+          : rule && rule.factOnly
+            ? formatDrilldownFactAmount(tile)
+            : (function () {
+                var pct =
+                  tile.kpi_pct != null && typeof tile.kpi_pct === "number" && !isNaN(tile.kpi_pct)
+                    ? tile.kpi_pct
+                    : tile.kpi_pst != null && typeof tile.kpi_pst === "number" && !isNaN(tile.kpi_pst)
+                      ? tile.kpi_pst
+                      : pres.percent;
+                return MockData.formatKpiPercentLabel(pct) + "%";
+              })();
     return {
       department: label,
       kpiPct: valueLabel,

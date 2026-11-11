@@ -395,6 +395,16 @@
   var LOGISTICS_CLIENT_DZ_TABLE_KEY = "LOG-T-CLIENT-DZ";
   var SERVHEAD_CLIENTS_TABLE_KEY = "SH-T1";
   var SERVHEAD_SURVEYS_TABLE_KEY = "SH-T2";
+  var SERVHEAD_STAGES_TABLE_KEY = "SH-T3";
+  var SERVHEAD_STAGES_HEADERS = [
+    "Суммарная задача",
+    "Задача",
+    "Вид работ",
+    "Начало",
+    "Окончание",
+    "% завершения",
+    "Ресурс",
+  ];
   var SERVHEAD_SURVEYS_DEFAULT_HEADERS = [
     "\u041f\u0435\u0440\u0438\u043e\u0434",
     "\u041f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044c \u0438\u043b\u0438 \u0417\u0430\u043a\u0430\u0437\u0447\u0438\u043a",
@@ -453,6 +463,7 @@
   var logisticsSupplierDebtTableMode = false;
   var logisticsClientDebtTableMode = false;
   var servheadClientsTableMode = false;
+  var servheadStagesTableMode = false;
   var servheadSurveysTableState = Object.create(null);
 
   function pickTableField(raw, keys) {
@@ -1677,6 +1688,7 @@
       topTable.classList.remove("dashboard-table--hrd-late-vacancies");
       topTable.classList.remove("dashboard-table--servhead-clients");
       topTable.classList.remove("dashboard-table--servhead-surveys");
+      topTable.classList.remove("dashboard-table--servhead-stages");
     }
     var overdueTable = document.getElementById("table-overdue-debt");
     if (overdueTable) {
@@ -1697,6 +1709,8 @@
       );
     } else if (hrdLateVacanciesTableMode) {
       setTableHeaders("table-top-deviations", HRD_LATE_VACANCIES_HEADERS);
+    } else if (servheadStagesTableMode) {
+      setTableHeaders("table-top-deviations", getServheadStagesHeadersFromRows(rows));
     } else if (servheadClientsTableMode) {
       setTableHeaders("table-top-deviations", getServheadClientsHeadersFromRows(rows));
     } else if (metrologLateStagesTableMode) {
@@ -1730,7 +1744,7 @@
     if (!Array.isArray(rows)) return SERVHEAD_CLIENTS_TABLE_KEY;
     for (var i = 0; i < rows.length; i++) {
       var key = rows[i] && rows[i].tableKey != null ? String(rows[i].tableKey).trim().toUpperCase() : "";
-      if (!key || key === SERVHEAD_SURVEYS_TABLE_KEY) continue;
+      if (!key || key === SERVHEAD_SURVEYS_TABLE_KEY || key === SERVHEAD_STAGES_TABLE_KEY) continue;
       for (var j = 0; j < SERVHEAD_CLIENTS_TABLE_KEYS.length; j++) {
         if (key === SERVHEAD_CLIENTS_TABLE_KEYS[j]) return key;
       }
@@ -1754,8 +1768,12 @@
     return isServheadSurveysRow(item) && !(item && item.__tableEmptyMarker);
   }
 
+  function isServheadStagesRow(item) {
+    return servheadClientsTableKey(item) === SERVHEAD_STAGES_TABLE_KEY;
+  }
+
   function isServheadClientsRow(item) {
-    if (isServheadSurveysRow(item)) return false;
+    if (isServheadSurveysRow(item) || isServheadStagesRow(item)) return false;
     var key = servheadClientsTableKey(item);
     var wanted = String(activeServheadClientsTableKey || SERVHEAD_CLIENTS_TABLE_KEY).trim().toUpperCase();
     if (key === wanted) return true;
@@ -2386,6 +2404,84 @@
     });
   }
 
+  function getServheadStagesHeadersFromRows(rows) {
+    if (!Array.isArray(rows) || !rows.length) return SERVHEAD_STAGES_HEADERS.slice();
+    for (var i = 0; i < rows.length; i++) {
+      var item = rows[i];
+      if (!item || !isServheadStagesRow(item)) continue;
+      if (Array.isArray(item.tableColumns) && item.tableColumns.length) {
+        return item.tableColumns.map(function (header) {
+          return tableTextOrDash(header);
+        });
+      }
+    }
+    return SERVHEAD_STAGES_HEADERS.slice();
+  }
+
+  function servheadStagesCellClass(header) {
+    var h = String(header || "").trim().toLocaleLowerCase("ru-RU");
+    if (h.indexOf("начало") !== -1 || h.indexOf("окончан") !== -1) return "dashboard-table-cell--date";
+    if (h.indexOf("%") !== -1 || h.indexOf("завершен") !== -1 || h.indexOf("завершён") !== -1) {
+      return "dt-center";
+    }
+    if (h.indexOf("суммар") !== -1 || h === "задача") return "dashboard-table-cell--wide-text";
+    return "dashboard-table-cell--medium-text";
+  }
+
+  function renderServheadStagesTableRows(rows) {
+    var table = document.getElementById("table-top-deviations");
+    var tbody = table ? table.querySelector("tbody") : null;
+    if (!table || !tbody) return;
+    tbody.innerHTML = "";
+    table.classList.add("dashboard-table--servhead-stages");
+    var headers = getServheadStagesHeadersFromRows(rows);
+    setTableHeaders("table-top-deviations", headers);
+    if (table.tFoot) {
+      table.tFoot.hidden = true;
+      table.tFoot.innerHTML = '<tr><th colspan="' + String(headers.length) + '"></th></tr>';
+    }
+    table.setAttribute("aria-label", "Незавершённые этапы");
+    rows.filter(isServheadStagesRow).forEach(function (item) {
+      var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
+      if (!raw || raw.__tableEmptyMarker) return;
+      var tr = document.createElement("tr");
+      headers.forEach(function (header) {
+        appendClampedCell(tr, pickTableField(raw, [header]), servheadStagesCellClass(header));
+      });
+      tbody.appendChild(tr);
+    });
+  }
+
+  function initServheadStagesDataTable(headers) {
+    var columnConfigs = (headers || []).map(function (header, index) {
+      var h = String(header || "").toLocaleLowerCase("ru-RU");
+      var isNumber = h.indexOf("%") !== -1;
+      var isDate = h.indexOf("начало") !== -1 || h.indexOf("окончан") !== -1;
+      return {
+        index: index,
+        label: header,
+        type: isNumber || isDate ? "sort" : "filter",
+        searchType: isNumber ? "number" : "text",
+      };
+    });
+    var dateIndex = -1;
+    for (var i = 0; i < (headers || []).length; i++) {
+      if (String(headers[i] || "").toLocaleLowerCase("ru-RU").indexOf("начало") !== -1) {
+        dateIndex = i;
+        break;
+      }
+    }
+    return initInteractiveDashboardTable({
+      tableSelector: "#table-top-deviations",
+      wrapperSelector: ".dashboard-table-wrap--claims",
+      advancedSearchKey: "servhead-stages-table-advanced",
+      useExplicitColumnConfigs: true,
+      columnConfigs: columnConfigs,
+      initialOrder: dateIndex >= 0 ? [[dateIndex, "asc"]] : [],
+      columnDefs: [{ targets: "_all", orderable: true }],
+    });
+  }
+
   function renderServheadClientsTableRows(rows) {
     activeServheadClientsTableKey = resolveServheadClientsTableKey(rows);
     var table = document.getElementById("table-top-deviations");
@@ -2568,7 +2664,14 @@
   function isClaimsTableRow(item) {
     var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
     var planFactKey = item && item.tableKey != null ? String(item.tableKey).trim().toUpperCase() : "";
-    if (planFactKey === "KD-T-MONEY" || planFactKey === "KD-T-SHIP" || planFactKey === "KD-T-DOG" || planFactKey === "KD-T-DZ") {
+    if (
+      planFactKey === "KD-T-MONEY" ||
+      planFactKey === "KD-T-SHIP" ||
+      planFactKey === "KD-T-DOG" ||
+      planFactKey === "KD-T-DZ" ||
+      planFactKey === "YR-T-CONTRACTS" ||
+      planFactKey === "YR-T-ENFORCEMENT"
+    ) {
       return false;
     }
     if (!raw || isOverdueDebtRow(item) || isLawsuitsRow(item) || isProtocolOverdueRow(item) || isQualdirDefectRow(item) || isServheadClientsRow(item) || isServheadSurveysRow(item) || isHrdLateVacancyRow(item)) {
@@ -2587,6 +2690,183 @@
       raw.status != null ||
       raw.order_sum != null
     );
+  }
+
+  function isJuristContractsRow(item) {
+    var key = item && item.tableKey != null ? String(item.tableKey).trim().toUpperCase() : "";
+    return key === "YR-T-CONTRACTS";
+  }
+
+  function formatContractTableDate(value) {
+    var text = value != null ? String(value).trim() : "";
+    var match = /^(\d{4})-(\d{2})-(\d{2})/.exec(text);
+    return match ? match[3] + "." + match[2] + "." + match[1] : tableTextOrDash(text);
+  }
+
+  function renderJuristContractsTableRows(rows, filter) {
+    var tbody = document.querySelector("#table-jurist-contracts tbody");
+    if (!tbody) return;
+    tbody.innerHTML = "";
+    filter = filter || {};
+    var companyCode = filter.companyCode != null ? String(filter.companyCode).trim().toLowerCase() : "";
+    var goal = filter.goal != null ? String(filter.goal).trim().toLocaleLowerCase("ru-RU") : "";
+    rows.filter(isJuristContractsRow).forEach(function (item) {
+      var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
+      if (!raw || raw.__tableEmptyMarker === true) return;
+      var rowCompany = raw.company_code != null ? String(raw.company_code).trim().toLowerCase() : "";
+      var rowGoal = raw.goal != null ? String(raw.goal).trim().toLocaleLowerCase("ru-RU") : "";
+      if (companyCode && rowCompany !== companyCode) return;
+      if (goal && rowGoal !== goal) return;
+      var tr = document.createElement("tr");
+      var sumText = formatClaimsOrderSum(raw.sum);
+      var cells = [
+        tableTextOrDash(raw.company),
+        tableTextOrDash(raw.number),
+        tableTextOrDash(raw.name),
+        tableTextOrDash(raw.counterparty),
+        tableTextOrDash(raw.goal),
+        tableTextOrDash(raw.status),
+        formatContractTableDate(raw.start_date),
+        sumText,
+      ];
+      cells.forEach(function (value, cellIndex) {
+        var td = document.createElement("td");
+        td.textContent = value;
+        if (cellIndex === 6) td.setAttribute("data-order", raw.start_date != null ? String(raw.start_date) : "");
+        if (cellIndex === 7) {
+          var amount = Number(raw.sum);
+          td.setAttribute("data-order", isFinite(amount) && !isNaN(amount) ? String(amount) : "");
+          td.className = "dashboard-table-cell--number";
+        }
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+  }
+
+  function isJuristEnforcementRow(item) {
+    var key = item && item.tableKey != null ? String(item.tableKey).trim().toUpperCase() : "";
+    return key === "YR-T-ENFORCEMENT";
+  }
+
+  function formatEnforcementFlag(value) {
+    return value ? "Да" : "Нет";
+  }
+
+  function renderJuristEnforcementTableRows(rows) {
+    var tbody = document.querySelector("#table-jurist-enforcement tbody");
+    if (!tbody) return;
+    tbody.innerHTML = "";
+    rows.filter(isJuristEnforcementRow).forEach(function (item) {
+      var raw = item && item.raw && typeof item.raw === "object" ? item.raw : null;
+      if (!raw || raw.__tableEmptyMarker === true) return;
+      var tr = document.createElement("tr");
+      var cells = [
+        tableTextOrDash(raw.number),
+        formatContractTableDate(raw.date),
+        tableTextOrDash(raw.counterparty),
+        tableTextOrDash(raw.lawyer),
+        tableTextOrDash(raw.subject),
+        tableTextOrDash(raw.status),
+        tableTextOrDash(raw.role),
+        tableTextOrDash(raw.case_number),
+        formatClaimsOrderSum(raw.amount),
+        formatContractTableDate(raw.opened_on),
+        formatEnforcementFlag(raw.writ_received),
+        formatEnforcementFlag(raw.filed_fssp),
+        formatClaimsOrderSum(raw.collected),
+      ];
+      cells.forEach(function (value, cellIndex) {
+        var td = document.createElement("td");
+        td.textContent = value;
+        if (cellIndex === 1) td.setAttribute("data-order", raw.date != null ? String(raw.date) : "");
+        if (cellIndex === 8 || cellIndex === 12) {
+          var amount = Number(cellIndex === 8 ? raw.amount : raw.collected);
+          td.setAttribute("data-order", isFinite(amount) && !isNaN(amount) ? String(amount) : "");
+          td.className = "dashboard-table-cell--number";
+        }
+        if (cellIndex === 9) td.setAttribute("data-order", raw.opened_on != null ? String(raw.opened_on) : "");
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+  }
+
+  function initJuristEnforcementDataTable() {
+    return initInteractiveDashboardTable({
+      tableSelector: "#table-jurist-enforcement",
+      wrapperSelector: ".dashboard-table-wrap--enforcement",
+      advancedSearchKey: "jurist-enforcement-table-advanced",
+      useExplicitColumnConfigs: true,
+      columnConfigs: [
+        { index: 0, label: "Номер", type: "filter", searchType: "text" },
+        { index: 1, label: "Дата", type: "sort", searchType: "date" },
+        { index: 2, label: "Контрагент", type: "filter", searchType: "text" },
+        { index: 3, label: "Юрист", type: "filter", searchType: "text" },
+        { index: 4, label: "Предмет спора", type: "filter", searchType: "text" },
+        { index: 5, label: "Статус", type: "filter", searchType: "text" },
+        { index: 6, label: "Роль ГК", type: "filter", searchType: "text" },
+        { index: 7, label: "Номер дела", type: "filter", searchType: "text" },
+        { index: 8, label: "Сумма требований", type: "sort", searchType: "number" },
+        { index: 9, label: "Возбуждено", type: "sort", searchType: "date" },
+        { index: 10, label: "ИЛ получен", type: "filter", searchType: "text" },
+        { index: 11, label: "Подано в ФССП", type: "filter", searchType: "text" },
+        { index: 12, label: "Взыскано", type: "sort", searchType: "number" },
+      ],
+      initialOrder: [[1, "desc"]],
+      columnDefs: [
+        { targets: [1, 8, 9, 12], orderable: true },
+      ],
+      footerCallback: function () {
+        var api = this.api();
+        function sumColumn(index) {
+          var total = 0;
+          api.column(index, { search: "applied" }).nodes().each(function (cell) {
+            var amount = Number(cell.getAttribute("data-order"));
+            if (isFinite(amount) && !isNaN(amount)) total += amount;
+          });
+          return total;
+        }
+        var sumCell = document.getElementById("enforcement-table-total-sum");
+        var collectedCell = document.getElementById("enforcement-table-total-collected");
+        if (sumCell) sumCell.textContent = formatClaimsOrderSum(sumColumn(8));
+        if (collectedCell) collectedCell.textContent = formatClaimsOrderSum(sumColumn(12));
+      },
+    });
+  }
+
+  function initJuristContractsDataTable() {
+    return initInteractiveDashboardTable({
+      tableSelector: "#table-jurist-contracts",
+      wrapperSelector: ".dashboard-table-wrap--contracts",
+      advancedSearchKey: "jurist-contracts-table-advanced",
+      useExplicitColumnConfigs: true,
+      columnConfigs: [
+        { index: 0, label: "Организация", type: "filter", searchType: "text" },
+        { index: 1, label: "Номер", type: "filter", searchType: "text" },
+        { index: 2, label: "Наименование", type: "filter", searchType: "text" },
+        { index: 3, label: "Контрагент", type: "filter", searchType: "text" },
+        { index: 4, label: "Цель договора", type: "filter", searchType: "text" },
+        { index: 5, label: "Статус", type: "filter", searchType: "text" },
+        { index: 6, label: "от", type: "sort", searchType: "date" },
+        { index: 7, label: "Сумма, руб.", type: "sort", searchType: "number" },
+      ],
+      initialOrder: [[6, "desc"]],
+      columnDefs: [
+        { targets: [6, 7], orderable: true },
+      ],
+      footerCallback: function () {
+        var api = this.api();
+        var total = 0;
+        api.column(7, { search: "applied" }).nodes().each(function (cell) {
+          var order = cell.getAttribute("data-order");
+          var amount = Number(order);
+          if (isFinite(amount) && !isNaN(amount)) total += amount;
+        });
+        var footerCell = document.getElementById("contracts-table-total-sum");
+        if (footerCell) footerCell.textContent = formatClaimsOrderSum(total);
+      },
+    });
   }
 
   function isLogisticsClaimsRow(item) {
@@ -2921,6 +3201,10 @@
       columnDefs = [{ targets: "_all", orderDataType: "dom-text", orderable: false }].concat(columnDefs);
     }
 
+    var freshBodyHtml = "";
+    var freshBody = tableNode ? tableNode.querySelector("tbody") : null;
+    if (freshBody) freshBodyHtml = freshBody.innerHTML;
+
     var wrapper = table.closest(wrapperSelector);
     if (wrapper.length) {
       wrapper.find(".claims-column-filter-menu").remove();
@@ -2934,6 +3218,12 @@
     if (staleWrapper.length) {
       table.detach();
       staleWrapper.replaceWith(table);
+    }
+    // destroy() возвращает tbody к снимку первой инициализации и затирает
+    // строки, которые только что положил render.
+    if (tableNode && freshBodyHtml) {
+      var bodyAfterDestroy = tableNode.querySelector("tbody");
+      if (bodyAfterDestroy) bodyAfterDestroy.innerHTML = freshBodyHtml;
     }
 
     if (tableNode) {
@@ -3816,6 +4106,7 @@
       "#table-lawsuits",
       "#table-qualdir-process",
       "#table-protocol-overdue",
+      "#table-jurist-contracts",
     ].forEach(destroyClaimsTableInstance);
   }
 
@@ -4035,6 +4326,7 @@
     var executiveMode = !!options.executiveMode;
     var enhanceOverdueDebtTable = !!options.enhanceOverdueDebtTable;
     var enableLawsuitsTable = !!options.enableLawsuitsTable;
+    var juristContractsTableMode = !!options.juristContractsTableMode;
     technicalTablesMode = !!options.technicalTablesMode;
     opdirProjectTableMode = !!options.opdirProjectTableMode;
     opdirProjectSecondTableDisabled = !!options.opdirProjectSecondTableDisabled;
@@ -4043,6 +4335,7 @@
     constructorProjectTableMode = !!options.constructorProjectTableMode;
     hrdLateVacanciesTableMode = !!options.hrdLateVacanciesTableMode;
     servheadClientsTableMode = !!options.servheadClientsTableMode;
+    servheadStagesTableMode = servheadClientsTableMode && options.servheadSection === "service";
     qualdirDefectTablesMode = !!options.qualdirDefectTablesMode;
     if (qualdirDefectTablesMode) {
       activeQualdirExternalTableKey =
@@ -4126,6 +4419,13 @@
         ".dashboard-table-wrap--qualdir-process",
         "qualdir-process-defect-table-advanced"
       );
+      syncProtocolOverduePanel(rows, options);
+      return;
+    }
+    if (servheadClientsTableMode && servheadStagesTableMode) {
+      var stageHeaders = getServheadStagesHeadersFromRows(rows);
+      renderServheadStagesTableRows(rows);
+      initServheadStagesDataTable(stageHeaders);
       syncProtocolOverduePanel(rows, options);
       return;
     }
@@ -4252,6 +4552,12 @@
     renderOverdueDebtTableRows(rows);
     initClaimsDataTable();
     if (!enhanceOverdueDebtTable) initOverdueDebtDataTable();
+    if (juristContractsTableMode) {
+      renderJuristContractsTableRows(rows, options.juristContractsFilter || {});
+      initJuristContractsDataTable();
+      renderJuristEnforcementTableRows(rows);
+      initJuristEnforcementDataTable();
+    }
     if (enableLawsuitsTable) {
       renderLawsuitsTableRows(rows);
       initLawsuitsDataTable();

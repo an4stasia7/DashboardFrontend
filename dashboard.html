@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Главная — дашборд</title>
-    <link rel="stylesheet" href="css/styles.css?v=20261110-tile-fit" />
+    <link rel="stylesheet" href="css/styles.css?v=20261111-merge-master" />
     <link rel="stylesheet" href="node_modules/katex/dist/katex.min.css" />
     <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/jquery.dataTables.min.css" />
   </head>
@@ -185,7 +185,7 @@
       <div class="dash-chairman-overview-bar" id="dash-chairman-overview-bar" hidden>
         <button type="button" class="dash-chairman-overview-back" id="dash-chairman-overview-back">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M9.5 3L4.5 8L9.5 13" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          <span>К обзору</span>
+          <span>К коммерческому блоку</span>
         </button>
         <span class="dash-chairman-overview-bar-title" id="dash-chairman-overview-bar-title"></span>
       </div>
@@ -370,6 +370,26 @@
               <button
                 type="button"
                 class="claims-table-switcher-btn"
+                data-claims-view="contracts"
+                role="tab"
+                aria-selected="false"
+                hidden
+              >
+                Договоры
+              </button>
+              <button
+                type="button"
+                class="claims-table-switcher-btn"
+                data-claims-view="enforcement"
+                role="tab"
+                aria-selected="false"
+                hidden
+              >
+                Исполнительное производство
+              </button>
+              <button
+                type="button"
+                class="claims-table-switcher-btn"
                 data-claims-view="money"
                 role="tab"
                 aria-selected="false"
@@ -428,6 +448,10 @@
                 Процессные несоответствия
               </button>
             </nav>
+            <span id="jurist-contracts-filter" class="jurist-contracts-filter" hidden>
+              <span id="jurist-contracts-filter-label"></span>
+              <button type="button" id="jurist-contracts-filter-reset">Все договоры</button>
+            </span>
             <button
               type="button"
               id="plan-fact-filter-open"
@@ -503,6 +527,67 @@
               </button>
             </span>
           </h2>
+          <div
+            class="dashboard-table-wrap dashboard-table-wrap--claims dashboard-table-wrap--contracts"
+            data-claims-view="contracts"
+            hidden
+          >
+            <table id="table-jurist-contracts" class="dashboard-table" aria-label="Таблица договоров">
+              <thead>
+                <tr>
+                  <th>Организация</th>
+                  <th>Номер</th>
+                  <th>Наименование</th>
+                  <th>Контрагент</th>
+                  <th>Цель договора</th>
+                  <th>Статус</th>
+                  <th>от</th>
+                  <th>Сумма, руб.</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+              <tfoot>
+                <tr>
+                  <th colspan="7">Итого</th>
+                  <th id="contracts-table-total-sum">0,00</th>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+          <div
+            class="dashboard-table-wrap dashboard-table-wrap--claims dashboard-table-wrap--enforcement"
+            data-claims-view="enforcement"
+            hidden
+          >
+            <table id="table-jurist-enforcement" class="dashboard-table" aria-label="Исполнительное производство">
+              <thead>
+                <tr>
+                  <th>Номер</th>
+                  <th>Дата</th>
+                  <th>Контрагент</th>
+                  <th>Юрист</th>
+                  <th>Предмет спора</th>
+                  <th>Статус</th>
+                  <th>Роль ГК</th>
+                  <th>Номер дела</th>
+                  <th>Сумма требований</th>
+                  <th>Возбуждено</th>
+                  <th>ИЛ получен</th>
+                  <th>Подано в ФССП</th>
+                  <th>Взыскано</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+              <tfoot>
+                <tr>
+                  <th colspan="8">Итого</th>
+                  <th id="enforcement-table-total-sum">0,00</th>
+                  <th colspan="3"></th>
+                  <th id="enforcement-table-total-collected">0,00</th>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
           <div class="dashboard-table-wrap dashboard-table-wrap--claims" data-claims-view="claims">
             <table id="table-top-deviations" class="dashboard-table" aria-label="Таблица претензий">
               <thead>
@@ -1041,13 +1126,13 @@
     </dialog>
 
     <script src="js/config.js"></script>
-    <script src="js/onecReports.js?v=20261110-onec-period-dept"></script>
+    <script src="js/onecReports.js?v=20261111-merge-master"></script>
     <script src="js/app-update-notifier.js"></script>
     <script src="js/app-version-label.js"></script>
-    <script src="js/const/kpiTileExceptions.js?v=20261005-pd-q1-projects"></script>
-    <script src="js/mockData.js?v=20261012-od-m1-color"></script>
+    <script src="js/const/kpiTileExceptions.js?v=20261014-form-tone"></script>
+    <script src="js/mockData.js?v=20261012-mrk-rag"></script>
     <script src="js/auth.js?v=20261012-onec-client"></script>
-    <script src="js/api.js?v=20261110-tile-potential"></script>
+    <script src="js/api.js?v=20261111-merge-master"></script>
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
     <!-- Явная версия: с code.highcharts.com без версии иногда подтягивается HC12+ с иными требованиями -->
@@ -1056,21 +1141,21 @@
     <script src="node_modules/katex/dist/katex.min.js"></script>
     <script src="js/utils/dash-ui-leaf.js"></script>
     <script src="js/utils/dash-latex.js"></script>
-    <script src="js/pages/dash-debug-log.js"></script>
+    <script src="js/pages/dash-debug-log.js?v=20261102-merge-cursor"></script>
     <script src="js/pages/dashboard-hierarchy-nav.js"></script>
     <script src="js/pages/dashboard-aggregation.js"></script>
     <script src="js/pages/dashboard-request-builder.js"></script>
     <script src="js/pages/dashboard-data-loader.js"></script>
-    <script src="js/pages/dashboard-month-nav.js?v=20261109-quarter-period"></script>
+    <script src="js/pages/dashboard-month-nav.js?v=20261111-merge-master"></script>
     <script src="js/pages/dashboard-kpi-tile-order.js"></script>
-    <script src="js/pages/dashboard-kpi-tiles.js?v=20261110-tile-potential-keep"></script>
+    <script src="js/pages/dashboard-kpi-tiles.js?v=20261111-merge-master"></script>
     <script src="js/pages/dashboard-kpi-drilldown.js"></script>
-    <script src="js/pages/dashboard-claims-table.js?v=20261109-debt-layout"></script>
+    <script src="js/pages/dashboard-claims-table.js?v=20261109-merge-cursor"></script>
     <script src="js/pages/dashboard-charts.js"></script>
     <script src="js/pages/dashboard-viewport.js"></script>
     <script src="js/pages/dashboard-chairman-overview.js"></script>
     <script src="js/pages/dashboard-support.js"></script>
     <script src="js/pages/dashboard-ai-assistant.js"></script>
-    <script src="js/pages/dashboard.js?v=20261110-onec-period-dept"></script>
+    <script src="js/pages/dashboard.js?v=20261111-merge-master"></script>
   </body>
 </html>

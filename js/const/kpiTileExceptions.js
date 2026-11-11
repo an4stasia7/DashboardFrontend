@@ -3,45 +3,57 @@
     "OD-M1": {
       backDeptAmounts: true,
     },
-    /** QD-M5: plan/fact на лице; детализация форм и ОТК-1 / ОТК-2 на обороте. */
+    /** QD-M5: строки на лице, как у QD-M7; ОТК-1 / ОТК-2 на обороте. */
     "QD-M5": {
       allowPartialPlanFact: true,
-      periodLabelPrefix: "Период",
-      qualdirControlOverviewOnBack: true,
+      hidePlanOnTile: true,
+      hideKpiPercent: true,
+      frontAccentColor: "#64748b",
       qualdirControlOverview: {
-        ariaLabel: "Формы",
+        ariaLabel: "Формы 03-18",
+        layout: "quad",
         rows: [
           { label: "Всего форм", field: "plan", useUnits: true },
-          { label: "Значимые формы", field: "significant", useUnits: true },
+          { label: "Выполнено", field: "fact", useUnits: true, tone: "green" },
+          { label: "В работе по плану", field: "in_work_on_time", useUnits: true },
+          { label: "В работе просрочено", field: "in_work_overdue", useUnits: true, tone: "red" },
         ],
       },
       backDefectDirections: true,
     },
-    /** QD-M1: plan/fact на лице; детализация форм и подразделения на обороте. */
+    /** QD-M1: строки на лице, как у QD-M7; подразделения на обороте. */
     "QD-M1": {
       allowPartialPlanFact: true,
+      hidePlanOnTile: true,
+      hideKpiPercent: true,
+      frontAccentColor: "#64748b",
       backArticlesDeptCount: true,
-      periodLabelPrefix: "Период",
-      qualdirControlOverviewOnBack: true,
       qualdirControlOverview: {
-        ariaLabel: "Формы",
+        ariaLabel: "Формы 03-19",
+        layout: "quad",
         rows: [
           { label: "Всего форм", field: "plan", useUnits: true },
-          { label: "Значимые формы", field: "significant", useUnits: true },
+          { label: "Выполнено", field: "fact", useUnits: true, tone: "green" },
+          { label: "В работе по плану", field: "in_work_on_time", useUnits: true },
+          { label: "В работе просрочено", field: "in_work_overdue", useUnits: true, tone: "red" },
         ],
       },
     },
-    /** QD-M8: plan/fact на лице; детализация форм и подразделения на обороте. */
+    /** QD-M8: строки на лице, как у QD-M7; подразделения на обороте. */
     "QD-M8": {
       allowPartialPlanFact: true,
+      hidePlanOnTile: true,
+      hideKpiPercent: true,
+      frontAccentColor: "#64748b",
       backArticlesDeptCount: true,
-      periodLabelPrefix: "Период",
-      qualdirControlOverviewOnBack: true,
       qualdirControlOverview: {
-        ariaLabel: "Формы",
+        ariaLabel: "Формы 03-17",
+        layout: "quad",
         rows: [
           { label: "Всего форм", field: "plan", useUnits: true },
-          { label: "Значимые формы", field: "significant", useUnits: true },
+          { label: "Выполнено", field: "fact", useUnits: true, tone: "green" },
+          { label: "В работе по плану", field: "in_work_on_time", useUnits: true },
+          { label: "В работе просрочено", field: "in_work_overdue", useUnits: true, tone: "red" },
         ],
       },
     },
@@ -127,6 +139,22 @@
       zeroEmptyPlanFact: true,
       zeroGeneratedPlanFact: true,
     },
+    /**
+     * HRD-M7: на лице — обычный факт (руб./чел.);
+     * на обороте в блоке KPI — дробь «выручка / ССЧ» двумя числами.
+     */
+    "HRD-M7": {
+      hidePlanOnTile: true,
+      allowPartialPlanFact: true,
+      kpiRevenuePerHeadFraction: true,
+    },
+    /**
+     * HRD-M9: на лице — % укомплектованности;
+     * на обороте в блоке KPI — дробь сотрудники / (сотрудники + вакансии).
+     */
+    "HRD-M9": {
+      kpiStaffingFraction: true,
+    },
     "LOG-M2": {
       hidePlanDelta: false,
       // Суммы в рублях (млн на плитке); бейдж — KPI% отклонения от плана.
@@ -146,7 +174,29 @@
       factOnly: true,
       hideKpiPercent: true,
       backDepartmentsOnly: true,
+      drilldownMatchKpiId: "FND-T7",
       frontAccentColor: "#374e6f",
+    },
+    "KD-M1": {
+      drilldownRootDept: "Коммерческий директор",
+      drilldownMatchKpiId: "MRK-03",
+    },
+    "MRK-03": {
+      drilldownMatchKpiId: "KD-M1",
+    },
+    "KD-M2": {
+      drilldownRootDept: "Коммерческий директор",
+      drilldownMatchKpiId: "MRK-01",
+    },
+    "MRK-01": {
+      drilldownMatchKpiId: "KD-M2",
+    },
+    "KD-M3": {
+      drilldownRootDept: "Коммерческий директор",
+      drilldownMatchKpiId: "MRK-02",
+    },
+    "MRK-02": {
+      drilldownMatchKpiId: "KD-M3",
     },
     "KD-M11": {
       factOnly: true,
@@ -245,11 +295,32 @@
     "SH-M2": {
       pctLowerIsBetter: true,
     },
+    /** SH-M3: одно число — план, все обращения месяца по дате регистрации. */
     "SH-M3": {
-      pctLowerIsBetter: true,
+      hidePlanOnTile: true,
+      hideKpiPercent: true,
+      singleCountFromPlan: true,
     },
     "SH-M5": {
       pctLowerIsBetter: true,
     },
+    /** SH-M8: факт — задачи, срок которых уже прошёл и они не закрыты; меньше — лучше. */
+    "SH-M8": {
+      pctLowerIsBetter: true,
+    },
+    /**
+     * Юрисконсультант.
+     * Количество: одно число на лице, цели на обороте.
+     * Сумма: отдельные суммы по целям на лице, оборота нет.
+     */
+    "YR-TD-Q": { factOnly: true, hideKpiPercent: true, backContractGoals: true },
+    "YR-TD-S": { hideKpiPercent: true, frontContractGoalSums: true, disableBack: true },
+    "YR-AL-Q": { factOnly: true, hideKpiPercent: true, backContractGoals: true },
+    "YR-AL-S": { hideKpiPercent: true, frontContractGoalSums: true, disableBack: true },
+    "YR-MG-Q": { factOnly: true, hideKpiPercent: true, backContractGoals: true },
+    "YR-MG-S": { hideKpiPercent: true, frontContractGoalSums: true, disableBack: true },
+    "YR-AM-Q": { factOnly: true, hideKpiPercent: true, backContractGoals: true },
+    "YR-AM-S": { hideKpiPercent: true, frontContractGoalSums: true, disableBack: true },
+    "YR-SZ-Q": { factOnly: true, hideKpiPercent: true, backContractGoals: true },
   };
 })(typeof window !== "undefined" ? window : globalThis);

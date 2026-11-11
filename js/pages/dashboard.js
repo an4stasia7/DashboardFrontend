@@ -54,6 +54,10 @@
   var kpiTileCacheRefreshState = Object.create(null);
   var kpiTileCacheRefreshPollTimers = Object.create(null);
   var kpiTileCooldownTickTimer = null;
+  /** Только пользовательский ⟳ — не авто-poll по статусу из API. */
+  var kpiTileUserInitiatedRefreshKeys = Object.create(null);
+  /** Отложенный reload после фонового refresh, пока окно свёрнуто/скрыто. */
+  var kpiTilePendingReloadOnVisible = false;
 
   /** Индикаторы для графиков, полученные от API (null = данных нет, использовать MockData) */
   var lastApiChartIndicators = null;
@@ -86,6 +90,25 @@
   var logisticsClientDzOverdueOnlyEl = document.getElementById("logistics-client-dz-overdue-only");
   var claimsTableSwitcherEl = document.getElementById("claims-table-switcher");
   var activeClaimsTableView = "claims";
+  var juristContractsFilter = { companyCode: "", goal: "" };
+  var juristContractsViewReady = false;
+  var JURIST_TILE_COMPANY = {
+    "YR-TD-Q": "td",
+    "YR-TD-S": "td",
+    "YR-AL-Q": "al",
+    "YR-AL-S": "al",
+    "YR-MG-Q": "mg",
+    "YR-MG-S": "mg",
+    "YR-AM-Q": "am",
+    "YR-AM-S": "am",
+  };
+  var JURIST_GPH_GOAL = "Заключение договора ГПХ";
+  var JURIST_COMPANY_TITLES = {
+    td: "ООО НПО «Турбулентность-ДОН»",
+    al: "ООО «Алмаз»",
+    mg: "ООО «МГС»",
+    am: "ООО «Амурская легенда»",
+  };
   var activeDebtTableView = "dz";
   var commercialBreakdownDefaulted = false;
   var debugJsonToggleBtnEl = document.getElementById("debug-kpi-json-toggle");
@@ -98,6 +121,10 @@
   var productionDeputySelectedShop = "pc1";
   var lastProductionDeputyRawTiles = null;
   var lastProductionDeputyRawChartIndicators = null;
+  /** servhead: «otp» — журнал ОТП (SH-*), «service» — сервисная служба (СЕР-*). */
+  var servheadSelectedSection = "otp";
+  var lastServheadRawTiles = null;
+  var lastServheadRawChartIndicators = null;
 
   function handleUnauthorized() {
     persistCurrentKpiTileOrder();
@@ -132,8 +159,17 @@
     DashboardKpiTileOrder.saveOrder(scopeKey, DashboardKpiTileOrder.extractOrderIds(lastKpiTiles));
   }
 
+  var FORM_WORK_TILE_IDS = { "QD-M1W": true, "QD-M5W": true, "QD-M8W": true };
+
+  function withoutFormWorkTiles(tiles) {
+    return (tiles || []).filter(function (tile) {
+      var id = tile && tile.kpi_id != null ? String(tile.kpi_id).trim().toUpperCase() : "";
+      return !FORM_WORK_TILE_IDS[id];
+    });
+  }
+
   function renderKpiTilesAsIs(tiles) {
-    lastKpiTiles = tiles && tiles.length ? tiles.slice() : null;
+    lastKpiTiles = withoutFormWorkTiles(tiles);
     flippedTileIndices.clear();
     if (typeof DashboardKpiDrilldown !== "undefined" && DashboardKpiDrilldown) {
       if (typeof DashboardKpiDrilldown.resetState === "function") {
@@ -255,6 +291,26 @@
 
   function updateMonthNavigatorUI() {
     callMonthNav("updateMonthNavigatorUI");
+  }
+
+  /** Юристы: в ответе снимок одного месяца, локальный кэш другого месяца подставит чужие договоры. */
+  function tilesUseSnapshotMonthPaging(tiles) {
+    if (!Array.isArray(tiles) || !tiles.length) return false;
+    var sawSnapshot = false;
+    for (var i = 0; i < tiles.length; i++) {
+      var tile = tiles[i];
+      if (!tile) continue;
+      var gran =
+        tile.data_granularity != null ? String(tile.data_granularity).trim().toLowerCase() : "";
+      var kid = tile.kpi_id != null ? String(tile.kpi_id).trim().toUpperCase() : "";
+      if (gran === "snapshot" || kid.indexOf("YR-") === 0) {
+        sawSnapshot = true;
+        continue;
+      }
+      if (gran && gran !== "snapshot") return false;
+      if (Array.isArray(tile.monthly_data) && tile.monthly_data.length > 1) return false;
+    }
+    return sawSnapshot;
   }
 
   function navigateToMonth(month, year) {
@@ -484,6 +540,7 @@
           return MockData.getViewableDashboardTargets(sessionUser);
         },
         onViewChanged: function () {
+          callChairmanOverview("showIfNeeded", [], false);
           loadKpiTilesAndChartsForView();
         },
         onUnauthorized: handleUnauthorized,
@@ -552,6 +609,7 @@
         },
         getActiveChairmanCatalogTarget: getActiveChairmanCatalogTarget,
         shouldUseChairmanAggregatedTiles: shouldUseChairmanAggregatedTiles,
+        shouldApplyPeriodAggregationTiles: shouldApplyPeriodAggregationTiles,
         getSessionApiMode: function () {
           return session.apiMode;
         },
@@ -561,9 +619,15 @@
         setLastApiChartIndicators: function (value) {
           if (isProductionDeputyDashboardContext() && value) {
             lastProductionDeputyRawChartIndicators = value;
+            lastServheadRawChartIndicators = null;
             lastApiChartIndicators = filterProductionDeputyChartIndicatorsByShop(value);
+          } else if (isServheadDashboardContext() && value) {
+            lastProductionDeputyRawChartIndicators = null;
+            lastServheadRawChartIndicators = value;
+            lastApiChartIndicators = filterServheadChartIndicatorsBySection(value);
           } else {
             lastProductionDeputyRawChartIndicators = null;
+            lastServheadRawChartIndicators = null;
             lastApiChartIndicators = value;
           }
         },
@@ -675,18 +739,22 @@
         });
       },
       onBackToOverview: function () {
-        selectedViewId = "self";
-        viewContextUser = sessionUser;
+        var landing =
+          typeof DashboardHierarchyNav !== "undefined" &&
+          DashboardHierarchyNav &&
+          typeof DashboardHierarchyNav.applyChairmanLandingView === "function"
+            ? DashboardHierarchyNav.applyChairmanLandingView()
+            : null;
+        if (landing) {
+          selectedViewId = landing.id || selectedViewId;
+          viewContextUser = landing.user || sessionUser;
+        } else {
+          selectedViewId = "self";
+          viewContextUser = sessionUser;
+        }
         var selfDept =
           sessionUser && sessionUser.department != null ? String(sessionUser.department).trim() : "";
         hierarchyStack = selfDept ? [selfDept] : [];
-        if (
-          typeof DashboardHierarchyNav !== "undefined" &&
-          DashboardHierarchyNav &&
-          typeof DashboardHierarchyNav.clearRememberedChairmanCatalogId === "function"
-        ) {
-          DashboardHierarchyNav.clearRememberedChairmanCatalogId();
-        }
         renderViewTabs();
         updateTopBarForView();
         loadKpiTilesAndChartsForView();
@@ -731,8 +799,15 @@
             loadKpiTilesAndChartsForView({ preserveViewState: true });
             return;
           }
-          var supPeriodNeedsServerData = shouldUseHrdLateVacanciesTable();
-          if (!supPeriodNeedsServerData && applyCurrentPeriodFromLastRawResponse()) {
+          if (tilesUseSnapshotMonthPaging(lastKpiTiles)) {
+            loadKpiTilesAndChartsForView({ preserveViewState: true });
+            return;
+          }
+          var periodNeedsServerData =
+            shouldUseHrdLateVacanciesTable() ||
+            shouldUseGsppTechnicalTables() ||
+            shouldUseServheadClientsTable();
+          if (!periodNeedsServerData && applyCurrentPeriodFromLastRawResponse()) {
             return;
           }
           if (
@@ -763,12 +838,22 @@
           donutChartsPageIndex = 0;
           chairmanAggregationMode = mode || "current";
           callChairmanOverview("reloadCommercialSummary", []);
-          if (shouldUseHrdLateVacanciesTable()) {
+          var aggMode = String(mode || "current").trim();
+          // YTD/квартал — пересобрать плитки и таблицы из raw (SH-T1 суммируется в api.js).
+          if (aggMode === "ytd" || aggMode === "quarter") {
+            if (applyCurrentPeriodFromLastRawResponse()) return;
+            if (rerenderChairmanTilesFromRaw()) return;
+          }
+          // Смена месяца для таблиц SUP/servhead — только в режимах current/month.
+          if (
+            (aggMode === "current" || aggMode === "month") &&
+            (shouldUseHrdLateVacanciesTable() || shouldUseServheadClientsTable())
+          ) {
             loadKpiTilesAndChartsForView({ preserveViewState: true });
             return;
           }
-          if (rerenderChairmanTilesFromRaw()) return;
           if (applyCurrentPeriodFromLastRawResponse()) return;
+          if (rerenderChairmanTilesFromRaw()) return;
           loadKpiTilesAndChartsForView();
         },
       });
@@ -969,6 +1054,23 @@
     return isBoardChairUser(sessionUser) && selectedViewId === "self";
   }
 
+  /** YTD / квартал: суммировать monthly_data на клиенте для любой роли. */
+  function shouldApplyPeriodAggregationTiles() {
+    var mode = chairmanAggregationMode || "current";
+    if (
+      typeof DashboardMonthNav !== "undefined" &&
+      DashboardMonthNav &&
+      typeof DashboardMonthNav.getPeriodState === "function"
+    ) {
+      var ps = DashboardMonthNav.getPeriodState();
+      if (ps && ps.aggregationMode != null && String(ps.aggregationMode).trim()) {
+        mode = String(ps.aggregationMode).trim();
+      }
+    }
+    if (mode === "ytd" || mode === "quarter") return true;
+    return shouldUseChairmanAggregatedTiles();
+  }
+
   function attachChairmanCatalogForIfNeeded(opts) {
     var nextOpts = attachActivePeriodToRequestOptions(opts || {});
     if (!isBoardChairUser(sessionUser) || !isChairmanRootHierarchy()) return nextOpts;
@@ -1047,7 +1149,9 @@
   }
 
   function rerenderKpiTilesForCacheRefreshState() {
-    if (lastProductionDeputyRawTiles && lastProductionDeputyRawTiles.length) {
+    if (lastServheadRawTiles && lastServheadRawTiles.length) {
+      renderKpiTiles(lastServheadRawTiles, { preservePage: true });
+    } else if (lastProductionDeputyRawTiles && lastProductionDeputyRawTiles.length) {
       renderKpiTiles(lastProductionDeputyRawTiles, { preservePage: true });
     } else if (lastKpiTiles && lastKpiTiles.length) {
       renderKpiTiles(lastKpiTiles, { preservePage: true });
@@ -1103,16 +1207,55 @@
     }, delay);
   }
 
+  function isDocumentCurrentlyVisible() {
+    if (typeof document === "undefined") return true;
+    if (typeof document.visibilityState === "string") {
+      return document.visibilityState === "visible";
+    }
+    return !document.hidden;
+  }
+
+  function reloadKpiTilesAfterUserRefresh() {
+    if (Api && typeof Api.clearKpiGetMemoryCache === "function") {
+      Api.clearKpiGetMemoryCache();
+    }
+    callDataLoader("loadKpiTilesAndChartsForView", [{ preserveViewState: true }]);
+  }
+
+  function scheduleKpiTilesReloadAfterRefresh() {
+    if (!isDocumentCurrentlyVisible()) {
+      kpiTilePendingReloadOnVisible = true;
+      return;
+    }
+    kpiTilePendingReloadOnVisible = false;
+    reloadKpiTilesAfterUserRefresh();
+  }
+
+  function flushPendingKpiTilesReloadOnVisible() {
+    if (!kpiTilePendingReloadOnVisible) return;
+    if (!isDocumentCurrentlyVisible()) return;
+    kpiTilePendingReloadOnVisible = false;
+    reloadKpiTilesAfterUserRefresh();
+  }
+
   function pollKpiTileCacheRefreshStatus(key, opts) {
     if (kpiTileCacheRefreshPollTimers[key]) {
       clearTimeout(kpiTileCacheRefreshPollTimers[key]);
       delete kpiTileCacheRefreshPollTimers[key];
     }
     if (!Api || typeof Api.fetchKpiTileCacheRefreshStatus !== "function") return;
+    // Пока окно скрыто — не дергаем статус и не перерисовываем плитки.
+    if (!isDocumentCurrentlyVisible()) {
+      kpiTileCacheRefreshPollTimers[key] = setTimeout(function () {
+        pollKpiTileCacheRefreshStatus(key, opts);
+      }, 10000);
+      return;
+    }
     kpiTileCacheRefreshPollTimers[key] = setTimeout(function () {
       Api.fetchKpiTileCacheRefreshStatus(opts).then(function (res) {
         if (!res || !res.ok) {
           setKpiTileCacheRefreshState(key, { status: "failed", error: res && res.error ? res.error : "Ошибка проверки статуса" });
+          delete kpiTileUserInitiatedRefreshKeys[key];
           return;
         }
         var prev = kpiTileCacheRefreshState[key] || {};
@@ -1122,14 +1265,13 @@
           pollKpiTileCacheRefreshStatus(key, opts);
           return;
         }
+        delete kpiTileUserInitiatedRefreshKeys[key];
         if (res.status === "succeeded" || prev.status === "running") {
-          if (Api && typeof Api.clearKpiGetMemoryCache === "function") {
-            Api.clearKpiGetMemoryCache();
-          }
-          callDataLoader("loadKpiTilesAndChartsForView", [{ preserveViewState: true }]);
+          scheduleKpiTilesReloadAfterRefresh();
         }
       }).catch(function () {
         setKpiTileCacheRefreshState(key, { status: "failed", error: "Ошибка проверки статуса" });
+        delete kpiTileUserInitiatedRefreshKeys[key];
       });
     }, 10000);
   }
@@ -1139,31 +1281,57 @@
     var opts = buildKpiTileCacheRefreshOptions(tile);
     if (!opts.department || !opts.kpi_id) return;
     var key = kpiTileCacheRefreshKeyFromOptions(opts);
+    kpiTileUserInitiatedRefreshKeys[key] = true;
     setKpiTileCacheRefreshState(key, { status: "running" });
     Api.refreshKpiTileCache(opts).then(function (res) {
       if (!res || !res.ok) {
         setKpiTileCacheRefreshState(key, { status: "failed", error: res && res.error ? res.error : "Ошибка запуска пересчёта" });
+        delete kpiTileUserInitiatedRefreshKeys[key];
         return;
       }
       setKpiTileCacheRefreshState(key, res);
       scheduleKpiTileCooldownReset(key, res);
       if (res.status === "running") {
         pollKpiTileCacheRefreshStatus(key, opts);
+      } else if (res.status === "succeeded") {
+        delete kpiTileUserInitiatedRefreshKeys[key];
+        scheduleKpiTilesReloadAfterRefresh();
+      } else {
+        delete kpiTileUserInitiatedRefreshKeys[key];
       }
     }).catch(function () {
       setKpiTileCacheRefreshState(key, { status: "failed", error: "Ошибка запуска пересчёта" });
+      delete kpiTileUserInitiatedRefreshKeys[key];
     });
   }
 
   function watchAutoRefreshingKpiTiles(tiles) {
     if (!Array.isArray(tiles) || !tiles.length) return;
     tiles.forEach(function (tile) {
-      if (!tile || tile.cache_refresh_status !== "running") return;
+      if (!tile) return;
       var opts = buildKpiTileCacheRefreshOptions(tile);
       if (!opts.department || !opts.kpi_id) return;
       var key = kpiTileCacheRefreshKeyFromOptions(opts);
+      // Не стартуем poll только из‑за статуса в API — иначе плитки «прыгают» при прогреве кэша.
+      if (!kpiTileUserInitiatedRefreshKeys[key]) return;
+      var local = kpiTileCacheRefreshState[key] || {};
+      if (local.status !== "running" && tile.cache_refresh_status !== "running") return;
       if (kpiTileCacheRefreshPollTimers[key]) return;
       pollKpiTileCacheRefreshStatus(key, opts);
+    });
+  }
+
+  if (typeof document !== "undefined" && typeof document.addEventListener === "function") {
+    document.addEventListener("visibilitychange", function () {
+      if (!isDocumentCurrentlyVisible()) return;
+      flushPendingKpiTilesReloadOnVisible();
+      Object.keys(kpiTileUserInitiatedRefreshKeys).forEach(function (key) {
+        if (!kpiTileUserInitiatedRefreshKeys[key]) return;
+        if (kpiTileCacheRefreshPollTimers[key]) return;
+        var local = kpiTileCacheRefreshState[key] || {};
+        if (local.status !== "running") return;
+        // opts не храним — watch подхватит на следующем render; здесь только отложенный reload.
+      });
     });
   }
 
@@ -1176,6 +1344,7 @@
 
   /** Контейнер плиток KPI: `?` на обороте открывает модалку; клик по карточке — flip, по дочернему отделу — переход. */
   var kpiContainerEl = document.getElementById("kpi-container");
+  var juristTileClickTimer = null;
   if (kpiContainerEl) {
     kpiContainerEl.addEventListener("click", function (e) {
       var refreshBtn = e.target.closest(".kpi-tile-cache-refresh");
@@ -1264,7 +1433,36 @@
         openCommercialPlanFactBreakdown(tableView);
         return;
       }
+      if (isJuristContractsTile(lastKpiTiles[+ix])) {
+        if (juristTileClickTimer) {
+          clearTimeout(juristTileClickTimer);
+          juristTileClickTimer = null;
+          return;
+        }
+        var tileIndex = +ix;
+        juristTileClickTimer = setTimeout(function () {
+          juristTileClickTimer = null;
+          openKpiTileDrilldown(tileIndex);
+        }, 220);
+        return;
+      }
       openKpiTileDrilldown(+ix);
+    });
+    kpiContainerEl.addEventListener("dblclick", function (e) {
+      var art = e.target.closest("article.kpi-tile");
+      if (!art || !kpiContainerEl.contains(art)) return;
+      if (e.target.closest("button, a, input, select, textarea, .kpi-tile-drag-handle")) return;
+      var ix = art.getAttribute("data-kpi-tile-index");
+      if (ix == null || !lastKpiTiles || lastKpiTiles[+ix] == null) return;
+      if (juristTileClickTimer) {
+        clearTimeout(juristTileClickTimer);
+        juristTileClickTimer = null;
+      }
+      var goalHit = e.target.closest(".kpi-tile-contract-goal");
+      var goal = goalHit && art.contains(goalHit) ? goalHit.getAttribute("data-contract-goal") || "" : "";
+      if (applyJuristContractsFilter(lastKpiTiles[+ix], goal)) {
+        e.preventDefault();
+      }
     });
     kpiContainerEl.addEventListener("keydown", function (e) {
       if (e.key !== "Enter" && e.key !== " ") return;
@@ -1493,7 +1691,19 @@
       if (!target || !claimsTableSwitcherEl.contains(target)) return;
       var view = target.getAttribute("data-claims-view") || "claims";
       if (view === activeClaimsTableView) return;
+      if (view === "contracts") juristContractsViewReady = true;
       applyClaimsTableView(view);
+    });
+  }
+
+  var juristContractsFilterResetEl = document.getElementById("jurist-contracts-filter-reset");
+  if (juristContractsFilterResetEl) {
+    juristContractsFilterResetEl.addEventListener("click", function () {
+      juristContractsFilter = { companyCode: "", goal: "" };
+      juristContractsViewReady = true;
+      activeClaimsTableView = "contracts";
+      initTables();
+      syncJuristContractsTileHighlight();
     });
   }
 
@@ -1828,21 +2038,93 @@
     return false;
   }
 
+  function normalizeKpiIdForCompare(kpiId) {
+    return String(kpiId == null ? "" : kpiId)
+      .trim()
+      .toUpperCase()
+      .replace(/\u041C/g, "M")
+      .replace(/\u0413/g, "G")
+      .replace(/\u0421/g, "S")
+      .replace(/\u041F/g, "P")
+      .replace(/[\s_]/g, "");
+  }
+
   function isSupLateMonthFallbackKpiId(kpiId) {
     var id = kpiId != null ? String(kpiId).trim().toUpperCase() : "";
     return id === "HRD-M2" || id === "HRD-M4" || id === "HRD-Q4";
   }
 
   function isGsppFotKpiId(kpiId) {
-    var id = kpiId != null ? String(kpiId).trim().toUpperCase() : "";
-    return (
-      id === "GSP-M3" ||
-      id === "GSPP-M3" ||
-      id === "ГСП-M3" ||
-      id === "ГCП-M3" ||
-      id === "ГСПП-M3" ||
-      id === "ГCПП-M3"
-    );
+    var id = normalizeKpiIdForCompare(kpiId);
+    return id === "GSP-M3" || id === "GSPP-M3";
+  }
+
+  function monthlyPointHasFact(point) {
+    if (!point || typeof point !== "object") return false;
+    var fact = parseNumberLoose(point.fact);
+    return fact != null;
+  }
+
+  function resolvePriorMonthFotPoint(tile, prevYear, prevMonth) {
+    if (!tile) return null;
+    var monthly = Array.isArray(tile.monthly_data) ? tile.monthly_data : [];
+    // Идём назад от предыдущего месяца, пока не найдём точку с фактом
+    // (незакрытый месяц часто имеет план, но fact = null / #DIV/0!).
+    var cursorY = Number(prevYear);
+    var cursorM = Number(prevMonth);
+    for (var guard = 0; guard < 24; guard++) {
+      if (isNaN(cursorY) || isNaN(cursorM) || cursorM < 1 || cursorM > 12) break;
+      var point = findMonthlyDataPoint(monthly, cursorY, cursorM);
+      if (monthlyPointHasFact(point)) return point;
+      var lfm = tile.last_full_month_row;
+      if (
+        lfm &&
+        typeof lfm === "object" &&
+        Number(lfm.year) === cursorY &&
+        Number(lfm.month) === cursorM &&
+        monthlyPointHasFact(lfm)
+      ) {
+        return lfm;
+      }
+      var prev = prevCalendarMonthYear(cursorY, cursorM);
+      if (!prev) break;
+      cursorY = prev.year;
+      cursorM = prev.month;
+    }
+    // Fallback: просто точка предыдущего месяца (даже без факта).
+    return findMonthlyDataPoint(monthly, prevYear, prevMonth);
+  }
+
+  function applyPriorMonthColorFromPoint(tile, prevPoint) {
+    if (!tile || !prevPoint) return;
+    if (prevPoint.color != null && String(prevPoint.color).trim()) {
+      tile.color = String(prevPoint.color).toLowerCase().trim();
+      tile.rag = tile.color;
+      return;
+    }
+    if (isTurnoverKpiItem(tile)) {
+      var turnoverPct = parseNumberLoose(prevPoint.kpi_pct);
+      if (turnoverPct == null) {
+        var prevPlan = parseNumberLoose(prevPoint.plan);
+        var prevFact = parseNumberLoose(prevPoint.fact);
+        if (prevPlan != null && Math.abs(prevPlan) > 0.000001 && prevFact != null) {
+          turnoverPct = (prevFact / prevPlan) * 100;
+        }
+      }
+      var turnoverRag = turnoverRagForItem(tile, turnoverPct);
+      if (turnoverRag) {
+        tile.rag = turnoverRag;
+        tile.color = turnoverRag;
+      }
+      return;
+    }
+    if (isBudgetFotLimitKpiItem(tile) || isGsppFotKpiId(tile.kpi_id) || tile.pct_lower_is_better === true) {
+      var limitRag = planFactLimitRag(tile.plan, tile.fact);
+      if (limitRag) {
+        tile.rag = limitRag;
+        tile.color = limitRag;
+      }
+    }
   }
 
   function planFactPeriodLabelFromMonthlyPoint(point, year) {
@@ -1861,7 +2143,8 @@
   /**
    * Для выбранного текущего календарного месяца (ещё не закончившегося) на плитках с «ФОТ» / «текучестью» в названии
    * показываем план/факт за предыдущий месяц (из monthly_data).
-   * Исключения по kpi_id: OD-M3.2, TD-M6, GSP-M3, PD-M3.F* (KD-M8, LOG-M3.F — на бэкенде).
+   * Исключения по kpi_id: KD-M8 (комдир — в незакрытом месяце ФОТ = 0, без отката на прошлый),
+   * OD-M3.2, LOG-M3.F, TD-M6, PD-M3.F*.
    */
   function applyPriorMonthFactForFotTurnoverTiles(tiles) {
     if (!Array.isArray(tiles) || !tiles.length) return tiles;
@@ -1882,20 +2165,23 @@
 
     return tiles.map(function (tile) {
       var kpiId = tile && tile.kpi_id != null ? String(tile.kpi_id).trim() : "";
+      var kpiIdUpper = kpiId.toUpperCase();
       if (
         !tile ||
-        (!isFotOrPersonnelTurnoverKpiTitle(tile.title) && !isSupLateMonthFallbackKpiId(kpiId))
+        (!isFotOrPersonnelTurnoverKpiTitle(tile.title) &&
+          kpiIdUpper !== "HRD-Q4" &&
+          !isSupLateMonthFallbackKpiId(kpiId))
       ) {
         return tile;
       }
-      if (kpiId === "PD-M3.F1" || kpiId === "PD-M3.F2") return tile;
-      if (kpiId === "OD-M3.2" || kpiId === "TD-M6" || kpiId === "KD-M11" || kpiId === "OD-Q2") return tile;
+      // Комдир: в текущем (незакрытом) месяце ФОТ не подменяем прошлым — показываем факт текущего (0).
+      if (kpiIdUpper === "KD-M8") return tile;
+      if (kpiIdUpper === "PD-M3.F1" || kpiIdUpper === "PD-M3.F2") return tile;
+      if (kpiIdUpper === "OD-M3.2" || kpiIdUpper === "LOG-M3.F" || kpiIdUpper === "TD-M6") return tile;
+      if (kpiIdUpper === "KD-M11" || kpiIdUpper === "OD-Q2") return tile;
       if (isGsppFotKpiId(kpiId)) return tile;
       if (tile.__priorMonthMergedFromKpiAll) return tile;
-      var monthly = tile.monthly_data;
-      if (!Array.isArray(monthly) || !monthly.length) return tile;
-      var prevPoint = findMonthlyDataPoint(monthly, prevYm.year, prevYm.month);
-      // ФОТ: в текущем месяце показываем строго прошлый календарный месяц.
+      var prevPoint = resolvePriorMonthFotPoint(tile, prevYm.year, prevYm.month);
       if (!prevPoint) return tile;
 
       var next = Object.assign({}, tile);
@@ -1926,6 +2212,7 @@
           next.color = turnoverRag;
         }
       }
+      applyPriorMonthColorFromPoint(next, prevPoint);
       var labelYear =
         prevPoint.year != null && !isNaN(Number(prevPoint.year)) ? Number(prevPoint.year) : prevYm.year;
       var pl = planFactPeriodLabelFromMonthlyPoint(prevPoint, labelYear);
@@ -1967,6 +2254,11 @@
     if (lastKpiResponseDepartment && isProductionDeputyUser({ department: lastKpiResponseDepartment })) return true;
     if (selectedViewId === "self" && isProductionDeputyUser(viewContextUser)) return true;
     return false;
+  }
+
+  function isProductionDeputyWeeklyOrTotalTile(kpiId) {
+    var normalized = kpiId != null ? String(kpiId).trim().toUpperCase() : "";
+    return /^(PD-M1\.[12]\.)(W|T)$/.test(normalized);
   }
 
   function isProductionDirectorDashboardContext() {
@@ -2133,7 +2425,7 @@
     if (!Array.isArray(rows)) return false;
     for (var i = 0; i < rows.length; i++) {
       var key = rows[i] && rows[i].tableKey != null ? String(rows[i].tableKey).trim().toUpperCase() : "";
-      if (key === "SH-T2") continue;
+      if (key === "SH-T2" || key === "SH-T3") continue;
       if (key === "SH-T1" || key.indexOf("SH-T") === 0) return true;
     }
     return false;
@@ -2362,6 +2654,196 @@
     initTables();
   }
 
+  function normalizeServheadSectionKey(value) {
+    return value === "service" ? "service" : "otp";
+  }
+
+  function servheadSectionLabel(section) {
+    return normalizeServheadSectionKey(section) === "service" ? "Сервисная служба" : "ОТП";
+  }
+
+  function servheadAppealsSectionActive() {
+    return normalizeServheadSectionKey(servheadSelectedSection) === "otp";
+  }
+
+  function kpiIdServheadSection(kpiId) {
+    var id = kpiId != null ? String(kpiId).trim().toUpperCase() : "";
+    if (!id) return "";
+    if (id === "SH-M6" || id === "SH-M8" || id === "SH-T3") return "service";
+    if (
+      id === "SH-M1" ||
+      id === "SH-M2" ||
+      id === "SH-M3" ||
+      id === "SH-M4" ||
+      id === "SH-M5" ||
+      id === "SH-T1" ||
+      id === "SH-T2" ||
+      id === "SH-C1" ||
+      id === "SH-C2" ||
+      id.indexOf("OTP-") === 0 ||
+      id.indexOf("ОТП-") === 0
+    ) {
+      return "otp";
+    }
+    if (id.indexOf("SH-M") === 0 || id.indexOf("SH-T") === 0 || id.indexOf("SH-C") === 0) return "otp";
+    if (
+      id.indexOf("СЕР-") === 0 ||
+      id.indexOf("CEP-") === 0 ||
+      id.indexOf("SER-") === 0 ||
+      id.indexOf("SVC-") === 0
+    ) {
+      return "service";
+    }
+    return "";
+  }
+
+  function tileServheadSection(tile) {
+    if (!tile) return "";
+    var fromId = kpiIdServheadSection(tile.kpi_id);
+    if (fromId) return fromId;
+    var text = [tile.source, tile.title, tile.name, tile.description]
+      .join(" ")
+      .toLocaleLowerCase("ru-RU");
+    if (text.indexOf("отп") !== -1) return "otp";
+    if (text.indexOf("сервисн") !== -1) return "service";
+    return "";
+  }
+
+  function hasServheadSectionTiles(tiles) {
+    if (!Array.isArray(tiles)) return false;
+    for (var i = 0; i < tiles.length; i++) {
+      if (tileServheadSection(tiles[i])) return true;
+    }
+    return false;
+  }
+
+  function filterServheadTilesBySection(tiles) {
+    if (!Array.isArray(tiles)) return tiles || [];
+    var selected = normalizeServheadSectionKey(servheadSelectedSection);
+    return tiles.filter(function (tile) {
+      var section = tileServheadSection(tile);
+      return !section || section === selected;
+    });
+  }
+
+  function indicatorServheadSection(indicator) {
+    if (!indicator) return "";
+    var fromId = kpiIdServheadSection(indicator.id) || kpiIdServheadSection(indicator.kpi_id);
+    if (fromId) return fromId;
+    var label = String(
+      (indicator.optionLabel || indicator.option_label || indicator.name || indicator.title) || ""
+    ).toLocaleLowerCase("ru-RU");
+    if (label.indexOf("отп") !== -1) return "otp";
+    if (label.indexOf("сервисн") !== -1) return "service";
+    return "";
+  }
+
+  function filterServheadChartIndicatorsBySection(indicators) {
+    if (!indicators || typeof indicators !== "object") return indicators;
+    var selected = normalizeServheadSectionKey(servheadSelectedSection);
+    var next = Object.assign({}, indicators);
+    ["line", "bar", "donut"].forEach(function (key) {
+      if (!Array.isArray(indicators[key])) return;
+      next[key] = indicators[key].filter(function (indicator) {
+        var section = indicatorServheadSection(indicator);
+        return !section || section === selected;
+      });
+    });
+    return next;
+  }
+
+  function ensureServheadSectionSwitch() {
+    var block = document.querySelector(".dash-kpi-tiles-block");
+    var kpiContainer = document.getElementById("kpi-container");
+    if (!block || !kpiContainer) return null;
+    var existing = document.getElementById("servhead-section-switch");
+    if (existing) return existing;
+
+    var wrap = document.createElement("div");
+    wrap.className = "production-shop-switch";
+    wrap.id = "servhead-section-switch";
+    wrap.hidden = true;
+    wrap.setAttribute("role", "group");
+    wrap.setAttribute("aria-label", "Выбор подразделения");
+    wrap.innerHTML =
+      '<span class="production-shop-switch__label">Подразделение</span>' +
+      '<div class="production-shop-switch__buttons">' +
+      '<button type="button" class="production-shop-switch__btn" data-servhead-section="otp">ОТП</button>' +
+      '<button type="button" class="production-shop-switch__btn" data-servhead-section="service">Сервисная служба</button>' +
+      "</div>";
+    var emptyNote = document.createElement("p");
+    emptyNote.className = "production-shop-switch__empty";
+    emptyNote.id = "servhead-section-empty";
+    emptyNote.hidden = true;
+    block.insertBefore(wrap, kpiContainer);
+    block.insertBefore(emptyNote, kpiContainer);
+    wrap.addEventListener("click", function (event) {
+      var btn = event.target && event.target.closest ? event.target.closest("[data-servhead-section]") : null;
+      if (!btn) return;
+      var section = normalizeServheadSectionKey(btn.getAttribute("data-servhead-section"));
+      if (section === normalizeServheadSectionKey(servheadSelectedSection)) return;
+      servheadSelectedSection = section;
+      applyServheadSectionSelection();
+    });
+    return wrap;
+  }
+
+  function updateServheadSectionSwitchVisibility(show, tiles) {
+    var switchEl = ensureServheadSectionSwitch();
+    var emptyNote = document.getElementById("servhead-section-empty");
+    var chartsRow = document.querySelector(".charts-row");
+    if (!switchEl) return;
+    switchEl.hidden = !show;
+    var buttons = switchEl.querySelectorAll("[data-servhead-section]");
+    var selected = normalizeServheadSectionKey(servheadSelectedSection);
+    for (var i = 0; i < buttons.length; i++) {
+      var btn = buttons[i];
+      var active = normalizeServheadSectionKey(btn.getAttribute("data-servhead-section")) === selected;
+      btn.classList.toggle("is-active", active);
+      btn.setAttribute("aria-pressed", active ? "true" : "false");
+    }
+    if (emptyNote) {
+      var showEmpty = !!show && (!tiles || !tiles.length);
+      emptyNote.hidden = !showEmpty;
+      emptyNote.textContent = showEmpty
+        ? "Для раздела «" + servheadSectionLabel(selected) + "» показатели пока не пришли."
+        : "";
+    }
+    if (chartsRow) {
+      if (!show) {
+        chartsRow.hidden = false;
+      } else if (selected === "otp") {
+        chartsRow.hidden = false;
+      } else {
+        var indicators = lastApiChartIndicators;
+        var hasCharts =
+          indicators &&
+          ((Array.isArray(indicators.line) && indicators.line.length) ||
+            (Array.isArray(indicators.bar) && indicators.bar.length) ||
+            (Array.isArray(indicators.donut) && indicators.donut.length));
+        chartsRow.hidden = !hasCharts;
+      }
+    }
+  }
+
+  function applyServheadSectionSelection() {
+    if (lastServheadRawChartIndicators) {
+      lastApiChartIndicators = filterServheadChartIndicatorsBySection(lastServheadRawChartIndicators);
+    }
+    if (lastServheadRawTiles) {
+      renderKpiTiles(lastServheadRawTiles);
+    } else {
+      updateServheadSectionSwitchVisibility(true, []);
+    }
+    var chartsRow = document.querySelector(".charts-row");
+    if (chartsRow && chartsRow.hidden) {
+      destroyAllDashboardCharts();
+    } else if (typeof initCharts === "function") {
+      initCharts();
+    }
+    initTables();
+  }
+
   function getCurrentSelectedQuartersForTiles() {
     if (typeof DashboardMonthNav === "undefined" || !DashboardMonthNav || typeof DashboardMonthNav.getPeriodState !== "function") {
       return [];
@@ -2425,18 +2907,32 @@
    */
   function renderKpiTiles(tiles, options) {
     options = options || {};
-    var sourceTiles = tiles && tiles.length ? tiles : [];
+    var sourceTiles = withoutFormWorkTiles(tiles && tiles.length ? tiles : []);
     var showProductionShopSwitch =
       isProductionDeputyDashboardContext() && hasProductionDeputyShopTiles(sourceTiles);
     var showChiefAccountantSwitch =
       !showProductionShopSwitch && isChiefAccountantDashboardContext() && hasChiefAccountantTiles(sourceTiles);
+    var showServheadSectionSwitch =
+      !showProductionShopSwitch &&
+      !showChiefAccountantSwitch &&
+      isServheadDashboardContext() &&
+      (hasServheadDashboardTiles(sourceTiles) ||
+        hasServheadSectionTiles(sourceTiles) ||
+        shouldUseServheadClientsTable());
     if (showProductionShopSwitch) {
       lastProductionDeputyRawTiles = sourceTiles.slice();
+      lastServheadRawTiles = null;
       sourceTiles = filterProductionDeputyTilesByShop(sourceTiles);
     } else if (showChiefAccountantSwitch) {
       lastProductionDeputyRawTiles = sourceTiles.slice();
+      lastServheadRawTiles = null;
+    } else if (showServheadSectionSwitch) {
+      lastProductionDeputyRawTiles = null;
+      lastServheadRawTiles = sourceTiles.slice();
+      sourceTiles = filterServheadTilesBySection(sourceTiles);
     } else {
       lastProductionDeputyRawTiles = null;
+      lastServheadRawTiles = null;
     }
     updateProductionShopSwitchVisibility(
       showProductionShopSwitch || showChiefAccountantSwitch,
@@ -2447,6 +2943,7 @@
     tiles = normalizeCommercialHigherIsBetterPlanFactTiles(tiles);
     tiles = applyKpiTileOrderPreference(tiles);
     lastKpiTiles = tiles && tiles.length ? tiles : null;
+    updateServheadSectionSwitchVisibility(showServheadSectionSwitch, lastKpiTiles);
     flippedTileIndices.clear();
     if (typeof DashboardKpiDrilldown !== "undefined" && DashboardKpiDrilldown) {
       if (typeof DashboardKpiDrilldown.resetState === "function") {
@@ -2470,6 +2967,7 @@
       });
       watchAutoRefreshingKpiTiles(lastKpiTiles);
     }
+    syncJuristContractsTileHighlight();
   }
 
   /* ---------- Таблицы дашборда ---------- */
@@ -2923,6 +3421,7 @@
     if (!item || typeof item !== "object") return false;
     var id = item.kpi_id != null ? String(item.kpi_id).trim().toUpperCase() : "";
     if (id === "KD-M8") return true;
+    if (isGsppFotKpiId(item.kpi_id)) return true;
     if (
       id === "LOG-M3.B" ||
       id === "LOG-M3.F" ||
@@ -2953,7 +3452,14 @@
   function isCommercialHigherIsBetterPlanFactKpiItem(item) {
     if (!item || typeof item !== "object") return false;
     var id = item.kpi_id != null ? String(item.kpi_id).trim().toUpperCase() : "";
-    return id === "KD-M1" || id === "KD-M2" || id === "KD-M3";
+    return (
+      id === "KD-M1" ||
+      id === "KD-M2" ||
+      id === "KD-M3" ||
+      id === "MRK-01" ||
+      id === "MRK-02" ||
+      id === "MRK-03"
+    );
   }
 
   /** MRK-04 «Отношение отгрузок YoY»: чем выше %, тем лучше (≥100 зелёный). */
@@ -3113,6 +3619,36 @@
     return id === "MRK-06";
   }
 
+  function isServheadHigherBetterKpiItem(item) {
+    if (!item || typeof item !== "object") return false;
+    var id = item.kpi_id != null ? String(item.kpi_id).trim().toUpperCase() : "";
+    return id === "SH-M1" || id === "SH-M4" || id === "SH-M6";
+  }
+
+  function isServheadLowerBetterKpiItem(item) {
+    if (!item || typeof item !== "object") return false;
+    var id = item.kpi_id != null ? String(item.kpi_id).trim().toUpperCase() : "";
+    return id === "SH-M2" || id === "SH-M3" || id === "SH-M5" || id === "SH-M8";
+  }
+
+  /** SH-M1/M4: ≥90 зелёный, 80–89,9 жёлтый, <80 красный (как rag_servhead_m1_pct). */
+  function servheadHigherBetterRagFromPct(pct) {
+    var value = parseNumberLoose(pct);
+    if (value == null) return null;
+    if (value >= 90) return "green";
+    if (value >= 80) return "yellow";
+    return "red";
+  }
+
+  /** SH-M2/M3/M5: ≤5 зелёный, ≤10 жёлтый, >10 красный. */
+  function servheadLowerBetterRagFromPct(pct) {
+    var value = parseNumberLoose(pct);
+    if (value == null) return null;
+    if (value <= 5) return "green";
+    if (value <= 10) return "yellow";
+    return "red";
+  }
+
   function computeChairmanAggregatedPoint(item, year, month, mode, selectedQuarters) {
     if (!item || typeof item !== "object") return null;
     var points = Array.isArray(item.monthly_data) ? item.monthly_data.slice() : [];
@@ -3224,6 +3760,7 @@
       dz_supplier: 0, kz_supplier: 0,
       dz_total: 0, kz_total: 0,
       portfolio_count: 0, deviation_count: 0, without_deviation_count: 0,
+      in_work_on_time: 0, in_work_overdue: 0, significant: 0,
     };
     var extraHas = {
       found: false, won: false, not_participating: false,
@@ -3232,6 +3769,7 @@
       dz_supplier: false, kz_supplier: false,
       dz_total: false, kz_total: false,
       portfolio_count: false, deviation_count: false, without_deviation_count: false,
+      in_work_on_time: false, in_work_overdue: false, significant: false,
     };
     var planByDept = {};
     var factByDept = {};
@@ -3382,8 +3920,13 @@
       });
     }
     var limitRag = isBudgetFotLimitKpiItem(item) ? planFactLimitRag(plan, fact) : null;
-    var turnoverRag = isTurnoverKpiItem(item) ? turnoverRagForItem(item, kpiPct) : null
+    var turnoverRag = isTurnoverKpiItem(item) ? turnoverRagForItem(item, kpiPct) : null;
     var shareRag = isMrk06ShareKpiItem(item) ? mrk06ShareRagFromPct(kpiPct) : null;
+    var servheadRag = isServheadHigherBetterKpiItem(item)
+      ? servheadHigherBetterRagFromPct(kpiPct)
+      : isServheadLowerBetterKpiItem(item)
+        ? servheadLowerBetterRagFromPct(kpiPct)
+        : null;
     if (isCommercialHigherIsBetterPlanFactKpiItem(item) && hasPlan && Math.abs(plan) > 0.000001) {
       var commercialForecast =
         (hasFact ? fact : 0) + (extraHas.expected_plan ? extraSums.expected_plan : 0);
@@ -3418,7 +3961,7 @@
           ? (kpiPct < (displayPlan != null ? displayPlan : 5)
             ? "green"
             : (Math.abs(kpiPct - (displayPlan != null ? displayPlan : 5)) < 0.000001 ? "yellow" : "red"))
-          : (mrk04Rag || shareRag || turnoverRag || limitRag || commercialPlanFactRag),
+          : (mrk04Rag || shareRag || turnoverRag || limitRag || servheadRag || commercialPlanFactRag),
       expected_plan: extraHas.expected_plan ? extraSums.expected_plan : null,
       potential: extraHas.potential ? extraSums.potential : null,
       found: extraHas.found ? extraSums.found : null,
@@ -3433,6 +3976,9 @@
       portfolio_count: extraHas.portfolio_count ? extraSums.portfolio_count : null,
       deviation_count: extraHas.deviation_count ? extraSums.deviation_count : null,
       without_deviation_count: extraHas.without_deviation_count ? extraSums.without_deviation_count : null,
+      in_work_on_time: extraHas.in_work_on_time ? extraSums.in_work_on_time : null,
+      in_work_overdue: extraHas.in_work_overdue ? extraSums.in_work_overdue : null,
+      significant: extraHas.significant ? extraSums.significant : null,
       pct_client: pctClient,
       pct_supplier: pctSupplier,
       pct_total: pctTotal,
@@ -3785,6 +4331,22 @@
           : Array.isArray(rawItem.articles)
             ? rawItem.articles.slice()
             : [],
+      goals: (function () {
+        if (point && Array.isArray(point.goals)) return point.goals.slice();
+        if (Array.isArray(rawItem.goals)) return rawItem.goals.slice();
+        if (
+          rawItem.last_full_month_row &&
+          typeof rawItem.last_full_month_row === "object" &&
+          Array.isArray(rawItem.last_full_month_row.goals)
+        ) {
+          return rawItem.last_full_month_row.goals.slice();
+        }
+        return [];
+      })(),
+      goals_title:
+        rawItem.goals_title != null && String(rawItem.goals_title).trim()
+          ? String(rawItem.goals_title).trim()
+          : "",
       tender_departments:
         point && Array.isArray(point.tender_departments)
           ? point.tender_departments
@@ -3857,6 +4419,13 @@
           normalizedTile[row.field] = inWorkSource[row.field];
         }
       });
+      var qualdirTileRule = qualdirCfg[qualdirKey];
+      if (qualdirTileRule && qualdirTileRule.hideKpiPercent && !qualdirTileRule.qualdirControlOverviewOnBack) {
+        normalizedTile.kpi_pct = null;
+        normalizedTile.percent = null;
+        normalizedTile.color = null;
+        normalizedTile.rag = null;
+      }
     }
     if (!normalizedTile.last_full_month_row && rawItem.last_full_month_row) {
       normalizedTile.last_full_month_row = rawItem.last_full_month_row;
@@ -3895,8 +4464,14 @@
     if (!items.length) return null;
 
     var mode = chairmanAggregationMode || "current";
+    if (periodState && periodState.aggregationMode != null && String(periodState.aggregationMode).trim()) {
+      mode = String(periodState.aggregationMode).trim();
+    }
     return items
       .map(function (item) {
+        if (isProductionDeputyWeeklyOrTotalTile(item && item.kpi_id)) {
+          return normalizeKpiTileFromRawItem(item, null, mode);
+        }
         var point = computeChairmanAggregatedPoint(item, year, month, mode, selectedQuarters);
         return normalizeKpiTileFromRawItem(item, point, mode);
       })
@@ -3937,6 +4512,7 @@
     var touched = false;
     var nextTiles = baseTiles.map(function (tile) {
       var id = tile && tile.kpi_id != null ? String(tile.kpi_id).trim() : "";
+      if (isProductionDeputyWeeklyOrTotalTile(id)) return tile;
       if (mode === "month") {
         if (!byId[id] || !Array.isArray(byId[id].monthly_data) || !byId[id].monthly_data.length) return tile;
       } else if (isCommercialDirectorDashboardContext()) {
@@ -3958,6 +4534,7 @@
   }
 
   function rerenderChairmanTilesFromRaw() {
+    if (isProductionDeputyDashboardContext()) return false;
     if (!lastRawKpiResponse) return false;
     var tiles = getChairmanAggregatedTilesFromRaw(lastRawKpiResponse);
     if (!tiles || !tiles.length) return false;
@@ -4001,6 +4578,104 @@
     );
   }
 
+  function hasJuristDashboardTiles(tiles) {
+    if (!Array.isArray(tiles)) return false;
+    for (var i = 0; i < tiles.length; i++) {
+      var id = tiles[i] && tiles[i].kpi_id != null ? String(tiles[i].kpi_id).trim().toUpperCase() : "";
+      if (id.indexOf("YR-") === 0) return true;
+    }
+    return false;
+  }
+
+  function isJuristDashboardContext() {
+    var currentDepartment = normalizeDashboardRole(getDepartmentForCurrentKpiContext());
+    var responseDepartment = normalizeDashboardRole(lastKpiResponseDepartment);
+    return (
+      currentDepartment === "юрисконсультант" ||
+      responseDepartment === "юрисконсультант" ||
+      hasJuristDashboardTiles(lastKpiTiles)
+    );
+  }
+
+  function juristTileKpiId(tile) {
+    return tile && tile.kpi_id != null ? String(tile.kpi_id).trim().toUpperCase() : "";
+  }
+
+  function juristCompanyCodeFromTile(tile) {
+    return JURIST_TILE_COMPANY[juristTileKpiId(tile)] || "";
+  }
+
+  function isJuristContractsTile(tile) {
+    var id = juristTileKpiId(tile);
+    return !!JURIST_TILE_COMPANY[id] || id === "YR-SZ-Q";
+  }
+
+  function juristCompanyCodeByTitle(title) {
+    var wanted = title != null ? String(title).trim() : "";
+    var codes = Object.keys(JURIST_COMPANY_TITLES);
+    for (var i = 0; i < codes.length; i++) {
+      if (JURIST_COMPANY_TITLES[codes[i]] === wanted) return codes[i];
+    }
+    return "";
+  }
+
+  function applyJuristContractsFilter(tile, goal) {
+    var id = juristTileKpiId(tile);
+    var code = JURIST_TILE_COMPANY[id] || "";
+    var nextGoal = goal != null ? String(goal).trim() : "";
+    if (id === "YR-SZ-Q") {
+      var companyFromBack = juristCompanyCodeByTitle(nextGoal);
+      code = companyFromBack;
+      nextGoal = JURIST_GPH_GOAL;
+    } else if (!code) {
+      return false;
+    }
+    var same = juristContractsFilter.companyCode === code && juristContractsFilter.goal === nextGoal;
+    juristContractsFilter = same ? { companyCode: "", goal: "" } : { companyCode: code, goal: nextGoal };
+    juristContractsViewReady = true;
+    activeClaimsTableView = "contracts";
+    initTables();
+    syncJuristContractsTileHighlight();
+    var tablesRow = document.querySelector(".tables-row");
+    if (tablesRow && typeof tablesRow.scrollIntoView === "function") {
+      tablesRow.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+    return true;
+  }
+
+  function syncJuristContractsTileHighlight() {
+    var nodes = document.querySelectorAll("#kpi-container article.kpi-tile");
+    nodes.forEach(function (node) {
+      var ix = node.getAttribute("data-kpi-tile-index");
+      var tile = ix != null && lastKpiTiles ? lastKpiTiles[+ix] : null;
+      var id = juristTileKpiId(tile);
+      var code = juristCompanyCodeFromTile(tile);
+      var gphActive = juristContractsFilter.goal === JURIST_GPH_GOAL;
+      node.classList.toggle(
+        "is-contracts-filter",
+        id === "YR-SZ-Q"
+          ? gphActive && !juristContractsFilter.companyCode
+          : !!(juristContractsFilter.companyCode && code === juristContractsFilter.companyCode)
+      );
+    });
+  }
+
+  function updateJuristContractsFilterUi() {
+    var wrap = document.getElementById("jurist-contracts-filter");
+    var label = document.getElementById("jurist-contracts-filter-label");
+    if (!wrap) return;
+    var show = isJuristDashboardContext() && !!(juristContractsFilter.companyCode || juristContractsFilter.goal);
+    wrap.hidden = !show;
+    if (!label) return;
+    if (!show) {
+      label.textContent = "";
+      return;
+    }
+    var title = JURIST_COMPANY_TITLES[juristContractsFilter.companyCode] || "";
+    if (title && juristContractsFilter.goal) label.textContent = title + " · " + juristContractsFilter.goal;
+    else label.textContent = title || juristContractsFilter.goal;
+  }
+
   function shouldUseClaimsAndLawsuitsSwitcher() {
     if (shouldUseQualdirDefectTables()) return true;
     if (isProductionDirectorDashboardContext()) return true;
@@ -4008,6 +4683,7 @@
     if (shouldUseCommercialDirectorOverdueDebtEnhancements()) return true;
     if (isCommercialFamilyDashboardContext()) return true;
     if (isBoardChairCommercialBlockContext()) return true;
+    if (isJuristDashboardContext()) return true;
     return isBoardChairUser(sessionUser) && selectedViewId === "self";
   }
 
@@ -4092,6 +4768,8 @@
     var useProductionDeputyProjectTables = isProductionDeputyDashboardContext();
     var useHrdLateVacanciesTable = shouldUseHrdLateVacanciesTable();
     var useServheadClientsTable = shouldUseServheadClientsTable();
+    var showServheadAppeals = useServheadClientsTable && servheadAppealsSectionActive();
+    var showServheadStages = useServheadClientsTable && !servheadAppealsSectionActive();
     var useServheadSurveysTable = hasServheadSurveysTable();
     var useServheadClientsOnlyTable = hasServheadClientsTableRows(lastApiTableRows);
     var useQualdirDefectTables = shouldUseQualdirDefectTables();
@@ -4130,7 +4808,9 @@
                 ? "Отклонения по проекту развития номенклатуры"
                 : useHrdLateVacanciesTable
                   ? "Вакансии, закрытые не в срок"
-                  : useServheadClientsTable
+                  : showServheadStages
+                    ? getApiTableTitle("SH-T3") || "Незавершённые этапы"
+                  : showServheadAppeals
                     ? useServheadClientsOnlyTable
                       ? getApiTableTitle("SH-T1") || "Ситуация по клиентам"
                       : getApiTableTitle("SH-T2") || "Анкеты удовлетворённости клиентов"
@@ -4143,7 +4823,7 @@
     }
 
     if (overdueDebtTableTitleEl) {
-      overdueDebtTableTitleEl.textContent = useServheadClientsTable && useServheadSurveysTable
+      overdueDebtTableTitleEl.textContent = showServheadAppeals && useServheadSurveysTable
         ? getApiTableTitle("SH-T2") || "Анкеты удовлетворённости клиентов"
         : useOpdirProjectTables
         ? useProductionDirectorProjectTables
@@ -4160,7 +4840,8 @@
       claimsTableHelpWrapEl.hidden =
         useQualdirDefectTables ||
         useHrdLateVacanciesTable ||
-        useServheadClientsTable ||
+        showServheadAppeals ||
+        showServheadStages ||
         useTechnicalTables ||
         useProjectMilestonesTables ||
         activeClaimsTableView === "lawsuits";
@@ -4169,11 +4850,47 @@
     if (claimsTableTitleTextEl && claimsTableTitleTextEl.closest) {
       var claimsPanel = claimsTableTitleTextEl.closest(".table-panel");
       if (claimsPanel) {
-        claimsPanel.hidden = hideDefaultCommercialTables;
+        claimsPanel.hidden =
+          hideDefaultCommercialTables ||
+          (useServheadClientsTable && !showServheadAppeals && !showServheadStages);
       }
     }
 
     updateQualdirClaimsTableSwitcherButtons(useQualdirDefectTables);
+    var contractsBtn = claimsTableSwitcherEl
+      ? claimsTableSwitcherEl.querySelector('[data-claims-view="contracts"]')
+      : null;
+    var enforcementBtn = claimsTableSwitcherEl
+      ? claimsTableSwitcherEl.querySelector('[data-claims-view="enforcement"]')
+      : null;
+    if (isJuristDashboardContext()) {
+      if (!juristContractsViewReady) {
+        activeClaimsTableView = "contracts";
+        juristContractsViewReady = true;
+      }
+      if (contractsBtn) {
+        contractsBtn.hidden = false;
+        contractsBtn.removeAttribute("hidden");
+      }
+      if (enforcementBtn) {
+        enforcementBtn.hidden = false;
+        enforcementBtn.removeAttribute("hidden");
+      }
+    } else {
+      if (activeClaimsTableView === "contracts" || activeClaimsTableView === "enforcement") {
+        activeClaimsTableView = "claims";
+      }
+      juristContractsViewReady = false;
+      juristContractsFilter = { companyCode: "", goal: "" };
+      if (contractsBtn) {
+        contractsBtn.hidden = true;
+        contractsBtn.setAttribute("hidden", "");
+      }
+      if (enforcementBtn) {
+        enforcementBtn.hidden = true;
+        enforcementBtn.setAttribute("hidden", "");
+      }
+    }
     if (claimsTableSwitcherEl && !useQualdirDefectTables) {
       var claimsTab = claimsTableSwitcherEl.querySelector('[data-claims-view="claims"]');
       var lawsuitsTab = claimsTableSwitcherEl.querySelector('[data-claims-view="lawsuits"]');
@@ -4205,9 +4922,10 @@
         overduePanel.hidden =
           hideDefaultCommercialTables ||
           isBoardChairCommercialBlockContext() ||
+          isJuristDashboardContext() ||
           useQualdirDefectTables ||
           useHrdLateVacanciesTable ||
-          (useServheadClientsTable && !useServheadSurveysTable) ||
+          (useServheadClientsTable && (!showServheadAppeals || !useServheadSurveysTable)) ||
           useTechnicalTables ||
           useProjectMilestonesTables ||
           useChiefConstructorTables ||
@@ -4238,15 +4956,17 @@
     syncCommercialOnecTableButtons();
     updatePsdTableAmountFilterBarVisibility();
     updateServheadSurveysPeriodFilterVisibility(
-      useServheadSurveysTable,
-      useServheadClientsOnlyTable
+      showServheadAppeals && useServheadSurveysTable,
+      showServheadAppeals && useServheadClientsOnlyTable
     );
     updateLogisticsClientDzFilterVisibility(isLogisticsDashboardContext());
     updateDebtTableSwitcher();
 
     var tablesRow = document.querySelector(".tables-row");
     if (tablesRow) {
-      tablesRow.hidden = hideDefaultCommercialTables;
+      tablesRow.hidden =
+        hideDefaultCommercialTables ||
+        (useServheadClientsTable && !showServheadAppeals && !showServheadStages);
     }
   }
 
@@ -5169,7 +5889,18 @@
   }
 
   function applyClaimsTableView(view) {
-    var nextView = view === "lawsuits" ? "lawsuits" : view === "process" ? "process" : isPlanFactBreakdownView(view) ? view : "claims";
+    var nextView =
+      view === "lawsuits"
+        ? "lawsuits"
+        : view === "process"
+          ? "process"
+          : view === "contracts"
+            ? "contracts"
+            : view === "enforcement"
+              ? "enforcement"
+            : isPlanFactBreakdownView(view)
+              ? view
+              : "claims";
     activeClaimsTableView = nextView;
 
     var wrappers = document.querySelectorAll('[data-claims-view]');
@@ -5222,12 +5953,15 @@
         shouldUseHrdLateVacanciesTable() ||
         shouldUseServheadClientsTable() ||
         nextView === "lawsuits" ||
+        nextView === "contracts" ||
+        nextView === "enforcement" ||
         isPlanFactBreakdownView(nextView) ||
         nextView === "dz";
     }
     if (nextView === "lawsuits") {
       hideClaimsTableHelpPopover();
     }
+    updateJuristContractsFilterUi();
   }
 
   function initTables() {
@@ -5268,10 +6002,18 @@
         executiveMode: false,
         enhanceOverdueDebtTable: shouldUseCommercialDirectorOverdueDebtEnhancements(),
         enableLawsuitsTable: shouldUseClaimsAndLawsuitsSwitcher(),
+        juristContractsTableMode: isJuristDashboardContext(),
+        juristContractsFilter: {
+          companyCode: juristContractsFilter.companyCode,
+          goal: juristContractsFilter.goal,
+        },
         filterRowsMinAmountRub: psdTableMinRub,
         technicalTablesMode: shouldUseTechnicalDeviationTables(),
         hrdLateVacanciesTableMode: shouldUseHrdLateVacanciesTable(),
         servheadClientsTableMode: shouldUseServheadClientsTable(),
+        servheadSection: isServheadDashboardContext()
+          ? normalizeServheadSectionKey(servheadSelectedSection)
+          : "",
         servheadSurveysTableInBody:
           typeof Api !== "undefined" &&
           Api &&
@@ -5294,6 +6036,7 @@
         getCacheRefreshStateForKpi: getCacheRefreshStateForKpiId,
       });
     }
+    syncJuristContractsTileHighlight();
   }
 
   function getVisibleDonutTiles(tiles) {
@@ -5491,6 +6234,13 @@
     var month = ps && ps.currentPeriodMonth != null ? Number(ps.currentPeriodMonth) : null;
     var year = ps && ps.currentPeriodYear != null ? Number(ps.currentPeriodYear) : null;
     if (month == null || year == null || isNaN(month) || isNaN(year)) return false;
+    // Кэш января при выборе июня иначе оставляет plan/fact января под подписью «Июнь».
+    if (
+      typeof Api.kpiResponseCoversYearMonth === "function" &&
+      !Api.kpiResponseCoversYearMonth(lastRawKpiResponse, year, month)
+    ) {
+      return false;
+    }
 
     var result = Api.processKpiResponseBodyAtPeriod(lastRawKpiResponse, year, month);
     if (!result || !Array.isArray(result.tiles)) return false;
