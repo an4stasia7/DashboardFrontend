@@ -4711,7 +4711,7 @@
     );
   }
 
-  global.getOnecReportDepartment = function () {
+  window.getOnecReportDepartment = function () {
     return getOnecReportContextKey();
   };
 
@@ -6333,61 +6333,49 @@
     loadKpiTilesAndChartsForView({ preserveViewState: true });
   }
 
-  function pollPsdDashboardRefresh(opts, attempt) {
+  var PSD_REFRESH_WAIT_MS = 60 * 60 * 1000;
+
+  function psdServerRefreshFinishedAfter(res, scheduledAt) {
+    if (!res || res.status !== "succeeded" || !res.finished_at) return false;
+    var finished = new Date(res.finished_at);
+    return !isNaN(finished.getTime()) && finished.getTime() >= scheduledAt.getTime();
+  }
+
+  function pollPsdServerRefresh(opts, scheduledAt) {
     if (!Api || typeof Api.fetchChairmanDashboardRefreshStatus !== "function") {
       psdRefreshPolling = false;
       return;
     }
-    if (attempt > 360) {
+    if (Date.now() - scheduledAt.getTime() > PSD_REFRESH_WAIT_MS) {
       psdRefreshPolling = false;
       return;
     }
-    setTimeout(function () {
-      Api.fetchChairmanDashboardRefreshStatus(opts).then(function (res) {
-        if (!res || !res.ok) {
-          psdRefreshPolling = false;
-          return;
-        }
-        if (res.status === "running") {
-          pollPsdDashboardRefresh(opts, attempt + 1);
-          return;
-        }
-        psdRefreshPolling = false;
-        if (res.status === "succeeded") reloadOpenPsdDashboard();
-      }).catch(function () {
-        psdRefreshPolling = false;
-      });
-    }, 5000);
-  }
-
-  function startPsdDashboardRefresh() {
-    if (psdRefreshPolling || !Api || typeof Api.refreshChairmanDashboard !== "function") return;
-    if (!isPsdDashboardOpen()) return;
-    var opts = psdRefreshRequestOptions();
-    psdRefreshPolling = true;
-    Api.refreshChairmanDashboard(opts).then(function (res) {
-      if (!res || !res.ok) {
-        psdRefreshPolling = false;
-        return;
-      }
-      if (res.status === "succeeded") {
+    Api.fetchChairmanDashboardRefreshStatus(opts).then(function (res) {
+      if (res && res.ok && psdServerRefreshFinishedAfter(res, scheduledAt)) {
         psdRefreshPolling = false;
         reloadOpenPsdDashboard();
         return;
       }
-      if (res.status === "running") {
-        pollPsdDashboardRefresh(opts, 0);
-        return;
-      }
-      psdRefreshPolling = false;
+      setTimeout(function () {
+        pollPsdServerRefresh(opts, scheduledAt);
+      }, 15000);
     }).catch(function () {
-      psdRefreshPolling = false;
+      setTimeout(function () {
+        pollPsdServerRefresh(opts, scheduledAt);
+      }, 15000);
     });
+  }
+
+  function waitForPsdServerRefresh(scheduledAt) {
+    if (psdRefreshPolling) return;
+    if (!isPsdDashboardOpen()) return;
+    psdRefreshPolling = true;
+    pollPsdServerRefresh(psdRefreshRequestOptions(), scheduledAt);
   }
 
   function runPsdScheduledRefresh(scheduledAt) {
     var late = Date.now() - scheduledAt.getTime();
-    if (late > 2 * 60 * 1000) {
+    if (late > PSD_REFRESH_WAIT_MS) {
       schedulePsdDashboardRefresh();
       return;
     }
@@ -6407,7 +6395,7 @@
     } catch (e) {
       /* ignore */
     }
-    startPsdDashboardRefresh();
+    waitForPsdServerRefresh(scheduledAt);
     schedulePsdDashboardRefresh();
   }
 
