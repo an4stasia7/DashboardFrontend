@@ -630,10 +630,29 @@ function commandOpensInfobase(commandLine, server, base) {
   var text = String(commandLine || "").toLowerCase().replace(/\//g, "\\").replace(/"/g, "");
   var srv = String(server || "").toLowerCase();
   var ib = String(base || "").toLowerCase();
-  if (!srv || !ib) return false;
+  if (!ib) return false;
+  if (text.indexOf(ib) === -1) return false;
+  if (!srv) return true;
   if (text.indexOf(srv + "\\" + ib) !== -1) return true;
-  // Запуск из стартера 1С: /IBConnectionString"Srvr=""srv1"";Ref=""erp_pm"";"
-  return text.indexOf("srvr=" + srv + ";") !== -1 && text.indexOf("ref=" + ib + ";") !== -1;
+  // Стартер 1С: /IBConnectionString Srvr="srv1";Ref="erp_pm"; или srv1.turbo-don.ru.
+  if (text.indexOf("ref=" + ib) !== -1 && (text.indexOf(srv) !== -1 || text.indexOf("192.168.2.229") !== -1)) {
+    return true;
+  }
+  return text.indexOf(srv) !== -1;
+}
+
+function windowIsThisErp(title) {
+  var text = String(title || "").toLocaleLowerCase("ru-RU");
+  return text.indexOf("управление предприятием") !== -1 || text.indexOf("1c:erp") !== -1 || text.indexOf("erp_pm") !== -1;
+}
+
+function ownedByCurrentWindowsUser(owner) {
+  var current = String(os.userInfo().username || "").trim();
+  var name = String(owner || "").trim();
+  if (!name || !current) return !name;
+  if (sameOnecAccount(name, current)) return true;
+  var slash = name.lastIndexOf("\\");
+  return slash >= 0 && sameOnecAccount(name.slice(slash + 1), current);
 }
 
 function sameOnecAccount(left, right) {
@@ -645,7 +664,7 @@ function listOnecProcesses() {
     "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8",
     "$items = @(Get-CimInstance Win32_Process -Filter \"Name = '1cv8c.exe' OR Name = '1cv8.exe'\")",
     "if (-not $items.Count) { '[]'; exit 0 }",
-    "$items | ForEach-Object { $o = Invoke-CimMethod -InputObject $_ -MethodName GetOwner -ErrorAction SilentlyContinue; [PSCustomObject]@{ ProcessId = $_.ProcessId; ExecutablePath = [string]$_.ExecutablePath; CommandLine = [string]$_.CommandLine; Owner = [string]$o.User } } | ConvertTo-Json -Compress",
+    "$titles = @{}; Get-Process -Name 1cv8c,1cv8 -ErrorAction SilentlyContinue | ForEach-Object { $titles[[int]$_.Id] = [string]$_.MainWindowTitle }; $items | ForEach-Object { $o = Invoke-CimMethod -InputObject $_ -MethodName GetOwner -ErrorAction SilentlyContinue; [PSCustomObject]@{ ProcessId = $_.ProcessId; ExecutablePath = [string]$_.ExecutablePath; CommandLine = [string]$_.CommandLine; Owner = [string]$o.User; MainWindowTitle = [string]$titles[[int]$_.ProcessId] } } | ConvertTo-Json -Compress",
   ].join("; ");
   return new Promise(function (resolve) {
     execFile(
@@ -675,25 +694,27 @@ function listOnecProcesses() {
 
 function findOpenOnecSession(parsed, username) {
   return listOnecProcesses().then(function (processes) {
-    var found = null;
+    var exact = null;
+    var sameWindows = null;
     for (var i = 0; i < processes.length; i++) {
       var row = processes[i] || {};
+      if (!ownedByCurrentWindowsUser(row.Owner)) continue;
       var commandLine = row.CommandLine || "";
-      if (!commandOpensInfobase(commandLine, parsed.server, parsed.base)) continue;
-      var onecUser = onecUserFromCommandLine(commandLine);
-      if (onecUser) {
-        if (!username || !sameOnecAccount(onecUser, username)) continue;
-      } else if (!sameOnecAccount(row.Owner, os.userInfo().username)) {
-        // Без /N вошли через окно 1С или по Windows: своим считаем клиент этого же пользователя Windows.
-        continue;
-      }
+      var opensBase = commandOpensInfobase(commandLine, parsed.server, parsed.base);
+      var visibleErp = windowIsThisErp(row.MainWindowTitle);
+      if (!opensBase && !visibleErp) continue;
       var pid = Number(row.ProcessId);
       if (!pid) continue;
       var exe = String(row.ExecutablePath || "");
       if (exe && !fs.existsSync(exe)) exe = "";
-      found = { pid: pid, exe: exe };
+      var candidate = { pid: pid, exe: exe };
+      var onecUser = onecUserFromCommandLine(commandLine);
+      // Логин в командной строке часто короче ФИО дашборда. Уже открытое окно
+      // этого пользователя Windows не заменяем новым входом.
+      if (username && onecUser && sameOnecAccount(onecUser, username)) exact = candidate;
+      if (opensBase || visibleErp) sameWindows = candidate;
     }
-    return found;
+    return exact || sameWindows;
   });
 }
 
@@ -708,6 +729,8 @@ function reportFilterParts(context, encode) {
   put("Начало", ctx.start);
   put("Конец", ctx.end);
   put("ДатаОтчета", ctx.asof);
+  put("Подразделение", ctx.departmentName);
+  put("ПодразделениеСсылка", ctx.departmentRef);
   put("ПодразделениеСписок", ctx.departments);
   put("ОбщийСтандартныйПериод", ctx.start && ctx.end ? ctx.start + "-" + ctx.end : "");
   return parts;
@@ -792,7 +815,10 @@ function openOnecReport(targetUrl, context) {
     if (session) {
       var runningExe = session.exe || onecClientPath();
       if (!runningExe) return { ok: false, error: "Не найден установленный клиент 1С." };
-      return spawnOnec(runningExe, ["ENTERPRISE", connection, urlArg]).then(function (result) {
+      var reuseArgs = ["ENTERPRISE", connection, urlArg];
+      var reuseFilters = reportFilterParts(context, false);
+      if (reuseFilters.length) reuseArgs.push("/C" + quoteOnecValue(reuseFilters.join(";")));
+      return spawnOnec(runningExe, reuseArgs).then(function (result) {
         if (result && result.ok) {
           setTimeout(function () {
             focusOnecWindow(session.pid);
@@ -841,6 +867,8 @@ ipcMain.handle("app:open-onec-report", function (_event, payload) {
   }
   var context = {
     department: payload && payload.department != null ? payload.department : "",
+    departmentName: payload && payload.departmentName != null ? payload.departmentName : "",
+    departmentRef: payload && payload.departmentRef != null ? payload.departmentRef : "",
     departments: payload && payload.departments != null ? payload.departments : "",
     year: payload && payload.year != null ? payload.year : "",
     month: payload && payload.month != null ? payload.month : "",
