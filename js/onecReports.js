@@ -577,7 +577,23 @@
     if (typeof global.getOnecReportDepartment === "function") {
       department = global.getOnecReportDepartment() || department;
     }
-    openReport(btn.getAttribute("data-onec-url"), liveReportContext(department));
+    var ctx = liveReportContext(department);
+    var tileYear = parseInt(btn.getAttribute("data-onec-year"), 10);
+    var tileMonth = parseInt(btn.getAttribute("data-onec-month"), 10);
+    if ((!ctx.start || !ctx.end) && tileYear && tileMonth >= 1 && tileMonth <= 12) {
+      var endDay = lastDay(tileYear, tileMonth);
+      ctx.year = tileYear;
+      ctx.month = tileMonth;
+      ctx.start = isoDate(tileYear, tileMonth, 1);
+      ctx.end = isoDate(tileYear, tileMonth, endDay);
+      ctx.asof = ctx.end;
+      var today = new Date();
+      var todayKey = today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate();
+      if (tileYear * 10000 + tileMonth * 100 + endDay > todayKey) {
+        ctx.asof = isoDate(today.getFullYear(), today.getMonth() + 1, today.getDate());
+      }
+    }
+    openReport(btn.getAttribute("data-onec-url"), ctx);
   }
 
   if (global.document && global.document.addEventListener) {

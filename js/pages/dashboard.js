@@ -5069,6 +5069,10 @@
     return false;
   }
 
+  function commercialColumnControlsEnabled() {
+    return isCommercialFamilyDashboardContext() || isBoardChairCommercialBlockContext();
+  }
+
   function isCommercialFamilyDashboardContext() {
     if (shouldUseBoardChairExecutiveTables() || isBoardChairCommercialBlockContext()) return false;
     if (isBoardChairUser(sessionUser) && selectedViewId === "self") return false;
@@ -5598,6 +5602,92 @@
     return isNaN(pct) ? null : pct;
   }
 
+  var PLAN_FACT_COLUMN_CONTROLS = [
+    { index: 0, label: "Дата", type: "sort", searchType: "date" },
+    { index: 1, label: "Отдел", type: "sort", searchType: "text" },
+    { index: 2, label: "Партнер", type: "sort", searchType: "text" },
+    { index: 3, label: "Документ", type: "sort", searchType: "text" },
+    { index: 4, label: "Вид", type: "filter", searchType: "text" },
+    { index: 5, label: "Сумма, руб.", type: "sort", searchType: "number" },
+    { index: 6, label: "% Конверсии", type: "sort", searchType: "number" },
+    { index: 7, label: "Сумма с конверсией", type: "sort", searchType: "number" },
+  ];
+  var DZ_COLUMN_CONTROLS = [
+    { index: 0, label: "№ Заказа клиента", type: "sort", searchType: "text" },
+    { index: 1, label: "Контрагент", type: "sort", searchType: "text" },
+    { index: 2, label: "Подразделение", type: "sort", searchType: "text" },
+    { index: 3, label: "Дата оплаты", type: "sort", searchType: "date" },
+    { index: 4, label: "Сумма, руб.", type: "sort", searchType: "number" },
+  ];
+
+  function commercialMoneyText(value) {
+    var number = Number(value);
+    if (isNaN(number)) return "—";
+    return number.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function updatePlanFactFooterFromDom(table) {
+    var body = table.tBodies && table.tBodies[0];
+    var footerRow = table.tFoot && table.tFoot.rows[0];
+    if (!body || !footerRow || footerRow.cells.length < 4) return;
+    var fact = 0;
+    var expected = 0;
+    var converted = 0;
+    var shown = 0;
+    var totalRows = 0;
+    var showForecast = table.dataset.showForecast === "1";
+    var dialogFilter = table.dataset.dialogFilter === "1";
+    Array.prototype.forEach.call(body.rows, function (row) {
+      if (row.classList.contains("commercial-column-filter-empty") || row.cells.length < 8) return;
+      totalRows += 1;
+      if (row.hidden) return;
+      shown += 1;
+      var amount = Number(row.getAttribute("data-amount"));
+      var kind = row.getAttribute("data-kind") || "";
+      if (!isNaN(amount)) {
+        if (kind === "Ожидаемо") expected += amount;
+        else fact += amount;
+      }
+      var counts = dialogFilter || showForecast || kind !== "Ожидаемо";
+      var conv = row.getAttribute("data-converted");
+      if (counts && conv !== "") {
+        var number = Number(conv);
+        if (!isNaN(number)) converted += number;
+      }
+    });
+    var columnFilter = shown !== totalRows;
+    var filterOn = dialogFilter || columnFilter;
+    var total = filterOn || showForecast ? fact + expected : fact;
+    var periodLabel = table.dataset.periodLabel || "";
+    var blended = total ? (converted / total) * 100 : null;
+    footerRow.cells[0].textContent = filterOn
+      ? "По фильтру · " + planFactRowsLabel(shown) + " · " + periodLabel + "Сумма " + commercialMoneyText(total)
+      : periodLabel + "Факт " + commercialMoneyText(fact) + " · Ожидаемо " + commercialMoneyText(expected) + (showForecast ? " · Прогноз " + commercialMoneyText(fact + expected) : "");
+    footerRow.cells[1].textContent = commercialMoneyText(total);
+    footerRow.cells[2].textContent = blended == null ? "—" : blended.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " %";
+    footerRow.cells[3].textContent = commercialMoneyText(converted);
+  }
+
+  function updateDzFooterFromDom(table) {
+    var body = table.tBodies && table.tBodies[0];
+    var footerRow = table.tFoot && table.tFoot.rows[0];
+    if (!body || !footerRow || footerRow.cells.length < 2) return;
+    var total = 0;
+    var shown = 0;
+    var totalRows = 0;
+    Array.prototype.forEach.call(body.rows, function (row) {
+      if (row.classList.contains("commercial-column-filter-empty") || row.cells.length < 5) return;
+      totalRows += 1;
+      if (row.hidden) return;
+      shown += 1;
+      var amount = Number(row.getAttribute("data-amount"));
+      if (!isNaN(amount)) total += amount;
+    });
+    var filterOn = table.dataset.dialogFilter === "1" || shown !== totalRows || table.dataset.hideOverdue === "1";
+    footerRow.cells[0].textContent = filterOn ? "По фильтру · " + planFactRowsLabel(shown) : "Итого";
+    footerRow.cells[1].textContent = commercialMoneyText(total);
+  }
+
   function renderPlanFactBreakdownTable(view) {
     var tableId =
       view === "money" ? "table-plan-fact-money" : view === "ship" ? "table-plan-fact-ship" : view === "dog" ? "table-plan-fact-dog" : "";
@@ -5651,15 +5741,32 @@
             : pct.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " %",
           convertedAmount == null ? "—" : moneyCell(convertedAmount),
         ];
+        var orders = [
+          planFactDateKey(raw.date),
+          String(raw.department || "").toLocaleLowerCase("ru-RU"),
+          String(raw.partner || "").toLocaleLowerCase("ru-RU"),
+          String(raw.document || raw.name || "").toLocaleLowerCase("ru-RU"),
+          kind,
+          isNaN(amount) ? "" : String(amount),
+          pct == null ? "" : String(pct),
+          convertedAmount == null ? "" : String(convertedAmount),
+        ];
         return (
-          "<tr>" +
+          '<tr data-kind="' +
+          DashUi.escapeHtml(kind) +
+          '" data-amount="' +
+          DashUi.escapeHtml(isNaN(amount) ? "" : String(amount)) +
+          '" data-converted="' +
+          DashUi.escapeHtml(convertedAmount == null ? "" : String(convertedAmount)) +
+          '">' +
           cells
             .map(function (value, index) {
               var cls = index >= 5 ? ' class="dashboard-table-cell--number"' : "";
+              var orderAttr = ' data-order="' + DashUi.escapeHtml(orders[index]) + '"';
               if (index === 3) {
-                return "<td>" + onecDocHtml(value, { nav: raw.onec_nav, document: raw.document, partner: raw.partner }) + "</td>";
+                return "<td" + orderAttr + ">" + onecDocHtml(value, { nav: raw.onec_nav, document: raw.document, partner: raw.partner }) + "</td>";
               }
-              return "<td" + cls + ">" + DashUi.escapeHtml(String(value)) + "</td>";
+              return "<td" + orderAttr + cls + ">" + DashUi.escapeHtml(String(value)) + "</td>";
             })
             .join("") +
           "</tr>"
@@ -5726,6 +5833,22 @@
       '</th><th class="dashboard-table-cell--number">' +
       money(convertedShown) +
       "</th></tr></tfoot>";
+    table.dataset.periodLabel = periodLabel;
+    table.dataset.showForecast = showForecast ? "1" : "0";
+    table.dataset.dialogFilter = filterActive ? "1" : "0";
+    if (
+      commercialColumnControlsEnabled() &&
+      typeof DashboardClaimsTable !== "undefined" &&
+      DashboardClaimsTable &&
+      typeof DashboardClaimsTable.installPlainColumnControls === "function"
+    ) {
+      DashboardClaimsTable.installPlainColumnControls(table, {
+        columns: PLAN_FACT_COLUMN_CONTROLS,
+        onChange: function () {
+          updatePlanFactFooterFromDom(table);
+        },
+      });
+    }
   }
 
   function onecDocHtml(text, target) {
@@ -5796,14 +5919,26 @@
             ? "—"
             : amount.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
         ];
+        var orders = [
+          String(raw.order_num || raw.order_number || "").toLocaleLowerCase("ru-RU"),
+          String(raw.counterparty || raw.partner_name || raw.partner || "").toLocaleLowerCase("ru-RU"),
+          String(raw.department || raw["Подразделение"] || raw.dept_name || "").toLocaleLowerCase("ru-RU"),
+          planFactDateKey(raw.payment_date),
+          isNaN(amount) ? "" : String(amount),
+        ];
         return (
-          "<tr>" +
+          '<tr data-amount="' +
+          DashUi.escapeHtml(isNaN(amount) ? "" : String(amount)) +
+          '">' +
           cells
             .map(function (value, index) {
               var cls = index === 4 ? ' class="dashboard-table-cell--number"' : "";
+              var orderAttr = ' data-order="' + DashUi.escapeHtml(orders[index]) + '"';
               if (index === 0) {
                 return (
-                  "<td>" +
+                  "<td" +
+                  orderAttr +
+                  ">" +
                   onecDocHtml(value, {
                     nav: raw.onec_nav,
                     settlement: raw.order_key,
@@ -5813,7 +5948,7 @@
                   "</td>"
                 );
               }
-              return "<td" + cls + ">" + DashUi.escapeHtml(String(value)) + "</td>";
+              return "<td" + orderAttr + cls + ">" + DashUi.escapeHtml(String(value)) + "</td>";
             })
             .join("") +
           "</tr>"
@@ -5841,6 +5976,21 @@
       '</th><th class="dashboard-table-cell--number">' +
       totalText +
       "</th></tr></tfoot>";
+    table.dataset.dialogFilter = filterActive ? "1" : "0";
+    table.dataset.hideOverdue = overdueKeys ? "1" : "0";
+    if (
+      commercialColumnControlsEnabled() &&
+      typeof DashboardClaimsTable !== "undefined" &&
+      DashboardClaimsTable &&
+      typeof DashboardClaimsTable.installPlainColumnControls === "function"
+    ) {
+      DashboardClaimsTable.installPlainColumnControls(table, {
+        columns: DZ_COLUMN_CONTROLS,
+        onChange: function () {
+          updateDzFooterFromDom(table);
+        },
+      });
+    }
   }
 
   function applyDebtTableView(view) {
@@ -6001,6 +6151,7 @@
           Api.hasProtocolOverdueTableInBody(lastRawKpiResponse, protocolTableYear, protocolTableMonth),
         executiveMode: false,
         enhanceOverdueDebtTable: shouldUseCommercialDirectorOverdueDebtEnhancements(),
+        commercialColumnMode: commercialColumnControlsEnabled(),
         enableLawsuitsTable: shouldUseClaimsAndLawsuitsSwitcher(),
         juristContractsTableMode: isJuristDashboardContext(),
         juristContractsFilter: {

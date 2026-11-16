@@ -645,7 +645,7 @@ function listOnecProcesses() {
     "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8",
     "$items = @(Get-CimInstance Win32_Process -Filter \"Name = '1cv8c.exe' OR Name = '1cv8.exe'\")",
     "if (-not $items.Count) { '[]'; exit 0 }",
-    "$items | ForEach-Object { $o = Invoke-CimMethod -InputObject $_ -MethodName GetOwner -ErrorAction SilentlyContinue; [PSCustomObject]@{ ProcessId = $_.ProcessId; CommandLine = [string]$_.CommandLine; Owner = [string]$o.User } } | ConvertTo-Json -Compress",
+    "$items | ForEach-Object { $o = Invoke-CimMethod -InputObject $_ -MethodName GetOwner -ErrorAction SilentlyContinue; [PSCustomObject]@{ ProcessId = $_.ProcessId; ExecutablePath = [string]$_.ExecutablePath; CommandLine = [string]$_.CommandLine; Owner = [string]$o.User } } | ConvertTo-Json -Compress",
   ].join("; ");
   return new Promise(function (resolve) {
     execFile(
@@ -689,7 +689,9 @@ function findOpenOnecSession(parsed, username) {
       }
       var pid = Number(row.ProcessId);
       if (!pid) continue;
-      found = { pid: pid };
+      var exe = String(row.ExecutablePath || "");
+      if (exe && !fs.existsSync(exe)) exe = "";
+      found = { pid: pid, exe: exe };
     }
     return found;
   });
@@ -779,41 +781,46 @@ function spawnOnec(exe, args) {
 function openOnecReport(targetUrl, context) {
   var parsed = parseE1cUrl(targetUrl);
   if (!parsed) return Promise.resolve({ ok: false, error: "Некорректная ссылка 1С" });
-  var exe = onecClientPath();
-  if (!exe) return Promise.resolve({ ok: false, error: "Не найден установленный клиент 1С." });
   var username = onecSessionLogin && onecSessionLogin.username ? onecSessionLogin.username : "";
   var password = onecSessionLogin && onecSessionLogin.password ? onecSessionLogin.password : "";
   var nav = reportNavWithContext(parsed.nav, context);
   var connection = "/S" + quoteOnecValue(parsed.server + "\\" + parsed.base);
   var urlArg = "/URL" + quoteOnecValue(nav);
-  if (!username || !password) {
-    return Promise.resolve({
-      ok: false,
-      error: "Чтобы открыть 1С под вашей учётной записью, выйдите и войдите снова, введя пароль.",
-    });
-  }
-  // /N и /P нужны и когда база уже открыта: без них второй процесс
-  // останавливается на окне пароля и не передаёт ссылку в текущую сессию.
-  var args = [
-    "ENTERPRISE",
-    connection,
-    "/N" + quoteOnecValue(username),
-    "/P" + quoteOnecValue(password),
-    "/WA-",
-    urlArg,
-  ];
-  var startup = reportFilterParts(context, false);
-  if (startup.length) args.push("/C" + quoteOnecValue(startup.join(";")));
   return findOpenOnecSession(parsed, username).then(function (session) {
-    return spawnOnec(exe, args).then(function (result) {
-      if (result && result.ok && session) {
-        setTimeout(function () {
-          focusOnecWindow(session.pid);
-        }, 400);
-        return { ok: true, reused: true };
-      }
-      return result;
-    });
+    // База уже открыта под этой учётной записью: /N и /P открывают второй
+    // сеанс и снова спрашивают пароль. Без них 1С отдаёт /URL текущему окну.
+    if (session) {
+      var runningExe = session.exe || onecClientPath();
+      if (!runningExe) return { ok: false, error: "Не найден установленный клиент 1С." };
+      return spawnOnec(runningExe, ["ENTERPRISE", connection, urlArg]).then(function (result) {
+        if (result && result.ok) {
+          setTimeout(function () {
+            focusOnecWindow(session.pid);
+          }, 700);
+          return { ok: true, reused: true };
+        }
+        return result;
+      });
+    }
+    var exe = onecClientPath();
+    if (!exe) return { ok: false, error: "Не найден установленный клиент 1С." };
+    if (!username || !password) {
+      return {
+        ok: false,
+        error: "Чтобы открыть 1С под вашей учётной записью, выйдите и войдите снова, введя пароль.",
+      };
+    }
+    var args = [
+      "ENTERPRISE",
+      connection,
+      "/N" + quoteOnecValue(username),
+      "/P" + quoteOnecValue(password),
+      "/WA-",
+      urlArg,
+    ];
+    var startup = reportFilterParts(context, false);
+    if (startup.length) args.push("/C" + quoteOnecValue(startup.join(";")));
+    return spawnOnec(exe, args);
   });
 }
 
