@@ -1,5 +1,6 @@
 (function (global) {
   var deferredChartsAndTablesBootToken = 0;
+  var kpiLoadSeq = 0;
   var latestContext = {};
 
   function mergeContext(nextContext) {
@@ -385,7 +386,8 @@
     return result;
   }
 
-  function applyApiResult(result, _source, options) {
+  function applyApiResult(result, _source, options, isCurrent) {
+    if (typeof isCurrent === "function" && !isCurrent()) return;
     mergeContext(options);
     if (!options || !options.preserveViewState) {
       closeKpiTileDrilldown();
@@ -534,6 +536,7 @@
       var augment = getContext().maybeAugmentCommercialDeptTilesWithPriorMonthFetch;
       if (typeof augment === "function") {
         augment(result, tilesToRender, function (finalTiles) {
+          if (typeof isCurrent === "function" && !isCurrent()) return;
           var t = finalTiles && finalTiles.length ? finalTiles : tilesToRender;
           t = applyTdM5PeriodAggregateForCurrentSelection(t);
           if (cacheKey) rememberDrilldownKpiTiles(cacheKey, t.slice());
@@ -555,6 +558,10 @@
   }
 
   function loadKpiTilesAndChartsForView(options) {
+    var loadSeq = ++kpiLoadSeq;
+    function isCurrentLoad() {
+      return loadSeq === kpiLoadSeq;
+    }
     mergeContext(options);
     if (!options || !options.preserveViewState) {
       closeKpiTileDrilldown();
@@ -590,7 +597,13 @@
     var role = viewContextUser.role;
     var elHint = document.getElementById("dash-user-hint");
 
+    function applyIfCurrent(result, source) {
+      if (!isCurrentLoad()) return;
+      applyApiResult(result, source, options, isCurrentLoad);
+    }
+
     var fallback = function () {
+      if (!isCurrentLoad()) return;
       setLastApiChartIndicators(null);
       setLastApiTableRows(null);
       setLastKpiResponseDepartment(null);
@@ -635,7 +648,7 @@
       if (periodOpts.year != null) catalogOpts.year = periodOpts.year;
       fetchKpis(catalogOpts)
         .then(function (result) {
-          applyApiResult(result, undefined, options);
+          applyIfCurrent(result);
         })
         .catch(function () {
           fallback();
@@ -656,8 +669,9 @@
         if (periodOpts.year != null) allOpts.year = periodOpts.year;
         fetchKpiAll(allOpts)
           .then(function (result) {
+            if (!isCurrentLoad()) return;
             if (result.unauthorized) {
-              applyApiResult(result, undefined, options);
+              applyIfCurrent(result);
               return;
             }
             if (!result.ok) {
@@ -671,7 +685,7 @@
               fallback();
               return;
             }
-            applyApiResult(result, undefined, options);
+            applyIfCurrent(result);
           })
           .catch(function () {
             fallback();
@@ -702,7 +716,7 @@
 
     fetchSelf()
       .then(function (result) {
-        applyApiResult(result, undefined, options);
+        applyIfCurrent(result);
       })
       .catch(function () {
         fallback();

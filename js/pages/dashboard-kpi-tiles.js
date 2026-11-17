@@ -829,7 +829,12 @@
     var factNum = readFiniteTileNumber(fact);
     var planNum = readFiniteTileNumber(plan);
     var expectedNum = readFiniteTileNumber(expected);
-    var forecastNum = useForecast ? commercialForecastNumber(factNum, expectedNum) : null;
+    var kid = tile && tile.kpi_id != null ? String(tile.kpi_id).trim().toUpperCase() : "";
+    var showPerspective = useForecast && kid !== "KD-M3";
+    var perspectiveNum = showPerspective ? readFiniteTileNumber(tile && tile.potential) || 0 : 0;
+    var forecastNum = useForecast
+      ? (factNum || 0) + (expectedNum || 0) + perspectiveNum
+      : null;
     var heroNum = factNum;
     var heroHtml = formatKpiTileMetricValue(heroNum, units);
     var heroParts = splitKpiTileValueAndUnit(heroHtml, units);
@@ -858,7 +863,7 @@
         forecastCell("План", planParts) +
         forecastCell("Ожидаемо", expectedParts) +
         forecastCell("Прогноз", forecastParts) +
-        forecastCell("Потенциал", potentialParts) +
+        (showPerspective ? forecastCell("Перспектива", potentialParts) : "") +
         "</div>";
     } else if (!hidePlanOnTile) {
       var hasExpected =

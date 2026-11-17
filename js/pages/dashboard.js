@@ -156,7 +156,32 @@
     }
     var scopeKey = getKpiTileOrderScopeKey();
     if (!scopeKey) return;
-    DashboardKpiTileOrder.saveOrder(scopeKey, DashboardKpiTileOrder.extractOrderIds(lastKpiTiles));
+    var orderIds = DashboardKpiTileOrder.extractOrderIds(lastKpiTiles);
+    DashboardKpiTileOrder.saveOrder(scopeKey, orderIds);
+    if (Api && typeof Api.saveTileOrder === "function") {
+      Api.saveTileOrder(scopeKey, orderIds);
+    }
+  }
+
+  function syncTileOrdersFromAccount() {
+    if (!Api || typeof Api.fetchTileOrders !== "function" || typeof DashboardKpiTileOrder === "undefined") return;
+    Api.fetchTileOrders().then(function (res) {
+      if (!res || !res.ok || !DashboardKpiTileOrder) return;
+      var remote = res.orders && typeof res.orders === "object" ? res.orders : {};
+      var local = typeof DashboardKpiTileOrder.readAll === "function" ? DashboardKpiTileOrder.readAll() : {};
+      Object.keys(local).forEach(function (key) {
+        var hasRemote = Array.isArray(remote[key]) && remote[key].length;
+        if (hasRemote || !local[key] || !local[key].length) return;
+        remote[key] = local[key];
+        if (typeof Api.saveTileOrder === "function") Api.saveTileOrder(key, local[key]);
+      });
+      if (typeof DashboardKpiTileOrder.replaceAll === "function") {
+        DashboardKpiTileOrder.replaceAll(remote);
+      }
+      if (lastKpiTiles && lastKpiTiles.length) {
+        renderKpiTiles(lastKpiTiles.slice(), { preservePage: true });
+      }
+    });
   }
 
   var FORM_WORK_TILE_IDS = { "QD-M1W": true, "QD-M5W": true, "QD-M8W": true };
@@ -2143,8 +2168,8 @@
   /**
    * Для выбранного текущего календарного месяца (ещё не закончившегося) на плитках с «ФОТ» / «текучестью» в названии
    * показываем план/факт за предыдущий месяц (из monthly_data).
-   * Исключения по kpi_id: KD-M8 (комдир — в незакрытом месяце ФОТ = 0, без отката на прошлый),
-   * OD-M3.2, LOG-M3.F, TD-M6, PD-M3.F*.
+   * KD-M8 тоже: каждый месяц на плитке коммерческого директора — ФОТ прошлого месяца.
+   * Исключения по kpi_id: OD-M3.2, LOG-M3.F, TD-M6, PD-M3.F*.
    */
   function applyPriorMonthFactForFotTurnoverTiles(tiles) {
     if (!Array.isArray(tiles) || !tiles.length) return tiles;
@@ -2174,8 +2199,6 @@
       ) {
         return tile;
       }
-      // Комдир: в текущем (незакрытом) месяце ФОТ не подменяем прошлым — показываем факт текущего (0).
-      if (kpiIdUpper === "KD-M8") return tile;
       if (kpiIdUpper === "PD-M3.F1" || kpiIdUpper === "PD-M3.F2") return tile;
       if (kpiIdUpper === "OD-M3.2" || kpiIdUpper === "LOG-M3.F" || kpiIdUpper === "TD-M6") return tile;
       if (kpiIdUpper === "KD-M11" || kpiIdUpper === "OD-Q2") return tile;
@@ -3771,11 +3794,18 @@
     var displayPlan = null;
     var displayUnit = null;
 
+    var komdirFotQuarter = String(item.kpi_id || "").trim().toUpperCase() === "KD-M8";
     bucket.forEach(function (point) {
       var planValue = parseNumberLoose(point.period_plan);
       var factValue = parseNumberLoose(point.period_fact);
       if (planValue == null) planValue = parseNumberLoose(point.plan);
       if (factValue == null) factValue = parseNumberLoose(point.fact);
+      // Квартал и год: свой ФОТ каждого месяца, полный лимит.
+      // Подмена «текущий месяц = прошлый» здесь не действует.
+      if (komdirFotQuarter) {
+        var fullPlan = parseNumberLoose(point.plan_full);
+        if (fullPlan != null) planValue = fullPlan;
+      }
       var pctValue = parseNumberLoose(point.kpi_pct);
       if (planValue != null) {
         plan += planValue;
@@ -6567,6 +6597,7 @@
     DashDebug.scheduleRenderDebugJsonLogPanel();
   }
 
+  syncTileOrdersFromAccount();
   var isBoardChairSession = isBoardChairUser(sessionUser);
   if (isBoardChairSession) schedulePsdDashboardRefresh();
   /* ПСД: до решения об обзоре не грузим полный дашборд (иначе hideLoading откроет #dash-content). */

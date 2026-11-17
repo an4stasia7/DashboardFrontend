@@ -49,6 +49,31 @@
     return Array.isArray(order) ? order.slice() : null;
   }
 
+  function readAll() {
+    var store = readStore();
+    var copy = {};
+    Object.keys(store).forEach(function (key) {
+      if (Array.isArray(store[key])) copy[key] = store[key].slice();
+    });
+    return copy;
+  }
+
+  function replaceAll(orders) {
+    var next = {};
+    if (orders && typeof orders === "object") {
+      Object.keys(orders).forEach(function (key) {
+        if (!key || !Array.isArray(orders[key])) return;
+        next[key] = orders[key]
+          .map(function (id) {
+            return id != null ? String(id).trim() : "";
+          })
+          .filter(Boolean);
+      });
+    }
+    writeStore(next);
+    return next;
+  }
+
   function saveOrder(scopeKey, orderIds) {
     if (!scopeKey || !Array.isArray(orderIds)) return false;
     var store = readStore();
@@ -123,6 +148,8 @@
     buildScopeKey: buildScopeKey,
     getTileId: getTileId,
     loadOrder: loadOrder,
+    readAll: readAll,
+    replaceAll: replaceAll,
     saveOrder: saveOrder,
     extractOrderIds: extractOrderIds,
     applySavedOrder: applySavedOrder,

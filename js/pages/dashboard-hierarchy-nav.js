@@ -6,6 +6,7 @@
   var sidebarSearchError = "";
   var sidebarSearchResults = [];
   var rememberedChairmanCatalogId = "";
+  var subordinateRefreshSeq = 0;
   var departmentsExpanded = false;
   var structureOpen = false;
   var structureLoading = false;
@@ -677,7 +678,8 @@
           navigateAfterViewChange();
           return;
         }
-        refreshSubordinateTabsFromApi().then(function () {
+        refreshSubordinateTabsFromApi().then(function (applied) {
+          if (applied === false) return;
           renderChairmanDashboardTabs();
           updateTopBarForView();
           navigateAfterViewChange();
@@ -1051,7 +1053,8 @@
     setViewContextUser(sessionUser);
     setHierarchyStack(nextStack);
     renderViewTabs();
-    refreshSubordinateTabsFromApi().then(function () {
+    refreshSubordinateTabsFromApi().then(function (applied) {
+      if (applied === false) return;
       updateTopBarForView();
       navigateAfterViewChange();
     });
@@ -1199,6 +1202,10 @@
 
   function refreshSubordinateTabsFromApi() {
     return new Promise(function (resolve) {
+      var seq = ++subordinateRefreshSeq;
+      function finish(applied) {
+        resolve(seq === subordinateRefreshSeq && applied !== false);
+      }
       dropHiddenHierarchyLevels();
       var hierarchyStack = getHierarchyStack();
       var sessionUser = getSessionUser();
@@ -1216,6 +1223,16 @@
       var parent = hierarchyStack[hierarchyStack.length - 1];
       fetchImmediateSubordinates(parent)
         .then(function (r) {
+          if (seq !== subordinateRefreshSeq) {
+            finish(false);
+            return;
+          }
+          var liveStack = getHierarchyStack();
+          var liveParent = liveStack.length ? String(liveStack[liveStack.length - 1]) : "";
+          if (liveParent !== String(parent)) {
+            finish(false);
+            return;
+          }
           if (r && r.unauthorized) {
             onUnauthorized();
             return;
@@ -1239,9 +1256,13 @@
           }
           renderViewTabs();
           renderHierarchyBreadcrumb();
-          resolve();
+          finish(true);
         })
         .catch(function () {
+          if (seq !== subordinateRefreshSeq) {
+            finish(false);
+            return;
+          }
           var currentStack = getHierarchyStack();
           var atRootCatch = currentStack.length <= 1;
           var includeSelfCatch = atRootCatch && !isBoardChairUser(sessionUser);
@@ -1252,7 +1273,7 @@
           );
           renderViewTabs();
           renderHierarchyBreadcrumb();
-          resolve();
+          finish(true);
         });
     });
   }
@@ -1269,7 +1290,8 @@
     setHierarchyStack(hierarchy.slice());
     clearSidebarSearchState();
     renderViewTabs();
-    refreshSubordinateTabsFromApi().then(function () {
+    refreshSubordinateTabsFromApi().then(function (applied) {
+      if (applied === false) return;
       updateTopBarForView();
       navigateAfterViewChange();
     });
@@ -1340,7 +1362,8 @@
       setSelectedViewId("dept:" + encodeURIComponent(parent));
     }
     setViewContextUser(sessionUser);
-    refreshSubordinateTabsFromApi().then(function () {
+    refreshSubordinateTabsFromApi().then(function (applied) {
+      if (applied === false) return;
       updateTopBarForView();
       navigateAfterViewChange();
     });
@@ -1534,7 +1557,8 @@
           navigateAfterViewChange();
           return;
         }
-        refreshSubordinateTabsFromApi().then(function () {
+        refreshSubordinateTabsFromApi().then(function (applied) {
+          if (applied === false) return;
           updateTopBarForView();
           navigateAfterViewChange();
         });
