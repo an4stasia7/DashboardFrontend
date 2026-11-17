@@ -802,11 +802,9 @@
           return viewContextUser;
         },
         allowsFutureMonthPaging: function () {
-          return (
-            selectedViewId === "self" &&
-            isCommercialDirectorUser(sessionUser) &&
-            isCommercialDirectorUser(viewContextUser)
-          );
+          if (shouldUseBoardChairExecutiveTables() || isBoardChairCommercialBlockContext()) return false;
+          if (isCommercialDirectorUser(sessionUser) || isCommercialDirectorUser(viewContextUser)) return true;
+          return isCommercialFamilyDashboardContext();
         },
         onPeriodChange: function () {
           if (typeof DashboardKpiTiles !== "undefined" && DashboardKpiTiles && typeof DashboardKpiTiles.resetPager === "function") {
