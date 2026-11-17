@@ -1240,13 +1240,16 @@
           var currentStack = getHierarchyStack();
           var atRoot = currentStack.length <= 1;
           var includeSelfFlag = atRoot && !isBoardChairUser(sessionUser);
-          if (r && r.ok && r.immediate_children && r.immediate_children.length) {
+          var hasChildren = r && r.ok && r.immediate_children && r.immediate_children.length;
+          if (hasChildren) {
             setViewTargets(
               buildTargetsFromChildren(
                 withJuristUnderOperationalDirector(parent, r.immediate_children),
                 includeSelfFlag
               )
             );
+          } else if (getDepartmentViewTargets().length && (currentStack.length > 1 || !(r && r.ok))) {
+            // Подразделение без своих детей или сбой запроса: список текущего уровня не стираем.
           } else {
             setViewTargets(
               includeSelfFlag
@@ -1263,14 +1266,16 @@
             finish(false);
             return;
           }
-          var currentStack = getHierarchyStack();
-          var atRootCatch = currentStack.length <= 1;
-          var includeSelfCatch = atRootCatch && !isBoardChairUser(sessionUser);
-          setViewTargets(
-            includeSelfCatch
-              ? [{ id: "self", label: "Мой дашборд", user: sessionUser }]
-              : []
-          );
+          if (!getDepartmentViewTargets().length) {
+            var currentStack = getHierarchyStack();
+            var atRootCatch = currentStack.length <= 1;
+            var includeSelfCatch = atRootCatch && !isBoardChairUser(sessionUser);
+            setViewTargets(
+              includeSelfCatch
+                ? [{ id: "self", label: "Мой дашборд", user: sessionUser }]
+                : []
+            );
+          }
           renderViewTabs();
           renderHierarchyBreadcrumb();
           finish(true);
@@ -1346,6 +1351,31 @@
     });
   }
 
+  function departmentTargetListed(name) {
+    var wanted = String(name || "").trim();
+    if (!wanted) return false;
+    return getDepartmentViewTargets().some(function (target) {
+      if (!target) return false;
+      var dept = target.department != null ? String(target.department).trim() : "";
+      var view = target.viewDepartment != null ? String(target.viewDepartment).trim() : "";
+      return wanted === dept || wanted === view;
+    });
+  }
+
+  function stackForListedDepartment(deptName) {
+    var stack = getHierarchyStack().slice();
+    if (!departmentTargetListed(deptName)) {
+      if (!stack.length || stack[stack.length - 1] !== deptName) return stack.concat([deptName]);
+      return stack;
+    }
+    var parentPath = stack.slice();
+    if (parentPath.length && departmentTargetListed(parentPath[parentPath.length - 1])) parentPath.pop();
+    if (!parentPath.length || parentPath[parentPath.length - 1] !== deptName) {
+      parentPath = parentPath.concat([deptName]);
+    }
+    return parentPath;
+  }
+
   function navigateToHierarchyLevel(levelIndex) {
     var hierarchyStack = getHierarchyStack();
     var sessionUser = getSessionUser();
@@ -1364,6 +1394,8 @@
     setViewContextUser(sessionUser);
     refreshSubordinateTabsFromApi().then(function (applied) {
       if (applied === false) return;
+      if (getDepartmentViewTargets().length) departmentsExpanded = true;
+      renderViewTabs();
       updateTopBarForView();
       navigateAfterViewChange();
     });
@@ -1372,7 +1404,6 @@
   function navigateHomeFromSidebar() {
     var sessionUser = getSessionUser();
     var rootDept = sessionUser && sessionUser.department != null ? String(sessionUser.department).trim() : "";
-    departmentsExpanded = false;
     closeStructurePanel();
     clearSidebarSearchState();
     if (isBoardChairUser(sessionUser)) {
@@ -1383,9 +1414,13 @@
     }
     setViewContextUser(sessionUser);
     setHierarchyStack(rootDept ? [rootDept] : []);
-    renderViewTabs();
-    updateTopBarForView();
-    navigateAfterViewChange();
+    refreshSubordinateTabsFromApi().then(function (applied) {
+      if (applied === false) return;
+      if (getDepartmentViewTargets().length) departmentsExpanded = true;
+      renderViewTabs();
+      updateTopBarForView();
+      navigateAfterViewChange();
+    });
   }
 
   function toggleDepartmentsPanel() {
@@ -1544,10 +1579,7 @@
                 : "";
           if (!deptName) return;
           if (isHiddenUnimplementedDepartment(deptName)) return;
-          var stack = getHierarchyStack().slice();
-          if (!stack.length || stack[stack.length - 1] !== deptName) {
-            setHierarchyStack(stack.concat([deptName]));
-          }
+          setHierarchyStack(stackForListedDepartment(deptName));
         }
         if (getSessionApiMode() === "mock") {
           inner.querySelectorAll(".dash-view-tab").forEach(function (b) {

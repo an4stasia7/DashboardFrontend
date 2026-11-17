@@ -2672,27 +2672,18 @@
       planFactKey === "KD-T-SHIP" ||
       planFactKey === "KD-T-DOG" ||
       planFactKey === "KD-T-DZ" ||
+      planFactKey === "KD-T-ACTIVE-DEALERS" ||
       planFactKey === "YR-T-CONTRACTS" ||
       planFactKey === "YR-T-ENFORCEMENT"
     ) {
       return false;
     }
+    if (planFactKey === "KD-T-CLAIMS" || planFactKey === "PD-T-PROD-CLAIMS") return !!raw;
+    if (planFactKey.indexOf("KD-T-") === 0) return false;
     if (!raw || isOverdueDebtRow(item) || isLawsuitsRow(item) || isProtocolOverdueRow(item) || isQualdirDefectRow(item) || isServheadClientsRow(item) || isServheadSurveysRow(item) || isHrdLateVacancyRow(item)) {
       return false;
     }
-    return (
-      raw.code != null ||
-      raw.name != null ||
-      raw.partner != null ||
-      raw.date_reg != null ||
-      raw.date_plan != null ||
-      raw.order_num != null ||
-      raw.order_dept != null ||
-      raw.nomenclature != null ||
-      raw.description != null ||
-      raw.status != null ||
-      raw.order_sum != null
-    );
+    return raw.date_reg != null || raw.description != null || raw.status != null || raw.reason != null;
   }
 
   function isJuristContractsRow(item) {
@@ -3777,9 +3768,15 @@
       menus.push(menu);
     });
 
-    document.addEventListener("click", function (event) {
-      if (!table[0].contains(event.target)) closeAllClaimsMenus();
-    });
+    document.addEventListener("pointerdown", function (event) {
+      var target = event.target;
+      if (target && target.closest) {
+        if (target.closest(".claims-column-filter-menu")) return;
+        var head = target.closest("th.claims-column-head");
+        if (head && head.querySelector(".claims-column-filter-trigger")) return;
+      }
+      closeAllClaimsMenus();
+    }, true);
 
     return dataTable;
   }
@@ -4263,7 +4260,10 @@
     }
     if (isClaimsTableRow(item)) {
       var r2 = item && item.raw && typeof item.raw === "object" ? item.raw : null;
-      return r2 ? parseTableRublesAmount(r2.order_sum) : NaN;
+      if (!r2) return NaN;
+      var claimSum = parseTableRublesAmount(r2.order_sum);
+      if (!isFinite(claimSum) || claimSum <= 0) return null;
+      return claimSum;
     }
     return null;
   }
@@ -5004,9 +5004,15 @@
     });
     if (!table._plainColumnMenuBound) {
       table._plainColumnMenuBound = true;
-      document.addEventListener("click", function (event) {
-        if (!table.contains(event.target)) closePlainColumnMenus(table);
-      });
+      document.addEventListener("pointerdown", function (event) {
+        var target = event.target;
+        if (target && target.closest) {
+          if (target.closest(".claims-column-filter-menu")) return;
+          var head = target.closest("th.claims-column-head");
+          if (head && head.querySelector(".claims-column-filter-trigger")) return;
+        }
+        closePlainColumnMenus(table);
+      }, true);
     }
     apply(false);
   }
