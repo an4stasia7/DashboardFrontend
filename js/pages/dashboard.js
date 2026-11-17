@@ -3524,14 +3524,7 @@
       var next = Object.assign({}, tile);
       var plan = parseNumberLoose(tile.plan);
       var fact = parseNumberLoose(tile.fact);
-      var expected = parseNumberLoose(tile.expected_plan);
-      var forecast = fact == null && expected == null ? null : (fact || 0) + (expected || 0);
-      var useForecast =
-        typeof DashboardMonthNav !== "undefined" &&
-        DashboardMonthNav &&
-        typeof DashboardMonthNav.selectedPeriodUsesCommercialForecast === "function" &&
-        DashboardMonthNav.selectedPeriodUsesCommercialForecast();
-      var compared = useForecast ? forecast : fact;
+      var compared = fact;
       if (compared != null && plan != null && Math.abs(plan) > 0) {
         next.kpi_pct = (compared / Math.abs(plan)) * 100;
         next.percent = next.kpi_pct;
