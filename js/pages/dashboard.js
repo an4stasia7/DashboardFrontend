@@ -2717,6 +2717,29 @@
     return false;
   }
 
+  var SERVHEAD_TILE_ORDER = ["SH-M3", "SH-M2", "SH-M1", "SH-M5", "SH-M6", "SH-M8"];
+
+  function orderServheadTiles(tiles) {
+    if (!isServheadDashboardContext() || !Array.isArray(tiles) || !tiles.length) return tiles;
+    var rank = Object.create(null);
+    SERVHEAD_TILE_ORDER.forEach(function (id, index) {
+      rank[id] = index;
+    });
+    var known = [];
+    var rest = [];
+    tiles.forEach(function (tile) {
+      var id = tile && tile.kpi_id != null ? String(tile.kpi_id).trim().toUpperCase() : "";
+      if (rank[id] != null) known.push(tile);
+      else rest.push(tile);
+    });
+    known.sort(function (left, right) {
+      var leftId = String(left.kpi_id).trim().toUpperCase();
+      var rightId = String(right.kpi_id).trim().toUpperCase();
+      return rank[leftId] - rank[rightId];
+    });
+    return known.concat(rest);
+  }
+
   function filterServheadTilesBySection(tiles) {
     if (!Array.isArray(tiles)) return tiles || [];
     var selected = normalizeServheadSectionKey(servheadSelectedSection);
@@ -2941,7 +2964,7 @@
     sourceTiles = applyTdM5PeriodAggregateForCurrentSelection(sourceTiles);
     tiles = applyPriorMonthFactForFotTurnoverTiles(sourceTiles);
     tiles = normalizeCommercialHigherIsBetterPlanFactTiles(tiles);
-    tiles = applyKpiTileOrderPreference(tiles);
+    tiles = orderServheadTiles(applyKpiTileOrderPreference(tiles));
     lastKpiTiles = tiles && tiles.length ? tiles : null;
     updateServheadSectionSwitchVisibility(showServheadSectionSwitch, lastKpiTiles);
     flippedTileIndices.clear();
@@ -3628,7 +3651,7 @@
   function isServheadLowerBetterKpiItem(item) {
     if (!item || typeof item !== "object") return false;
     var id = item.kpi_id != null ? String(item.kpi_id).trim().toUpperCase() : "";
-    return id === "SH-M2" || id === "SH-M3" || id === "SH-M5" || id === "SH-M8";
+    return id === "SH-M2" || id === "SH-M5" || id === "SH-M8";
   }
 
   /** SH-M1/M4: ≥90 зелёный, 80–89,9 жёлтый, <80 красный (как rag_servhead_m1_pct). */
@@ -3640,7 +3663,7 @@
     return "red";
   }
 
-  /** SH-M2/M3/M5: ≤5 зелёный, ≤10 жёлтый, >10 красный. */
+  /** SH-M2/M5/M8: ≤5 зелёный, ≤10 жёлтый, >10 красный. */
   function servheadLowerBetterRagFromPct(pct) {
     var value = parseNumberLoose(pct);
     if (value == null) return null;

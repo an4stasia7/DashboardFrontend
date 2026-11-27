@@ -294,8 +294,10 @@
     },
     "SH-M2": {
       pctLowerIsBetter: true,
+      backContractGoals: true,
+      backGoalsEmptyMessage: "Нет обращений в обработке.",
     },
-    /** SH-M3: одно число — план, все обращения месяца по дате регистрации. */
+    /** SH-M3: одно число — сколько обращений поступило за месяц, без плана. */
     "SH-M3": {
       hidePlanOnTile: true,
       hideKpiPercent: true,

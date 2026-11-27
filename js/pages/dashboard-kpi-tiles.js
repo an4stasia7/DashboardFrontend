@@ -1915,7 +1915,12 @@
       return isFinite(num) && !isNaN(num) && num !== 0;
     });
     if (!rows.length) {
-      return '<div class="kpi-tile-back-message">Нет данных по целям договора.</div>';
+      var emptyRule = getKpiTileException(tile);
+      var emptyText =
+        emptyRule && emptyRule.backGoalsEmptyMessage
+          ? String(emptyRule.backGoalsEmptyMessage)
+          : "Нет данных по целям договора.";
+      return '<div class="kpi-tile-back-message">' + DashUi.escapeHtml(emptyText) + "</div>";
     }
     return (
       '<div class="kpi-tile-articles-list kpi-tile-articles-list--dept-count" role="list">' +
