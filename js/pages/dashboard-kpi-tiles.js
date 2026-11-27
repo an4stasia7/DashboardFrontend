@@ -822,34 +822,32 @@
     var plan = normalizeKpiTileMetricValueForDisplay(tile, tile && tile.plan);
     var expected = normalizeKpiTileMetricValueForDisplay(tile, tile && tile.expected_plan);
     var units = resolveKpiTileDisplayUnits(tile);
-    var factHtml = formatKpiTileMetricValue(fact, units);
     var planHtml = formatKpiTileMetricValue(plan, units);
     var expectedHtml = formatKpiTileMetricValue(expected, units);
-    var factParts = splitKpiTileValueAndUnit(factHtml, units);
     var planParts = splitKpiTileValueAndUnit(planHtml, units);
     var expectedParts = splitKpiTileValueAndUnit(expectedHtml, units);
     var factNum = readFiniteTileNumber(fact);
     var planNum = readFiniteTileNumber(plan);
     var expectedNum = readFiniteTileNumber(expected);
-    var forecastNum = useForecast ? commercialForecastNumber(factNum, expectedNum) : null;
-    var heroNum = forecastNum != null ? forecastNum : factNum;
+    var kid = tile && tile.kpi_id != null ? String(tile.kpi_id).trim().toUpperCase() : "";
+    var showPerspective = useForecast && kid !== "KD-M3";
+    var perspectiveNum = showPerspective ? readFiniteTileNumber(tile && tile.potential) || 0 : 0;
+    var forecastNum = useForecast
+      ? (factNum || 0) + (expectedNum || 0) + perspectiveNum
+      : null;
+    var heroNum = factNum;
     var heroHtml = formatKpiTileMetricValue(heroNum, units);
     var heroParts = splitKpiTileValueAndUnit(heroHtml, units);
     var heroRule = getKpiTileException(tile);
-    var heroLabel = forecastNum != null ? "Прогноз" : heroRule && heroRule.singleCountFromPlan ? "" : "Факт";
-    var deltaTile = tile;
-    if (forecastNum != null && planNum != null && Math.abs(planNum) > 0) {
-      deltaTile = Object.assign({}, tile, {
-        kpi_pct: (forecastNum / Math.abs(planNum)) * 100,
-      });
-    }
-    var deltaHtml = hidePlanOnTile ? "" : buildKpiTilePlanDeltaHtml(deltaTile, heroNum, planNum);
+    var heroLabel = heroRule && heroRule.singleCountFromPlan ? "" : "Факт";
+    var deltaHtml = hidePlanOnTile ? "" : buildKpiTilePlanDeltaHtml(tile, heroNum, planNum);
     var factLineHtml = "";
     var bottomNumbersHtml = "";
     if (forecastNum != null) {
       var potentialNum = readFiniteTileNumber(tile && tile.potential);
       if (potentialNum == null || potentialNum < 0) potentialNum = 0;
       var potentialParts = splitKpiTileValueAndUnit(formatKpiTileMetricValue(potentialNum, units), units);
+      var forecastParts = splitKpiTileValueAndUnit(formatKpiTileMetricValue(forecastNum, units), units);
       function forecastCell(label, parts) {
         var text = parts && parts.value ? parts.value + (parts.unit ? " " + parts.unit : "") : "—";
         return (
@@ -864,8 +862,8 @@
         '<div class="kpi-tile-forecast-grid">' +
         forecastCell("План", planParts) +
         forecastCell("Ожидаемо", expectedParts) +
-        forecastCell("Факт", factParts) +
-        forecastCell("Потенциал", potentialParts) +
+        forecastCell("Прогноз", forecastParts) +
+        (showPerspective ? forecastCell("Перспектива", potentialParts) : "") +
         "</div>";
     } else if (!hidePlanOnTile) {
       var hasExpected =

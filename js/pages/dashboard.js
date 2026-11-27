@@ -156,7 +156,32 @@
     }
     var scopeKey = getKpiTileOrderScopeKey();
     if (!scopeKey) return;
-    DashboardKpiTileOrder.saveOrder(scopeKey, DashboardKpiTileOrder.extractOrderIds(lastKpiTiles));
+    var orderIds = DashboardKpiTileOrder.extractOrderIds(lastKpiTiles);
+    DashboardKpiTileOrder.saveOrder(scopeKey, orderIds);
+    if (Api && typeof Api.saveTileOrder === "function") {
+      Api.saveTileOrder(scopeKey, orderIds);
+    }
+  }
+
+  function syncTileOrdersFromAccount() {
+    if (!Api || typeof Api.fetchTileOrders !== "function" || typeof DashboardKpiTileOrder === "undefined") return;
+    Api.fetchTileOrders().then(function (res) {
+      if (!res || !res.ok || !DashboardKpiTileOrder) return;
+      var remote = res.orders && typeof res.orders === "object" ? res.orders : {};
+      var local = typeof DashboardKpiTileOrder.readAll === "function" ? DashboardKpiTileOrder.readAll() : {};
+      Object.keys(local).forEach(function (key) {
+        var hasRemote = Array.isArray(remote[key]) && remote[key].length;
+        if (hasRemote || !local[key] || !local[key].length) return;
+        remote[key] = local[key];
+        if (typeof Api.saveTileOrder === "function") Api.saveTileOrder(key, local[key]);
+      });
+      if (typeof DashboardKpiTileOrder.replaceAll === "function") {
+        DashboardKpiTileOrder.replaceAll(remote);
+      }
+      if (lastKpiTiles && lastKpiTiles.length) {
+        renderKpiTiles(lastKpiTiles.slice(), { preservePage: true });
+      }
+    });
   }
 
   var FORM_WORK_TILE_IDS = { "QD-M1W": true, "QD-M5W": true, "QD-M8W": true };
@@ -777,11 +802,9 @@
           return viewContextUser;
         },
         allowsFutureMonthPaging: function () {
-          return (
-            selectedViewId === "self" &&
-            isCommercialDirectorUser(sessionUser) &&
-            isCommercialDirectorUser(viewContextUser)
-          );
+          if (shouldUseBoardChairExecutiveTables() || isBoardChairCommercialBlockContext()) return false;
+          if (isCommercialDirectorUser(sessionUser) || isCommercialDirectorUser(viewContextUser)) return true;
+          return isCommercialFamilyDashboardContext();
         },
         onPeriodChange: function () {
           if (typeof DashboardKpiTiles !== "undefined" && DashboardKpiTiles && typeof DashboardKpiTiles.resetPager === "function") {
@@ -2143,8 +2166,8 @@
   /**
    * Для выбранного текущего календарного месяца (ещё не закончившегося) на плитках с «ФОТ» / «текучестью» в названии
    * показываем план/факт за предыдущий месяц (из monthly_data).
-   * Исключения по kpi_id: KD-M8 (комдир — в незакрытом месяце ФОТ = 0, без отката на прошлый),
-   * OD-M3.2, LOG-M3.F, TD-M6, PD-M3.F*.
+   * KD-M8 тоже: каждый месяц на плитке коммерческого директора — ФОТ прошлого месяца.
+   * Исключения по kpi_id: OD-M3.2, LOG-M3.F, TD-M6, PD-M3.F*.
    */
   function applyPriorMonthFactForFotTurnoverTiles(tiles) {
     if (!Array.isArray(tiles) || !tiles.length) return tiles;
@@ -2174,8 +2197,6 @@
       ) {
         return tile;
       }
-      // Комдир: в текущем (незакрытом) месяце ФОТ не подменяем прошлым — показываем факт текущего (0).
-      if (kpiIdUpper === "KD-M8") return tile;
       if (kpiIdUpper === "PD-M3.F1" || kpiIdUpper === "PD-M3.F2") return tile;
       if (kpiIdUpper === "OD-M3.2" || kpiIdUpper === "LOG-M3.F" || kpiIdUpper === "TD-M6") return tile;
       if (kpiIdUpper === "KD-M11" || kpiIdUpper === "OD-Q2") return tile;
@@ -3547,14 +3568,7 @@
       var next = Object.assign({}, tile);
       var plan = parseNumberLoose(tile.plan);
       var fact = parseNumberLoose(tile.fact);
-      var expected = parseNumberLoose(tile.expected_plan);
-      var forecast = fact == null && expected == null ? null : (fact || 0) + (expected || 0);
-      var useForecast =
-        typeof DashboardMonthNav !== "undefined" &&
-        DashboardMonthNav &&
-        typeof DashboardMonthNav.selectedPeriodUsesCommercialForecast === "function" &&
-        DashboardMonthNav.selectedPeriodUsesCommercialForecast();
-      var compared = useForecast ? forecast : fact;
+      var compared = fact;
       if (compared != null && plan != null && Math.abs(plan) > 0) {
         next.kpi_pct = (compared / Math.abs(plan)) * 100;
         next.percent = next.kpi_pct;
@@ -3801,11 +3815,18 @@
     var displayPlan = null;
     var displayUnit = null;
 
+    var komdirFotQuarter = String(item.kpi_id || "").trim().toUpperCase() === "KD-M8";
     bucket.forEach(function (point) {
       var planValue = parseNumberLoose(point.period_plan);
       var factValue = parseNumberLoose(point.period_fact);
       if (planValue == null) planValue = parseNumberLoose(point.plan);
       if (factValue == null) factValue = parseNumberLoose(point.fact);
+      // Квартал и год: свой ФОТ каждого месяца, полный лимит.
+      // Подмена «текущий месяц = прошлый» здесь не действует.
+      if (komdirFotQuarter) {
+        var fullPlan = parseNumberLoose(point.plan_full);
+        if (fullPlan != null) planValue = fullPlan;
+      }
       var pctValue = parseNumberLoose(point.kpi_pct);
       if (planValue != null) {
         plan += planValue;
@@ -5092,6 +5113,10 @@
     return false;
   }
 
+  function commercialColumnControlsEnabled() {
+    return isCommercialFamilyDashboardContext() || isBoardChairCommercialBlockContext();
+  }
+
   function isCommercialFamilyDashboardContext() {
     if (shouldUseBoardChairExecutiveTables() || isBoardChairCommercialBlockContext()) return false;
     if (isBoardChairUser(sessionUser) && selectedViewId === "self") return false;
@@ -5621,6 +5646,92 @@
     return isNaN(pct) ? null : pct;
   }
 
+  var PLAN_FACT_COLUMN_CONTROLS = [
+    { index: 0, label: "Дата", type: "sort", searchType: "date" },
+    { index: 1, label: "Отдел", type: "sort", searchType: "text" },
+    { index: 2, label: "Партнер", type: "sort", searchType: "text" },
+    { index: 3, label: "Документ", type: "sort", searchType: "text" },
+    { index: 4, label: "Вид", type: "filter", searchType: "text" },
+    { index: 5, label: "Сумма, руб.", type: "sort", searchType: "number" },
+    { index: 6, label: "% Конверсии", type: "sort", searchType: "number" },
+    { index: 7, label: "Сумма с конверсией", type: "sort", searchType: "number" },
+  ];
+  var DZ_COLUMN_CONTROLS = [
+    { index: 0, label: "№ Заказа клиента", type: "sort", searchType: "text" },
+    { index: 1, label: "Контрагент", type: "sort", searchType: "text" },
+    { index: 2, label: "Подразделение", type: "sort", searchType: "text" },
+    { index: 3, label: "Дата оплаты", type: "sort", searchType: "date" },
+    { index: 4, label: "Сумма, руб.", type: "sort", searchType: "number" },
+  ];
+
+  function commercialMoneyText(value) {
+    var number = Number(value);
+    if (isNaN(number)) return "—";
+    return number.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function updatePlanFactFooterFromDom(table) {
+    var body = table.tBodies && table.tBodies[0];
+    var footerRow = table.tFoot && table.tFoot.rows[0];
+    if (!body || !footerRow || footerRow.cells.length < 4) return;
+    var fact = 0;
+    var expected = 0;
+    var converted = 0;
+    var shown = 0;
+    var totalRows = 0;
+    var showForecast = table.dataset.showForecast === "1";
+    var dialogFilter = table.dataset.dialogFilter === "1";
+    Array.prototype.forEach.call(body.rows, function (row) {
+      if (row.classList.contains("commercial-column-filter-empty") || row.cells.length < 8) return;
+      totalRows += 1;
+      if (row.hidden) return;
+      shown += 1;
+      var amount = Number(row.getAttribute("data-amount"));
+      var kind = row.getAttribute("data-kind") || "";
+      if (!isNaN(amount)) {
+        if (kind === "Ожидаемо") expected += amount;
+        else fact += amount;
+      }
+      var counts = dialogFilter || showForecast || kind !== "Ожидаемо";
+      var conv = row.getAttribute("data-converted");
+      if (counts && conv !== "") {
+        var number = Number(conv);
+        if (!isNaN(number)) converted += number;
+      }
+    });
+    var columnFilter = shown !== totalRows;
+    var filterOn = dialogFilter || columnFilter;
+    var total = filterOn || showForecast ? fact + expected : fact;
+    var periodLabel = table.dataset.periodLabel || "";
+    var blended = total ? (converted / total) * 100 : null;
+    footerRow.cells[0].textContent = filterOn
+      ? "По фильтру · " + planFactRowsLabel(shown) + " · " + periodLabel + "Сумма " + commercialMoneyText(total)
+      : periodLabel + "Факт " + commercialMoneyText(fact) + " · Ожидаемо " + commercialMoneyText(expected) + (showForecast ? " · Прогноз " + commercialMoneyText(fact + expected) : "");
+    footerRow.cells[1].textContent = commercialMoneyText(total);
+    footerRow.cells[2].textContent = blended == null ? "—" : blended.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " %";
+    footerRow.cells[3].textContent = commercialMoneyText(converted);
+  }
+
+  function updateDzFooterFromDom(table) {
+    var body = table.tBodies && table.tBodies[0];
+    var footerRow = table.tFoot && table.tFoot.rows[0];
+    if (!body || !footerRow || footerRow.cells.length < 2) return;
+    var total = 0;
+    var shown = 0;
+    var totalRows = 0;
+    Array.prototype.forEach.call(body.rows, function (row) {
+      if (row.classList.contains("commercial-column-filter-empty") || row.cells.length < 5) return;
+      totalRows += 1;
+      if (row.hidden) return;
+      shown += 1;
+      var amount = Number(row.getAttribute("data-amount"));
+      if (!isNaN(amount)) total += amount;
+    });
+    var filterOn = table.dataset.dialogFilter === "1" || shown !== totalRows || table.dataset.hideOverdue === "1";
+    footerRow.cells[0].textContent = filterOn ? "По фильтру · " + planFactRowsLabel(shown) : "Итого";
+    footerRow.cells[1].textContent = commercialMoneyText(total);
+  }
+
   function renderPlanFactBreakdownTable(view) {
     var tableId =
       view === "money" ? "table-plan-fact-money" : view === "ship" ? "table-plan-fact-ship" : view === "dog" ? "table-plan-fact-dog" : "";
@@ -5674,15 +5785,32 @@
             : pct.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " %",
           convertedAmount == null ? "—" : moneyCell(convertedAmount),
         ];
+        var orders = [
+          planFactDateKey(raw.date),
+          String(raw.department || "").toLocaleLowerCase("ru-RU"),
+          String(raw.partner || "").toLocaleLowerCase("ru-RU"),
+          String(raw.document || raw.name || "").toLocaleLowerCase("ru-RU"),
+          kind,
+          isNaN(amount) ? "" : String(amount),
+          pct == null ? "" : String(pct),
+          convertedAmount == null ? "" : String(convertedAmount),
+        ];
         return (
-          "<tr>" +
+          '<tr data-kind="' +
+          DashUi.escapeHtml(kind) +
+          '" data-amount="' +
+          DashUi.escapeHtml(isNaN(amount) ? "" : String(amount)) +
+          '" data-converted="' +
+          DashUi.escapeHtml(convertedAmount == null ? "" : String(convertedAmount)) +
+          '">' +
           cells
             .map(function (value, index) {
               var cls = index >= 5 ? ' class="dashboard-table-cell--number"' : "";
+              var orderAttr = ' data-order="' + DashUi.escapeHtml(orders[index]) + '"';
               if (index === 3) {
-                return "<td>" + onecDocHtml(value, { nav: raw.onec_nav, document: raw.document, partner: raw.partner }) + "</td>";
+                return "<td" + orderAttr + ">" + onecDocHtml(value, { nav: raw.onec_nav, document: raw.document, partner: raw.partner }) + "</td>";
               }
-              return "<td" + cls + ">" + DashUi.escapeHtml(String(value)) + "</td>";
+              return "<td" + orderAttr + cls + ">" + DashUi.escapeHtml(String(value)) + "</td>";
             })
             .join("") +
           "</tr>"
@@ -5749,6 +5877,22 @@
       '</th><th class="dashboard-table-cell--number">' +
       money(convertedShown) +
       "</th></tr></tfoot>";
+    table.dataset.periodLabel = periodLabel;
+    table.dataset.showForecast = showForecast ? "1" : "0";
+    table.dataset.dialogFilter = filterActive ? "1" : "0";
+    if (
+      commercialColumnControlsEnabled() &&
+      typeof DashboardClaimsTable !== "undefined" &&
+      DashboardClaimsTable &&
+      typeof DashboardClaimsTable.installPlainColumnControls === "function"
+    ) {
+      DashboardClaimsTable.installPlainColumnControls(table, {
+        columns: PLAN_FACT_COLUMN_CONTROLS,
+        onChange: function () {
+          updatePlanFactFooterFromDom(table);
+        },
+      });
+    }
   }
 
   function onecDocHtml(text, target) {
@@ -5819,14 +5963,26 @@
             ? "—"
             : amount.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
         ];
+        var orders = [
+          String(raw.order_num || raw.order_number || "").toLocaleLowerCase("ru-RU"),
+          String(raw.counterparty || raw.partner_name || raw.partner || "").toLocaleLowerCase("ru-RU"),
+          String(raw.department || raw["Подразделение"] || raw.dept_name || "").toLocaleLowerCase("ru-RU"),
+          planFactDateKey(raw.payment_date),
+          isNaN(amount) ? "" : String(amount),
+        ];
         return (
-          "<tr>" +
+          '<tr data-amount="' +
+          DashUi.escapeHtml(isNaN(amount) ? "" : String(amount)) +
+          '">' +
           cells
             .map(function (value, index) {
               var cls = index === 4 ? ' class="dashboard-table-cell--number"' : "";
+              var orderAttr = ' data-order="' + DashUi.escapeHtml(orders[index]) + '"';
               if (index === 0) {
                 return (
-                  "<td>" +
+                  "<td" +
+                  orderAttr +
+                  ">" +
                   onecDocHtml(value, {
                     nav: raw.onec_nav,
                     settlement: raw.order_key,
@@ -5836,7 +5992,7 @@
                   "</td>"
                 );
               }
-              return "<td" + cls + ">" + DashUi.escapeHtml(String(value)) + "</td>";
+              return "<td" + orderAttr + cls + ">" + DashUi.escapeHtml(String(value)) + "</td>";
             })
             .join("") +
           "</tr>"
@@ -5864,6 +6020,21 @@
       '</th><th class="dashboard-table-cell--number">' +
       totalText +
       "</th></tr></tfoot>";
+    table.dataset.dialogFilter = filterActive ? "1" : "0";
+    table.dataset.hideOverdue = overdueKeys ? "1" : "0";
+    if (
+      commercialColumnControlsEnabled() &&
+      typeof DashboardClaimsTable !== "undefined" &&
+      DashboardClaimsTable &&
+      typeof DashboardClaimsTable.installPlainColumnControls === "function"
+    ) {
+      DashboardClaimsTable.installPlainColumnControls(table, {
+        columns: DZ_COLUMN_CONTROLS,
+        onChange: function () {
+          updateDzFooterFromDom(table);
+        },
+      });
+    }
   }
 
   function applyDebtTableView(view) {
@@ -6024,6 +6195,7 @@
           Api.hasProtocolOverdueTableInBody(lastRawKpiResponse, protocolTableYear, protocolTableMonth),
         executiveMode: false,
         enhanceOverdueDebtTable: shouldUseCommercialDirectorOverdueDebtEnhancements(),
+        commercialColumnMode: commercialColumnControlsEnabled(),
         enableLawsuitsTable: shouldUseClaimsAndLawsuitsSwitcher(),
         juristContractsTableMode: isJuristDashboardContext(),
         juristContractsFilter: {
@@ -6446,6 +6618,7 @@
     DashDebug.scheduleRenderDebugJsonLogPanel();
   }
 
+  syncTileOrdersFromAccount();
   var isBoardChairSession = isBoardChairUser(sessionUser);
   if (isBoardChairSession) schedulePsdDashboardRefresh();
   /* ПСД: до решения об обзоре не грузим полный дашборд (иначе hideLoading откроет #dash-content). */

@@ -772,29 +772,14 @@
     );
   }
 
-  function commercialUsesForecastPeriod() {
-    return (
-      typeof DashboardMonthNav !== "undefined" &&
-      DashboardMonthNav &&
-      typeof DashboardMonthNav.selectedPeriodUsesCommercialForecast === "function" &&
-      DashboardMonthNav.selectedPeriodUsesCommercialForecast()
-    );
-  }
-
-  /** KD/MRK план отгрузок, договоров, денег: цвет по факту (или прогнозу факт+ожидаемо) к плану. */
+  /** KD/MRK план отгрузок, договоров, денег: цвет по факту к плану. */
   function commercialPlanFactRag(tile) {
     var id = tile && tile.kpi_id != null ? String(tile.kpi_id).trim().toUpperCase() : "";
     if (!isCommercialPlanFactTileId(id)) return null;
     var plan = finiteNumber(tile.plan);
     var fact = finiteNumber(tile.fact);
-    var expected = finiteNumber(tile.expected_plan);
-    if (plan == null || !(Math.abs(plan) > 0)) return null;
+    if (plan == null || !(Math.abs(plan) > 0) || fact == null) return null;
     var compared = fact;
-    if (commercialUsesForecastPeriod()) {
-      if (fact == null && expected == null) return null;
-      compared = (fact || 0) + (expected || 0);
-    }
-    if (compared == null) return null;
     var pct = (compared / Math.abs(plan)) * 100;
     if (pct >= 100) return "green";
     if (pct >= 90) return "yellow";

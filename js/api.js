@@ -146,6 +146,23 @@
     return Object.assign({ Accept: "application/json", "Content-Type": "application/json" }, authHeaders);
   }
 
+  function fetchTileOrders() {
+    return jsonFetch(userApiPath("/tile-order/"), { method: "GET", headers: authHeaders() }, "GET /api/user/tile-order/")
+      .then(function (res) {
+        if (!res.ok) return res;
+        var orders = res.data && res.data.orders && typeof res.data.orders === "object" ? res.data.orders : {};
+        return { ok: true, orders: orders };
+      });
+  }
+
+  function saveTileOrder(scope, order) {
+    return jsonFetch(userApiPath("/tile-order/"), {
+      method: "PUT",
+      headers: adminHeaders(),
+      body: JSON.stringify({ scope: scope || "", order: Array.isArray(order) ? order : [] }),
+    }, "PUT /api/user/tile-order/");
+  }
+
   function fetchAccessRequests(status) {
     var url = userApiPath("/access-requests/");
     if (status) url += "?status=" + encodeURIComponent(status);
@@ -5118,6 +5135,8 @@
     searchUrl: searchUrl,
     assistantChatUrl: assistantChatUrl,
     fetchDepartments: fetchDepartments,
+    fetchTileOrders: fetchTileOrders,
+    saveTileOrder: saveTileOrder,
     submitRegistrationRequest: submitRegistrationRequest,
     submitPasswordResetRequest: submitPasswordResetRequest,
     fetchAccessRequests: fetchAccessRequests,

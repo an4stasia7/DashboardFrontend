@@ -117,6 +117,7 @@
     } else {
       var rows = document.querySelectorAll("#table-overdue-debt tbody tr");
       rows.forEach(function (row) {
+        if (!row || row.hidden) return;
         var cell = row && row.cells && row.cells.length > amountCellIndex ? row.cells[amountCellIndex] : null;
         if (!cell || typeof cell.getAttribute !== "function") return;
         var rawValue = cell.getAttribute("data-order");
@@ -451,6 +452,8 @@
   var activeQualdirProcessTableKey = QUALDIR_PROCESS_DEFECT_TABLE_KEY;
   var DEPT_PROTOCOL_OVERDUE_TABLE_KEY = "DEPT-T-PROTOCOL-OVERDUE";
   var technicalTablesMode = false;
+  var commercialColumnMode = false;
+  var plainColumnStates = Object.create(null);
   var qualdirDefectTablesMode = false;
   var opdirProjectTableMode = false;
   var opdirProjectSecondTableDisabled = false;
@@ -2669,27 +2672,18 @@
       planFactKey === "KD-T-SHIP" ||
       planFactKey === "KD-T-DOG" ||
       planFactKey === "KD-T-DZ" ||
+      planFactKey === "KD-T-ACTIVE-DEALERS" ||
       planFactKey === "YR-T-CONTRACTS" ||
       planFactKey === "YR-T-ENFORCEMENT"
     ) {
       return false;
     }
+    if (planFactKey === "KD-T-CLAIMS" || planFactKey === "PD-T-PROD-CLAIMS") return !!raw;
+    if (planFactKey.indexOf("KD-T-") === 0) return false;
     if (!raw || isOverdueDebtRow(item) || isLawsuitsRow(item) || isProtocolOverdueRow(item) || isQualdirDefectRow(item) || isServheadClientsRow(item) || isServheadSurveysRow(item) || isHrdLateVacancyRow(item)) {
       return false;
     }
-    return (
-      raw.code != null ||
-      raw.name != null ||
-      raw.partner != null ||
-      raw.date_reg != null ||
-      raw.date_plan != null ||
-      raw.order_num != null ||
-      raw.order_dept != null ||
-      raw.nomenclature != null ||
-      raw.description != null ||
-      raw.status != null ||
-      raw.order_sum != null
-    );
+    return raw.date_reg != null || raw.description != null || raw.status != null || raw.reason != null;
   }
 
   function isJuristContractsRow(item) {
@@ -3130,12 +3124,19 @@
             td.className = "dashboard-table-cell--date";
           }
           if (cellIndex === 9) {
+            td.className = "dashboard-table-cell--number";
             td.setAttribute("data-order", getClaimsOrderSumSortValue(raw.amount));
+          } else if (cellIndex === 2) {
+            td.className = "dashboard-table-cell--number";
+            td.setAttribute("data-order", raw.days_overdue != null && raw.days_overdue !== "" ? String(raw.days_overdue) : "");
+          } else if (cellIndex === 6 || cellIndex === 7) {
+            td.setAttribute("data-order", plainDateOrderKey(value));
           }
           tr.appendChild(td);
         });
         tbody.appendChild(tr);
       });
+      if (commercialColumnMode) installOverdueColumnControls(table);
       return;
     }
 
@@ -3171,8 +3172,45 @@
     }
   }
 
+  function registerRuColumnOrderTypes() {
+    if (typeof $ === "undefined" || !$.fn || !$.fn.dataTable || !$.fn.dataTable.ext) return;
+    if ($.fn.dataTable.ext.order["dom-ru-text"]) return;
+    function cellText(td) {
+      return String(td && td.textContent ? td.textContent : "")
+        .replace(/\u00a0/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    }
+    function columnTexts(api, col, map) {
+      return api.column(col, { order: "index" }).nodes().map(function (td) {
+        return map(cellText(td));
+      });
+    }
+    $.fn.dataTable.ext.order["dom-ru-text"] = function (_settings, col) {
+      return columnTexts(this.api(), col, function (text) {
+        return !text || text === "—" ? "" : text.toLocaleLowerCase("ru-RU");
+      });
+    };
+    $.fn.dataTable.ext.order["dom-ru-date"] = function (_settings, col) {
+      return columnTexts(this.api(), col, function (text) {
+        var match = text.match(/(\d{2})\.(\d{2})\.(\d{4})/);
+        if (match) return match[3] + match[2] + match[1];
+        match = text.match(/(\d{4})-(\d{2})-(\d{2})/);
+        if (match) return match[1] + match[2] + match[3];
+        return "99999999";
+      });
+    };
+    $.fn.dataTable.ext.order["dom-ru-number"] = function (_settings, col) {
+      return columnTexts(this.api(), col, function (text) {
+        var number = Number(text.replace(/\s/g, "").replace("%", "").replace(",", "."));
+        return isNaN(number) ? Number.POSITIVE_INFINITY : number;
+      });
+    };
+  }
+
   function initInteractiveDashboardTable(options) {
     if (typeof $ === "undefined" || !$.fn || !$.fn.DataTable) return null;
+    registerRuColumnOrderTypes();
     options = options || {};
     var tableSelector = options.tableSelector;
     var wrapperSelector = options.wrapperSelector || ".dashboard-table-wrap--claims";
@@ -3635,6 +3673,12 @@
           });
         })(config.index, sortBtn);
 
+        titleSpan.classList.add("claims-column-head-text--action");
+        titleSpan.addEventListener("click", function (event) {
+          event.preventDefault();
+          event.stopPropagation();
+          btn.click();
+        });
         th.appendChild(titleSpan);
         th.appendChild(sortBtn);
         return;
@@ -3679,6 +3723,7 @@
           });
           activeFilters[config.index] = selected;
           resetBtn.hidden = !isClaimsColumnResetVisible(config);
+          trigger.classList.toggle("is-active", !resetBtn.hidden);
           applyClaimsColumnState();
         });
         var textSpan = document.createElement("span");
@@ -3697,6 +3742,7 @@
           input.checked = false;
         });
         resetBtn.hidden = true;
+        trigger.classList.remove("is-active");
         applyClaimsColumnState();
         closeAllClaimsMenus();
       });
@@ -3709,6 +3755,12 @@
         menu.hidden = !shouldOpen;
       });
 
+      titleSpan.classList.add("claims-column-head-text--action");
+      titleSpan.addEventListener("click", function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+        trigger.click();
+      });
       th.appendChild(titleSpan);
       th.appendChild(resetBtn);
       th.appendChild(trigger);
@@ -3716,9 +3768,15 @@
       menus.push(menu);
     });
 
-    document.addEventListener("click", function (event) {
-      if (!table[0].contains(event.target)) closeAllClaimsMenus();
-    });
+    document.addEventListener("pointerdown", function (event) {
+      var target = event.target;
+      if (target && target.closest) {
+        if (target.closest(".claims-column-filter-menu")) return;
+        var head = target.closest("th.claims-column-head");
+        if (head && head.querySelector(".claims-column-filter-trigger")) return;
+      }
+      closeAllClaimsMenus();
+    }, true);
 
     return dataTable;
   }
@@ -3797,6 +3855,40 @@
         ],
       });
     }
+    if (commercialColumnMode) {
+      return initInteractiveDashboardTable({
+        tableSelector: "#table-top-deviations",
+        wrapperSelector: ".dashboard-table-wrap--claims",
+        advancedSearchKey: "claims-table-advanced",
+        useExplicitColumnConfigs: true,
+        columnConfigs: [
+          { index: 0, label: "Код", type: "sort", searchType: "text" },
+          { index: 1, label: "Наименование", type: "sort", searchType: "text" },
+          { index: 2, label: "Партнер/Клиент", type: "sort", searchType: "text" },
+          { index: 3, label: "Дата обращения", type: "sort", searchType: "date" },
+          { index: 4, label: "Дата окончания", type: "sort", searchType: "date" },
+          { index: 5, label: "Заказ клиента", type: "sort", searchType: "text" },
+          { index: 6, label: "Подразделение заказа", type: "sort", searchType: "text" },
+          { index: 7, label: "Номенклатура", type: "sort", searchType: "text" },
+          { index: 8, label: "Описание претензии", type: "sort", searchType: "text" },
+          { index: 9, label: "Статус", type: "filter", searchType: "text" },
+          { index: 10, label: "Сумма документа заказа, руб.", type: "sort", searchType: "number" },
+        ],
+        initialOrder: [[10, "desc"]],
+        columnDefs: [
+          { targets: [3, 4], orderable: true, orderDataType: "dom-ru-date", type: "string" },
+          { targets: [10], orderable: true, orderDataType: "dom-ru-number", type: "num" },
+          { targets: [0, 1, 2, 5, 6, 7, 8], orderable: true, orderDataType: "dom-ru-text", type: "string" },
+          { targets: [9], orderable: false },
+        ],
+        footerCallback: function () {
+          updateClaimsTotalRow(this.api());
+        },
+        afterInit: function (dataTable) {
+          updateClaimsTotalRow(dataTable);
+        },
+      });
+    }
     return initInteractiveDashboardTable({
       tableSelector: "#table-top-deviations",
       wrapperSelector: ".dashboard-table-wrap--claims",
@@ -3873,6 +3965,38 @@
   }
 
   function initLawsuitsDataTable() {
+    if (commercialColumnMode) {
+      return initInteractiveDashboardTable({
+        tableSelector: "#table-lawsuits",
+        wrapperSelector: ".dashboard-table-wrap--lawsuits",
+        advancedSearchKey: "lawsuits-table-advanced",
+        useExplicitColumnConfigs: true,
+        columnConfigs: [
+          { index: 0, label: "Тип документа", type: "filter", searchType: "text" },
+          { index: 1, label: "Контрагент", type: "sort", searchType: "text" },
+          { index: 2, label: "Предмет спора", type: "sort", searchType: "text" },
+          { index: 3, label: "Роль ГК в споре", type: "filter", searchType: "text" },
+          { index: 4, label: "Юр. лицо", type: "sort", searchType: "text" },
+          { index: 5, label: "Подразделение", type: "sort", searchType: "text" },
+          { index: 6, label: "Дата SLA", type: "sort", searchType: "date" },
+          { index: 7, label: "Краткое описание ситуации", type: "sort", searchType: "text" },
+          { index: 8, label: "Сумма требований, руб.", type: "sort", searchType: "number" },
+        ],
+        initialOrder: [[LAWSUITS_AMOUNT_COLUMN_INDEX, "desc"]],
+        columnDefs: [
+          { targets: [6], orderable: true, orderDataType: "dom-ru-date", type: "string" },
+          { targets: [LAWSUITS_AMOUNT_COLUMN_INDEX], orderable: true, orderDataType: "dom-ru-number", type: "num" },
+          { targets: [1, 2, 4, 5, 7], orderable: true, orderDataType: "dom-ru-text", type: "string" },
+          { targets: [0, 3], orderable: false },
+        ],
+        footerCallback: function () {
+          updateLawsuitsTotalRow(this.api());
+        },
+        afterInit: function (dataTable) {
+          updateLawsuitsTotalRow(dataTable);
+        },
+      });
+    }
     return initInteractiveDashboardTable({
       tableSelector: "#table-lawsuits",
       wrapperSelector: ".dashboard-table-wrap--lawsuits",
@@ -4136,7 +4260,10 @@
     }
     if (isClaimsTableRow(item)) {
       var r2 = item && item.raw && typeof item.raw === "object" ? item.raw : null;
-      return r2 ? parseTableRublesAmount(r2.order_sum) : NaN;
+      if (!r2) return NaN;
+      var claimSum = parseTableRublesAmount(r2.order_sum);
+      if (!isFinite(claimSum) || claimSum <= 0) return null;
+      return claimSum;
     }
     return null;
   }
@@ -4323,6 +4450,7 @@
     rows = rows.filter(function (item) {
       return !isTableCacheStatusMarker(item);
     });
+    commercialColumnMode = !!options.commercialColumnMode;
     var executiveMode = !!options.executiveMode;
     var enhanceOverdueDebtTable = !!options.enhanceOverdueDebtTable;
     var enableLawsuitsTable = !!options.enableLawsuitsTable;
@@ -4551,7 +4679,7 @@
     renderClaimsTableRows(rows);
     renderOverdueDebtTableRows(rows);
     initClaimsDataTable();
-    if (!enhanceOverdueDebtTable) initOverdueDebtDataTable();
+    if (!enhanceOverdueDebtTable && !commercialColumnMode) initOverdueDebtDataTable();
     if (juristContractsTableMode) {
       renderJuristContractsTableRows(rows, options.juristContractsFilter || {});
       initJuristContractsDataTable();
@@ -4593,9 +4721,330 @@
     }
   }
 
+  var PLAIN_SORT_UP = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M6 2L2 7h8L6 2z" fill="currentColor"/></svg>';
+  var PLAIN_SORT_DOWN = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M6 10L2 5h8L6 10z" fill="currentColor"/></svg>';
+  var PLAIN_SORT_BOTH = '<svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M6 1L3 4.5h6L6 1z" fill="currentColor"/><path d="M6 11L3 7.5h6L6 11z" fill="currentColor"/></svg>';
+  var PLAIN_FILTER_ICON =
+    '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true">' +
+    '<path d="M2 3h12l-4.8 5.3v3.2l-2.4 1.5V8.3L2 3z" fill="currentColor"/></svg>';
+
+  function plainDateOrderKey(value) {
+    var text = String(value || "").trim();
+    var match = text.match(/(\d{2})\.(\d{2})\.(\d{4})/);
+    if (match) return match[3] + match[2] + match[1];
+    match = text.match(/(\d{4})-(\d{2})-(\d{2})/);
+    if (match) return match[1] + match[2] + match[3];
+    return "";
+  }
+
+  function plainColumnState(tableId) {
+    var key = String(tableId || "");
+    if (!plainColumnStates[key]) {
+      plainColumnStates[key] = { sortIndex: null, sortDir: "", filters: {} };
+    }
+    return plainColumnStates[key];
+  }
+
+  function comparePlainValues(left, right, dir) {
+    var emptyLeft = left == null || left === "";
+    var emptyRight = right == null || right === "";
+    if (emptyLeft && emptyRight) return 0;
+    if (emptyLeft) return 1;
+    if (emptyRight) return -1;
+    var result;
+    if (typeof left === "number" && typeof right === "number") result = left - right;
+    else result = String(left).localeCompare(String(right), "ru", { numeric: true, sensitivity: "base" });
+    return dir === "desc" ? -result : result;
+  }
+
+  function sortAndFilterRows(rows, state, getter) {
+    var source = Array.isArray(rows) ? rows : [];
+    var filters = state && state.filters ? state.filters : {};
+    var filtered = source.filter(function (row) {
+      for (var key in filters) {
+        if (!Object.prototype.hasOwnProperty.call(filters, key)) continue;
+        var selected = filters[key];
+        if (!Array.isArray(selected) || !selected.length) continue;
+        var label = String(getter(row, Number(key), "label") == null ? "" : getter(row, Number(key), "label"));
+        if (selected.indexOf(label) === -1) return false;
+      }
+      return true;
+    });
+    if (!state || state.sortIndex == null || !state.sortDir) return filtered;
+    var index = state.sortIndex;
+    var dir = state.sortDir;
+    return filtered.slice().sort(function (a, b) {
+      return comparePlainValues(getter(a, index, "sort"), getter(b, index, "sort"), dir);
+    });
+  }
+
+  function plainDomSortValue(cell, searchType) {
+    if (!cell) return null;
+    var stored = cell.getAttribute("data-order");
+    var text = stored != null && stored !== "" ? stored : String(cell.textContent || "").replace(/\s+/g, " ").trim();
+    if (!text || text === "—") return null;
+    if (searchType === "number") {
+      var number = Number(String(text).replace(/\s/g, "").replace("%", "").replace(",", "."));
+      return isNaN(number) ? null : number;
+    }
+    if (searchType === "date") {
+      if (/^\d{8}$/.test(text)) return text;
+      return plainDateOrderKey(text) || null;
+    }
+    return text.toLocaleLowerCase("ru-RU");
+  }
+
+  function closePlainColumnMenus(table) {
+    if (!table) return;
+    table.querySelectorAll(".claims-column-filter-menu").forEach(function (menu) {
+      menu.hidden = true;
+    });
+  }
+
+  function applyPlainColumnDom(table, state, columns) {
+    var tbody = table.tBodies && table.tBodies[0];
+    if (!tbody) return;
+    var byIndex = {};
+    (columns || []).forEach(function (column) {
+      byIndex[column.index] = column;
+    });
+    var rows = Array.prototype.filter.call(tbody.rows, function (row) {
+      return row.cells.length > 1 && !row.classList.contains("commercial-column-filter-empty");
+    });
+    var filters = state.filters || {};
+    rows.forEach(function (row) {
+      var visible = true;
+      for (var key in filters) {
+        if (!Object.prototype.hasOwnProperty.call(filters, key)) continue;
+        var selected = filters[key];
+        if (!Array.isArray(selected) || !selected.length) continue;
+        var cell = row.cells[Number(key)];
+        var label = cell ? String(cell.textContent || "").replace(/\s+/g, " ").trim() : "";
+        if (selected.indexOf(label) === -1) visible = false;
+      }
+      row.hidden = !visible;
+    });
+    if (state.sortIndex != null && state.sortDir && byIndex[state.sortIndex]) {
+      var searchType = byIndex[state.sortIndex].searchType;
+      var index = state.sortIndex;
+      rows.sort(function (a, b) {
+        return comparePlainValues(
+          plainDomSortValue(a.cells[index], searchType),
+          plainDomSortValue(b.cells[index], searchType),
+          state.sortDir
+        );
+      });
+      rows.forEach(function (row) {
+        tbody.appendChild(row);
+      });
+    }
+    var visibleCount = rows.filter(function (row) { return !row.hidden; }).length;
+    var placeholder = tbody.querySelector(".commercial-column-filter-empty");
+    if (!visibleCount && rows.length) {
+      if (!placeholder) {
+        placeholder = document.createElement("tr");
+        placeholder.className = "commercial-column-filter-empty";
+        var cell = document.createElement("td");
+        cell.colSpan = table.querySelectorAll("thead th").length || 1;
+        cell.textContent = "Нет строк по выбранному фильтру.";
+        placeholder.appendChild(cell);
+        tbody.appendChild(placeholder);
+      }
+      placeholder.hidden = false;
+    } else if (placeholder) {
+      placeholder.remove();
+    }
+  }
+
+  function installPlainColumnControls(table, options) {
+    if (!table || !table.tHead) return;
+    options = options || {};
+    var columns = Array.isArray(options.columns) ? options.columns : [];
+    var state = plainColumnState(table.id);
+    var headers = table.tHead.querySelectorAll("tr:first-child th");
+    if (!headers.length || headers.length < columns.length) return;
+    var menus = [];
+    function choicesFor(column) {
+      var provided = options.filterChoices && options.filterChoices[column.index];
+      if (Array.isArray(provided) && provided.length) return provided.slice();
+      var seen = [];
+      var body = table.tBodies && table.tBodies[0];
+      if (!body) return seen;
+      Array.prototype.forEach.call(body.rows, function (row) {
+        if (row.cells.length <= column.index || row.classList.contains("commercial-column-filter-empty")) return;
+        var text = String(row.cells[column.index].textContent || "").replace(/\s+/g, " ").trim();
+        if (!text || seen.indexOf(text) !== -1) return;
+        seen.push(text);
+      });
+      seen.sort(function (a, b) { return a.localeCompare(b, "ru"); });
+      return seen;
+    }
+    function paintSortButtons() {
+      headers.forEach(function (header) {
+        var button = header.querySelector(".claims-column-sort-btn");
+        if (!button) return;
+        var index = Number(button.getAttribute("data-column-index"));
+        var active = state.sortIndex === index && !!state.sortDir;
+        button.innerHTML = !active ? PLAIN_SORT_BOTH : state.sortDir === "desc" ? PLAIN_SORT_DOWN : PLAIN_SORT_UP;
+        button.classList.toggle("is-active", active);
+      });
+    }
+    function apply(keepMenuOpen) {
+      applyPlainColumnDom(table, state, columns);
+      paintSortButtons();
+      if (!keepMenuOpen) closePlainColumnMenus(table);
+      if (typeof options.onChange === "function") options.onChange(state, table);
+    }
+    columns.forEach(function (column) {
+      var header = headers[column.index];
+      if (!header || column.type === "none") return;
+      var label = column.label || String(header.textContent || "").trim();
+      header.classList.add("claims-column-head");
+      header.textContent = "";
+      var title = document.createElement("span");
+      title.className = "claims-column-head-text claims-column-head-text--action";
+      title.textContent = label;
+      if (column.type === "sort") {
+        var sortButton = document.createElement("button");
+        sortButton.type = "button";
+        sortButton.className = "claims-column-sort-btn";
+        sortButton.setAttribute("data-column-index", String(column.index));
+        sortButton.setAttribute("aria-label", "Сортировка " + label);
+        sortButton.innerHTML = PLAIN_SORT_BOTH;
+        function toggleSort(event) {
+          event.preventDefault();
+          event.stopPropagation();
+          if (state.sortIndex === column.index && state.sortDir === "asc") state.sortDir = "desc";
+          else if (state.sortIndex === column.index && state.sortDir === "desc") {
+            state.sortIndex = null;
+            state.sortDir = "";
+          } else {
+            state.sortIndex = column.index;
+            state.sortDir = "asc";
+          }
+          apply(false);
+        }
+        sortButton.addEventListener("click", toggleSort);
+        title.addEventListener("click", toggleSort);
+        header.appendChild(title);
+        header.appendChild(sortButton);
+        return;
+      }
+      var selected = Array.isArray(state.filters[column.index]) ? state.filters[column.index] : [];
+      var resetButton = document.createElement("button");
+      resetButton.type = "button";
+      resetButton.className = "claims-column-filter-reset";
+      resetButton.setAttribute("aria-label", "Сбросить фильтр по колонке " + label);
+      resetButton.textContent = "×";
+      resetButton.hidden = !selected.length;
+      var trigger = document.createElement("button");
+      trigger.type = "button";
+      trigger.className = "claims-column-filter-trigger";
+      trigger.classList.toggle("is-active", !!selected.length);
+      trigger.setAttribute("aria-label", "Фильтр по колонке " + label);
+      trigger.innerHTML = PLAIN_FILTER_ICON;
+      var menu = document.createElement("div");
+      menu.className = "claims-column-filter-menu";
+      menu.hidden = true;
+      var menuTitle = document.createElement("p");
+      menuTitle.className = "claims-column-filter-title";
+      menuTitle.textContent = label;
+      menu.appendChild(menuTitle);
+      var optionsWrap = document.createElement("div");
+      optionsWrap.className = "claims-column-filter-options";
+      choicesFor(column).forEach(function (value) {
+        var option = document.createElement("label");
+        option.className = "claims-column-filter-check";
+        var checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.value = value;
+        checkbox.checked = selected.indexOf(value) !== -1;
+        checkbox.addEventListener("change", function () {
+          var next = [];
+          optionsWrap.querySelectorAll('input[type="checkbox"]:checked').forEach(function (input) {
+            next.push(input.value);
+          });
+          state.filters[column.index] = next;
+          resetButton.hidden = !next.length;
+          trigger.classList.toggle("is-active", !!next.length);
+          apply(true);
+        });
+        var caption = document.createElement("span");
+        caption.textContent = value;
+        option.appendChild(checkbox);
+        option.appendChild(caption);
+        optionsWrap.appendChild(option);
+      });
+      menu.appendChild(optionsWrap);
+      resetButton.addEventListener("click", function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+        state.filters[column.index] = [];
+        menu.querySelectorAll('input[type="checkbox"]').forEach(function (input) {
+          input.checked = false;
+        });
+        resetButton.hidden = true;
+        trigger.classList.remove("is-active");
+        apply(false);
+      });
+      function toggleMenu(event) {
+        event.preventDefault();
+        event.stopPropagation();
+        var open = menu.hidden;
+        closePlainColumnMenus(table);
+        menu.hidden = !open;
+      }
+      trigger.addEventListener("click", toggleMenu);
+      title.addEventListener("click", toggleMenu);
+      header.appendChild(title);
+      header.appendChild(resetButton);
+      header.appendChild(trigger);
+      header.appendChild(menu);
+      menus.push(menu);
+    });
+    if (!table._plainColumnMenuBound) {
+      table._plainColumnMenuBound = true;
+      document.addEventListener("pointerdown", function (event) {
+        var target = event.target;
+        if (target && target.closest) {
+          if (target.closest(".claims-column-filter-menu")) return;
+          var head = target.closest("th.claims-column-head");
+          if (head && head.querySelector(".claims-column-filter-trigger")) return;
+        }
+        closePlainColumnMenus(table);
+      }, true);
+    }
+    apply(false);
+  }
+
+  var OVERDUE_COLUMN_CONTROLS = [
+    { index: 0, label: "№ Заказа клиента", type: "sort", searchType: "text" },
+    { index: 1, label: "Контрагент", type: "sort", searchType: "text" },
+    { index: 2, label: "Просрочка, дн.", type: "sort", searchType: "number" },
+    { index: 3, label: "Подразделение", type: "sort", searchType: "text" },
+    { index: 4, label: "Причина", type: "filter", searchType: "text" },
+    { index: 5, label: "Действие", type: "sort", searchType: "text" },
+    { index: 6, label: "Дата контакта", type: "sort", searchType: "date" },
+    { index: 7, label: "Дата следующего контакта", type: "sort", searchType: "date" },
+    { index: 8, label: "Менеджер", type: "sort", searchType: "text" },
+    { index: 9, label: "Сумма, руб", type: "sort", searchType: "number" },
+  ];
+
+  function installOverdueColumnControls(table) {
+    installPlainColumnControls(table, {
+      columns: OVERDUE_COLUMN_CONTROLS,
+      onChange: function () {
+        updateOverdueDebtTotalRow(null);
+      },
+    });
+  }
+
   global.DashboardClaimsTable = {
     init: init,
     refreshOverdueDebt: refreshOverdueDebt,
     hasProtocolOverdueTableRows: hasProtocolOverdueTableRows,
+    plainColumnState: plainColumnState,
+    sortAndFilterRows: sortAndFilterRows,
+    installPlainColumnControls: installPlainColumnControls,
   };
 })(typeof window !== "undefined" ? window : globalThis);

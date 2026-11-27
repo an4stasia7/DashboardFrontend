@@ -287,16 +287,17 @@
   }
 
   var COMMERCIAL_DEPTS = [
-    ["отдел вэд", "49480c10-e401-11e8-8283-ac1f6b05524d"],
-    ["овэд", "49480c10-e401-11e8-8283-ac1f6b05524d"],
-    ["отдел внешнеэкономической деятельности", "49480c10-e401-11e8-8283-ac1f6b05524d"],
-    ["отдел продаж эталонного оборудования и услуг", "34497ef7-810f-11e4-80d6-001e67112509"],
-    ["опэоиу", "34497ef7-810f-11e4-80d6-001e67112509"],
-    ["отдел продаж бми", "9edaa7d4-37a5-11ee-93d3-6cb31113810e"],
-    ["отдел по работе с ключевыми клиентами", "639ec87b-67b6-11eb-8523-ac1f6b05524d"],
-    ["отдел дилерских продаж", "7587c178-92f6-11f0-96f9-6cb31113810e"],
-    ["одп", "7587c178-92f6-11f0-96f9-6cb31113810e"],
-    ["отдел по работе с пао газпром", "bd7b5184-9f9c-11e4-80da-001e67112509"],
+    ["отдел вэд", "49480c10-e401-11e8-8283-ac1f6b05524d", "Отдел внешнеэкономической деятельности"],
+    ["овэд", "49480c10-e401-11e8-8283-ac1f6b05524d", "Отдел внешнеэкономической деятельности"],
+    ["отдел внешнеэкономической деятельности", "49480c10-e401-11e8-8283-ac1f6b05524d", "Отдел внешнеэкономической деятельности"],
+    ["отдел продаж эталонного оборудования и услуг", "34497ef7-810f-11e4-80d6-001e67112509", "Отдел продаж эталонного оборудования и услуг"],
+    ["опэоиу", "34497ef7-810f-11e4-80d6-001e67112509", "Отдел продаж эталонного оборудования и услуг"],
+    ["отдел продаж бми", "9edaa7d4-37a5-11ee-93d3-6cb31113810e", "Отдел продаж БМИ"],
+    ["отдел по работе с ключевыми клиентами", "639ec87b-67b6-11eb-8523-ac1f6b05524d", "Отдел по работе с ключевыми клиентами"],
+    ["отдел дилерских продаж", "7587c178-92f6-11f0-96f9-6cb31113810e", "Отдел дилерских продаж"],
+    ["одп", "7587c178-92f6-11f0-96f9-6cb31113810e", "Отдел дилерских продаж"],
+    ["отдел по работе с пао газпром", "bd7b5184-9f9c-11e4-80da-001e67112509", "Отдел по работе с ПАО Газпром"],
+    ["отдел по работе с пао \"газпром\"", "bd7b5184-9f9c-11e4-80da-001e67112509", "Отдел по работе с ПАО Газпром"],
   ];
   var COMMERCIAL_GUIDS = [
     "49480c10-e401-11e8-8283-ac1f6b05524d",
@@ -351,19 +352,54 @@
     };
   }
 
-  function commercialDepartmentGuids(department) {
-    var key = normDept(department);
-    for (var i = 0; i < COMMERCIAL_DEPTS.length; i++) {
-      if (COMMERCIAL_DEPTS[i][0] === key) return [COMMERCIAL_DEPTS[i][1]];
+  function guidToOnecRef(guid) {
+    var hex = String(guid || "").replace(/-/g, "").toLowerCase();
+    if (!/^[0-9a-f]{32}$/.test(hex)) return "";
+    function rev(part) {
+      var out = "";
+      for (var i = part.length; i > 0; i -= 2) out += part.slice(i - 2, i);
+      return out;
     }
-    return COMMERCIAL_GUIDS.slice();
+    return rev(hex.slice(0, 8)) + rev(hex.slice(8, 12)) + rev(hex.slice(12, 16)) + hex.slice(16);
+  }
+
+  function commercialDepartmentRows(department) {
+    var key = normDept(department);
+    var i;
+    for (i = 0; i < COMMERCIAL_DEPTS.length; i++) {
+      if (COMMERCIAL_DEPTS[i][0] === key) return [COMMERCIAL_DEPTS[i]];
+    }
+    if (key.indexOf("вэд") !== -1 || key.indexOf("внешнеэконом") !== -1) {
+      return [COMMERCIAL_DEPTS[0]];
+    }
+    var seen = {};
+    var rows = [];
+    COMMERCIAL_GUIDS.forEach(function (guid) {
+      if (seen[guid]) return;
+      for (var n = 0; n < COMMERCIAL_DEPTS.length; n++) {
+        if (COMMERCIAL_DEPTS[n][1] !== guid || !COMMERCIAL_DEPTS[n][2]) continue;
+        seen[guid] = true;
+        rows.push(COMMERCIAL_DEPTS[n]);
+        break;
+      }
+    });
+    return rows;
   }
 
   function liveReportContext(department) {
     var range = reportPeriodRange() || {};
-    var guids = commercialDepartmentGuids(department);
+    var rows = commercialDepartmentRows(department);
+    var guids = rows.map(function (row) { return row[1]; });
+    var names = rows.map(function (row) { return row[2] || ""; }).filter(Boolean);
+    var departmentRef = "";
+    if (guids.length === 1) {
+      var ref = guidToOnecRef(guids[0]);
+      if (ref) departmentRef = "e1cib/data/Справочник.СтруктураПредприятия?ref=" + ref;
+    }
     return {
       department: department || "",
+      departmentName: guids.length === 1 ? names[0] || "" : "",
+      departmentRef: departmentRef,
       departments: guids.join(","),
       year: range.year || "",
       month: range.month || "",
@@ -418,6 +454,8 @@
           username: creds && creds.username,
           password: creds && creds.password,
           department: ctx.department || "",
+          departmentName: ctx.departmentName || "",
+          departmentRef: ctx.departmentRef || "",
           departments: ctx.departments || "",
           year: ctx.year || "",
           month: ctx.month || "",
@@ -577,7 +615,23 @@
     if (typeof global.getOnecReportDepartment === "function") {
       department = global.getOnecReportDepartment() || department;
     }
-    openReport(btn.getAttribute("data-onec-url"), liveReportContext(department));
+    var ctx = liveReportContext(department);
+    var tileYear = parseInt(btn.getAttribute("data-onec-year"), 10);
+    var tileMonth = parseInt(btn.getAttribute("data-onec-month"), 10);
+    if ((!ctx.start || !ctx.end) && tileYear && tileMonth >= 1 && tileMonth <= 12) {
+      var endDay = lastDay(tileYear, tileMonth);
+      ctx.year = tileYear;
+      ctx.month = tileMonth;
+      ctx.start = isoDate(tileYear, tileMonth, 1);
+      ctx.end = isoDate(tileYear, tileMonth, endDay);
+      ctx.asof = ctx.end;
+      var today = new Date();
+      var todayKey = today.getFullYear() * 10000 + (today.getMonth() + 1) * 100 + today.getDate();
+      if (tileYear * 10000 + tileMonth * 100 + endDay > todayKey) {
+        ctx.asof = isoDate(today.getFullYear(), today.getMonth() + 1, today.getDate());
+      }
+    }
+    openReport(btn.getAttribute("data-onec-url"), ctx);
   }
 
   if (global.document && global.document.addEventListener) {

@@ -2837,7 +2837,7 @@ article.kpi-tile[data-no-flip="1"] {
 .kpi-tile {
   border-radius: 6px;
   box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 8px 18px rgba(15, 23, 42, 0.05);
-  min-height: 286px;
+  min-height: 318px;
 }
 
 .kpi-tile:hover {
@@ -2846,7 +2846,7 @@ article.kpi-tile[data-no-flip="1"] {
 }
 
 .kpi-tile-inner {
-  min-height: 286px;
+  min-height: 318px;
 }
 
 .kpi-tile-face {
@@ -2863,13 +2863,13 @@ article.kpi-tile[data-no-flip="1"] {
 }
 
 .kpi-tile-face--front {
-  padding: 20px 22px 18px 22px;
+  padding: 12px 16px 10px 16px;
 }
 
 .kpi-tile-badge-row {
-  top: 18px;
-  right: 20px;
-  gap: 10px;
+  top: 10px;
+  right: 12px;
+  gap: 8px;
 }
 
 .kpi-tile-badge-controls {
@@ -2984,9 +2984,9 @@ article.kpi-tile[data-no-flip="1"] {
 }
 
 .kpi-tile .tile-body {
-  min-height: 96px;
+  min-height: 78px;
   padding-right: 124px;
-  gap: 4px;
+  gap: 2px;
 }
 
 .kpi-tile-face--front h3 {
@@ -3020,7 +3020,7 @@ article.kpi-tile[data-no-flip="1"] {
 .kpi-tile-metrics {
   margin-top: auto;
   margin-right: 0;
-  padding-top: 14px;
+  padding-top: 8px;
   border-top: 1px solid #eef2f7;
 }
 
@@ -3031,7 +3031,7 @@ article.kpi-tile[data-no-flip="1"] {
   grid-template-areas:
     "value value"
     "spark plan";
-  gap: 12px 16px;
+  gap: 6px 12px;
   align-items: end;
 }
 
@@ -3317,7 +3317,7 @@ article.kpi-tile[data-no-flip="1"] {
 /* «За месяц» добавляет строку периода, и «Ожидаемо» уезжает за край карточки. */
 .kpi-tile.kpi-tile--has-expected,
 .kpi-tile.kpi-tile--has-expected .kpi-tile-inner {
-  min-height: 292px;
+  min-height: 352px;
 }
 
 .kpi-tile--has-expected .kpi-tile-modern-numbers {

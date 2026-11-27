@@ -1013,6 +1013,15 @@
   hyphens: none;
 }
 
+.claims-column-head-text--action {
+  cursor: pointer;
+}
+
+.claims-column-sort-btn.is-active,
+.claims-column-filter-trigger.is-active {
+  color: var(--accent-blue);
+}
+
 .claims-column-head:has(.claims-column-filter-trigger) .claims-column-head-text {
   display: block;
   padding-right: 58px;
